@@ -1,0 +1,288 @@
+import { onUnmounted, ref, watch } from 'vue';
+import { openDocument, saveDocument, type DocumentOpenResult } from '../services/tauri/document';
+import { normalizeTauriError } from '../services/tauri/client';
+import { confirm, message, open, save } from '../services/tauri/dialog';
+import { useFileStore } from '../stores/file';
+import { useSettingsStore } from '../stores/settings';
+
+export interface AutoSaveStatus {
+  message: string;
+  timestamp: number;
+}
+
+interface DocumentSessionOptions {
+  resetViewMode: () => void;
+}
+
+export function useDocumentSession(options: DocumentSessionOptions) {
+  const fileStore = useFileStore();
+  const settingsStore = useSettingsStore();
+
+  const autoSaveStatus = ref<AutoSaveStatus | null>(null);
+  const externalFileWarning = ref<string | null>(null);
+
+  let autoSaveIntervalId: ReturnType<typeof setInterval> | null = null;
+  let autoSaveStatusTimer: ReturnType<typeof setTimeout> | null = null;
+  let externalWarningTimer: ReturnType<typeof setTimeout> | null = null;
+  let autoSavePaused = false;
+  /** 保存互斥锁：防止自动保存与手动保存并发执行导致冲突 */
+  let isSaving = false;
+
+  /** 大文档阈值（字符数），超过此值弹出提示 */
+  const LARGE_DOC_THRESHOLD = 100_000;
+  /** 自动保存状态消息展示时长（毫秒），超时后自动清除 */
+  const AUTOSAVE_STATUS_DISPLAY_MS = 2000;
+  /** 自动保存间隔下限（秒），与 settings store 保持一致 */
+  const MIN_AUTOSAVE_INTERVAL_SECONDS = 5;
+
+  async function loadDocumentFromPath(path: string): Promise<boolean> {
+    try {
+      fileStore.setLoading(true);
+      const document = await openDocument(path);
+
+      // 大文档提示
+      if (document.content.length > LARGE_DOC_THRESHOLD) {
+        const sizeKB = Math.round(document.content.length / 1024);
+        const proceed = await confirm(
+          `该文件较大（约 ${sizeKB} KB），编辑器可能会变慢。是否继续打开？`,
+          { title: '大文件提示', kind: 'warning', okLabel: '继续打开', cancelLabel: '取消' },
+        );
+        if (!proceed) {
+          fileStore.setLoading(false);
+          return false;
+        }
+      }
+
+      applyLoadedDocument(document);
+      return true;
+    } catch (error) {
+      const { message: errorMessage } = normalizeTauriError(error);
+      console.error('Failed to open document:', errorMessage);
+      await message(`打开文件失败: ${errorMessage}`, { title: '错误', kind: 'error' });
+      return false;
+    } finally {
+      fileStore.setLoading(false);
+    }
+  }
+
+  function applyLoadedDocument(document: DocumentOpenResult) {
+    fileStore.setFile(document.content, document.path, document.lastModifiedMs);
+  }
+
+  async function confirmDiscardUnsavedChanges() {
+    if (!fileStore.currentFile.path && !fileStore.currentFile.content.trim()) {
+      return true;
+    }
+    if (!fileStore.currentFile.isDirty) {
+      return true;
+    }
+
+    return confirm('当前文件有未保存的更改，是否放弃更改？', {
+      title: '未保存的更改',
+      kind: 'warning',
+      okLabel: '放弃更改',
+      cancelLabel: '取消',
+    });
+  }
+
+  async function openDocumentWithPrompt(path: string) {
+    if (!(await confirmDiscardUnsavedChanges())) {
+      return false;
+    }
+
+    const loaded = await loadDocumentFromPath(path);
+    if (loaded) {
+      clearExternalWarning();
+      options.resetViewMode();
+    }
+    return loaded;
+  }
+
+  async function handleNewDocument() {
+    if (!(await confirmDiscardUnsavedChanges())) {
+      return;
+    }
+
+    clearExternalWarning();
+    fileStore.reset();
+    options.resetViewMode();
+  }
+
+  async function handleOpenDocument() {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }],
+    });
+    if (selected && typeof selected === 'string') {
+      await openDocumentWithPrompt(selected);
+    }
+  }
+
+  async function persistDocument(
+    path: string,
+    force: boolean,
+    expectedLastModifiedMs?: number | null,
+  ) {
+    return saveDocument(path, fileStore.currentFile.content, expectedLastModifiedMs, force);
+  }
+
+  async function saveCurrentDocument(force = false): Promise<boolean> {
+    // 保存互斥锁：正在保存时跳过，避免自动保存与手动保存并发冲突
+    if (isSaving) {
+      return false;
+    }
+
+    const currentFile = fileStore.currentFile;
+    if (!currentFile.path) {
+      return saveCurrentDocumentAs();
+    }
+
+    isSaving = true;
+    try {
+      const result = await persistDocument(currentFile.path, force, currentFile.lastModifiedTime);
+      fileStore.markSaved(result.lastModifiedMs);
+      autoSavePaused = false;
+      return true;
+    } catch (error) {
+      const appError = normalizeTauriError(error);
+      if (appError.code === 'document_conflict' && !force) {
+        const confirmed = await confirm('文件已被外部修改，是否强制覆盖？', {
+          title: '检测到冲突',
+          kind: 'warning',
+          okLabel: '强制覆盖',
+          cancelLabel: '取消',
+        });
+        if (!confirmed) {
+          return false;
+        }
+        // 递归调用前释放锁，避免死锁
+        isSaving = false;
+        return saveCurrentDocument(true);
+      }
+
+      console.error('Failed to save document:', appError.message);
+      await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
+      return false;
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  async function saveCurrentDocumentAs(): Promise<boolean> {
+    // 另存为也需要互斥锁
+    if (isSaving) {
+      return false;
+    }
+
+    const selected = await save({
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    });
+    if (!selected) {
+      return false;
+    }
+
+    isSaving = true;
+    try {
+      const result = await persistDocument(selected, true, null);
+      fileStore.setFile(fileStore.currentFile.content, result.path, result.lastModifiedMs);
+      fileStore.markSaved(result.lastModifiedMs);
+      clearExternalWarning();
+      return true;
+    } catch (error) {
+      const appError = normalizeTauriError(error);
+      console.error('Failed to save document:', appError.message);
+      await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
+      return false;
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  function clearExternalWarning() {
+    if (externalWarningTimer) {
+      clearTimeout(externalWarningTimer);
+      externalWarningTimer = null;
+    }
+    externalFileWarning.value = null;
+  }
+
+  async function handleWorkspaceChange(_payload: { rootPath: string; kind: string; paths: string[] }) {
+    // workspace 功能已移除，保留接口兼容
+  }
+
+  function updateAutoSaveStatus(messageText: string) {
+    if (autoSaveStatusTimer) {
+      clearTimeout(autoSaveStatusTimer);
+    }
+
+    const timestamp = Date.now();
+    autoSaveStatus.value = {
+      message: messageText,
+      timestamp,
+    };
+    autoSaveStatusTimer = setTimeout(() => {
+      if (autoSaveStatus.value?.timestamp === timestamp) {
+        autoSaveStatus.value = null;
+      }
+    }, AUTOSAVE_STATUS_DISPLAY_MS);
+  }
+
+  function stopAutoSave() {
+    if (autoSaveIntervalId) {
+      clearInterval(autoSaveIntervalId);
+      autoSaveIntervalId = null;
+    }
+  }
+
+  watch(
+    () => [settingsStore.settings.autoSave, settingsStore.settings.autoSaveInterval] as const,
+    ([enabled, intervalSeconds]) => {
+      stopAutoSave();
+      if (!enabled) {
+        return;
+      }
+
+      // 下限保护：即使配置异常也不会导致过于频繁的保存
+      const safeIntervalSeconds = Math.max(intervalSeconds, MIN_AUTOSAVE_INTERVAL_SECONDS);
+
+      autoSaveIntervalId = setInterval(async () => {
+        if (!fileStore.currentFile.isDirty || !fileStore.currentFile.path) {
+          return;
+        }
+        if (autoSavePaused) {
+          return;
+        }
+
+        const saved = await saveCurrentDocument();
+        if (saved) {
+          autoSavePaused = false;
+          updateAutoSaveStatus('已自动保存');
+        } else {
+          // 保存失败（可能是冲突），暂停自动保存避免定时弹框
+          autoSavePaused = true;
+        }
+      }, safeIntervalSeconds * 1000);
+    },
+    { immediate: true },
+  );
+
+  onUnmounted(() => {
+    stopAutoSave();
+    if (autoSaveStatusTimer) {
+      clearTimeout(autoSaveStatusTimer);
+    }
+    clearExternalWarning();
+  });
+
+  return {
+    autoSaveStatus,
+    externalFileWarning,
+    loadDocumentFromPath,
+    openDocumentWithPrompt,
+    handleNewDocument,
+    handleOpenDocument,
+    saveCurrentDocument,
+    saveCurrentDocumentAs,
+    handleWorkspaceChange,
+  };
+}

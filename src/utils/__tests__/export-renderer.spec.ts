@@ -1,0 +1,173 @@
+import { describe, expect, it } from 'vitest';
+import { createMarkdownCompatSchema } from '../../components/Editor/tiptap/markdown/compat-schema';
+import {
+  buildExportTree,
+  renderEditorDocToHtmlDocument,
+  renderEditorDocToWechatFragment,
+} from '../export-renderer';
+
+function createSemanticDoc() {
+  const schema = createMarkdownCompatSchema();
+
+  return schema.nodes.doc.create(null, [
+    schema.nodes.heading.create({ level: 1 }, [schema.text('Heading')]),
+    schema.nodes.paragraph.create(null, [
+      schema.nodes.wikilink.create({ target: 'Page', alias: 'Alias' }),
+    ]),
+    schema.nodes.paragraph.create(null, [schema.nodes.mathInline.create({ latex: 'inline' })]),
+    schema.nodes.mathBlock.create(null, [schema.text('a^2 + b^2 = c^2')]),
+    schema.nodes.mermaidBlock.create(null, [schema.text('graph TD\nA-->B')]),
+    schema.nodes.table.create(null, [
+      schema.nodes.tableRow.create(null, [
+        schema.nodes.tableHeader.create(null, [
+          schema.nodes.paragraph.create(null, [schema.text('H1')]),
+        ]),
+        schema.nodes.tableHeader.create(null, [
+          schema.nodes.paragraph.create(null, [schema.text('H2')]),
+        ]),
+      ]),
+      schema.nodes.tableRow.create(null, [
+        schema.nodes.tableCell.create(null, [
+          schema.nodes.paragraph.create(null, [schema.text('A')]),
+        ]),
+        schema.nodes.tableCell.create(null, [
+          schema.nodes.paragraph.create(null, [schema.text('B')]),
+        ]),
+      ]),
+    ]),
+    schema.nodes.taskList.create(null, [
+      schema.nodes.taskItem.create({ checked: true }, [
+        schema.nodes.paragraph.create(null, [schema.text('done')]),
+      ]),
+    ]),
+  ]);
+}
+
+describe('buildExportTree', () => {
+  it('builds semantic headings and keeps stable mark order', () => {
+    const schema = createMarkdownCompatSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.heading.create({ level: 2 }, [schema.text('Export Title')]),
+      schema.nodes.paragraph.create(null, [
+        schema.text('Hello', [schema.marks.bold.create(), schema.marks.italic.create()]),
+      ]),
+    ]);
+
+    const tree = buildExportTree(doc);
+
+    expect(tree.blocks).toHaveLength(2);
+    expect(tree.blocks[0]).toMatchObject({
+      kind: 'heading',
+      level: 2,
+      inlines: [{ kind: 'text', text: 'Export Title' }],
+    });
+    expect(tree.blocks[1]).toMatchObject({
+      kind: 'paragraph',
+      inlines: [
+        {
+          kind: 'text',
+          text: 'Hello',
+          marks: [{ kind: 'bold' }, { kind: 'italic' }],
+        },
+      ],
+    });
+  });
+
+  it('extracts custom node attrs', () => {
+    const schema = createMarkdownCompatSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.paragraph.create(null, [
+        schema.nodes.wikilink.create({ target: 'Roadmap', alias: '产品路线图' }),
+      ]),
+    ]);
+
+    const tree = buildExportTree(doc);
+
+    expect(tree.blocks[0]).toMatchObject({
+      kind: 'paragraph',
+      inlines: [
+        {
+          kind: 'wikilink',
+          target: 'Roadmap',
+          alias: '产品路线图',
+        },
+      ],
+    });
+  });
+});
+
+describe('renderEditorDocToHtmlDocument', () => {
+  it('renders full html document from editor semantics', async () => {
+    const doc = createSemanticDoc();
+
+    const html = await renderEditorDocToHtmlDocument(doc, {
+      themeId: 'blue',
+      fileName: 'fallback',
+    });
+
+    expect(html).toContain('<!doctype html>');
+    expect(html).toContain('data-wikilink="Page"');
+    expect(html).not.toContain('wikilink://');
+    expect(html).toContain('class="ml-export-math-block"');
+    expect(html).toContain('data-mermaid-source="graph TD');
+    expect(html).toContain('class="ml-export-table"');
+    expect(html).toContain('ml-export-task-list');
+  });
+
+  it('sanitizes dangerous link protocols in exported html', async () => {
+    const schema = createMarkdownCompatSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.paragraph.create(null, [
+        schema.text('safe', [
+          schema.marks.link.create({ href: 'https://example.com', title: null }),
+        ]),
+        schema.text(' unsafe', [
+          schema.marks.link.create({ href: 'javascript:alert(1)', title: null }),
+        ]),
+      ]),
+    ]);
+
+    const html = await renderEditorDocToHtmlDocument(doc);
+
+    expect(html).toContain('href="https://example.com"');
+    expect(html).toContain('href="#"');
+    expect(html).not.toContain('href="javascript:alert(1)"');
+  });
+});
+
+describe('renderEditorDocToWechatFragment', () => {
+  it('renders fragment html and plain text fallback with target-specific downgrades', () => {
+    const schema = createMarkdownCompatSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.paragraph.create(null, [
+        schema.nodes.wikilink.create({ target: 'Wiki', alias: '' }),
+      ]),
+      schema.nodes.paragraph.create(null, [schema.nodes.mathInline.create({ latex: 'inline' })]),
+      schema.nodes.mermaidBlock.create(null, [schema.text('graph TD\nA-->B')]),
+    ]);
+
+    const result = renderEditorDocToWechatFragment(doc, { themeId: 'green' });
+
+    expect(result.html).not.toContain('<!doctype html>');
+    expect(result.html).toContain('data-wikilink="Wiki"');
+    expect(result.html).toContain('data-math-inline="true"');
+    expect(result.html).toContain('data-mermaid-source="graph TD');
+    expect(result.text).toContain('Wiki');
+  });
+
+  it('sanitizes dangerous link protocols in copied wechat html', () => {
+    const schema = createMarkdownCompatSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.paragraph.create(null, [
+        schema.text('unsafe', [
+          schema.marks.link.create({ href: 'javascript:alert(1)', title: null }),
+        ]),
+      ]),
+    ]);
+
+    const result = renderEditorDocToWechatFragment(doc);
+
+    expect(result.html).toContain('href="#"');
+    expect(result.html).not.toContain('href="javascript:alert(1)"');
+  });
+});

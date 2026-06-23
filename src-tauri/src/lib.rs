@@ -1,0 +1,347 @@
+mod commands;
+mod error;
+mod events;
+mod menu;
+mod models;
+mod state;
+
+use commands::*;
+use events::emit_app_open_paths;
+use models::{AppOpenPathsPayload, AppOpenSource};
+use state::{LoadedWindows, StartupOpenRequests};
+use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::Manager;
+use tauri_plugin_window_state::StateFlags;
+
+static EARLY_OPEN_REQUEST: Mutex<Option<AppOpenPathsPayload>> = Mutex::new(None);
+
+#[tauri::command]
+fn consume_startup_open_request(
+    state: tauri::State<'_, StartupOpenRequests>,
+) -> Result<Option<AppOpenPathsPayload>, error::AppError> {
+    let payload = state.take()?;
+    append_startup_log(None, format!("consume_startup_open_request: {:?}", payload));
+    Ok(payload)
+}
+
+#[tauri::command]
+fn notify_frontend_ready(
+    loaded_windows: tauri::State<'_, LoadedWindows>,
+    startup_requests: tauri::State<'_, StartupOpenRequests>,
+    window: tauri::WebviewWindow,
+) -> Result<Option<AppOpenPathsPayload>, error::AppError> {
+    loaded_windows.mark_loaded(window.label().to_string())?;
+    let payload = startup_requests.take()?;
+    append_startup_log(
+        Some(&window.app_handle()),
+        format!(
+            "notify_frontend_ready: label={}, payload={:?}",
+            window.label(),
+            payload
+        ),
+    );
+    Ok(payload)
+}
+
+#[tauri::command]
+fn refresh_native_menu_shortcuts(
+    app: tauri::AppHandle,
+    shortcuts: HashMap<String, String>,
+) -> Result<(), error::AppError> {
+    menu::setup_menu(&app, &shortcuts).map_err(error::AppError::from)
+}
+
+#[tauri::command]
+fn reveal_startup_open_log(app: tauri::AppHandle) -> Result<String, error::AppError> {
+    use tauri_plugin_opener::OpenerExt;
+
+    append_startup_log(Some(&app), "reveal_startup_open_log");
+    let path = startup_log_path(Some(&app));
+    let path = path.to_string_lossy().to_string();
+    app.opener()
+        .reveal_item_in_dir(path.clone())
+        .map_err(|error| error::AppError::Native(error.to_string()))?;
+    Ok(path)
+}
+
+fn supported_open_path(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|extension| extension.to_str())
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("md" | "markdown" | "txt")
+    )
+}
+
+fn startup_log_path(app: Option<&tauri::AppHandle>) -> PathBuf {
+    app.and_then(|handle| handle.path().app_log_dir().ok())
+        .unwrap_or_else(std::env::temp_dir)
+        .join("startup-open.log")
+}
+
+fn append_startup_log(app: Option<&tauri::AppHandle>, message: impl AsRef<str>) {
+    let path = startup_log_path(app);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    let timestamp_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default();
+
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "[{}] {}", timestamp_ms, message.as_ref());
+    }
+}
+
+fn normalize_open_path(value: &str, cwd: Option<&str>) -> Option<String> {
+    if value.starts_with('-') {
+        return None;
+    }
+
+    let path = PathBuf::from(value);
+    if !supported_open_path(&path) {
+        return None;
+    }
+
+    let path = if path.is_absolute() {
+        path
+    } else if let Some(cwd) = cwd {
+        PathBuf::from(cwd).join(path)
+    } else {
+        path
+    };
+    path.to_str().map(|value| value.to_string())
+}
+
+fn open_paths_from_args<I, S>(args: I, cwd: Option<&str>) -> Vec<String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    args.into_iter()
+        .filter_map(|arg| normalize_open_path(arg.as_ref(), cwd))
+        .collect()
+}
+
+fn store_early_open_request(payload: AppOpenPathsPayload) {
+    let Ok(mut pending) = EARLY_OPEN_REQUEST.lock() else {
+        return;
+    };
+
+    if let Some(existing) = pending.as_mut() {
+        for path in payload.paths {
+            if !existing.paths.iter().any(|existing_path| existing_path == &path) {
+                existing.paths.push(path);
+            }
+        }
+        return;
+    }
+
+    *pending = Some(payload);
+}
+
+fn take_early_open_request() -> Option<AppOpenPathsPayload> {
+    EARLY_OPEN_REQUEST.lock().ok().and_then(|mut pending| pending.take())
+}
+
+fn dispatch_or_store_open_request(app: &tauri::AppHandle, payload: AppOpenPathsPayload) {
+    append_startup_log(
+        Some(app),
+        format!("dispatch_or_store_open_request: {:?}", payload),
+    );
+
+    let has_loaded_window = app
+        .try_state::<LoadedWindows>()
+        .and_then(|state| state.has_loaded_window().ok())
+        .unwrap_or(false);
+
+    if has_loaded_window {
+        append_startup_log(Some(app), "frontend loaded, emitting app-open-paths");
+        emit_app_open_paths(app, payload);
+    } else if let Some(state) = app.try_state::<StartupOpenRequests>() {
+        append_startup_log(Some(app), "frontend not loaded, storing startup request");
+        let _ = state.replace(payload);
+    } else {
+        append_startup_log(
+            Some(app),
+            "startup state not initialized, storing early request",
+        );
+        store_early_open_request(payload);
+    }
+}
+
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            append_startup_log(
+                Some(app),
+                format!("single-instance args={:?}, cwd={}", args, cwd),
+            );
+            let paths = open_paths_from_args(args, Some(&cwd));
+            if !paths.is_empty() {
+                dispatch_or_store_open_request(
+                    app,
+                    AppOpenPathsPayload {
+                        paths,
+                        source: AppOpenSource::SingleInstance,
+                    },
+                );
+            }
+        }))
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_cli::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    StateFlags::SIZE
+                        | StateFlags::POSITION
+                        | StateFlags::MAXIMIZED
+                        | StateFlags::FULLSCREEN,
+                )
+                .map_label(|label| {
+                    if label.starts_with("main-") {
+                        "secondary"
+                    } else {
+                        label
+                    }
+                })
+                .build(),
+        )
+        .setup(|app| {
+            app.manage(StartupOpenRequests::default());
+            app.manage(LoadedWindows::default());
+
+            {
+                if let Some(payload) = take_early_open_request() {
+                    append_startup_log(
+                        Some(&app.handle()),
+                        format!("setup recovered early open request={:?}", payload),
+                    );
+                    if let Some(state) = app.try_state::<StartupOpenRequests>() {
+                        let _ = state.replace(payload);
+                    }
+                }
+
+                let raw_args = std::env::args().collect::<Vec<_>>();
+                append_startup_log(
+                    Some(&app.handle()),
+                    format!("setup raw args={:?}", raw_args),
+                );
+
+                let raw_paths = open_paths_from_args(raw_args.iter().skip(1), None);
+                if !raw_paths.is_empty() {
+                    append_startup_log(
+                        Some(&app.handle()),
+                        format!("startup paths from raw args={:?}", raw_paths),
+                    );
+                    if let Some(state) = app.try_state::<StartupOpenRequests>() {
+                        let _ = state.replace(AppOpenPathsPayload {
+                            paths: raw_paths,
+                            source: AppOpenSource::Cli,
+                        });
+                    }
+                }
+
+                use tauri_plugin_cli::CliExt;
+                if let Ok(matches) = app.cli().matches() {
+                    if let Some(file_arg) = matches.args.get("file") {
+                        if let Some(file_path) = file_arg.value.as_str() {
+                            append_startup_log(
+                                Some(&app.handle()),
+                                format!("startup cli file arg={}", file_path),
+                            );
+                            if let Some(file_path) = normalize_open_path(file_path, None) {
+                                if let Some(state) = app.try_state::<StartupOpenRequests>() {
+                                    let _ = state.replace(AppOpenPathsPayload {
+                                        paths: vec![file_path],
+                                        source: AppOpenSource::Cli,
+                                    });
+                                }
+                            } else if let Some(state) = app.try_state::<StartupOpenRequests>() {
+                                let _ = state.replace(AppOpenPathsPayload {
+                                    paths: vec![file_path.to_string()],
+                                    source: AppOpenSource::Cli,
+                                });
+                            };
+                        }
+                    }
+                }
+            }
+
+            menu::setup_menu(&app.handle(), &HashMap::new()).map_err(error::AppError::from)?;
+            menu::attach_menu_events(&app.handle());
+
+            if let Some(main_window) = app.get_webview_window("main") {
+                #[cfg(any(target_os = "windows", target_os = "linux"))]
+                main_window
+                    .set_decorations(false)
+                    .map_err(error::AppError::from)?;
+
+                #[cfg(target_os = "macos")]
+                apply_macos_window_background(&main_window, "#ffffff")?;
+
+                #[cfg(debug_assertions)]
+                if std::env::var_os("MARKLIGHT_OPEN_DEVTOOLS").is_some() {
+                    main_window.open_devtools();
+                }
+
+                attach_close_interceptor(&main_window);
+            }
+
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            open_document,
+            save_document,
+            import_document_image,
+            resolve_document_image_path,
+            authorize_image_asset,
+            fetch_remote_image,
+            consume_startup_open_request,
+            notify_frontend_ready,
+            refresh_native_menu_shortcuts,
+            reveal_startup_open_log,
+            print_document,
+            reveal_in_finder,
+            set_window_background_color,
+            register_shell_new,
+            unregister_shell_new
+        ])
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|_app_handle, _event| {
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            if let tauri::RunEvent::Opened { urls } = &event {
+                append_startup_log(
+                    Some(app_handle),
+                    format!("RunEvent::Opened urls={:?}", urls),
+                );
+                let paths = urls
+                    .iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .filter_map(|path| path.to_str().map(|value| value.to_string()))
+                    .collect::<Vec<_>>();
+
+                if !paths.is_empty() {
+                    dispatch_or_store_open_request(
+                        app_handle,
+                        AppOpenPathsPayload {
+                            paths,
+                            source: AppOpenSource::OsOpen,
+                        },
+                    );
+                }
+            }
+        });
+}

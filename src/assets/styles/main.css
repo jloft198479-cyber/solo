@@ -1,0 +1,454 @@
+@import 'tailwindcss';
+
+/* ── 字体变量 ──────────────────────────────────────────────── */
+:root {
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-text:
+    'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC',
+    'Hiragino Sans GB', 'STHeiti', system-ui, sans-serif;
+}
+
+/* ── 浅色主题（书卷气） ────────────────────────────────────── */
+:root {
+  /* 主色调 — 墨色系 */
+  --primary-color: #8b7355;
+  --primary-hover: #6b5a3e;
+  --primary-light: rgba(139, 115, 85, 0.08);
+
+  /* 背景 & 文字 — 宣纸色 */
+  --bg-color: #faf8f5;
+  --bg-secondary: #f5f1eb;
+  --text-color: #2c2416;
+  --text-secondary: #5c5040;
+
+  /* 侧边栏 */
+  --sidebar-bg: #f5f1eb;
+  --sidebar-hover: rgba(0, 0, 0, 0.04);
+
+  /* 边框 */
+  --border-color: #e4ddd2;
+  --border-light: #ede8df;
+
+  /* 弱化文字 */
+  --muted-color: #9a8e7e;
+
+  /* 代码 */
+  --code-bg: #f3efe8;
+  --code-border: #e4ddd2;
+
+  /* 交互状态 */
+  --hover-bg: rgba(139, 115, 85, 0.05);
+  --active-bg: rgba(139, 115, 85, 0.08);
+  --selected-bg: rgba(139, 115, 85, 0.1);
+
+  /* 引用 & 标签 */
+  --quote-bg: rgba(139, 115, 85, 0.04);
+  --tag-bg: rgba(139, 115, 85, 0.1);
+  --tag-color: #8b7355;
+
+  /* 状态颜色 */
+  --success-color: #6b8e5a;
+  --success-bg: rgba(107, 142, 90, 0.1);
+  --warning-color: #b8860b;
+  --warning-bg: rgba(184, 134, 11, 0.1);
+  --error-color: #c05050;
+  --error-bg: rgba(192, 80, 80, 0.1);
+  --info-color: #5a7e9e;
+  --info-bg: rgba(90, 126, 158, 0.1);
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(44, 36, 22, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(44, 36, 22, 0.06), 0 2px 4px -2px rgba(44, 36, 22, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(44, 36, 22, 0.08), 0 4px 6px -4px rgba(44, 36, 22, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(44, 36, 22, 0.1), 0 8px 10px -6px rgba(44, 36, 22, 0.04);
+
+  /* 圆角 */
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  /* 弹窗/模态框 */
+  --modal-bg: #faf8f5;
+  --modal-border: #e4ddd2;
+  --modal-overlay: rgba(44, 36, 22, 0.4);
+  --modal-shadow: 0 25px 50px -12px rgba(44, 36, 22, 0.2);
+
+  /* 输入框 */
+  --input-bg: #ffffff;
+  --input-border: #e4ddd2;
+  --input-focus-border: #8b7355;
+  --input-focus-shadow: 0 0 0 3px rgba(139, 115, 85, 0.1);
+  --input-placeholder: #b0a898;
+
+  /* 按钮 */
+  --btn-primary-bg: #8b7355;
+  --btn-primary-hover: #6b5a3e;
+  --btn-primary-text: #faf8f5;
+  --btn-secondary-bg: rgba(139, 115, 85, 0.08);
+  --btn-secondary-hover: rgba(139, 115, 85, 0.14);
+  --btn-secondary-text: #5c5040;
+  --btn-ghost-bg: transparent;
+  --btn-ghost-hover: rgba(139, 115, 85, 0.06);
+
+  /* 浮动菜单 */
+  --popover-bg: #faf8f5;
+  --popover-border: #e4ddd2;
+  --popover-shadow: 0 10px 15px -3px rgba(44, 36, 22, 0.1);
+
+  /* Callout */
+  --callout-note: #5a7e9e;
+  --callout-note-bg: rgba(90, 126, 158, 0.06);
+  --callout-tip: #6b8e5a;
+  --callout-tip-bg: rgba(107, 142, 90, 0.06);
+  --callout-warning: #b8860b;
+  --callout-warning-bg: rgba(184, 134, 11, 0.06);
+  --callout-danger: #c05050;
+  --callout-danger-bg: rgba(192, 80, 80, 0.06);
+  --callout-success: #6b8e5a;
+  --callout-success-bg: rgba(107, 142, 90, 0.06);
+  --callout-quote: #9a8e7e;
+  --callout-quote-bg: rgba(154, 142, 126, 0.06);
+}
+
+/* ── 深色主题（夜读墨色） ──────────────────────────────────── */
+html.dark {
+  /* 主色调 — 暖墨色 */
+  --primary-color: #b0a080;
+  --primary-hover: #c8b89a;
+  --primary-light: rgba(176, 160, 128, 0.12);
+
+  /* 背景 & 文字 — 宣纸暗 */
+  --bg-color: #1a1815;
+  --bg-secondary: #201d19;
+  --text-color: #e4ddd2;
+  --text-secondary: #b0a898;
+
+  /* 侧边栏 */
+  --sidebar-bg: #201d19;
+  --sidebar-hover: rgba(255, 255, 255, 0.04);
+
+  /* 边框 */
+  --border-color: #322e28;
+  --border-light: #2a2620;
+
+  /* 弱化文字 */
+  --muted-color: #6b6258;
+
+  /* 代码 */
+  --code-bg: #1e1b17;
+  --code-border: #322e28;
+
+  /* 交互状态 */
+  --hover-bg: rgba(255, 255, 255, 0.04);
+  --active-bg: rgba(255, 255, 255, 0.08);
+  --selected-bg: rgba(176, 160, 128, 0.12);
+
+  /* 引用 & 标签 */
+  --quote-bg: rgba(176, 160, 128, 0.06);
+  --tag-bg: rgba(176, 160, 128, 0.14);
+  --tag-color: #b0a080;
+
+  /* 状态颜色 */
+  --success-color: #8fb87a;
+  --success-bg: rgba(143, 184, 122, 0.15);
+  --warning-color: #d4a520;
+  --warning-bg: rgba(212, 165, 32, 0.15);
+  --error-color: #d06868;
+  --error-bg: rgba(208, 104, 104, 0.15);
+  --info-color: #7ea0be;
+  --info-bg: rgba(126, 160, 190, 0.15);
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.35);
+
+  /* 圆角 */
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  /* 弹窗/模态框 */
+  --modal-bg: #1a1815;
+  --modal-border: #322e28;
+  --modal-overlay: rgba(0, 0, 0, 0.65);
+  --modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+
+  /* 输入框 */
+  --input-bg: #201d19;
+  --input-border: #322e28;
+  --input-focus-border: #b0a080;
+  --input-focus-shadow: 0 0 0 3px rgba(176, 160, 128, 0.18);
+  --input-placeholder: #6b6258;
+
+  /* 按钮 */
+  --btn-primary-bg: #b0a080;
+  --btn-primary-hover: #c8b89a;
+  --btn-primary-text: #1a1815;
+  --btn-secondary-bg: rgba(255, 255, 255, 0.07);
+  --btn-secondary-hover: rgba(255, 255, 255, 0.12);
+  --btn-secondary-text: #e4ddd2;
+  --btn-ghost-bg: transparent;
+  --btn-ghost-hover: rgba(255, 255, 255, 0.05);
+
+  /* 浮动菜单 */
+  --popover-bg: #1a1815;
+  --popover-border: #322e28;
+  --popover-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+
+  /* Callout */
+  --callout-note: #7ea0be;
+  --callout-note-bg: rgba(126, 160, 190, 0.1);
+  --callout-tip: #8fb87a;
+  --callout-tip-bg: rgba(143, 184, 122, 0.1);
+  --callout-warning: #d4a520;
+  --callout-warning-bg: rgba(212, 165, 32, 0.1);
+  --callout-danger: #d06868;
+  --callout-danger-bg: rgba(208, 104, 104, 0.1);
+  --callout-success: #8fb87a;
+  --callout-success-bg: rgba(143, 184, 122, 0.1);
+  --callout-quote: #6b6258;
+  --callout-quote-bg: rgba(107, 98, 88, 0.1);
+}
+
+/* ── 基础布局 ──────────────────────────────────────────────── */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'STHeiti', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background-color: transparent;
+  color: var(--text-color);
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+
+/* ── 标题栏拖拽 ────────────────────────────────────────────── */
+.custom-titlebar-drag-area {
+  cursor: default;
+}
+
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+
+[data-tauri-no-drag],
+[data-tauri-no-drag] *,
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] textarea,
+[data-tauri-drag-region] select,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] [role='button'] {
+  -webkit-app-region: no-drag;
+}
+
+/* ── 滚动条美化 ─────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-color);
+}
+
+/* ── 焦点写作模式 ──────────────────────────────────────────── */
+html.focus-mode .focus-mode-editor {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+html.focus-mode .focus-mode-editor .tiptap-editor {
+  padding: 0 !important;
+}
+
+html.focus-mode .custom-titlebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+html.focus-mode .custom-titlebar--visible {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+html.focus-mode .statusbar-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+}
+
+html.focus-mode .statusbar-container:hover {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* ── 深色模式下 highlight.js 代码高亮 ─────────────────────── */
+html.dark .hljs {
+  background: transparent;
+}
+
+/* ── 打印样式 ──────────────────────────────────────────────── */
+@media print {
+  .toolbar-container,
+  .statusbar-container,
+  aside,
+  .link-tooltip,
+  .bubble-menu,
+  .table-toolbar,
+  .search-bar {
+    display: none !important;
+  }
+
+  body,
+  #app,
+  .h-screen {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .flex-1 {
+    flex: none !important;
+  }
+
+  .tiptap-editor {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  p,
+  blockquote,
+  ul,
+  ol,
+  pre,
+  table {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  pre {
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+  }
+
+  img {
+    max-width: 100% !important;
+    break-inside: avoid;
+  }
+}
+
+/* ── 窗口边缘缩放手柄（decorations: false 时替代原生边框） ── */
+.window-resize-n,
+.window-resize-s,
+.window-resize-w,
+.window-resize-e,
+.window-resize-nw,
+.window-resize-ne,
+.window-resize-sw,
+.window-resize-se {
+  position: fixed;
+  z-index: 9999;
+}
+
+/* 四边 */
+.window-resize-n {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  cursor: n-resize;
+}
+
+.window-resize-s {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  cursor: s-resize;
+}
+
+.window-resize-w {
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: w-resize;
+}
+
+.window-resize-e {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: e-resize;
+}
+
+/* 四角 */
+.window-resize-nw {
+  top: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  cursor: nw-resize;
+}
+
+.window-resize-ne {
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  cursor: ne-resize;
+}
+
+.window-resize-sw {
+  bottom: 0;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  cursor: sw-resize;
+}
+
+.window-resize-se {
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  cursor: se-resize;
+}

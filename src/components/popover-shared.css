@@ -1,0 +1,109 @@
+/* ── Popover 共享样式 ─────────────────────────────────────────
+   StatusbarQuickActions 子组件共用的按钮、弹出菜单样式。 */
+
+.quick-action-item {
+  position: relative;
+}
+
+/* ── 图标按钮：32×32 命中区，8px 圆角，克制透明度 ── */
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0.6;
+  border-radius: 8px;
+  transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.icon-btn:hover {
+  opacity: 1;
+  background-color: var(--hover-bg);
+  color: var(--text-color);
+}
+
+.icon-btn:active {
+  background-color: color-mix(in srgb, var(--hover-bg) 70%, transparent);
+}
+
+/* ── 弹出菜单：14px 圆角，柔和阴影，充足内边距 ── */
+.quick-popover {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  min-width: 200px;
+  padding: 8px;
+  border-radius: 14px;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+  z-index: 300;
+}
+
+.quick-popover-header {
+  padding: 6px 12px 8px;
+  font-size: 11px;
+  color: var(--muted-color);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.quick-popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quick-popover-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 8px;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.12s ease;
+}
+
+.quick-popover-option:hover {
+  background-color: var(--hover-bg);
+}
+
+.quick-popover-option.is-active {
+  color: var(--primary-color);
+}
+
+.quick-popover-label {
+  flex: 1;
+}
+
+.check-icon {
+  color: var(--primary-color);
+  flex-shrink: 0;
+}
+
+/* ── 过渡动画 ──────────────────────────────────────────── */
+.quick-popover-enter-active,
+.quick-popover-leave-active {
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.quick-popover-enter-from,
+.quick-popover-leave-to {
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+}
