@@ -1,0 +1,105 @@
+/* ── Settings 共享样式 ─────────────────────────────────────────
+   所有设置面板共用的卡片、标题、行布局样式。
+   通过非 scoped CSS 导入，类名均带 settings- 前缀避免冲突。 */
+
+.settings-section-card {
+  padding: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 22px;
+  background: var(--bg-color);
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-section-card--hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  background:
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--primary-light) 85%, transparent 15%),
+      transparent 45%
+    ),
+    var(--bg-color);
+}
+
+.settings-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.settings-section-title {
+  color: var(--text-color);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.settings-section-desc {
+  margin: 6px 0 0;
+  color: var(--muted-color);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.settings-hero-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.settings-hero-chip {
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+}
+
+.settings-row + .settings-row {
+  border-top: 1px solid var(--border-light);
+}
+
+.settings-row--column {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.settings-row-title {
+  display: block;
+  color: var(--text-color);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-row-desc {
+  margin: 4px 0 0;
+  color: var(--muted-color);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+@media (max-width: 960px) {
+  .settings-section-card--hero,
+  .settings-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-hero-metrics {
+    justify-content: flex-start;
+  }
+}

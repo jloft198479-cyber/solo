@@ -1,0 +1,1083 @@
+/**
+ * TipTap 编辑器样式
+ *
+ * 基于 CSS 变量实现深色/浅色主题切换。
+ * 所有编辑器样式收拢在此文件中。
+ */
+
+/* ── 编辑器容器：对称边距 + 充足呼吸感 ──────────────────────
+   参考 iA Writer / Typora 的阅读宽度与留白标准：
+   顶部 72px 与标题栏拉开距离，左右使用百分比自适应留白，
+   内容最大宽度 760px 居中，保证长文阅读舒适度。 */
+.mk-editor {
+  padding: 72px 0 48px;
+}
+
+.mk-editor-inner {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 48px;
+}
+
+@media (max-width: 720px) {
+  .mk-editor-inner {
+    padding: 0 24px;
+  }
+}
+
+/* ── 编辑器基础 ────────────────────────────────────────────── */
+.tiptap-editor {
+  --mk-heading-gutter-width: 1.9rem;
+  --mk-heading-gutter-gap: 0.25rem;
+  /* 排版变量（可由主题覆盖） */
+  --mk-line-height: 1.9;
+  --mk-font-size: 16px;
+  --mk-letter-spacing: 0.02em;
+  --mk-paragraph-spacing: 0.75em;
+  --mk-heading1-size: 1.875em;
+  --mk-heading2-size: 1.5em;
+  --mk-heading3-size: 1.25em;
+  --mk-heading4-size: 1.1em;
+  --mk-heading5-size: 1em;
+  --mk-heading6-size: 0.9em;
+  --mk-quote-border-width: 2px;
+
+  outline: none;
+  font-family: var(--font-text);
+  color: var(--text-color);
+  line-height: var(--mk-line-height);
+  font-size: var(--mk-font-size);
+  caret-color: var(--primary-color);
+  min-height: 100%;
+  padding-left: var(--mk-heading-gutter-width);
+  letter-spacing: var(--mk-letter-spacing);
+}
+
+.tiptap-editor > *:first-child {
+  margin-top: 0;
+}
+
+/* ── 段落 ──────────────────────────────────────────────────── */
+.tiptap-editor p {
+  margin: var(--mk-paragraph-spacing) 0;
+}
+
+.tiptap-editor p:has(> .mk-image:only-child) {
+  min-height: 0;
+}
+
+.tiptap-editor p.is-empty,
+.tiptap-editor p:has(> br:only-child),
+.tiptap-editor p:has(> .ProseMirror-trailingBreak:only-child) {
+  min-height: 0.85em;
+}
+
+/* ── 标题 ──────────────────────────────────────────────────── */
+.tiptap-editor h1,
+.tiptap-editor h2,
+.tiptap-editor h3,
+.tiptap-editor h4,
+.tiptap-editor h5,
+.tiptap-editor h6 {
+  position: relative;
+}
+
+.tiptap-editor h1::before,
+.tiptap-editor h2::before,
+.tiptap-editor h3::before,
+.tiptap-editor h4::before,
+.tiptap-editor h5::before,
+.tiptap-editor h6::before {
+  position: absolute;
+  left: calc(-1 * var(--mk-heading-gutter-width));
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: calc(var(--mk-heading-gutter-width) - var(--mk-heading-gutter-gap));
+  line-height: 1;
+  color: var(--muted-color);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  opacity: 0.58;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+
+.tiptap-editor h1::before {
+  content: 'H1';
+}
+
+.tiptap-editor h2::before {
+  content: 'H2';
+}
+
+.tiptap-editor h3::before {
+  content: 'H3';
+}
+
+.tiptap-editor h4::before {
+  content: 'H4';
+}
+
+.tiptap-editor h5::before {
+  content: 'H5';
+}
+
+.tiptap-editor h6::before {
+  content: 'H6';
+}
+
+/* ── Pending heading（输入 `# 文字` 时尚未转成真正 heading 的段落）── */
+.tiptap-editor .mk-pending-heading {
+  position: relative;
+}
+
+.tiptap-editor .mk-pending-heading::before {
+  position: absolute;
+  left: calc(-1 * var(--mk-heading-gutter-width));
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: calc(var(--mk-heading-gutter-width) - var(--mk-heading-gutter-gap));
+  line-height: 1;
+  color: var(--muted-color);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  opacity: 0.58;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  content: attr(data-pending-heading-level);
+}
+
+.tiptap-editor .mk-pending-heading-1 {
+  font-size: var(--mk-heading1-size);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-color);
+}
+
+.tiptap-editor .mk-pending-heading-2 {
+  font-size: var(--mk-heading2-size);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-color);
+}
+
+.tiptap-editor .mk-pending-heading-3 {
+  font-size: var(--mk-heading3-size);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-color);
+}
+
+.tiptap-editor .mk-pending-heading-4 {
+  font-size: var(--mk-heading4-size);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-color);
+}
+
+.tiptap-editor .mk-pending-heading-5,
+.tiptap-editor .mk-pending-heading-6 {
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-color);
+}
+
+/*
+ * Pending heading 前缀样式：
+ * `# ` 文本以淡化颜色显示，类似 Typora 的 Markdown 语法提示。
+ * 不使用 color: transparent 或 font-size: 0：前者会让 IME 拼音预编辑文本也变透明，
+ * 后者会让光标消失。淡化颜色既提示这是 Markdown 语法，又不影响光标和 IME。
+ */
+.tiptap-editor .mk-pending-heading-prefix {
+  color: var(--muted-color);
+  opacity: 0.45;
+  font-size: 0.6em;
+  vertical-align: baseline;
+  font-weight: normal;
+}
+
+.tiptap-editor h1 {
+  font-size: var(--mk-heading1-size);
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 1.4em 0 0.6em;
+  color: var(--text-color);
+  letter-spacing: 0.04em;
+}
+
+.tiptap-editor h2 {
+  font-size: var(--mk-heading2-size);
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 1.2em 0 0.5em;
+  color: var(--text-color);
+  letter-spacing: 0.03em;
+}
+
+.tiptap-editor h3 {
+  font-size: var(--mk-heading3-size);
+  font-weight: 600;
+  line-height: 1.45;
+  margin: 1em 0 0.4em;
+  color: var(--text-color);
+}
+
+.tiptap-editor h4 {
+  font-size: var(--mk-heading4-size);
+  font-weight: 600;
+  line-height: 1.5;
+  margin: 0.8em 0 0.3em;
+  color: var(--text-color);
+}
+
+.tiptap-editor h5 {
+  font-size: var(--mk-heading5-size);
+  font-weight: 600;
+  line-height: 1.5;
+  margin: 0.6em 0 0.3em;
+  color: var(--text-color);
+}
+
+.tiptap-editor h6 {
+  font-size: var(--mk-heading6-size);
+  font-weight: 600;
+  line-height: 1.5;
+  margin: 0.6em 0 0.3em;
+  color: var(--muted-color);
+}
+
+/* ── 引用块 ────────────────────────────────────────────────── */
+/*
+ * padding-left 预留 ≥ 标题 gutter 宽度：
+ * 引用块内的标题，其 H badge（h1..h6::before，left: -gutter）会落在这段内距里，
+ * 位于竖线右侧而非压在竖线上。gutter 之外再补一点 gap 让正文与竖线留出呼吸空间。
+ */
+.tiptap-editor blockquote {
+  border-left: var(--mk-quote-border-width) solid var(--primary-color);
+  padding-left: calc(var(--mk-heading-gutter-width) + var(--mk-heading-gutter-gap) + 4px);
+  margin: var(--mk-paragraph-spacing) 0;
+  color: var(--text-secondary);
+  background-color: var(--quote-bg, transparent);
+}
+
+/* ── 列表 ──────────────────────────────────────────────────── */
+.tiptap-editor ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.3em 0;
+}
+
+.tiptap-editor ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 0.3em 0;
+}
+
+.tiptap-editor li {
+  margin: 0.15em 0;
+}
+
+.tiptap-editor li p {
+  margin: 0;
+}
+
+/* ── 任务列表 ──────────────────────────────────────────────── */
+.tiptap-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tiptap-editor ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.tiptap-editor ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 4px;
+  user-select: none;
+}
+
+.tiptap-editor ul[data-type="taskList"] li > label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  accent-color: var(--primary-color);
+  cursor: pointer;
+}
+
+.tiptap-editor ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+.tiptap-editor ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: var(--muted-color);
+}
+
+/* ── 行内格式 ──────────────────────────────────────────────── */
+.tiptap-editor strong {
+  font-weight: 700;
+}
+
+.tiptap-editor em {
+  font-style: italic;
+}
+
+.tiptap-editor s {
+  text-decoration: line-through;
+  color: var(--muted-color);
+}
+
+.tiptap-editor code {
+  font-family: var(--font-mono);
+  background-color: var(--code-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.1em 4px;
+  font-size: 0.875em;
+}
+
+.tiptap-editor mark {
+  background-color: #fef08a;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+html.dark .tiptap-editor mark {
+  background-color: rgba(254, 240, 138, 0.3);
+}
+
+/* ── 链接 ──────────────────────────────────────────────────── */
+.tiptap-editor a {
+  color: var(--primary-color);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.tiptap-editor a:hover {
+  border-bottom-color: var(--primary-color);
+}
+
+/* ── 水平线 ────────────────────────────────────────────────── */
+.tiptap-editor hr {
+  border: none;
+  border-top: 1px solid var(--border-light);
+  margin: 1.5em 0;
+}
+
+/* ── 代码块 ────────────────────────────────────────────────── */
+.tiptap-editor .mk-code-block-shell {
+  margin: 0.75em 0;
+}
+
+.tiptap-editor .mk-code-block-header {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background-color: var(--sidebar-bg);
+}
+
+.tiptap-editor .mk-code-block-language-button {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted-color);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tiptap-editor .mk-code-block-language-button:hover {
+  color: var(--text-color);
+}
+
+.tiptap-editor .mk-code-block-language-input {
+  width: 140px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+}
+
+.tiptap-editor pre {
+  background-color: var(--code-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 0 0 6px 6px;
+  padding: 12px 16px;
+  margin: 0;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tiptap-editor pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  border-radius: 0;
+}
+
+/* ── 表格 ──────────────────────────────────────────────────── */
+.tiptap-editor .tableWrapper {
+  margin: 0.8em 0;
+  border: 2px solid color-mix(in srgb, var(--border-color) 65%, var(--text-color) 35%);
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: var(--bg-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-color) 55%, var(--text-color) 45%);
+}
+
+.tiptap-editor table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0;
+  border: none;
+}
+
+.tiptap-editor th,
+.tiptap-editor td {
+  border: 1px solid var(--border-color);
+  padding: 6px 12px;
+  vertical-align: top;
+  position: relative;
+  min-width: 50px;
+}
+
+.tiptap-editor th {
+  background-color: var(--sidebar-bg);
+  font-weight: 600;
+  font-size: 0.9em;
+  text-align: left;
+}
+
+.tiptap-editor td {
+  background-color: var(--bg-color);
+}
+
+.tiptap-editor tr:nth-child(even) td {
+  background-color: var(--sidebar-bg);
+}
+
+.tiptap-editor tr:hover td {
+  background-color: var(--hover-bg, rgba(0, 0, 0, 0.03));
+}
+
+.tiptap-editor .tableWrapper:hover {
+  border-color: color-mix(in srgb, var(--border-color) 40%, var(--text-color) 60%);
+}
+
+/* 表格选中状态 */
+.tiptap-editor .selectedCell {
+  background-color: rgba(139, 115, 85, 0.1) !important;
+}
+
+/* ── 图片 ──────────────────────────────────────────────────── */
+.tiptap-editor .mk-image-shell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  max-width: 100%;
+  margin: 0.5em 0;
+}
+
+.tiptap-editor img.mk-image {
+  max-width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  display: block;
+}
+
+.tiptap-editor .mk-image-source-text {
+  display: none;
+  width: min(100%, 42rem);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  line-height: 1.6;
+  color: var(--muted-color);
+  white-space: pre-wrap;
+  word-break: break-word;
+  outline: none;
+}
+
+.tiptap-editor .mk-image-shell.ProseMirror-selectednode img.mk-image {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.tiptap-editor .mk-image-shell.ProseMirror-selectednode .mk-image-source-text,
+.tiptap-editor .mk-image-shell.is-editing .mk-image-source-text,
+.tiptap-editor .mk-image-shell.is-invalid .mk-image-source-text {
+  display: block;
+}
+
+.tiptap-editor .mk-image-shell.is-editing .mk-image-source-text {
+  color: var(--text-color);
+}
+
+.tiptap-editor .mk-image-shell.is-invalid .mk-image-source-text {
+  color: #ef4444;
+}
+
+/* ── Placeholder ───────────────────────────────────────────── */
+.tiptap-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--muted-color);
+  pointer-events: none;
+  height: 0;
+}
+
+/* ── 选中状态 ──────────────────────────────────────────────── */
+.tiptap-editor ::selection {
+  background-color: rgba(139, 115, 85, 0.18);
+}
+
+/* ── 光标 ──────────────────────────────────────────────────── */
+.tiptap-editor .ProseMirror-gapcursor {
+  display: none;
+  pointer-events: none;
+  position: absolute;
+  margin: 0;
+}
+
+.tiptap-editor .ProseMirror-gapcursor:after {
+  content: '';
+  display: block;
+  position: absolute;
+  top: -2px;
+  width: 20px;
+  border-top: 1px solid var(--text-color);
+  animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes ProseMirror-cursor-blink {
+  to { visibility: hidden; }
+}
+
+/* ── 数学公式块 ────────────────────────────────────────────── */
+.tiptap-editor .mk-math-inline {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.18em;
+}
+
+.tiptap-editor .mk-math-block {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--sidebar-bg);
+  margin: 8px 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.tiptap-editor .mk-math-render {
+  padding: 12px 16px;
+  overflow-x: auto;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tiptap-editor .mk-math-placeholder {
+  color: var(--muted-color);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.tiptap-editor .mk-math-error {
+  color: #ef4444;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.tiptap-editor .mk-math-edit {
+  padding: 0;
+}
+
+.tiptap-editor .mk-math-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  background-color: var(--code-bg);
+  color: var(--text-color);
+  border: none;
+  outline: none;
+  resize: vertical;
+}
+
+/* ── Mermaid 图表 ──────────────────────────────────────────── */
+.tiptap-editor .mk-mermaid-block {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-color);
+  margin: 12px 0;
+  overflow: hidden;
+}
+
+.tiptap-editor .mk-mermaid-badge {
+  font-size: 11px;
+  color: var(--muted-color);
+  padding: 5px 12px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--code-bg);
+  font-family: var(--font-mono);
+  text-transform: lowercase;
+  cursor: pointer;
+}
+
+.tiptap-editor .mk-mermaid-render {
+  padding: 16px;
+  overflow-x: auto;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.tiptap-editor .mk-mermaid-placeholder {
+  color: var(--muted-color);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.tiptap-editor .mk-mermaid-error {
+  color: #ef4444;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.tiptap-editor .mk-mermaid-edit {
+  padding: 0;
+}
+
+.tiptap-editor .mk-mermaid-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  background-color: var(--code-bg);
+  color: var(--text-color);
+  border: none;
+  border-top: 1px solid var(--border-color);
+  outline: none;
+  resize: vertical;
+}
+
+/* ── Callout 块 ────────────────────────────────────────────── */
+.tiptap-editor .mk-callout {
+  border-left: 4px solid;
+  border-radius: 4px;
+  padding: 10px 14px;
+  margin: 10px 0;
+  font-size: 0.95em;
+}
+
+.tiptap-editor .mk-callout-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tiptap-editor .mk-callout-icon {
+  flex-shrink: 0;
+}
+
+.tiptap-editor .mk-callout-body {
+  margin-top: 4px;
+}
+
+.tiptap-editor .mk-callout-note {
+  border-color: var(--callout-note);
+  background-color: var(--callout-note-bg);
+}
+
+.tiptap-editor .mk-callout-info {
+  border-color: var(--callout-note);
+  background-color: var(--callout-note-bg);
+}
+
+.tiptap-editor .mk-callout-tip {
+  border-color: var(--callout-tip);
+  background-color: var(--callout-tip-bg);
+}
+
+.tiptap-editor .mk-callout-warning,
+.tiptap-editor .mk-callout-caution {
+  border-color: var(--callout-warning);
+  background-color: var(--callout-warning-bg);
+}
+
+.tiptap-editor .mk-callout-danger,
+.tiptap-editor .mk-callout-important {
+  border-color: var(--callout-danger);
+  background-color: var(--callout-danger-bg);
+}
+
+.tiptap-editor .mk-callout-success {
+  border-color: var(--callout-success);
+  background-color: var(--callout-success-bg);
+}
+
+.tiptap-editor .mk-callout-quote {
+  border-color: var(--muted-color);
+  background-color: var(--sidebar-bg);
+  font-style: italic;
+}
+
+/* ── Frontmatter ───────────────────────────────────────────── */
+.tiptap-editor .mk-frontmatter {
+  background-color: var(--sidebar-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  margin: 0 0 12px 0;
+  color: var(--muted-color);
+}
+
+.tiptap-editor .mk-frontmatter-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-color);
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 4px;
+}
+
+.tiptap-editor .mk-frontmatter-content {
+  padding: 2px 0;
+}
+
+.tiptap-editor .mk-frontmatter-row {
+  line-height: 1.7;
+}
+
+.tiptap-editor .mk-frontmatter-key {
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.tiptap-editor .mk-frontmatter-value {
+  color: var(--text-color);
+}
+
+.tiptap-editor .mk-frontmatter-empty {
+  color: var(--muted-color);
+  font-style: italic;
+}
+
+.tiptap-editor .mk-frontmatter-edit {
+  padding: 0;
+}
+
+.tiptap-editor .mk-frontmatter-textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  background-color: var(--code-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  outline: none;
+  resize: vertical;
+  margin-top: 4px;
+}
+
+/* ── Mermaid SVG 主题适配 ──────────────────────────────────── */
+.tiptap-editor .mk-mermaid-render svg {
+  max-width: 100%;
+  height: auto;
+}
+
+html.dark .tiptap-editor .mk-mermaid-render .nodeLabel {
+  color: var(--text-color);
+}
+
+/* ── Typora 风格内联源码提示 ─────────────────────────────────── */
+.mk-syntax-hint {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--muted-color);
+  opacity: 0.7;
+  user-select: none;
+  pointer-events: none;
+}
+
+.mk-deco-bold {
+  color: var(--primary-color);
+  opacity: 0.6;
+}
+
+.mk-deco-italic {
+  color: var(--primary-color);
+  opacity: 0.6;
+  font-style: normal;
+}
+
+.mk-deco-strike {
+  color: var(--muted-color);
+  text-decoration: none;
+}
+
+.mk-deco-code {
+  color: #e879a0;
+  opacity: 0.7;
+}
+
+html.dark .mk-deco-code {
+  color: #f0a0b8;
+}
+
+.mk-deco-highlight {
+  color: #d97706;
+  opacity: 0.7;
+}
+
+html.dark .mk-deco-highlight {
+  color: #fbbf24;
+}
+
+.mk-deco-sup,
+.mk-deco-sub {
+  color: var(--muted-color);
+  opacity: 0.6;
+  vertical-align: baseline;
+  font-size: 0.85em;
+}
+
+.mk-deco-heading {
+  color: var(--muted-color);
+  opacity: 0.5;
+  font-weight: normal;
+  font-size: 0.6em;
+  vertical-align: baseline;
+}
+
+/* ── Wikilink ────────────────────────────────────────────────── */
+.tiptap-editor .mk-wikilink {
+  color: var(--primary-color);
+  background-color: rgba(139, 115, 85, 0.06);
+  border-radius: 3px;
+  padding: 0 3px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.15s;
+}
+
+.tiptap-editor .mk-wikilink:hover {
+  background-color: rgba(139, 115, 85, 0.12);
+}
+
+.tiptap-editor .mk-wikilink::before {
+  content: '[[';
+  color: var(--muted-color);
+  opacity: 0.5;
+  font-size: 0.85em;
+}
+
+.tiptap-editor .mk-wikilink::after {
+  content: ']]';
+  color: var(--muted-color);
+  opacity: 0.5;
+  font-size: 0.85em;
+}
+
+/* ── 上标 / 下标 ─────────────────────────────────────────────── */
+.tiptap-editor sup {
+  font-size: 0.75em;
+  vertical-align: super;
+  line-height: 0;
+}
+
+.tiptap-editor sub {
+  font-size: 0.75em;
+  vertical-align: sub;
+  line-height: 0;
+}
+
+/* ── 斜杠命令菜单 ────────────────────────────────────────────── */
+.mk-slash-menu {
+  position: fixed;
+  z-index: 1000;
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  min-width: 240px;
+  max-width: 320px;
+  overflow: hidden;
+}
+
+html.dark .mk-slash-menu {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.mk-slash-menu-scroll {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.mk-slash-menu-group {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-color);
+  padding: 8px 12px 4px;
+}
+
+.mk-slash-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.mk-slash-menu-item:hover,
+.mk-slash-menu-item--active {
+  background-color: var(--hover-bg, rgba(139, 115, 85, 0.06));
+}
+
+.mk-slash-menu-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background-color: var(--sidebar-bg);
+  border: 1px solid var(--border-color);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-color);
+  flex-shrink: 0;
+}
+
+.mk-slash-menu-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.mk-slash-menu-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-color);
+  line-height: 1.3;
+}
+
+.mk-slash-menu-desc {
+  font-size: 11px;
+  color: var(--muted-color);
+  line-height: 1.3;
+}
+
+.mk-slash-menu-empty {
+  padding: 12px;
+  text-align: center;
+  color: var(--muted-color);
+  font-size: 13px;
+}
+
+/* ── 拖拽手柄 ────────────────────────────────────────────────── */
+.mk-drag-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: grab;
+  color: var(--muted-color);
+  opacity: 0;
+  transition: opacity 0.15s, background-color 0.15s;
+  z-index: 50;
+}
+
+.mk-drag-handle:hover {
+  opacity: 1;
+  background-color: var(--hover-bg, rgba(0, 0, 0, 0.05));
+  color: var(--text-color);
+}
+
+.tiptap-editor:hover ~ .mk-drag-handle,
+.mk-editor:hover .mk-drag-handle {
+  opacity: 0.4;
+}
+
+.mk-drag-handle--dragging {
+  opacity: 0.8;
+  cursor: grabbing;
+}
+
+.mk-drop-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--primary-color);
+  border-radius: 1px;
+  pointer-events: none;
+}
