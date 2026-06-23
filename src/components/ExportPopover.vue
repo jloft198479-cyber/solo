@@ -21,9 +21,11 @@ function doExport(type: 'html' | 'pdf' | 'wechat') {
   <div class="quick-action-item">
     <button class="icon-btn" title="导出" @click.stop="emit('toggle')">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M8 9.5V2.5" />
-        <path d="M5 5.5l3-3 3 3" />
-        <path d="M3 11.5v1.5a.5.5 0 0 0 .5.5h9a.5.5 0 0 0 .5-.5v-1.5" />
+        <circle cx="12" cy="3.3" r="2" />
+        <circle cx="4" cy="8" r="2" />
+        <circle cx="12" cy="12.7" r="2" />
+        <line x1="5.7" y1="9" x2="10.3" y2="11.7" />
+        <line x1="10.3" y1="4.3" x2="5.7" y2="7" />
       </svg>
     </button>
     <Transition name="quick-popover">

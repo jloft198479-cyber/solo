@@ -22,8 +22,11 @@ function selectTheme(id: string) {
   <div class="quick-action-item">
     <button class="icon-btn" title="主题" @click.stop="emit('toggle')">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="8" cy="8" r="5.5" />
-        <path d="M8 2.5a5.5 5.5 0 0 0 0 11z" fill="currentColor" stroke="none" />
+        <path d="M8 14a.7.7 0 0 1 0-14 6.7 6 0 0 1 6.7 6 3.3 3.3 0 0 1-3.4 3.3H9.8a1.2 1.2 0 0 0-.9 1.9l.2.3a1.2 1.2 0 0 1-.9 1.9z" />
+        <circle cx="9" cy="4.3" r=".4" fill="currentColor" stroke="none" />
+        <circle cx="11.6" cy="7" r=".4" fill="currentColor" stroke="none" />
+        <circle cx="4.3" cy="8.3" r=".4" fill="currentColor" stroke="none" />
+        <circle cx="5.6" cy="5" r=".4" fill="currentColor" stroke="none" />
       </svg>
     </button>
     <Transition name="quick-popover">

@@ -168,6 +168,10 @@ export interface ExportThemeTokens {
 export interface ExportRenderOptions {
   themeId?: string;
   fileName?: string | null;
+  /** 用户选择的编辑器字体，用于导出时同步字体 */
+  fontFamily?: string;
+  /** 用户选择的正文字号 (px)，用于导出时同步字号 */
+  fontSize?: number;
 }
 
 export interface WechatRenderResult {

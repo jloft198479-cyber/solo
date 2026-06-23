@@ -24,8 +24,6 @@ export interface Settings {
   autoSaveInterval: number;
   /** Spell check */
   spellCheck: boolean;
-  /** Tab width */
-  tabWidth: number;
   /** Titlebar auto-hide (false = always visible) */
   titlebarAutoHide: boolean;
   /** Editor line height */
@@ -42,11 +40,10 @@ export interface Settings {
 const DEFAULT_SETTINGS: Settings = {
   activeThemeId: 'scholar-light',
   customThemes: [],
-  fontSize: 14,
+  fontSize: 16,
   fontFamily: 'Microsoft YaHei UI',
   autoSave: false,
   autoSaveInterval: 30,
-  tabWidth: 4,
   spellCheck: true,
   titlebarAutoHide: true,
   lineHeight: 1.6,
@@ -83,6 +80,7 @@ interface SettingsStoreState {
   _saveTimeout: ReturnType<typeof setTimeout> | null;
   _stopSettingsWatcher: WatchStopHandle | null;
   _stopThemeWatcher: WatchStopHandle | null;
+  _stopActiveThemeIdWatcher: WatchStopHandle | null;
   _stopFocusModeWatcher: WatchStopHandle | null;
 }
 
@@ -99,6 +97,7 @@ export const useSettingsStore = defineStore('settings', {
     _saveTimeout: null,
     _stopSettingsWatcher: null,
     _stopThemeWatcher: null,
+    _stopActiveThemeIdWatcher: null,
     _stopFocusModeWatcher: null,
   }),
 
@@ -253,12 +252,21 @@ export const useSettingsStore = defineStore('settings', {
 
     startWatchers() {
       if (!this._stopSettingsWatcher) {
-        // deep watch 仅负责持久化 + 重建主题数组（customThemes 变化时需要）
-        // 不再在此处调用 applyCurrentTheme，避免改字号等无关字段也重注入 CSS 变量
+        // deep watch 负责持久化，不再调用 updateAllThemes
         this._stopSettingsWatcher = watch(
           () => this.settings,
           (newSettings) => {
             void this.saveSettingsToStore(newSettings);
+          },
+          { deep: true },
+        );
+      }
+
+      // customThemes 变化时才重建主题数组
+      if (!this._stopThemeWatcher) {
+        this._stopThemeWatcher = watch(
+          () => this.settings.customThemes,
+          () => {
             this.updateAllThemes();
           },
           { deep: true },
@@ -266,8 +274,8 @@ export const useSettingsStore = defineStore('settings', {
       }
 
       // 主题切换单独监听，仅 activeThemeId 变化时才重注入 CSS 变量
-      if (!this._stopThemeWatcher) {
-        this._stopThemeWatcher = watch(
+      if (!this._stopActiveThemeIdWatcher) {
+        this._stopActiveThemeIdWatcher = watch(
           () => this.settings.activeThemeId,
           (themeId) => {
             this.applyCurrentTheme(themeId);

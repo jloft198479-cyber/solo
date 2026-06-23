@@ -75,5 +75,10 @@
     "calloutSuccessBg": "rgba(90, 138, 106, 0.06)",
     "calloutQuote": "#8a9aa5",
     "calloutQuoteBg": "rgba(138, 154, 165, 0.06)"
+  },
+  "typography": {
+    "lineHeight": "1.9",
+    "paragraphSpacing": "0.8em",
+    "quoteBorderWidth": "3px"
   }
 }

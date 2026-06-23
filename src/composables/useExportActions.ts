@@ -27,6 +27,8 @@ type SettingsStoreLike = {
   settings: {
     activeThemeId: string;
     wechatTheme: string;
+    fontFamily: string;
+    fontSize: number;
   };
 };
 
@@ -61,6 +63,8 @@ export function useExportActions(options: {
     const html = await renderEditorDocToHtmlDocument(doc, {
       // HTML 导出使用当前编辑器主题，而非微信主题
       themeId: settingsStore.settings.activeThemeId,
+      fontFamily: settingsStore.settings.fontFamily,
+      fontSize: settingsStore.settings.fontSize,
       fileName:
         fileStore.currentFile.path?.split(/[/\\]/).pop()?.replace(/\.md$/i, '') ?? 'document',
     });
@@ -94,6 +98,8 @@ export function useExportActions(options: {
     if (!doc) return;
     const result = renderEditorDocToWechatFragment(doc, {
       themeId: settingsStore.settings.wechatTheme,
+      fontFamily: settingsStore.settings.fontFamily,
+      fontSize: settingsStore.settings.fontSize,
     });
     try {
       await writeHtml(result.html, result.text || getMarkdown());

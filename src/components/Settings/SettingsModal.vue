@@ -148,7 +148,6 @@ function onKeyDown(e: KeyboardEvent) {
                 <EditorSettingsPanel
                   v-show="activeTab === 'editor'"
                   v-model:spell-check="settingsStore.settings.spellCheck"
-                  v-model:tab-width="settingsStore.settings.tabWidth"
                   v-model:titlebar-auto-hide="settingsStore.settings.titlebarAutoHide"
                 />
 

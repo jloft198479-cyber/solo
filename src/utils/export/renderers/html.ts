@@ -8,7 +8,8 @@ import type {
   ExportRenderOptions,
 } from '../model';
 import { getKatex } from '../../../components/Editor/tiptap/extensions/math-block';
-import { getExportThemeTokens } from '../theme';
+import { getExportThemeTokensFromAppTheme } from '../theme';
+import { buildFontStack } from '../../fontStack';
 import { escapeAttribute, escapeHtml, mergeMetadataTitle, sanitizeHref, wrapMarks } from '../utils';
 
 let mermaidCounter = 0;
@@ -17,7 +18,7 @@ export async function renderHtmlDocument(
   document: ExportDocument,
   options: ExportRenderOptions = {},
 ): Promise<string> {
-  const theme = getExportThemeTokens(options.themeId);
+  const theme = getExportThemeTokensFromAppTheme(options.themeId || 'scholar-light');
   const title = mergeMetadataTitle(document.metadata, options.fileName ?? '');
   const metaTags = document.metadata.meta
     .map(
@@ -25,6 +26,9 @@ export async function renderHtmlDocument(
         `<meta name="${escapeAttribute(entry.name)}" content="${escapeAttribute(entry.content)}" />`,
     )
     .join('\n');
+  const fontFamily = options.fontFamily
+    ? buildFontStack(options.fontFamily)
+    : "'Microsoft YaHei', 'PingFang SC', system-ui, -apple-system, 'Segoe UI', sans-serif";
   const body = await renderBlocks(document.blocks, 'html');
 
   return [
@@ -35,7 +39,7 @@ export async function renderHtmlDocument(
     '<meta name="viewport" content="width=device-width, initial-scale=1" />',
     `<title>${escapeHtml(title)}</title>`,
     metaTags,
-    `<style>${getHtmlDocumentStyles(theme.accent, theme.accentStrong, theme.accentSoft, theme.text, theme.textMuted, theme.border, theme.surface, theme.surfaceMuted, theme.codeBackground, theme.codeForeground, theme.preBackground, theme.preForeground)}</style>`,
+    `<style>${getHtmlDocumentStyles(theme.accent, theme.accentStrong, theme.accentSoft, theme.text, theme.textMuted, theme.border, theme.surface, theme.surfaceMuted, theme.codeBackground, theme.codeForeground, theme.preBackground, theme.preForeground, fontFamily)}</style>`,
     '</head>',
     '<body>',
     `<main class="ml-export-root">${body}</main>`,
@@ -340,6 +344,7 @@ function getHtmlDocumentStyles(
   codeForeground: string,
   preBackground: string,
   preForeground: string,
+  fontFamily: string,
 ): string {
   return `
     :root {
@@ -352,7 +357,7 @@ function getHtmlDocumentStyles(
       margin: 0;
       background: ${surfaceMuted};
       color: ${text};
-      font-family: "SF Pro Text", "PingFang SC", "Noto Sans SC", sans-serif;
+      font-family: ${fontFamily};
     }
     .ml-export-root {
       width: min(880px, calc(100vw - 48px));

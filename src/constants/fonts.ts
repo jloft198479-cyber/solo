@@ -14,13 +14,14 @@ export interface FontOption {
 
 /**
  * 可选字体清单。
- * 顺序即展示顺序：思源宋体 → 微软雅黑 UI → 朱雀仿宋 → 小赖字体 → 汇文明朝 → 系统默认。
+ * 顺序即展示顺序：思源宋体 → 微软雅黑 UI → 朱雀仿宋 → 小赖字体 → 霞鹜文楷 → 汇文明朝 → 系统默认。
  */
 export const FONT_OPTIONS: readonly FontOption[] = [
   { value: 'Noto Serif SC', label: '思源宋体' },
   { value: 'Microsoft YaHei UI', label: '微软雅黑 UI' },
   { value: 'Zhuque Fangsong', label: '朱雀仿宋' },
   { value: 'Xiaolai SC', label: '小赖字体' },
+  { value: 'LXGW WenKai', label: '霞鹜文楷' },
   { value: 'Huiwen-mincho', label: '汇文明朝' },
   { value: 'system-ui', label: '系统默认' },
 ] as const;

@@ -26,10 +26,9 @@
 }
 
 /* ── 编辑器基础 ────────────────────────────────────────────── */
-.tiptap-editor {
-  --mk-heading-gutter-width: 1.9rem;
-  --mk-heading-gutter-gap: 0.25rem;
-  /* 排版变量（可由主题覆盖） */
+
+/* 排版变量默认值设在 :root，由主题和设置页通过 documentElement inline style 覆盖 */
+:root {
   --mk-line-height: 1.9;
   --mk-font-size: 16px;
   --mk-letter-spacing: 0.02em;
@@ -41,6 +40,11 @@
   --mk-heading5-size: 1em;
   --mk-heading6-size: 0.9em;
   --mk-quote-border-width: 2px;
+}
+
+.tiptap-editor {
+  --mk-heading-gutter-width: 1.9rem;
+  --mk-heading-gutter-gap: 0.25rem;
 
   outline: none;
   font-family: var(--font-text);

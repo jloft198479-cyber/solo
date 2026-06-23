@@ -330,7 +330,7 @@ onUnmounted(() => {
 }
 
 .statusbar-save-btn.is-dirty {
-  color: var(--warning-color);
+  color: #c08a5a;
 }
 
 .statusbar-save-btn.is-clean {
@@ -365,5 +365,12 @@ onUnmounted(() => {
   background-color: var(--hover-bg);
   color: var(--text-color);
   opacity: 1;
+}
+</style>
+
+<style>
+/* 暗色主题下的未保存色调整：保持柔和，避免刺眼 */
+html.dark .statusbar-save-btn.is-dirty {
+  color: #d4a888;
 }
 </style>
