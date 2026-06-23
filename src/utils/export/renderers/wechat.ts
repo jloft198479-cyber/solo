@@ -8,6 +8,7 @@ import type {
   WechatRenderResult,
 } from '../model';
 import { getExportThemeTokens } from '../theme';
+import { buildFontStack } from '../../fontStack';
 import { escapeAttribute, escapeHtml, renderPlainText, sanitizeHref, wrapMarks } from '../utils';
 
 export function renderWechatFragment(
@@ -15,8 +16,12 @@ export function renderWechatFragment(
   options: ExportRenderOptions = {},
 ): WechatRenderResult {
   const theme = getExportThemeTokens(options.themeId);
-  const html = `<section style="${rootStyle(theme.text)}">${document.blocks
-    .map((block) => renderBlock(block, theme))
+  const fontFamily = options.fontFamily
+    ? buildFontStack(options.fontFamily)
+    : "'Microsoft YaHei', 'PingFang SC', system-ui, -apple-system, 'Segoe UI', sans-serif";
+  const fontSize = options.fontSize || 16;
+  const html = `<section style="${rootStyle(theme.text, fontFamily, fontSize)}">${document.blocks
+    .map((block) => renderBlock(block, theme, fontSize))
     .join('')}</section>`;
 
   return {
@@ -25,10 +30,10 @@ export function renderWechatFragment(
   };
 }
 
-function renderBlock(block: ExportBlock, theme: ReturnType<typeof getExportThemeTokens>): string {
+function renderBlock(block: ExportBlock, theme: ReturnType<typeof getExportThemeTokens>, fontSize: number): string {
   switch (block.kind) {
     case 'paragraph':
-      return `<p style="margin:0 0 1.2em;line-height:1.8;color:${theme.text};font-size:16px;">${renderInlines(block.inlines, theme)}</p>`;
+      return `<p style="margin:0 0 1.2em;line-height:1.8;color:${theme.text};font-size:${fontSize}px;">${renderInlines(block.inlines, theme)}</p>`;
     case 'heading': {
       const size = Math.max(18, 30 - block.level * 2);
       const border =
@@ -38,13 +43,13 @@ function renderBlock(block: ExportBlock, theme: ReturnType<typeof getExportTheme
       return `<h${block.level} style="margin:1.6em 0 0.8em;color:${theme.accentStrong};font-size:${size}px;line-height:1.35;${border}">${renderInlines(block.inlines, theme)}</h${block.level}>`;
     }
     case 'blockquote':
-      return `<blockquote style="margin:1.4em 0;padding:12px 16px;border-left:4px solid ${theme.accent};background:${theme.surfaceMuted};color:${theme.textMuted};">${block.blocks.map((child) => renderBlock(child, theme)).join('')}</blockquote>`;
+      return `<blockquote style="margin:1.4em 0;padding:12px 16px;border-left:4px solid ${theme.accent};background:${theme.surfaceMuted};color:${theme.textMuted};">${block.blocks.map((child) => renderBlock(child, theme, fontSize)).join('')}</blockquote>`;
     case 'bulletList':
-      return `<ul style="margin:0 0 1.2em;padding-left:1.4em;">${block.items.map((item) => renderListItem(item, false, theme)).join('')}</ul>`;
+      return `<ul style="margin:0 0 1.2em;padding-left:1.4em;">${block.items.map((item) => renderListItem(item, false, theme, fontSize)).join('')}</ul>`;
     case 'orderedList':
-      return `<ol style="margin:0 0 1.2em;padding-left:1.4em;">${block.items.map((item) => renderListItem(item, false, theme)).join('')}</ol>`;
+      return `<ol style="margin:0 0 1.2em;padding-left:1.4em;">${block.items.map((item) => renderListItem(item, false, theme, fontSize)).join('')}</ol>`;
     case 'taskList':
-      return `<ul style="margin:0 0 1.2em;padding-left:0;list-style:none;">${block.items.map((item) => renderListItem(item, true, theme)).join('')}</ul>`;
+      return `<ul style="margin:0 0 1.2em;padding-left:0;list-style:none;">${block.items.map((item) => renderListItem(item, true, theme, fontSize)).join('')}</ul>`;
     case 'codeBlock':
       return `<pre style="margin:1.4em 0;padding:14px 16px;border-radius:12px;background:${theme.preBackground};color:${theme.preForeground};font-size:14px;line-height:1.65;overflow-x:auto;"><code>${escapeHtml(block.code)}</code></pre>`;
     case 'table':
@@ -54,9 +59,9 @@ function renderBlock(block: ExportBlock, theme: ReturnType<typeof getExportTheme
             `<tr>${row.cells
               .map((cell) => {
                 const tag = cell.kind === 'tableHeader' ? 'th' : 'td';
-                const bg = cell.kind === 'tableHeader' ? theme.surfaceMuted : '#ffffff';
+                const bg = cell.kind === 'tableHeader' ? theme.surfaceMuted : theme.surface;
                 return `<${tag} style="border:1px solid ${theme.border};padding:8px 10px;background:${bg};text-align:left;vertical-align:top;">${cell.blocks
-                  .map((child) => renderBlock(child, theme))
+                  .map((child) => renderBlock(child, theme, fontSize))
                   .join('')}</${tag}>`;
               })
               .join('')}</tr>`,
@@ -68,7 +73,7 @@ function renderBlock(block: ExportBlock, theme: ReturnType<typeof getExportTheme
       return `<section data-mermaid-source="${escapeAttribute(block.source)}" style="margin:1.4em 0;padding:12px 14px;border:1px solid ${theme.border};border-radius:12px;background:#ffffff;"><div style="margin-bottom:8px;color:${theme.textMuted};font-size:12px;letter-spacing:0.08em;text-transform:uppercase;">Mermaid</div><pre style="margin:0;white-space:pre-wrap;color:${theme.text};">${escapeHtml(block.source)}</pre></section>`;
     case 'callout': {
       const title = block.title || capitalize(block.calloutType);
-      return `<section data-callout-type="${escapeAttribute(block.calloutType)}" style="margin:1.4em 0;padding:12px 14px;border-left:4px solid ${theme.accent};background:${theme.surfaceMuted};border-radius:10px;"><div style="margin-bottom:8px;color:${theme.accentStrong};font-weight:700;">${escapeHtml(title)}</div>${block.blocks.map((child) => renderBlock(child, theme)).join('')}</section>`;
+      return `<section data-callout-type="${escapeAttribute(block.calloutType)}" style="margin:1.4em 0;padding:12px 14px;border-left:4px solid ${theme.accent};background:${theme.surfaceMuted};border-radius:10px;"><div style="margin-bottom:8px;color:${theme.accentStrong};font-weight:700;">${escapeHtml(title)}</div>${block.blocks.map((child) => renderBlock(child, theme, fontSize)).join('')}</section>`;
     }
     case 'horizontalRule':
       return `<hr style="border:none;border-top:1px solid ${theme.border};margin:1.6em 0;" />`;
@@ -79,6 +84,7 @@ function renderListItem(
   item: ExportListItem,
   isTaskItem: boolean,
   theme: ReturnType<typeof getExportThemeTokens>,
+  fontSize: number,
 ): string {
   const prefix = isTaskItem
     ? `<span style="display:inline-block;margin-right:8px;color:${theme.accentStrong};font-weight:700;">${item.checked ? '☑' : '☐'}</span>`
@@ -97,7 +103,7 @@ function renderListItem(
   }
 
   return `<li style="margin-bottom:8px;color:${theme.text};">${prefix}${item.blocks
-    .map((child) => renderBlock(child, theme))
+    .map((child) => renderBlock(child, theme, fontSize))
     .join('')}</li>`;
 }
 
@@ -161,8 +167,8 @@ function renderMark(
   }
 }
 
-function rootStyle(text: string): string {
-  return `font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;color:${text};font-size:16px;`;
+function rootStyle(text: string, fontFamily: string, fontSize: number): string {
+  return `font-family:${fontFamily};color:${text};font-size:${fontSize}px;`;
 }
 
 function capitalize(value: string): string {

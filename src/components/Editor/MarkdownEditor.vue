@@ -21,6 +21,7 @@ import { debounce } from 'lodash-es';
 import { Editor as TiptapEditor, EditorContent } from '@tiptap/vue-3';
 
 import { useFileStore } from '../../stores/file';
+import { useSettingsStore } from '../../stores/settings';
 import { parseMarkdown } from './tiptap/markdown/parser';
 import { serializeMarkdown } from './tiptap/markdown/serializer';
 import type { SlashCommandItem } from './tiptap/extensions/slash-commands';
@@ -65,6 +66,7 @@ const props = defineProps<{ initialContent?: string }>();
 const emit = defineEmits<{ (e: 'update', data: EditorUpdatePayload): void }>();
 
 const fileStore = useFileStore();
+const settingsStore = useSettingsStore();
 const editorWrapRef = ref<HTMLElement | null>(null);
 const bubbleMenuRef = ref<InstanceType<typeof BubbleMenuComponent> | null>(null);
 const slashMenuRef = ref<SlashMenuController | null>(null);
@@ -100,6 +102,7 @@ function createEditor(content: string) {
     editorProps: {
       attributes: {
         class: 'tiptap-editor',
+        spellcheck: settingsStore.settings.spellCheck ? 'true' : 'false',
       },
     },
     onUpdate: ({ editor: ed }) => {
@@ -260,6 +263,14 @@ onBeforeUnmount(() => {
     unlistenDragDrop = null;
   }
 });
+
+// 拼写检查：编辑器创建后 settings 变更时动态更新 DOM 属性
+watch(
+  () => settingsStore.settings.spellCheck,
+  (enabled) => {
+    editor.value?.view.dom.setAttribute('spellcheck', enabled ? 'true' : 'false');
+  },
+);
 
 // ── Expose ────────────────────────────────────────────────────
 

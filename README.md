@@ -54,11 +54,7 @@ Project constraints:
 
 More documentation:
 
-- [Documentation index](./docs/README.md)
-- [Architecture](./docs/ARCHITECTURE.md)
-- [Engineering standards](./docs/ENGINEERING_STANDARDS.md)
-- [Roadmap](./docs/ROADMAP.md)
-- [Changelog](./docs/CHANGELOG.md)
+- [Architecture](./ARCHITECTURE.md)
 
 ## Tech Stack
 
@@ -95,7 +91,7 @@ cargo check --manifest-path src-tauri/Cargo.toml
 ## Contributing
 
 - Issues and pull requests are welcome on GitHub.
-- Before changing architecture or ownership boundaries, read `docs/ARCHITECTURE.md` and `docs/ENGINEERING_STANDARDS.md`.
+- Before changing architecture or ownership boundaries, read `ARCHITECTURE.md`.
 - When adding a capability, first justify why it cannot be handled by existing plugins or domain modules.
 
 ## License

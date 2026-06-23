@@ -23,8 +23,9 @@ function selectFont(value: string) {
   <div class="quick-action-item">
     <button class="icon-btn" title="字体" @click.stop="emit('toggle')">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 13L8 3l4 10" />
-        <path d="M5.3 9.5h5.4" />
+        <path d="M8 2.7v10.6" />
+        <path d="M2.7 4.7V3.3a.7.7 0 0 1 .7-.7h9.2a.7.7 0 0 1 .7.7v1.4" />
+        <path d="M6 13.3h4" />
       </svg>
     </button>
     <Transition name="quick-popover">

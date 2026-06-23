@@ -22,12 +22,14 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   const autoSaveStatus = ref<AutoSaveStatus | null>(null);
   const externalFileWarning = ref<string | null>(null);
 
-  let autoSaveIntervalId: ReturnType<typeof setInterval> | null = null;
+  let autoSaveIntervalId: ReturnType<typeof setTimeout> | null = null;
   let autoSaveStatusTimer: ReturnType<typeof setTimeout> | null = null;
   let externalWarningTimer: ReturnType<typeof setTimeout> | null = null;
   let autoSavePaused = false;
   /** 保存互斥锁：防止自动保存与手动保存并发执行导致冲突 */
   let isSaving = false;
+  /** 自动保存是否应继续运行（用户关闭/禁用时停止递归） */
+  let autoSaveActive = false;
 
   /** 大文档阈值（字符数），超过此值弹出提示 */
   const LARGE_DOC_THRESHOLD = 100_000;
@@ -255,8 +257,9 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   }
 
   function stopAutoSave() {
+    autoSaveActive = false;
     if (autoSaveIntervalId) {
-      clearInterval(autoSaveIntervalId);
+      clearTimeout(autoSaveIntervalId);
       autoSaveIntervalId = null;
     }
   }
@@ -271,22 +274,27 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
       // 下限保护：即使配置异常也不会导致过于频繁的保存
       const safeIntervalSeconds = Math.max(intervalSeconds, MIN_AUTOSAVE_INTERVAL_SECONDS);
+      autoSaveActive = true;
 
-      autoSaveIntervalId = setInterval(async () => {
-        if (!fileStore.currentFile.isDirty || !fileStore.currentFile.path) {
-          return;
-        }
-        if (autoSavePaused) {
-          return;
-        }
+      // 递归 setTimeout：保存完成后才设下一个 tick，避免并发和跳过
+      const scheduleNext = () => {
+        if (!autoSaveActive) return;
+        autoSaveIntervalId = setTimeout(async () => {
+          if (!autoSaveActive) return;
 
-        const saved = await saveCurrentDocument(false, { fromAutoSave: true });
-        if (saved) {
-          autoSavePaused = false;
-          updateAutoSaveStatus('已自动保存');
-        }
-        // 跳过（标题改动）或保存失败，都不弹框、不暂停，避免“定时弹框”体验
-      }, safeIntervalSeconds * 1000);
+          if (fileStore.currentFile.isDirty && fileStore.currentFile.path && !autoSavePaused) {
+            const saved = await saveCurrentDocument(false, { fromAutoSave: true });
+            if (saved) {
+              autoSavePaused = false;
+              updateAutoSaveStatus('已自动保存');
+            }
+          }
+          // 无论是否实际保存，继续调度下一次
+          scheduleNext();
+        }, safeIntervalSeconds * 1000);
+      };
+
+      scheduleNext();
     },
     { immediate: true },
   );

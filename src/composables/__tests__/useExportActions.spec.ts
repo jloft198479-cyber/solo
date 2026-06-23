@@ -75,6 +75,8 @@ describe('useExportActions', () => {
         settings: {
           activeThemeId: 'scholar-light',
           wechatTheme: 'blue',
+          fontFamily: 'system-ui',
+          fontSize: 16,
         },
       },
     });
@@ -111,6 +113,8 @@ describe('useExportActions', () => {
         settings: {
           activeThemeId: 'scholar-light',
           wechatTheme: 'green',
+          fontFamily: 'system-ui',
+          fontSize: 16,
         },
       },
     });
