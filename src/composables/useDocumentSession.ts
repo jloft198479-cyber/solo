@@ -3,6 +3,7 @@ import { openDocument, saveDocument, type DocumentOpenResult } from '../services
 import { normalizeTauriError } from '../services/tauri/client';
 import { confirm, message, open, save } from '../services/tauri/dialog';
 import { useFileStore } from '../stores/file';
+import { DEFAULT_DISPLAY_NAME } from '../stores/file';
 import { useSettingsStore } from '../stores/settings';
 
 export interface AutoSaveStatus {
@@ -34,6 +35,22 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   const AUTOSAVE_STATUS_DISPLAY_MS = 2000;
   /** 自动保存间隔下限（秒），与 settings store 保持一致 */
   const MIN_AUTOSAVE_INTERVAL_SECONDS = 5;
+
+  /**
+   * 为另存为对话框生成预填的文件名。
+   * - 标题为空 / 默认占位时回退到 `untitled-{时间戳}.md`，避免多次新建产生同名冲突
+   * - 过滤文件系统非法字符（跨平台：Windows / macOS / Linux）
+   * - 采用行业惯例（VSCode / Typora / Sublime）：仅支持 markdown，自动补 `.md` 扩展名
+   */
+  function buildDefaultSavePath(displayName: string, now: number = Date.now()): string {
+    const trimmed = displayName.trim();
+    if (!trimmed || trimmed === DEFAULT_DISPLAY_NAME) {
+      return `untitled-${now}.md`;
+    }
+    // 过滤 Windows + macOS + Linux 文件系统非法字符
+    const sanitized = trimmed.replace(/[/\\:*?"<>|]/g, '_');
+    return `${sanitized}.md`;
+  }
 
   async function loadDocumentFromPath(path: string): Promise<boolean> {
     try {
@@ -126,7 +143,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     return saveDocument(path, fileStore.currentFile.content, expectedLastModifiedMs, force);
   }
 
-  async function saveCurrentDocument(force = false): Promise<boolean> {
+  async function saveCurrentDocument(force = false, options: { fromAutoSave?: boolean } = {}): Promise<boolean> {
     // 保存互斥锁：正在保存时跳过，避免自动保存与手动保存并发冲突
     if (isSaving) {
       return false;
@@ -134,6 +151,16 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
     const currentFile = fileStore.currentFile;
     if (!currentFile.path) {
+      return saveCurrentDocumentAs();
+    }
+
+    // 标题被改动过：手动保存走另存为；自动保存跳过本次（不静默写回也不弹框），等用户手动处理
+    const titleChanged = currentFile.displayName !== currentFile.originalBaseName;
+    if (titleChanged) {
+      if (options.fromAutoSave) {
+        // 自动保存不弹框：跳过本次保存，保留内存中的变更
+        return false;
+      }
       return saveCurrentDocumentAs();
     }
 
@@ -175,6 +202,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     }
 
     const selected = await save({
+      defaultPath: buildDefaultSavePath(fileStore.currentFile.displayName),
       filters: [{ name: 'Markdown', extensions: ['md'] }],
     });
     if (!selected) {
@@ -185,7 +213,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     try {
       const result = await persistDocument(selected, true, null);
       fileStore.setFile(fileStore.currentFile.content, result.path, result.lastModifiedMs);
-      fileStore.markSaved(result.lastModifiedMs);
       clearExternalWarning();
       return true;
     } catch (error) {
@@ -253,14 +280,12 @@ export function useDocumentSession(options: DocumentSessionOptions) {
           return;
         }
 
-        const saved = await saveCurrentDocument();
+        const saved = await saveCurrentDocument(false, { fromAutoSave: true });
         if (saved) {
           autoSavePaused = false;
           updateAutoSaveStatus('已自动保存');
-        } else {
-          // 保存失败（可能是冲突），暂停自动保存避免定时弹框
-          autoSavePaused = true;
         }
+        // 跳过（标题改动）或保存失败，都不弹框、不暂停，避免“定时弹框”体验
       }, safeIntervalSeconds * 1000);
     },
     { immediate: true },

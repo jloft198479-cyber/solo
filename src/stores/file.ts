@@ -1,5 +1,8 @@
 import { defineStore } from 'pinia';
 
+/** 默认显示名称 / 无标题文档占位名 */
+export const DEFAULT_DISPLAY_NAME = '未命名';
+
 export interface FileState {
   path: string | null;
   content: string;
@@ -7,6 +10,12 @@ export interface FileState {
   lastModifiedTime: number | null;
   /** Display name shown in titlebar (editable by user) */
   displayName: string;
+  /**
+   * 从 path 提取的原始文件名基础名（去扩展名）。
+   * 用于在保存时判断“标题是否被改过”：
+   * displayName !== originalBaseName 意味着用户改了标题，下次保存应走另存为。
+   */
+  originalBaseName: string;
 }
 
 interface FileStoreState {
@@ -21,7 +30,8 @@ function createEmptyFileState(): FileState {
     content: '',
     isDirty: false,
     lastModifiedTime: null,
-    displayName: '未命名',
+    displayName: DEFAULT_DISPLAY_NAME,
+    originalBaseName: DEFAULT_DISPLAY_NAME,
   };
 }
 
@@ -53,13 +63,16 @@ export const useFileStore = defineStore('file', {
     },
 
     setFile(content: string, path: string | null, lastModifiedTime: number | null = null) {
-      const displayName = path ? (path.split(/[/\\]/).pop() || '未命名').replace(/\.(md|markdown|txt)$/i, '') : '未命名';
+      const baseName = path
+        ? (path.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
+        : DEFAULT_DISPLAY_NAME;
       this.currentFile = {
         path,
         content,
         isDirty: false,
         lastModifiedTime,
-        displayName,
+        displayName: baseName,
+        originalBaseName: baseName,
       };
       // 重置编辑标志
       this.hasUserEdit = false;
@@ -67,7 +80,7 @@ export const useFileStore = defineStore('file', {
 
     setDisplayName(name: string) {
       const trimmed = name.trim();
-      this.currentFile.displayName = trimmed || '未命名';
+      this.currentFile.displayName = trimmed || DEFAULT_DISPLAY_NAME;
       this.currentFile.isDirty = true;
       this.hasUserEdit = true;
     },
