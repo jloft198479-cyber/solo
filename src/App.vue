@@ -171,10 +171,12 @@ onUnmounted(() => {
       :file-path="fileStore.currentFile.path"
       :display-name="fileStore.currentFile.displayName"
       :auto-hide="settingsStore.settings.titlebarAutoHide"
+      :always-on-top="settingsStore.settings.alwaysOnTop"
       @rename="fileStore.setDisplayName"
       @minimize="handleMinimize"
       @maximize="handleMaximize"
       @close="handleClose"
+      @toggle-always-on-top="settingsStore.toggleAlwaysOnTop()"
     />
 
     <main

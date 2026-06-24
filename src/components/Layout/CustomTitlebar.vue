@@ -37,6 +37,17 @@
       </span>
     </div>
     <div class="titlebar-buttons">
+      <button
+        class="titlebar-btn"
+        :class="{ 'titlebar-btn--active': props.alwaysOnTop }"
+        title="置顶"
+        @click="emit('toggleAlwaysOnTop')"
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M6 2v8M2 6h8" transform="rotate(45 6 6)"/>
+          <circle cx="6" cy="6" r="2.5"/>
+        </svg>
+      </button>
       <button class="titlebar-btn" title="最小化" @click="emit('minimize')">
         <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
       </button>
@@ -58,6 +69,7 @@ const props = defineProps<{
   filePath: string | null;
   displayName: string;
   autoHide: boolean;
+  alwaysOnTop: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -65,6 +77,7 @@ const emit = defineEmits<{
   (e: 'minimize'): void;
   (e: 'maximize'): void;
   (e: 'close'): void;
+  (e: 'toggleAlwaysOnTop'): void;
 }>();
 
 const titlebarHovered = ref(false);
@@ -208,6 +221,11 @@ onUnmounted(() => {
 .titlebar-btn--close:hover {
   background-color: var(--error-color);
   color: #ffffff;
+}
+
+.titlebar-btn--active {
+  color: var(--primary-color);
+  opacity: 1;
 }
 
 .titlebar-trigger {
