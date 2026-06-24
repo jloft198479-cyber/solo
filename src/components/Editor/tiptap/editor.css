@@ -510,7 +510,7 @@ html.dark .tiptap-editor mark {
 .tiptap-editor table {
   border-collapse: collapse;
   table-layout: fixed;
-  width: 100%;
+  /* 不设 width，由 prosemirror-tables 通过 inline style 控制列宽 */
   margin: 0;
   border: none;
 }
