@@ -3,7 +3,7 @@
     class="editor-shell h-full w-full cursor-text transition-colors"
     @click="handleContainerClick"
   >
-    <div ref="editorWrapRef" class="mk-editor h-full overflow-y-auto outline-none">
+    <div ref="editorWrapRef" class="mk-editor h-full overflow-y-auto outline-none" :style="settingsStore.isFocusMode ? { paddingTop: '48px' } : {}">
       <div class="mk-editor-inner">
         <EditorContent v-if="editor" :editor="editor" />
       </div>
