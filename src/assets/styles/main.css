@@ -260,7 +260,7 @@ html.focus-mode .focus-mode-editor {
 }
 
 html.focus-mode .focus-mode-editor .tiptap-editor {
-  padding: 0 !important;
+  padding: 48px 0 0 0 !important;
 }
 
 html.focus-mode .custom-titlebar {
