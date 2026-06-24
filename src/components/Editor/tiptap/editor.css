@@ -764,84 +764,12 @@ html.dark .tiptap-editor mark {
   resize: vertical;
 }
 
-/* ── Callout 块 ── 参照 Notion 设计：软底 + 大 icon + 无边 ──── */
+/* ── Callout 块 ────────────────────────────────────────────── */
 .tiptap-editor .mk-callout {
   border-radius: 4px;
   padding: 12px 16px;
   margin: 8px 0;
-  display: flow-root;
-}
-
-.tiptap-editor .mk-callout > *:first-child {
-  margin-top: 0;
-}
-.tiptap-editor .mk-callout > *:last-child {
-  margin-bottom: 0;
-}
-
-.tiptap-editor .mk-callout-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 500;
-  margin-bottom: 4px;
-}
-
-.tiptap-editor .mk-callout-icon {
-  flex-shrink: 0;
-  font-size: 1.25em;
-  line-height: 1;
-}
-
-.tiptap-editor .mk-callout-note {
   background-color: var(--callout-note-bg);
-}
-.tiptap-editor .mk-callout-note .mk-callout-title {
-  color: var(--callout-note);
-}
-
-.tiptap-editor .mk-callout-info {
-  background-color: var(--callout-note-bg);
-}
-.tiptap-editor .mk-callout-info .mk-callout-title {
-  color: var(--callout-note);
-}
-
-.tiptap-editor .mk-callout-tip {
-  background-color: var(--callout-tip-bg);
-}
-.tiptap-editor .mk-callout-tip .mk-callout-title {
-  color: var(--callout-tip);
-}
-
-.tiptap-editor .mk-callout-warning,
-.tiptap-editor .mk-callout-caution {
-  background-color: var(--callout-warning-bg);
-}
-.tiptap-editor .mk-callout-warning .mk-callout-title,
-.tiptap-editor .mk-callout-caution .mk-callout-title {
-  color: var(--callout-warning);
-}
-
-.tiptap-editor .mk-callout-danger,
-.tiptap-editor .mk-callout-important {
-  background-color: var(--callout-danger-bg);
-}
-.tiptap-editor .mk-callout-danger .mk-callout-title,
-.tiptap-editor .mk-callout-important .mk-callout-title {
-  color: var(--callout-danger);
-}
-
-.tiptap-editor .mk-callout-success {
-  background-color: var(--callout-success-bg);
-}
-.tiptap-editor .mk-callout-success .mk-callout-title {
-  color: var(--callout-success);
-}
-
-.tiptap-editor .mk-callout-quote {
-  background-color: var(--callout-quote-bg);
-  font-style: italic;
 }
 
 /* ── Frontmatter ───────────────────────────────────────────── */

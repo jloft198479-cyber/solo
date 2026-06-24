@@ -100,46 +100,13 @@ export const slashCommandItems: SlashCommandItem[] = [
     },
   },
   {
-    title: '提示',
-    description: 'Note 提示块',
-    icon: 'ℹ',
-    category: '提示',
+    title: '重点',
+    description: '重点提示块',
+    icon: '▎',
+    category: '块',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range)
-        .insertContent({ type: 'callout', attrs: { calloutType: 'note' }, content: [{ type: 'paragraph' }] })
-        .run();
-    },
-  },
-  {
-    title: '建议',
-    description: 'Tip 建议块',
-    icon: '💡',
-    category: '提示',
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range)
-        .insertContent({ type: 'callout', attrs: { calloutType: 'tip' }, content: [{ type: 'paragraph' }] })
-        .run();
-    },
-  },
-  {
-    title: '警告',
-    description: 'Warning 警告块',
-    icon: '⚠',
-    category: '提示',
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range)
-        .insertContent({ type: 'callout', attrs: { calloutType: 'warning' }, content: [{ type: 'paragraph' }] })
-        .run();
-    },
-  },
-  {
-    title: '重要',
-    description: 'Important 重要提示',
-    icon: '❗',
-    category: '提示',
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range)
-        .insertContent({ type: 'callout', attrs: { calloutType: 'important' }, content: [{ type: 'paragraph' }] })
+        .insertContent({ type: 'callout', content: [{ type: 'paragraph' }] })
         .run();
     },
   },
