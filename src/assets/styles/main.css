@@ -259,9 +259,10 @@ html.focus-mode .focus-mode-editor {
   padding: 64px 24px 48px;
 }
 
-html.focus-mode .focus-mode-editor .tiptap-editor {
-  padding: 48px 0 0 0 !important;
+html.focus-mode .mk-editor {
+  padding-top: 48px;
 }
+
 
 html.focus-mode .custom-titlebar {
   position: fixed;
