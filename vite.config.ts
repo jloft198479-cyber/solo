@@ -32,24 +32,28 @@ export default defineConfig(async () => ({
     // 分包策略：将大型依赖拆分为独立 chunk
     rollupOptions: {
       output: {
-        manualChunks: {
-          'tiptap-core': ['@tiptap/vue-3', '@tiptap/pm', '@tiptap/core'],
-          'tiptap-extensions': [
-            '@tiptap/extension-placeholder',
-            '@tiptap/extension-highlight',
-            '@tiptap/extension-image',
-            '@tiptap/extension-link',
-            '@tiptap/extension-table',
-            '@tiptap/extension-task-list',
-            '@tiptap/extension-underline',
-            '@tiptap/extension-text-align',
-            '@tiptap/extension-subscript',
-            '@tiptap/extension-superscript',
-            '@tiptap/extension-typography',
-          ],
-          'markdown-it': ['markdown-it'],
-          'katex': ['katex'],
-          'mermaid': ['mermaid'],
+        manualChunks: (id: string) => {
+          // TipTap 核心包
+          if (id.includes('@tiptap/vue-3') || id.includes('@tiptap/pm') || id.includes('@tiptap/core')) {
+            return 'tiptap-core';
+          }
+          // TipTap 扩展包（仅包含实际安装的）
+          if (
+            id.includes('@tiptap/extension-placeholder') ||
+            id.includes('@tiptap/extension-highlight') ||
+            id.includes('@tiptap/extension-image') ||
+            id.includes('@tiptap/extension-link') ||
+            id.includes('@tiptap/extension-table') ||
+            id.includes('@tiptap/extension-task-list') ||
+            id.includes('@tiptap/extension-subscript') ||
+            id.includes('@tiptap/extension-superscript')
+          ) {
+            return 'tiptap-extensions';
+          }
+          // 其他大型依赖
+          if (id.includes('markdown-it')) return 'markdown-it';
+          if (id.includes('katex')) return 'katex';
+          if (id.includes('mermaid')) return 'mermaid';
         },
       },
     },

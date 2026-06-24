@@ -36,6 +36,12 @@ export function runBubbleMenuAction(
     case 'h2':
       chain.toggleHeading({ level: 2 }).run();
       break;
+    case 'bulletList':
+      chain.toggleBulletList().run();
+      break;
+    case 'clearFormat':
+      chain.clearNodes().unsetAllMarks().run();
+      break;
   }
 }
 

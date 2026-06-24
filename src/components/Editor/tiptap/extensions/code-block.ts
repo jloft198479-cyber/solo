@@ -77,6 +77,30 @@ export const CustomCodeBlock = CodeBlockLowlight.extend({
       languageInput.style.display = 'none';
       header.appendChild(languageInput);
 
+      // 复制按钮
+      const copyButton = document.createElement('button');
+      copyButton.type = 'button';
+      copyButton.className = 'mk-code-block-copy-button';
+      copyButton.title = '复制代码';
+      copyButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      header.appendChild(copyButton);
+
+      let copyTimeout: ReturnType<typeof setTimeout> | null = null;
+      copyButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const code = node.textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          copyButton.classList.add('is-copied');
+          copyButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+          if (copyTimeout) clearTimeout(copyTimeout);
+          copyTimeout = setTimeout(() => {
+            copyButton.classList.remove('is-copied');
+            copyButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+          }, 2000);
+        });
+      });
+
       const pre = document.createElement('pre');
       pre.className = 'mk-code-block';
       dom.appendChild(pre);

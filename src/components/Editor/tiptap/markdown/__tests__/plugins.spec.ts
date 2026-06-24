@@ -16,6 +16,7 @@ describe('markdown syntax plugin registry', () => {
 
   it('keeps feature plugins registered in preprocessing order', () => {
     expect(markdownSyntaxPlugins.map((plugin) => plugin.name)).toEqual([
+      'callout',
       'math',
       'mermaid',
       'wikilink',
@@ -25,13 +26,14 @@ describe('markdown syntax plugin registry', () => {
   it('aggregates parser and serializer hooks from plugins', () => {
     expect(getPluginPreprocessors(schema)).toHaveLength(0);
     expect(getPluginFenceHandlers(schema)).toHaveLength(1);
-    expect(getPluginTokenInterceptors(schema)).toHaveLength(0);
+    expect(getPluginTokenInterceptors(schema)).toHaveLength(1); // callout
     expect(Object.keys(getPluginTokenHandlers(schema)).sort()).toEqual([
       'math_block',
       'math_inline',
       'text',
     ]);
     expect(Object.keys(getPluginNodeSerializers()).sort()).toEqual([
+      'callout',
       'mathBlock',
       'mathInline',
       'mermaidBlock',

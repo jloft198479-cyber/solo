@@ -199,7 +199,7 @@ function updateBubbleMenu(ed: TiptapEditor) {
   const endCoords = ed.view.coordsAtPos(to);
   // 定位到选区右端，格式栏显示在右侧，避免行首时溢出左边界
   // 视口边界钳位：防止 BubbleMenu 溢出右边界
-  const BUBBLE_MENU_ESTIMATED_WIDTH = 320;
+  const BUBBLE_MENU_ESTIMATED_WIDTH = 360;
   const BUBBLE_MENU_OFFSET_X = 8;
   const viewportWidth = window.innerWidth;
   const maxLeft = viewportWidth - BUBBLE_MENU_ESTIMATED_WIDTH - BUBBLE_MENU_OFFSET_X - 8;
@@ -212,6 +212,7 @@ function updateBubbleMenu(ed: TiptapEditor) {
     italic: ed.isActive('italic'),
     code: ed.isActive('code'),
     link: ed.isActive('link'),
+    bulletList: ed.isActive('bulletList'),
   };
 
   const linkAttributes = ed.getAttributes('link') as { href?: unknown };
