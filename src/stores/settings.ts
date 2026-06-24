@@ -8,6 +8,7 @@ import {
   writeStoredFocusMode,
   writeStoredSettings,
 } from '../services/tauri/store';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export interface Settings {
   /** Current app theme ID */
@@ -34,6 +35,8 @@ export interface Settings {
   customShortcuts: Record<string, string>;
   /** Custom editor CSS */
   customEditorCSS: string;
+  /** Window always on top */
+  alwaysOnTop: boolean;
   /** Config version */
   configVersion: number;
 }
@@ -50,10 +53,11 @@ const DEFAULT_SETTINGS: Settings = {
   wechatTheme: 'scholar',
   customShortcuts: {},
   customEditorCSS: '',
-  configVersion: 6,
+  alwaysOnTop: false,
+  configVersion: 7,
 };
 
-const CURRENT_CONFIG_VERSION = 6;
+const CURRENT_CONFIG_VERSION = 7;
 
 /** 自动保存间隔下限（秒），防止配置异常导致过于频繁的保存 */
 const MIN_AUTOSAVE_INTERVAL_SECONDS = 5;
@@ -306,6 +310,17 @@ export const useSettingsStore = defineStore('settings', {
       this.isFocusMode = !this.isFocusMode;
     },
 
+    async toggleAlwaysOnTop(): Promise<void> {
+      const win = getCurrentWindow();
+      const next = !this.settings.alwaysOnTop;
+      try {
+        await win.setAlwaysOnTop(next);
+        this.settings.alwaysOnTop = next;
+      } catch (error) {
+        console.error('[Settings] 切换置顶失败:', error);
+      }
+    },
+
     updateSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
       this.settings[key] = value;
     },
@@ -344,6 +359,16 @@ export const useSettingsStore = defineStore('settings', {
       this.startWatchers();
       this.initTheme();
       this.initFocusMode();
+      this.initAlwaysOnTop();
+    },
+
+    initAlwaysOnTop() {
+      if (!this.isLoaded) return;
+      getCurrentWindow()
+        .setAlwaysOnTop(this.settings.alwaysOnTop)
+        .catch((error) => {
+          console.error('[Settings] 恢复置顶状态失败:', error);
+        });
     },
   },
 });
