@@ -764,18 +764,17 @@ html.dark .tiptap-editor mark {
   resize: vertical;
 }
 
-/* ── Callout 块 ── 参照 GitHub Markdown Alerts 设计 ──────────── */
+/* ── Callout 块 ── 参照 Notion 设计：软底 + 大 icon + 无边 ──── */
 .tiptap-editor .mk-callout {
-  border-left: 0.25em solid;
-  padding: 0.5rem 1rem;
-  margin: 1rem 0;
-  color: inherit;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin: 8px 0;
+  display: flow-root;
 }
 
 .tiptap-editor .mk-callout > *:first-child {
   margin-top: 0;
 }
-
 .tiptap-editor .mk-callout > *:last-child {
   margin-bottom: 0;
 }
@@ -783,31 +782,33 @@ html.dark .tiptap-editor mark {
 .tiptap-editor .mk-callout-title {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-weight: 500;
   margin-bottom: 4px;
 }
 
 .tiptap-editor .mk-callout-icon {
   flex-shrink: 0;
+  font-size: 1.25em;
+  line-height: 1;
 }
 
 .tiptap-editor .mk-callout-note {
-  border-color: var(--callout-note);
+  background-color: var(--callout-note-bg);
 }
 .tiptap-editor .mk-callout-note .mk-callout-title {
   color: var(--callout-note);
 }
 
 .tiptap-editor .mk-callout-info {
-  border-color: var(--callout-note);
+  background-color: var(--callout-note-bg);
 }
 .tiptap-editor .mk-callout-info .mk-callout-title {
   color: var(--callout-note);
 }
 
 .tiptap-editor .mk-callout-tip {
-  border-color: var(--callout-tip);
+  background-color: var(--callout-tip-bg);
 }
 .tiptap-editor .mk-callout-tip .mk-callout-title {
   color: var(--callout-tip);
@@ -815,7 +816,7 @@ html.dark .tiptap-editor mark {
 
 .tiptap-editor .mk-callout-warning,
 .tiptap-editor .mk-callout-caution {
-  border-color: var(--callout-warning);
+  background-color: var(--callout-warning-bg);
 }
 .tiptap-editor .mk-callout-warning .mk-callout-title,
 .tiptap-editor .mk-callout-caution .mk-callout-title {
@@ -824,7 +825,7 @@ html.dark .tiptap-editor mark {
 
 .tiptap-editor .mk-callout-danger,
 .tiptap-editor .mk-callout-important {
-  border-color: var(--callout-danger);
+  background-color: var(--callout-danger-bg);
 }
 .tiptap-editor .mk-callout-danger .mk-callout-title,
 .tiptap-editor .mk-callout-important .mk-callout-title {
@@ -832,14 +833,14 @@ html.dark .tiptap-editor mark {
 }
 
 .tiptap-editor .mk-callout-success {
-  border-color: var(--callout-success);
+  background-color: var(--callout-success-bg);
 }
 .tiptap-editor .mk-callout-success .mk-callout-title {
   color: var(--callout-success);
 }
 
 .tiptap-editor .mk-callout-quote {
-  border-color: var(--muted-color);
+  background-color: var(--callout-quote-bg);
   font-style: italic;
 }
 
