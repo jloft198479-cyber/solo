@@ -8,7 +8,7 @@ import {
   writeStoredFocusMode,
   writeStoredSettings,
 } from '../services/tauri/store';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { setCurrentWindowAlwaysOnTop } from '../services/tauri/window';
 
 export interface Settings {
   /** Current app theme ID */
@@ -311,10 +311,9 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     async toggleAlwaysOnTop(): Promise<void> {
-      const win = getCurrentWindow();
       const next = !this.settings.alwaysOnTop;
       try {
-        await win.setAlwaysOnTop(next);
+        await setCurrentWindowAlwaysOnTop(next);
         this.settings.alwaysOnTop = next;
       } catch (error) {
         console.error('[Settings] 切换置顶失败:', error);
@@ -364,8 +363,7 @@ export const useSettingsStore = defineStore('settings', {
 
     initAlwaysOnTop() {
       if (!this.isLoaded) return;
-      getCurrentWindow()
-        .setAlwaysOnTop(this.settings.alwaysOnTop)
+      setCurrentWindowAlwaysOnTop(this.settings.alwaysOnTop)
         .catch((error) => {
           console.error('[Settings] 恢复置顶状态失败:', error);
         });

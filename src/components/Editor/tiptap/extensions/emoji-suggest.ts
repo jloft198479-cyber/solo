@@ -114,7 +114,7 @@ export const emojiItems: EmojiItem[] = [
   { emoji: '💯', name: '100', keywords: ['满分', '一百分', '100', 'perfect'] },
   { emoji: '🆗', name: 'ok', keywords: ['好的', 'ok'] },
   { emoji: '🆕', name: 'new', keywords: ['新的', 'new'] },
-  { emoji: '🆗', name: 'free', keywords: ['免费', 'free'] },
+  { emoji: '🆓', name: 'free', keywords: ['免费', 'free'] },
 ];
 
 export const EmojiSuggest = Extension.create<EmojiSuggestOptions>({

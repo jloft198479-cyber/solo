@@ -84,10 +84,15 @@ pub fn resolve_document_image_path(
     document_path: String,
     relative_path: String,
 ) -> Result<DocumentImageResolveResult, AppError> {
+    // 防止路径遍历：拒绝绝对路径和含 .. 的相对路径
+    if relative_path.starts_with('/') || relative_path.contains("..") {
+        return Err(AppError::validation("图片路径无效"));
+    }
+
     let document_dir = Path::new(&document_path)
         .parent()
         .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
-    let absolute_path = document_dir.join(relative_path);
+    let absolute_path = document_dir.join(&relative_path);
     let absolute_path = absolute_path
         .to_str()
         .ok_or_else(|| AppError::validation("无法解析图片路径"))?;
