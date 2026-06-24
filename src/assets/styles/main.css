@@ -260,7 +260,7 @@ html.focus-mode .focus-mode-editor {
 }
 
 html.focus-mode .mk-editor {
-  padding-top: 48px;
+  padding-top: 48px !important;
 }
 
 
