@@ -272,7 +272,7 @@
  */
 .tiptap-editor blockquote {
   border-left: var(--mk-quote-border-width) solid var(--primary-color);
-  padding: 0.4em 0 0.4em 1em;
+  padding: 0.5em 0 0.5em 1em;
   margin: var(--mk-paragraph-spacing) 0;
   color: var(--text-secondary);
   background-color: var(--quote-bg, transparent);
