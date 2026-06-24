@@ -764,29 +764,36 @@ html.dark .tiptap-editor mark {
   resize: vertical;
 }
 
-/* ── Callout 块 ────────────────────────────────────────────── */
+/* ── Callout 块 ── 参考 Obsidian 设计：全边框 + 增强底色 ──────── */
 .tiptap-editor .mk-callout {
-  border-left: 4px solid;
-  border-radius: 4px;
-  padding: 10px 14px;
-  margin: 10px 0;
-  font-size: 0.95em;
+  border: 1px solid;
+  border-left-width: 4px;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 12px 0;
 }
 
 .tiptap-editor .mk-callout-title {
   font-weight: 600;
-  margin-bottom: 4px;
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
   display: flex;
   align-items: center;
   gap: 6px;
+  opacity: 0.85;
 }
 
 .tiptap-editor .mk-callout-icon {
   flex-shrink: 0;
 }
 
-.tiptap-editor .mk-callout-body {
-  margin-top: 4px;
+.tiptap-editor .mk-callout-body > *:first-child {
+  margin-top: 0;
+}
+
+.tiptap-editor .mk-callout-body > *:last-child {
+  margin-bottom: 0;
 }
 
 .tiptap-editor .mk-callout-note {

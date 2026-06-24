@@ -98,15 +98,15 @@
 
   /* Callout */
   --callout-note: #5a7e9e;
-  --callout-note-bg: rgba(90, 126, 158, 0.06);
+  --callout-note-bg: rgba(90, 126, 158, 0.1);
   --callout-tip: #6b8e5a;
-  --callout-tip-bg: rgba(107, 142, 90, 0.06);
+  --callout-tip-bg: rgba(107, 142, 90, 0.1);
   --callout-warning: #b8860b;
-  --callout-warning-bg: rgba(184, 134, 11, 0.06);
+  --callout-warning-bg: rgba(184, 134, 11, 0.1);
   --callout-danger: #c05050;
-  --callout-danger-bg: rgba(192, 80, 80, 0.06);
+  --callout-danger-bg: rgba(192, 80, 80, 0.1);
   --callout-success: #6b8e5a;
-  --callout-success-bg: rgba(107, 142, 90, 0.06);
+  --callout-success-bg: rgba(107, 142, 90, 0.1);
   --callout-quote: #9a8e7e;
   --callout-quote-bg: rgba(154, 142, 126, 0.06);
 }
