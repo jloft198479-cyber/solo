@@ -96,19 +96,9 @@
   --popover-border: #e4ddd2;
   --popover-shadow: 0 10px 15px -3px rgba(44, 36, 22, 0.1);
 
-  /* Callout */
-  --callout-note: #5a7e9e;
-  --callout-note-bg: rgba(90, 126, 158, 0.1);
-  --callout-tip: #6b8e5a;
-  --callout-tip-bg: rgba(107, 142, 90, 0.1);
-  --callout-warning: #b8860b;
-  --callout-warning-bg: rgba(184, 134, 11, 0.1);
-  --callout-danger: #c05050;
-  --callout-danger-bg: rgba(192, 80, 80, 0.1);
-  --callout-success: #6b8e5a;
-  --callout-success-bg: rgba(107, 142, 90, 0.1);
-  --callout-quote: #9a8e7e;
-  --callout-quote-bg: rgba(154, 142, 126, 0.06);
+  /* Callout — 跟随书卷气主色 */
+  --callout-note: #8b7355;
+  --callout-note-bg: rgba(139, 115, 85, 0.08);
 }
 
 /* ── 深色主题（夜读墨色） ──────────────────────────────────── */
@@ -199,19 +189,9 @@ html.dark {
   --popover-border: #322e28;
   --popover-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
 
-  /* Callout */
-  --callout-note: #7ea0be;
-  --callout-note-bg: rgba(126, 160, 190, 0.1);
-  --callout-tip: #8fb87a;
-  --callout-tip-bg: rgba(143, 184, 122, 0.1);
-  --callout-warning: #d4a520;
-  --callout-warning-bg: rgba(212, 165, 32, 0.1);
-  --callout-danger: #d06868;
-  --callout-danger-bg: rgba(208, 104, 104, 0.1);
-  --callout-success: #8fb87a;
-  --callout-success-bg: rgba(143, 184, 122, 0.1);
-  --callout-quote: #6b6258;
-  --callout-quote-bg: rgba(107, 98, 88, 0.1);
+  /* Callout — 跟随夜读墨色主色 */
+  --callout-note: #b0a080;
+  --callout-note-bg: rgba(176, 160, 128, 0.1);
 }
 
 /* ── 基础布局 ──────────────────────────────────────────────── */
