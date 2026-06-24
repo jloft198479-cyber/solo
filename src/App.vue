@@ -267,7 +267,7 @@ onUnmounted(() => {
    描边 1.4 保持清晰，hover 态有微妙背景反馈。
    参考线性：Linear / Raycast 状态栏的呼吸感与克制配色。 */
 .minimal-statusbar {
-  height: 38px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: space-between;
