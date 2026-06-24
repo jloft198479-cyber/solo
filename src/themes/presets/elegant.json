@@ -3,7 +3,7 @@
   "name": "素笺",
   "type": "preset",
   "appearance": "light",
-  "author": "MD编辑器",
+  "author": "solo",
   "description": "素雅信笺，清朗端庄，如铺展素纸",
   "version": "1.0.0",
   "colors": {
@@ -64,17 +64,7 @@
     "popoverBorder": "#dfe3e8",
     "popoverShadow": "0 10px 15px -3px rgba(26, 42, 53, 0.1)",
     "calloutNote": "#5a7a8a",
-    "calloutNoteBg": "rgba(90, 122, 138, 0.06)",
-    "calloutTip": "#5a8a6a",
-    "calloutTipBg": "rgba(90, 138, 106, 0.06)",
-    "calloutWarning": "#b8860b",
-    "calloutWarningBg": "rgba(184, 134, 11, 0.06)",
-    "calloutDanger": "#c05050",
-    "calloutDangerBg": "rgba(192, 80, 80, 0.06)",
-    "calloutSuccess": "#5a8a6a",
-    "calloutSuccessBg": "rgba(90, 138, 106, 0.06)",
-    "calloutQuote": "#8a9aa5",
-    "calloutQuoteBg": "rgba(138, 154, 165, 0.06)"
+    "calloutNoteBg": "rgba(90, 122, 138, 0.08)"
   },
   "typography": {
     "lineHeight": "1.9",

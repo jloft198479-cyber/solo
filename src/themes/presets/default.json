@@ -3,8 +3,8 @@
   "name": "纸白",
   "type": "preset",
   "appearance": "light",
-  "author": "MarkLight",
-  "description": "Indigo 主色调，清爽现代风格",
+  "author": "solo",
+  "description": "靛蓝主色调，清爽现代风格",
   "version": "1.0.0",
   "colors": {
     "primaryColor": "#6366f1",
@@ -63,18 +63,8 @@
     "popoverBg": "#ffffff",
     "popoverBorder": "#e5e7eb",
     "popoverShadow": "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
-    "calloutNote": "#3b82f6",
-    "calloutNoteBg": "rgba(59, 130, 246, 0.07)",
-    "calloutTip": "#10b981",
-    "calloutTipBg": "rgba(16, 185, 129, 0.07)",
-    "calloutWarning": "#f59e0b",
-    "calloutWarningBg": "rgba(245, 158, 11, 0.07)",
-    "calloutDanger": "#ef4444",
-    "calloutDangerBg": "rgba(239, 68, 68, 0.07)",
-    "calloutSuccess": "#22c55e",
-    "calloutSuccessBg": "rgba(34, 197, 94, 0.07)",
-    "calloutQuote": "#6b7280",
-    "calloutQuoteBg": "rgba(107, 114, 128, 0.07)"
+    "calloutNote": "#6366f1",
+    "calloutNoteBg": "rgba(99, 102, 241, 0.08)"
   },
   "typography": {
     "lineHeight": "1.8",

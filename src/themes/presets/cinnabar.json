@@ -3,7 +3,7 @@
   "name": "朱墨",
   "type": "preset",
   "appearance": "light",
-  "author": "MD编辑器",
+  "author": "solo",
   "description": "朱砂印泥，墨色文字，落印成章",
   "version": "1.0.0",
   "colors": {
@@ -63,18 +63,8 @@
     "popoverBg": "#faf8f6",
     "popoverBorder": "#e0d8d0",
     "popoverShadow": "0 10px 15px -3px rgba(42, 37, 32, 0.1)",
-    "calloutNote": "#5a7e9e",
-    "calloutNoteBg": "rgba(90, 126, 158, 0.06)",
-    "calloutTip": "#6b8e5a",
-    "calloutTipBg": "rgba(107, 142, 90, 0.06)",
-    "calloutWarning": "#b8860b",
-    "calloutWarningBg": "rgba(184, 134, 11, 0.06)",
-    "calloutDanger": "#b85450",
-    "calloutDangerBg": "rgba(184, 84, 80, 0.06)",
-    "calloutSuccess": "#6b8e5a",
-    "calloutSuccessBg": "rgba(107, 142, 90, 0.06)",
-    "calloutQuote": "#9a8e82",
-    "calloutQuoteBg": "rgba(154, 142, 130, 0.06)"
+    "calloutNote": "#b85450",
+    "calloutNoteBg": "rgba(184, 84, 80, 0.08)"
   },
   "typography": {
     "lineHeight": "2",
