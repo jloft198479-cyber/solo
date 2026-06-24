@@ -3,7 +3,7 @@
   "name": "朱墨暗",
   "type": "preset",
   "appearance": "dark",
-  "author": "MD编辑器",
+  "author": "solo",
   "description": "暗夜朱印，墨色深沉，灯火可亲",
   "version": "1.0.0",
   "colors": {
@@ -63,18 +63,8 @@
     "popoverBg": "#1a1715",
     "popoverBorder": "#352e28",
     "popoverShadow": "0 10px 15px -3px rgba(0, 0, 0, 0.4)",
-    "calloutNote": "#7ea0be",
-    "calloutNoteBg": "rgba(126, 160, 190, 0.1)",
-    "calloutTip": "#8fb87a",
-    "calloutTipBg": "rgba(143, 184, 122, 0.1)",
-    "calloutWarning": "#d4a520",
-    "calloutWarningBg": "rgba(212, 165, 32, 0.1)",
-    "calloutDanger": "#d4756a",
-    "calloutDangerBg": "rgba(212, 117, 106, 0.1)",
-    "calloutSuccess": "#8fb87a",
-    "calloutSuccessBg": "rgba(143, 184, 122, 0.1)",
-    "calloutQuote": "#6a5e52",
-    "calloutQuoteBg": "rgba(106, 94, 82, 0.1)"
+    "calloutNote": "#d4756a",
+    "calloutNoteBg": "rgba(212, 117, 106, 0.1)"
   },
   "typography": {
     "lineHeight": "2",

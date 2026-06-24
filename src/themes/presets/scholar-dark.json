@@ -3,7 +3,7 @@
   "name": "夜读墨色",
   "type": "preset",
   "appearance": "dark",
-  "author": "MD编辑器",
+  "author": "solo",
   "description": "暗宣纸底，暖墨色主色，深夜阅读不伤眼",
   "version": "1.0.0",
   "colors": {
@@ -63,18 +63,8 @@
     "popoverBg": "#1a1815",
     "popoverBorder": "#322e28",
     "popoverShadow": "0 10px 15px -3px rgba(0, 0, 0, 0.4)",
-    "calloutNote": "#7ea0be",
-    "calloutNoteBg": "rgba(126, 160, 190, 0.1)",
-    "calloutTip": "#8fb87a",
-    "calloutTipBg": "rgba(143, 184, 122, 0.1)",
-    "calloutWarning": "#d4a520",
-    "calloutWarningBg": "rgba(212, 165, 32, 0.1)",
-    "calloutDanger": "#d06868",
-    "calloutDangerBg": "rgba(208, 104, 104, 0.1)",
-    "calloutSuccess": "#8fb87a",
-    "calloutSuccessBg": "rgba(143, 184, 122, 0.1)",
-    "calloutQuote": "#6b6258",
-    "calloutQuoteBg": "rgba(107, 98, 88, 0.1)"
+    "calloutNote": "#b0a080",
+    "calloutNoteBg": "rgba(176, 160, 128, 0.1)"
   },
   "typography": {
     "lineHeight": "2",
