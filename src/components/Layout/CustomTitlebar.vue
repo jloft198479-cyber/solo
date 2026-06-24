@@ -43,9 +43,10 @@
         title="置顶"
         @click="emit('toggleAlwaysOnTop')"
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M6 2v8M2 6h8" transform="rotate(45 6 6)"/>
-          <circle cx="6" cy="6" r="2.5"/>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="7" cy="3" r="1.6" />
+          <line x1="7" y1="4.6" x2="7" y2="9" />
+          <path d="M5.5 9L7 11.5L8.5 9" />
         </svg>
       </button>
       <button class="titlebar-btn" title="最小化" @click="emit('minimize')">
