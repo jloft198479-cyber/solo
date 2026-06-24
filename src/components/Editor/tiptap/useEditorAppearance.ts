@@ -51,19 +51,19 @@ export function useEditorAppearance() {
   watch(() => settingsStore.settings.customEditorCSS, injectCustomCSS, { immediate: true });
   watch(() => settingsStore.settings.fontFamily, applyFontFamily, { immediate: true });
 
-  // 字号：settings 优先级高于主题默认值，主题切换时重新覆盖
+  // 字号：用户手动调整时覆盖主题默认值
   watch(
-    () => [settingsStore.settings.fontSize, settingsStore.settings.activeThemeId] as const,
-    ([fontSize]) => {
+    () => settingsStore.settings.fontSize,
+    (fontSize) => {
       document.documentElement.style.setProperty('--mk-font-size', `${fontSize}px`);
     },
     { immediate: true },
   );
 
-  // 行高：settings 优先级高于主题默认值，主题切换时重新覆盖
+  // 行高：用户手动调整时覆盖主题默认值
   watch(
-    () => [settingsStore.settings.lineHeight, settingsStore.settings.activeThemeId] as const,
-    ([lineHeight]) => {
+    () => settingsStore.settings.lineHeight,
+    (lineHeight) => {
       document.documentElement.style.setProperty('--mk-line-height', String(lineHeight));
     },
     { immediate: true },
