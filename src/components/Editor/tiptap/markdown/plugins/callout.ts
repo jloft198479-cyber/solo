@@ -13,10 +13,10 @@ import type { MarkdownParseState } from '../parser';
 import type { NodeSerializer } from '../serializer';
 import type { MarkdownSerializerState } from '../serializer';
 import type { MarkdownSyntaxPlugin, TokenInterceptor } from './index';
-import { normalizeCalloutType, CALLOUT_TYPES } from '../../extensions/callout';
+import { normalizeCalloutType } from '../../extensions/callout';
 
 /**
- * 检测 inline token 是否以 [!TYPE] 开头
+ * 检测 inline token 是否以 [!TYPE] 开头（接受任意类型，兼容旧文档）
  */
 function matchCalloutMarker(inlineToken: Token): string | null {
   if (!inlineToken.children || inlineToken.children.length === 0) return null;
@@ -26,13 +26,7 @@ function matchCalloutMarker(inlineToken: Token): string | null {
 
   const text = firstChild.content;
   const match = text.match(/^\[!([A-Za-z]+)\]/);
-  if (!match) return null;
-
-  const type = match[1].toLowerCase();
-  if (CALLOUT_TYPES.includes(type as never)) {
-    return type;
-  }
-  return null;
+  return match ? match[1].toLowerCase() : null;
 }
 
 /**
