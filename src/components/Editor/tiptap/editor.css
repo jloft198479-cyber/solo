@@ -764,28 +764,29 @@ html.dark .tiptap-editor mark {
   resize: vertical;
 }
 
-/* ── Callout 块 ── 参考 Obsidian 设计：全边框 + 增强底色 ──────── */
+/* ── Callout 块 ── 极简：仅有左边框 + 留白，靠 icon 区分 ──────── */
 .tiptap-editor .mk-callout {
-  border: 1px solid;
-  border-left-width: 4px;
-  border-radius: 6px;
-  padding: 12px 16px;
+  border-left: 3px solid;
+  padding: 0 0 0 14px;
   margin: 12px 0;
+  background: none;
 }
 
 .tiptap-editor .mk-callout-title {
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.85em;
   letter-spacing: 0.04em;
-  margin-bottom: 6px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
   display: flex;
   align-items: center;
   gap: 6px;
-  opacity: 0.85;
+  color: inherit;
 }
 
 .tiptap-editor .mk-callout-icon {
   flex-shrink: 0;
+  font-size: 1em;
 }
 
 .tiptap-editor .mk-callout-body > *:first-child {
@@ -798,39 +799,32 @@ html.dark .tiptap-editor mark {
 
 .tiptap-editor .mk-callout-note {
   border-color: var(--callout-note);
-  background-color: var(--callout-note-bg);
 }
 
 .tiptap-editor .mk-callout-info {
   border-color: var(--callout-note);
-  background-color: var(--callout-note-bg);
 }
 
 .tiptap-editor .mk-callout-tip {
   border-color: var(--callout-tip);
-  background-color: var(--callout-tip-bg);
 }
 
 .tiptap-editor .mk-callout-warning,
 .tiptap-editor .mk-callout-caution {
   border-color: var(--callout-warning);
-  background-color: var(--callout-warning-bg);
 }
 
 .tiptap-editor .mk-callout-danger,
 .tiptap-editor .mk-callout-important {
   border-color: var(--callout-danger);
-  background-color: var(--callout-danger-bg);
 }
 
 .tiptap-editor .mk-callout-success {
   border-color: var(--callout-success);
-  background-color: var(--callout-success-bg);
 }
 
 .tiptap-editor .mk-callout-quote {
   border-color: var(--muted-color);
-  background-color: var(--sidebar-bg);
   font-style: italic;
 }
 
