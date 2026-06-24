@@ -25,8 +25,27 @@
         </svg>
       </button>
       <div class="bubble-menu-divider"></div>
+      <button :class="btnClass(activeMarks.bulletList)" title="无序列表" @click="exec('bulletList')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+          <circle cx="3" cy="4" r="1.2" fill="currentColor" stroke="none"/>
+          <circle cx="3" cy="8" r="1.2" fill="currentColor" stroke="none"/>
+          <circle cx="3" cy="12" r="1.2" fill="currentColor" stroke="none"/>
+          <line x1="6" y1="4" x2="14" y2="4"/>
+          <line x1="6" y1="8" x2="14" y2="8"/>
+          <line x1="6" y1="12" x2="14" y2="12"/>
+        </svg>
+      </button>
+      <div class="bubble-menu-divider"></div>
       <button class="bubble-menu-heading-btn" @click="exec('h1')">H1</button>
       <button class="bubble-menu-heading-btn" @click="exec('h2')">H2</button>
+      <div class="bubble-menu-divider"></div>
+      <button class="bubble-menu-clear-btn" title="清除格式" @click="exec('clearFormat')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4l8 8"/>
+          <path d="M3 12h3l1.5-5"/>
+          <path d="M7 3h6l-1.5 3"/>
+        </svg>
+      </button>
     </div>
 
     <!-- 链接输入区 -->
@@ -62,6 +81,7 @@ type ActiveMarks = {
   italic: boolean;
   code: boolean;
   link: boolean;
+  bulletList: boolean;
 };
 
 const props = defineProps<{
@@ -75,6 +95,7 @@ const activeMarks = reactive({
   italic: false,
   code: false,
   link: false,
+  bulletList: false,
 });
 
 // 链接输入相关
@@ -267,5 +288,24 @@ defineExpose({
 
 .bubble-menu-btn-danger:hover {
   background-color: var(--error-bg);
+}
+
+.bubble-menu-clear-btn {
+  display: flex;
+  height: 32px;
+  width: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--muted-color);
+  background-color: transparent;
+  transition: background-color 0.15s, color 0.15s;
+  cursor: pointer;
+  border: none;
+}
+
+.bubble-menu-clear-btn:hover {
+  background-color: var(--hover-bg);
+  color: var(--text-color);
 }
 </style>

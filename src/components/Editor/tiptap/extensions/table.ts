@@ -12,7 +12,9 @@ import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 
 export const CustomTable = Table.configure({
-  resizable: false,
+  resizable: true,
+  handleWidth: 5,
+  cellMinWidth: 50,
   renderWrapper: true,
   HTMLAttributes: {
     class: 'mk-table',

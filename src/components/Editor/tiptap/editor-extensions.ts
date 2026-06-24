@@ -15,6 +15,7 @@ import {
   CustomTableCell,
 } from './extensions/table';
 import { CustomImage } from './extensions/image';
+import { Callout } from './extensions/callout';
 import { MathBlock } from './extensions/math-block';
 import { MathInline } from './extensions/math-inline';
 import { MermaidBlock } from './extensions/mermaid-block';
@@ -74,6 +75,7 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     CustomTableHeader,
     CustomTableCell,
     CustomImage,
+    Callout,
     Highlight.configure({ multicolor: false }),
     Link.configure({
       openOnClick: false,

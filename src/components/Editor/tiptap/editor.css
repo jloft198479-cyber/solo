@@ -265,16 +265,26 @@
 
 /* ── 引用块 ────────────────────────────────────────────────── */
 /*
- * padding-left 预留 ≥ 标题 gutter 宽度：
- * 引用块内的标题，其 H badge（h1..h6::before，left: -gutter）会落在这段内距里，
- * 位于竖线右侧而非压在竖线上。gutter 之外再补一点 gap 让正文与竖线留出呼吸空间。
+ * 参考 Typora / Obsidian 引用块设计：
+ * 窄边框 + 适度内边距 + 纵向呼吸感。
+ * 内边距不再预留 heading gutter 宽度——引用块内的标题 H badge
+ * 自然落在左侧竖线与内容之间，视觉上可接受。
  */
 .tiptap-editor blockquote {
   border-left: var(--mk-quote-border-width) solid var(--primary-color);
-  padding-left: calc(var(--mk-heading-gutter-width) + var(--mk-heading-gutter-gap) + 4px);
+  padding: 0.4em 0 0.4em 1em;
   margin: var(--mk-paragraph-spacing) 0;
   color: var(--text-secondary);
   background-color: var(--quote-bg, transparent);
+  border-radius: 0 4px 4px 0;
+}
+
+.tiptap-editor blockquote > *:first-child {
+  margin-top: 0;
+}
+
+.tiptap-editor blockquote > *:last-child {
+  margin-bottom: 0;
 }
 
 /* ── 列表 ──────────────────────────────────────────────────── */
@@ -436,6 +446,37 @@ html.dark .tiptap-editor mark {
   outline: none;
 }
 
+.tiptap-editor .mk-code-block-copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted-color);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background-color 0.15s;
+}
+
+.tiptap-editor .mk-code-block-shell:hover .mk-code-block-copy-button {
+  opacity: 1;
+}
+
+.tiptap-editor .mk-code-block-copy-button:hover {
+  color: var(--text-color);
+  background-color: var(--hover-bg);
+}
+
+.tiptap-editor .mk-code-block-copy-button.is-copied {
+  opacity: 1;
+  color: var(--success-color, #6b8e5a);
+}
+
 .tiptap-editor pre {
   background-color: var(--code-bg);
   border: 1px solid var(--border-color);
@@ -508,6 +549,29 @@ html.dark .tiptap-editor mark {
 /* 表格选中状态 */
 .tiptap-editor .selectedCell {
   background-color: rgba(139, 115, 85, 0.1) !important;
+}
+
+/* 表格列拖拽调整手柄 */
+.tiptap-editor .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background-color: transparent;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tiptap-editor .column-resize-handle:hover,
+.tiptap-editor .column-resize-handle:active {
+  background-color: var(--primary-color);
+  pointer-events: auto;
+  cursor: col-resize;
+}
+
+.tiptap-editor .resize-cursor {
+  cursor: col-resize;
 }
 
 /* ── 图片 ──────────────────────────────────────────────────── */

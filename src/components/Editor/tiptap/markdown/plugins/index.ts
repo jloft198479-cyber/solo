@@ -5,6 +5,7 @@ import type { NodeSerializer } from '../serializer';
 import { mathMarkdownPlugin } from './math';
 import { mermaidMarkdownPlugin } from './mermaid';
 import { wikilinkMarkdownPlugin } from './wikilink';
+import { calloutMarkdownPlugin } from './callout';
 
 export interface PreprocessContext {
   content: string;
@@ -45,6 +46,7 @@ export interface MarkdownSyntaxPlugin {
 }
 
 export const markdownSyntaxPlugins = [
+  calloutMarkdownPlugin,
   mathMarkdownPlugin,
   mermaidMarkdownPlugin,
   wikilinkMarkdownPlugin,
