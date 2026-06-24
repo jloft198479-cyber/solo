@@ -518,23 +518,8 @@ html.dark .tiptap-editor mark {
   position: relative;
 }
 
-.tiptap-editor th {
-  background-color: var(--sidebar-bg);
-  font-weight: 600;
-  font-size: 0.9em;
-  text-align: left;
-}
-
 .tiptap-editor td {
   background-color: var(--bg-color);
-}
-
-.tiptap-editor tr:nth-child(even) td {
-  background-color: var(--sidebar-bg);
-}
-
-.tiptap-editor tr:hover td {
-  background-color: var(--hover-bg, rgba(0, 0, 0, 0.03));
 }
 
 /* 无显式列宽时的默认最小宽度（由插件通过 --default-cell-min-width 注入） */
