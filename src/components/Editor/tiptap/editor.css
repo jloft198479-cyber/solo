@@ -497,22 +497,16 @@ html.dark .tiptap-editor mark {
   border-radius: 0;
 }
 
-/* ── 表格 ──────────────────────────────────────────────────── */
+/* ── 表格 ── 遵循 prosemirror-tables 官方设计，仅替换主题色 ────── */
 .tiptap-editor .tableWrapper {
-  margin: 0.8em 0;
-  border: 2px solid color-mix(in srgb, var(--border-color) 65%, var(--text-color) 35%);
-  border-radius: 6px;
   overflow-x: auto;
-  background-color: var(--bg-color);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-color) 55%, var(--text-color) 45%);
 }
 
 .tiptap-editor table {
   border-collapse: collapse;
   table-layout: fixed;
-  /* 不设 width，由 prosemirror-tables 通过 inline style 控制列宽 */
-  margin: 0;
-  border: none;
+  width: 100%;
+  overflow: hidden;
 }
 
 .tiptap-editor th,
@@ -520,8 +514,8 @@ html.dark .tiptap-editor mark {
   border: 1px solid var(--border-color);
   padding: 6px 12px;
   vertical-align: top;
+  box-sizing: border-box;
   position: relative;
-  min-width: 50px;
 }
 
 .tiptap-editor th {
@@ -543,34 +537,41 @@ html.dark .tiptap-editor mark {
   background-color: var(--hover-bg, rgba(0, 0, 0, 0.03));
 }
 
-.tiptap-editor .tableWrapper:hover {
-  border-color: color-mix(in srgb, var(--border-color) 40%, var(--text-color) 60%);
+/* 无显式列宽时的默认最小宽度（由插件通过 --default-cell-min-width 注入） */
+.tiptap-editor td:not([data-colwidth]):not(.column-resize-dragging),
+.tiptap-editor th:not([data-colwidth]):not(.column-resize-dragging) {
+  min-width: var(--default-cell-min-width);
 }
 
-/* 表格选中状态 */
-.tiptap-editor .selectedCell {
-  background-color: rgba(139, 115, 85, 0.1) !important;
-}
-
-/* 表格列拖拽调整手柄 —— 遵循 prosemirror-tables 默认设计 */
 .tiptap-editor .column-resize-handle {
   position: absolute;
   right: -2px;
   top: 0;
   bottom: 0;
   width: 4px;
+  z-index: 20;
   background-color: transparent;
   pointer-events: none;
-  z-index: 20;
 }
 
 .tiptap-editor .column-resize-handle:hover {
-  background-color: var(--primary-color);
+  background-color: var(--primary-color, #adf);
 }
 
-/* resize-cursor 类由 columnResizing 插件动态添加在 .ProseMirror（即 .tiptap-editor）上 */
 .tiptap-editor.resize-cursor {
   cursor: col-resize;
+}
+
+.tiptap-editor .selectedCell::after {
+  z-index: 2;
+  position: absolute;
+  content: '';
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(139, 115, 85, 0.1);
+  pointer-events: none;
 }
 
 /* ── 图片 ──────────────────────────────────────────────────── */
