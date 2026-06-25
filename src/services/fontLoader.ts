@@ -3,10 +3,8 @@
  *
  * 支持本地已安装字体、远程下载两种来源。
  * 系统字体（微软雅黑 UI、system-ui）立即返回。
- * 远程字体首次选择时通过 Rust 后端下载并缓存到 IndexedDB。
- *
- * 通过 Rust 的 reqwest 下载（绕过前端 CSP/CORS 限制），
- * 下载成功后转为 Blob → blob: URL → FontFace 注册。
+ * 远程字体通过 Rust 后端下载（reqwest），绕过前端 CSP/CORS 限制。
+ * 下载后缓存到 IndexedDB，后续离线可用。
  */
 
 import { fetchFontData } from '../services/tauri/document';
@@ -23,7 +21,20 @@ const REMOTE_FONTS: Readonly<Record<string, string>> = {
   'Huiwen-mincho': 'Huiwen-mincho-Regular.otf',
 };
 
-/** 系统自带字体，不需要加载 */
+/** 文件名 → MIME 类型映射 */
+const FONT_MIME: Record<string, string> = {
+  otf: 'font/otf',
+  ttf: 'font/ttf',
+  woff: 'font/woff',
+  woff2: 'font/woff2',
+};
+
+function mimeFromFileName(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  return FONT_MIME[ext] || 'font/otf';
+}
+
+/** 系统自带字体 */
 const SYSTEM_FONTS = new Set(['system-ui', 'Microsoft YaHei UI']);
 
 /** 已加载的字体集合 */
@@ -81,25 +92,21 @@ async function saveBlobCache(family: string, blob: Blob): Promise<void> {
   } catch { /* 静默 */ }
 }
 
+/** 使用 FontFace API 注册字体 */
 async function registerFont(family: string, url: string): Promise<boolean> {
   try {
     const fontFace = new FontFace(family, `url('${url}')`);
     await fontFace.load();
     document.fonts.add(fontFace);
     return true;
-  } catch {
+  } catch (e) {
+    console.warn(`[fontLoader] FontFace.register failed: ${family}`, e);
     return false;
   }
 }
 
 /**
  * 按需加载指定字体。
- *
- * - 系统字体 / 已加载字体 → 立即返回 true
- * - 正在加载 → 返回同一个 Promise
- * - 需要远程下载 → 通过 Rust 后端下载（reqwest，无 CORS 限制）
- *                     → 缓存到 IDB → 用 blob: URL 注册字体
- * - 全部失败 → 返回 false，浏览器使用 fallback 字体
  */
 export async function ensureFontLoaded(family: string): Promise<boolean> {
   if (SYSTEM_FONTS.has(family)) return true;
@@ -119,26 +126,21 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
       // 1) 查 IDB 缓存
       const cached = await getCachedBlob(family);
       if (cached) {
-        const blobUrl = URL.createObjectURL(cached);
-        const ok = await registerFont(family, blobUrl);
-        URL.revokeObjectURL(blobUrl);
+        const url = URL.createObjectURL(cached);
+        const ok = await registerFont(family, url);
+        URL.revokeObjectURL(url);
         if (ok) loadedFonts.add(family);
         return ok;
       }
 
-      // 2) 通过 Rust 后端下载（绕过 CSP/CORS 限制）
+      // 2) 通过 Rust 后端下载（绕过 CSP/CORS）
       const remoteUrl = `${DOWNLOAD_BASE}/${fileName}`;
-      const base64 = await fetchFontData(remoteUrl);
+      const rawBytes: number[] = await fetchFontData(remoteUrl);
 
-      // base64 → Uint8Array → Blob
-      const binaryStr = atob(base64);
-      const bytes = new Uint8Array(binaryStr.length);
-      for (let i = 0; i < binaryStr.length; i++) {
-        bytes[i] = binaryStr.charCodeAt(i);
-      }
-      const blob = new Blob([bytes], { type: 'application/octet-stream' });
+      const mime = mimeFromFileName(fileName);
+      const blob = new Blob([new Uint8Array(rawBytes)], { type: mime });
 
-      // 写入缓存（异步，不阻塞）
+      // 写入缓存
       saveBlobCache(family, blob);
 
       const blobUrl = URL.createObjectURL(blob);
@@ -158,9 +160,6 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
   return promise;
 }
 
-/**
- * 检查字体是否已下载到本地缓存（UI 展示用）。
- */
 export async function isFontAvailable(family: string): Promise<boolean> {
   if (SYSTEM_FONTS.has(family)) return true;
   if (loadedFonts.has(family)) return true;
