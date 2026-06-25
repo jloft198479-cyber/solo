@@ -67,5 +67,5 @@ export async function fetchRemoteImageData(url: string) {
 }
 
 export async function fetchFontData(url: string) {
-  return invokeCommand<string>(TAURI_COMMANDS.fetchFontData, { url });
+  return invokeCommand<number[]>(TAURI_COMMANDS.fetchFontData, { url });
 }
