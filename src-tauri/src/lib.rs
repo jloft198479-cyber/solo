@@ -297,6 +297,9 @@ pub fn run() {
                 }
 
                 attach_close_interceptor(&main_window);
+
+                // 窗口启动时先隐藏，状态恢复后再显示，避免闪烁
+                main_window.show().map_err(error::AppError::from)?;
             }
 
             Ok(())
