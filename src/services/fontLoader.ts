@@ -2,17 +2,13 @@
  * 字体加载器
  *
  * 支持本地已安装字体、远程下载两种来源。
- * 系统字体（微软雅黑 UI、system-ui）立即返回。
- * 远程字体通过 Rust 后端下载（reqwest），绕过前端 CSP/CORS 限制。
- * 下载后缓存到 IndexedDB，后续离线可用。
+ * 下载进度通过 onProgress 回调通知 UI 组件。
  */
 
 import { fetchFontData } from '../services/tauri/document';
 
-/** 字体下载基址（本仓库的 GitHub Release asset 目录） */
 const DOWNLOAD_BASE = 'https://github.com/jloft198479-cyber/solo/releases/download/v1.1.6';
 
-/** 可远程下载的字体：CSS family → 文件名 */
 const REMOTE_FONTS: Readonly<Record<string, string>> = {
   'Noto Serif SC': 'NotoSerifSC-Regular.otf',
   'Zhuque Fangsong': 'ZhuqueFangsong-Regular.ttf',
@@ -21,7 +17,6 @@ const REMOTE_FONTS: Readonly<Record<string, string>> = {
   'Huiwen-mincho': 'Huiwen-mincho-Regular.otf',
 };
 
-/** 文件名 → MIME 类型映射 */
 const FONT_MIME: Record<string, string> = {
   otf: 'font/otf',
   ttf: 'font/ttf',
@@ -34,14 +29,31 @@ function mimeFromFileName(name: string): string {
   return FONT_MIME[ext] || 'font/otf';
 }
 
-/** 系统自带字体 */
 const SYSTEM_FONTS = new Set(['system-ui', 'Microsoft YaHei UI']);
 
-/** 已加载的字体集合 */
 const loadedFonts = new Set<string>();
-
-/** 加载中的字体 Promise（防止重复加载） */
 const loadingPromises = new Map<string, Promise<boolean>>();
+
+/** 下载进度 0–100，-1 表示未开始/已完成 */
+const downloadProgress = new Map<string, number>();
+
+/** 进度监听器 */
+type ProgressListener = (family: string, progress: number) => void;
+const progressListeners = new Set<ProgressListener>();
+
+export function onProgress(cb: ProgressListener): () => void {
+  progressListeners.add(cb);
+  return () => progressListeners.delete(cb);
+}
+
+function notifyProgress(family: string, progress: number) {
+  downloadProgress.set(family, progress);
+  for (const cb of progressListeners) cb(family, progress);
+}
+
+export function getDownloadProgress(family: string): number {
+  return downloadProgress.get(family) ?? -1;
+}
 
 /** IndexedDB 缓存 */
 const DB_NAME = 'solo-font-cache';
@@ -75,9 +87,7 @@ async function getCachedBlob(family: string): Promise<Blob | null> {
       req.onsuccess = () => resolve(req.result ?? null);
       req.onerror = () => resolve(null);
     });
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 async function saveBlobCache(family: string, blob: Blob): Promise<void> {
@@ -92,7 +102,6 @@ async function saveBlobCache(family: string, blob: Blob): Promise<void> {
   } catch { /* 静默 */ }
 }
 
-/** 使用 FontFace API 注册字体 */
 async function registerFont(family: string, url: string): Promise<boolean> {
   try {
     const fontFace = new FontFace(family, `url('${url}')`);
@@ -106,8 +115,36 @@ async function registerFont(family: string, url: string): Promise<boolean> {
 }
 
 /**
- * 按需加载指定字体。
+ * 通过前端 fetch API 下载，支持进度回调。
+ * CSP 已配置 font-src: blob: https:，此路径应当正常工作。
  */
+async function downloadWithProgress(
+  url: string,
+  mime: string,
+  family: string,
+): Promise<Blob> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+  const len = Number(res.headers.get('content-length') ?? 0);
+  const reader = res.body!.getReader();
+
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (len > 0) {
+      notifyProgress(family, Math.round((received / len) * 100));
+    }
+  }
+
+  return new Blob(chunks as BlobPart[], { type: mime });
+}
+
 export async function ensureFontLoaded(family: string): Promise<boolean> {
   if (SYSTEM_FONTS.has(family)) return true;
   if (loadedFonts.has(family)) return true;
@@ -118,12 +155,9 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
   const promise = (async () => {
     try {
       const fileName = REMOTE_FONTS[family];
-      if (!fileName) {
-        loadedFonts.add(family);
-        return true;
-      }
+      if (!fileName) { loadedFonts.add(family); return true; }
 
-      // 1) 查 IDB 缓存
+      // 查 IDB 缓存
       const cached = await getCachedBlob(family);
       if (cached) {
         const url = URL.createObjectURL(cached);
@@ -133,23 +167,34 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
         return ok;
       }
 
-      // 2) 通过 Rust 后端下载（绕过 CSP/CORS）
+      // 下载（优先前端 fetch 以支持进度；后端 Rust 兜底）
       const remoteUrl = `${DOWNLOAD_BASE}/${fileName}`;
-      const rawBytes: number[] = await fetchFontData(remoteUrl);
-
       const mime = mimeFromFileName(fileName);
-      const blob = new Blob([new Uint8Array(rawBytes)], { type: mime });
 
-      // 写入缓存
+      notifyProgress(family, 0);
+
+      let blob: Blob;
+      try {
+        blob = await downloadWithProgress(remoteUrl, mime, family);
+      } catch {
+        // 兜底：走 Rust reqwest（无进度）
+        const rawBytes: number[] = await fetchFontData(remoteUrl);
+        blob = new Blob([new Uint8Array(rawBytes)], { type: mime });
+        notifyProgress(family, 100);
+      }
+
       saveBlobCache(family, blob);
 
       const blobUrl = URL.createObjectURL(blob);
       const ok = await registerFont(family, blobUrl);
       URL.revokeObjectURL(blobUrl);
       if (ok) loadedFonts.add(family);
+
+      notifyProgress(family, -1);
       return ok;
     } catch (e) {
       console.warn(`[fontLoader] Failed to load font: ${family}`, e);
+      notifyProgress(family, -1);
       return false;
     } finally {
       loadingPromises.delete(family);
