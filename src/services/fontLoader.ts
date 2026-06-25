@@ -1,12 +1,11 @@
 /**
  * 字体加载器
  *
- * 支持本地已安装字体、IndexedDB 缓存字体、远程下载三种来源。
- * 用户选中字体后按需加载，已加载的缓存复用。
+ * 支持本地已安装字体、远程下载两种来源。
+ * 系统字体（微软雅黑 UI、system-ui）立即返回。
+ * 远程字体首次选择时从 GitHub Release 下载，成功后永久缓存在 IndexedDB。
  *
- * 加载优先级：系统已安装 → IndexedDB 缓存 → 远程下载（并写入缓存）
- *
- * 字体放在 GitHub Release assets 中，和安装包同目录。
+ * 加载优先级：系统已安装 → IndexedDB 缓存 → 远程下载
  */
 
 /** 字体下载基址（本仓库的 GitHub Release asset 目录） */
@@ -24,13 +23,13 @@ const REMOTE_FONTS: Readonly<Record<string, string>> = {
 /** 系统自带字体，不需要加载 */
 const SYSTEM_FONTS = new Set(['system-ui', 'Microsoft YaHei UI']);
 
-/** 已加载的字体集合（内存缓存） */
+/** 已加载的字体集合 */
 const loadedFonts = new Set<string>();
 
 /** 加载中的字体 Promise（防止重复加载） */
 const loadingPromises = new Map<string, Promise<boolean>>();
 
-/** IndexedDB 数据库名 */
+/** IndexedDB 缓存 */
 const DB_NAME = 'solo-font-cache';
 const DB_VERSION = 1;
 const STORE_NAME = 'fonts';
@@ -76,14 +75,15 @@ async function saveBlobCache(family: string, blob: Blob): Promise<void> {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-  } catch {
-    /* 静默 */
-  }
+  } catch { /* 静默 */ }
 }
 
-async function loadAndRegister(family: string, blob: Blob): Promise<boolean> {
+/**
+ * 使用 @font-face 注册字体（支持 blob: 和 https: 来源）
+ */
+async function registerFont(family: string, url: string): Promise<boolean> {
   try {
-    const fontFace = new FontFace(family, `url('${URL.createObjectURL(blob)}')`);
+    const fontFace = new FontFace(family, `url('${url}')`);
     await fontFace.load();
     document.fonts.add(fontFace);
     return true;
@@ -97,8 +97,8 @@ async function loadAndRegister(family: string, blob: Blob): Promise<boolean> {
  *
  * - 系统字体 / 已加载字体 → 立即返回 true
  * - 正在加载 → 返回同一个 Promise
- * - 需要远程下载 → 从 DOWNLOAD_BASE 下载并缓存到 IDB
- * - 所有路径失败 → 返回 false，浏览器使用 fallback 字体
+ * - 需要远程下载 → 下载并缓存到 IDB，再用 @font-face 注册
+ * - 全部失败 → 返回 false，浏览器使用 fallback 字体
  */
 export async function ensureFontLoaded(family: string): Promise<boolean> {
   if (SYSTEM_FONTS.has(family)) return true;
@@ -111,7 +111,6 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
     try {
       const fileName = REMOTE_FONTS[family];
       if (!fileName) {
-        // 未知字体，标记已加载但不报错
         loadedFonts.add(family);
         return true;
       }
@@ -119,21 +118,26 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
       // 1) 查 IDB 缓存
       const cached = await getCachedBlob(family);
       if (cached) {
-        const ok = await loadAndRegister(family, cached);
+        const blobUrl = URL.createObjectURL(cached);
+        const ok = await registerFont(family, blobUrl);
+        URL.revokeObjectURL(blobUrl);
         if (ok) loadedFonts.add(family);
         return ok;
       }
 
       // 2) 远程下载
-      const url = `${DOWNLOAD_BASE}/${fileName}`;
-      const res = await fetch(url);
+      const remoteUrl = `${DOWNLOAD_BASE}/${fileName}`;
+      const res = await fetch(remoteUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
 
       // 写入缓存（异步，不阻塞）
       saveBlobCache(family, blob);
 
-      const ok = await loadAndRegister(family, blob);
+      // 用 blob: URL 注册（避免 https: CSP 兼容性问题）
+      const blobUrl = URL.createObjectURL(blob);
+      const ok = await registerFont(family, blobUrl);
+      URL.revokeObjectURL(blobUrl);
       if (ok) loadedFonts.add(family);
       return ok;
     } catch (e) {
