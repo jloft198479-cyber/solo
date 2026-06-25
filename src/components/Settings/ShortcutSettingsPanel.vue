@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ComponentPublicInstance } from 'vue';
-import type { ShortcutDef } from '../../utils/shortcuts';
+import type { ShortcutCommand as ShortcutDef } from '../../commands/registry';
 import './settings-shared.css';
 
 interface ShortcutGroup {

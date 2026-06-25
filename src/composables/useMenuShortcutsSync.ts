@@ -1,6 +1,6 @@
 import { watch, type Ref } from 'vue';
 import { refreshNativeMenuShortcuts } from '../services/tauri/window';
-import { getMenuShortcuts } from '../utils/shortcuts';
+import { getMenuShortcuts } from '../commands/registry';
 
 export interface MenuShortcutSyncOptions {
   customShortcuts: Ref<Record<string, string>>;

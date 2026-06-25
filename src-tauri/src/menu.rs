@@ -1,6 +1,6 @@
 use crate::events::emit_menu_event;
 use std::collections::HashMap;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 
 fn accelerator(
     shortcuts: &HashMap<String, String>,
@@ -22,7 +22,6 @@ fn build_menu(
     let quit_accel = accelerator(shortcuts, "app.quit", Some("CmdOrCtrl+Q"));
 
     let new_accel = accelerator(shortcuts, "file.new", Some("CmdOrCtrl+N"));
-    let new_window_accel = accelerator(shortcuts, "file.newWindow", Some("CmdOrCtrl+Alt+N"));
     let open_accel = accelerator(shortcuts, "file.open", Some("CmdOrCtrl+O"));
     let save_accel = accelerator(shortcuts, "file.save", Some("CmdOrCtrl+S"));
     let save_as_accel = accelerator(shortcuts, "file.saveAs", Some("CmdOrCtrl+Shift+S"));
@@ -32,28 +31,21 @@ fn build_menu(
 
     let undo_accel = accelerator(shortcuts, "editor.undo", Some("CmdOrCtrl+Z"));
     let redo_accel = accelerator(shortcuts, "editor.redo", Some("CmdOrCtrl+Shift+Z"));
-    let find_accel = accelerator(shortcuts, "edit.find", Some("CmdOrCtrl+F"));
-    let replace_accel = accelerator(shortcuts, "edit.replace", Some("CmdOrCtrl+H"));
-    let palette_accel = accelerator(shortcuts, "edit.commandPalette", Some("CmdOrCtrl+K"));
+    let find_accel = accelerator(shortcuts, "edit.find", Some("CmdOrCtrl+G"));
+    let replace_accel = accelerator(shortcuts, "edit.replace", Some("CmdOrCtrl+Shift+G"));
 
-    let toggle_sidebar_accel = accelerator(shortcuts, "view.toggleSidebar", Some("CmdOrCtrl+\\"));
-    let show_outline_accel = accelerator(shortcuts, "view.showOutline", Some("CmdOrCtrl+Alt+1"));
-    let show_files_accel = accelerator(shortcuts, "view.showFiles", Some("CmdOrCtrl+Alt+2"));
-    let toggle_source_accel = accelerator(shortcuts, "view.toggleSourceMode", Some("CmdOrCtrl+/"));
-    let focus_mode_accel = accelerator(shortcuts, "view.focusMode", Some("CmdOrCtrl+Shift+F"));
-    let fullscreen_accel = accelerator(shortcuts, "view.fullscreen", Some("CmdOrCtrl+Ctrl+F"));
-
-    let shortcuts_accel = accelerator(shortcuts, "help.shortcuts", Some("CmdOrCtrl+Shift+K"));
+    let focus_mode_accel = accelerator(shortcuts, "view.focusMode", Some("CmdOrCtrl+Alt+F"));
+    let fullscreen_accel = accelerator(shortcuts, "view.fullscreen", Some("CmdOrCtrl+Shift+F"));
 
     let app_menu = Submenu::with_items(
         app,
-        "MarkLight",
+        "solo",
         true,
         &[
             &MenuItem::with_id(
                 app,
                 "help.about",
-                "关于 MarkLight",
+                "关于 solo",
                 true,
                 about_accel.as_deref(),
             )?,
@@ -68,7 +60,7 @@ fn build_menu(
             &PredefinedMenuItem::separator(app)?,
             &PredefinedMenuItem::services(app, Some("服务"))?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "app.hide", "隐藏 MarkLight", true, Some("CmdOrCtrl+H"))?,
+            &MenuItem::with_id(app, "app.hide", "隐藏 solo", true, Some("CmdOrCtrl+H"))?,
             &MenuItem::with_id(
                 app,
                 "app.hideOthers",
@@ -81,7 +73,7 @@ fn build_menu(
             &MenuItem::with_id(
                 app,
                 "app.quit",
-                "退出 MarkLight",
+                "退出 solo",
                 true,
                 quit_accel.as_deref(),
             )?,
@@ -94,15 +86,7 @@ fn build_menu(
         true,
         &[
             &MenuItem::with_id(app, "file.new", "新建", true, new_accel.as_deref())?,
-            &MenuItem::with_id(
-                app,
-                "file.newWindow",
-                "新建窗口",
-                true,
-                new_window_accel.as_deref(),
-            )?,
             &MenuItem::with_id(app, "file.open", "打开...", true, open_accel.as_deref())?,
-            &MenuItem::with_id(app, "file.openFolder", "打开文件夹...", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "file.save", "保存", true, save_accel.as_deref())?,
             &MenuItem::with_id(
@@ -152,14 +136,6 @@ fn build_menu(
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, "edit.find", "查找", true, find_accel.as_deref())?,
             &MenuItem::with_id(app, "edit.replace", "替换", true, replace_accel.as_deref())?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(
-                app,
-                "edit.commandPalette",
-                "命令面板",
-                true,
-                palette_accel.as_deref(),
-            )?,
         ],
     )?;
 
@@ -168,37 +144,6 @@ fn build_menu(
         "视图",
         true,
         &[
-            &CheckMenuItem::with_id(
-                app,
-                "view.toggleSidebar",
-                "侧边栏",
-                true,
-                true,
-                toggle_sidebar_accel.as_deref(),
-            )?,
-            &MenuItem::with_id(
-                app,
-                "view.showOutline",
-                "  └ 大纲",
-                true,
-                show_outline_accel.as_deref(),
-            )?,
-            &MenuItem::with_id(
-                app,
-                "view.showFiles",
-                "  └ 文件树",
-                true,
-                show_files_accel.as_deref(),
-            )?,
-            &PredefinedMenuItem::separator(app)?,
-            &CheckMenuItem::with_id(
-                app,
-                "view.toggleSourceMode",
-                "源码模式",
-                true,
-                false,
-                toggle_source_accel.as_deref(),
-            )?,
             &MenuItem::with_id(
                 app,
                 "view.focusMode",
@@ -221,27 +166,13 @@ fn build_menu(
         app,
         "帮助",
         true,
-        &[
-            &MenuItem::with_id(
-                app,
-                "help.shortcuts",
-                "快捷键",
-                true,
-                shortcuts_accel.as_deref(),
-            )?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "help.github", "项目主页 (GitHub)", true, None::<&str>)?,
-            &MenuItem::with_id(app, "help.gitee", "项目主页 (Gitee)", true, None::<&str>)?,
-            &MenuItem::with_id(app, "help.issues", "报告问题", true, None::<&str>)?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(
-                app,
-                "help.diagnostics",
-                "打开启动诊断日志",
-                true,
-                None::<&str>,
-            )?,
-        ],
+        &[&MenuItem::with_id(
+            app,
+            "help.diagnostics",
+            "打开启动诊断日志",
+            true,
+            None::<&str>,
+        )?],
     )?;
 
     Menu::with_items(

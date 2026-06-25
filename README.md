@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="./public/icon.png" width="160" alt="MarkLight Logo" />
+  <img src="./public/icon.png" width="160" alt="solo Logo" />
 </p>
 
-<h1 align="center">MarkLight</h1>
+<h1 align="center">solo</h1>
 
 <p align="center">
   <strong>A local-first Markdown editor built with Tauri 2, a Rust domain core, and TipTap.</strong>
@@ -18,18 +18,6 @@
   <a href="./README.ko-KR.md">한국어</a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/xiaodou997/marklight/releases">
-    <img src="https://img.shields.io/github/v/release/xiaodou997/marklight?style=flat-square&color=blue" alt="Version" />
-  </a>
-  <a href="https://gitee.com/xiaodou997/marklight">
-    <img src="https://img.shields.io/badge/Gitee-xiaodou997-red?style=flat-square&logo=gitee" alt="Gitee" />
-  </a>
-  <a href="https://github.com/xiaodou997/marklight/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/License-Apache--2.0-green?style=flat-square" alt="Apache-2.0" />
-  </a>
-</p>
-
 ## Highlights
 
 - WYSIWYG editing: powered by TipTap / ProseMirror, with editable rendered blocks for code, tables, math, Mermaid diagrams, callouts, and more.
@@ -40,7 +28,7 @@
 
 ## Architecture
 
-MarkLight uses three clear layers:
+solo uses three clear layers:
 
 - Vue 3 + Pinia + TipTap: UI, editor interactions, and command dispatch.
 - Tauri 2: plugins, permission boundaries, and the command/event bridge.
@@ -96,4 +84,4 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 ## License
 
-MarkLight is open source under the [Apache License 2.0](LICENSE).
+solo is open source under the [Apache License 2.0](LICENSE).

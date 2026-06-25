@@ -33,6 +33,8 @@ import {
   emojiItems,
   type EmojiItem,
 } from './extensions/emoji-suggest';
+import { ParagraphFocus } from './extensions/paragraph-focus';
+import { SearchHighlight, type SearchHighlightOptions } from './extensions/search-highlight';
 
 type SlashCommandSuggestionProps = SuggestionProps<SlashCommandItem, SlashCommandItem>;
 type EmojiSuggestSuggestionProps = SuggestionProps<EmojiItem, EmojiItem>;
@@ -56,6 +58,7 @@ interface EditorExtensionOptions {
   emojiMenuRef: Ref<EmojiMenuController | null>;
   emojiMenuItems: Ref<EmojiItem[]>;
   emojiMenuCommand: Ref<(item: EmojiItem) => void>;
+  searchHighlightOptions: SearchHighlightOptions;
 }
 
 export function createEditorExtensions(options: EditorExtensionOptions) {
@@ -77,6 +80,8 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     CustomImage,
     Callout,
     Highlight.configure({ multicolor: false }),
+    ParagraphFocus,
+    SearchHighlight.configure(options.searchHighlightOptions),
     Link.configure({
       openOnClick: false,
       HTMLAttributes: { class: '' },

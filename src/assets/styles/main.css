@@ -252,13 +252,16 @@ body {
   background: var(--muted-color);
 }
 
-/* ── 焦点写作模式 ──────────────────────────────────────────── */
-html.focus-mode .focus-mode-editor {
-  max-width: 740px;
-  margin: 0 auto;
-  padding: 40px 24px 48px;
+/* ── 焦点写作模式：段落聚焦 ───────────────────────────────── */
+html.focus-mode .paragraph-dimmed {
+  opacity: 0.22;
+  transition: opacity 0.35s ease;
 }
 
+html.focus-mode .paragraph-active {
+  opacity: 1;
+  transition: opacity 0.35s ease;
+}
 
 html.focus-mode .custom-titlebar {
   position: fixed;

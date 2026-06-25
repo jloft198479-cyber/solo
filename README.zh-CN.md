@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="./public/icon.png" width="160" alt="MarkLight Logo" />
+  <img src="./public/icon.png" width="160" alt="solo Logo" />
 </p>
 
-<h1 align="center">墨光 (MarkLight)</h1>
+<h1 align="center">solo</h1>
 
 <p align="center">
   <strong>一款基于 Tauri 2、Rust 领域内核与 TipTap 的本地优先 Markdown 编辑器</strong>
@@ -18,18 +18,6 @@
   <a href="./README.ko-KR.md">한국어</a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/xiaodou997/marklight/releases">
-    <img src="https://img.shields.io/github/v/release/xiaodou997/marklight?style=flat-square&color=blue" alt="Version" />
-  </a>
-  <a href="https://gitee.com/xiaodou997/marklight">
-    <img src="https://img.shields.io/badge/Gitee-xiaodou997-red?style=flat-square&logo=gitee" alt="Gitee" />
-  </a>
-  <a href="https://github.com/xiaodou997/marklight/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/License-Apache--2.0-green?style=flat-square" alt="Apache-2.0" />
-  </a>
-</p>
-
 ## 核心特性
 
 - 所见即所得编辑：基于 TipTap / ProseMirror，代码块、表格、数学公式、Mermaid、Callout 等都在渲染态编辑。
@@ -40,7 +28,7 @@
 
 ## 技术架构
 
-MarkLight 现在采用明确的三层边界：
+solo 现在采用明确的三层边界：
 
 - Vue 3 + Pinia + TipTap：负责 UI、编辑器体验和命令分发
 - Tauri 2：负责插件、权限边界和命令/事件桥接
@@ -100,4 +88,4 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 ## License
 
-MarkLight 基于 [Apache License 2.0](LICENSE) 开源。
+solo 基于 [Apache License 2.0](LICENSE) 开源。

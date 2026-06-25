@@ -14,6 +14,7 @@ export interface DocumentSaveResult {
 
 export interface DocumentImageImportResult {
   relativePath: string;
+  absolutePath: string;
 }
 
 export interface DocumentImageResolveResult {
@@ -42,10 +43,11 @@ export async function saveDocument(
   });
 }
 
-export async function importDocumentImage(sourcePath: string, documentPath: string) {
+export async function importDocumentImage(sourcePath: string, documentPath: string, storageDir?: string) {
   return invokeCommand<DocumentImageImportResult>(TAURI_COMMANDS.importDocumentImage, {
     sourcePath,
     documentPath,
+    storageDir: storageDir ?? null,
   });
 }
 

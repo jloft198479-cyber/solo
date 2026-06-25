@@ -19,7 +19,7 @@ const hasError = ref(false);
 const errorMessage = ref('');
 
 onErrorCaptured((err) => {
-  console.error('[MD编辑器] 组件错误:', err);
+  console.error('[solo] 组件错误:', err);
   hasError.value = true;
   errorMessage.value = err instanceof Error ? err.message : String(err);
   return false;

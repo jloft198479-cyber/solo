@@ -235,10 +235,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     externalFileWarning.value = null;
   }
 
-  async function handleWorkspaceChange(_payload: { rootPath: string; kind: string; paths: string[] }) {
-    // workspace 功能已移除，保留接口兼容
-  }
-
   function updateAutoSaveStatus(messageText: string) {
     if (autoSaveStatusTimer) {
       clearTimeout(autoSaveStatusTimer);
@@ -316,6 +312,5 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     handleOpenDocument,
     saveCurrentDocument,
     saveCurrentDocumentAs,
-    handleWorkspaceChange,
   };
 }

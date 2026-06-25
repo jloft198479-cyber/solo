@@ -167,6 +167,8 @@ export interface ExportThemeTokens {
 
 export interface ExportRenderOptions {
   themeId?: string;
+  /** 预解析的导出色彩 tokens，优先于 themeId */
+  tokens?: ExportThemeTokens;
   fileName?: string | null;
   /** 用户选择的编辑器字体，用于导出时同步字体 */
   fontFamily?: string;

@@ -15,12 +15,12 @@ export function renderWechatFragment(
   document: ExportDocument,
   options: ExportRenderOptions = {},
 ): WechatRenderResult {
-  const theme = getExportThemeTokens(options.themeId);
+  const theme = options.tokens ?? getExportThemeTokens(options.themeId);
   const fontFamily = options.fontFamily
     ? buildFontStack(options.fontFamily)
     : "'Microsoft YaHei', 'PingFang SC', system-ui, -apple-system, 'Segoe UI', sans-serif";
   const fontSize = options.fontSize || 16;
-  const html = `<section style="${rootStyle(theme.text, fontFamily, fontSize)}">${document.blocks
+  const html = `<section style="${rootStyle(theme.text, fontFamily, fontSize, theme.surface)}">${document.blocks
     .map((block) => renderBlock(block, theme, fontSize))
     .join('')}</section>`;
 
@@ -167,8 +167,8 @@ function renderMark(
   }
 }
 
-function rootStyle(text: string, fontFamily: string, fontSize: number): string {
-  return `font-family:${fontFamily};color:${text};font-size:${fontSize}px;`;
+function rootStyle(text: string, fontFamily: string, fontSize: number, background: string): string {
+  return `font-family:${fontFamily};color:${text};font-size:${fontSize}px;background:${background};`;
 }
 
 function capitalize(value: string): string {

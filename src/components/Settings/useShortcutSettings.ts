@@ -9,8 +9,8 @@ import {
   getCommand,
   getShortcutCommands,
   getShortcutGroups,
-  type ShortcutDef,
-} from '../../utils/shortcuts';
+  type ShortcutCommand as ShortcutDef,
+} from '../../commands/registry';
 
 export function useShortcutSettings(settings: Settings) {
   const editingId = shallowRef<string | null>(null);

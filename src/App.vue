@@ -20,7 +20,7 @@ import WindowResizeHandles from './components/Layout/WindowResizeHandles.vue';
 import { useFileStore } from './stores/file';
 import { useSettingsStore } from './stores/settings';
 import { message } from './services/tauri/dialog';
-import { findCommandByShortcut } from './utils/shortcuts';
+import { findCommandByShortcut } from './commands/registry';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import pkg from '../package.json';
 
@@ -37,6 +37,7 @@ const {
   imagePreviewUrl,
   isFullscreenPreview,
   closeFullscreenPreview,
+  openFullscreenPreview,
   resetToEditor,
 } = useImagePreview();
 
@@ -82,7 +83,7 @@ const windowSession = useAppWindowSession({
 
 function showAbout() {
   message(
-    `MD编辑器 v${appVersion}\n\n极简 Markdown 编辑器`,
+    `solo v${appVersion}\n\n极简 Markdown 编辑器`,
     {
       title: '关于',
       kind: 'info',
@@ -93,7 +94,6 @@ function showAbout() {
 const { executeCommand } = useCommandDispatcher({
   editorRef,
   activeViewMode,
-  isSourceMode: computed(() => false),
   handleNew: documentSession.handleNewDocument,
   handleOpen: documentSession.handleOpenDocument,
   handleSave: documentSession.saveCurrentDocument,
@@ -102,7 +102,6 @@ const { executeCommand } = useCommandDispatcher({
   exportPdf,
   copyToWechat,
   openSettings: () => settingsStore.openModal(),
-  openShortcuts: () => {},
   toggleFocusMode: () => settingsStore.toggleFocusMode(),
   showAbout,
   toggleFullscreen: windowSession.toggleFullscreen,
@@ -112,7 +111,6 @@ const { executeCommand } = useCommandDispatcher({
 useAppDomEvents({
   editorRef,
   activeViewMode,
-  isSourceMode: computed(() => false),
   isFullscreenPreview,
   isFocusMode: () => settingsStore.isFocusMode,
   customShortcuts: () => settingsStore.settings.customShortcuts,
@@ -148,9 +146,11 @@ async function handleClose() {
 }
 
 onMounted(async () => {
-  await settingsStore.init();
-  await windowSession.setup();
-  await syncMenuShortcuts();
+  await Promise.all([
+    settingsStore.init(),
+    windowSession.setup(),
+    syncMenuShortcuts(),
+  ]);
 });
 
 onUnmounted(() => {
@@ -172,23 +172,23 @@ onUnmounted(() => {
       :display-name="fileStore.currentFile.displayName"
       :auto-hide="settingsStore.settings.titlebarAutoHide"
       :always-on-top="settingsStore.settings.alwaysOnTop"
+      :focus-mode="settingsStore.isFocusMode"
       @rename="fileStore.setDisplayName"
       @minimize="handleMinimize"
       @maximize="handleMaximize"
       @close="handleClose"
       @toggle-always-on-top="settingsStore.toggleAlwaysOnTop()"
+      @toggle-focus-mode="settingsStore.toggleFocusMode()"
     />
 
-    <main
-      class="flex-1 relative overflow-hidden select-text"
-      :class="{ 'focus-mode-editor': settingsStore.isFocusMode }"
-    >
+    <main class="flex-1 relative overflow-hidden select-text">
       <ErrorBoundary>
         <MarkdownEditor
           v-if="activeViewMode === 'editor'"
           ref="editorRef"
           :initial-content="fileStore.currentFile.content"
           @update="handleEditorUpdate"
+          @image-dblclick="openFullscreenPreview"
         />
 
         <ImagePreviewView

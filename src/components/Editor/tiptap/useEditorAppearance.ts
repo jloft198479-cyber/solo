@@ -5,18 +5,7 @@ import { buildFontStack } from '../../../utils/fontStack';
 import { ensureFontLoaded } from '../../../services/fontLoader';
 import { reinitializeMermaidTheme } from './extensions/mermaid-block';
 
-const customCssId = 'marklight-custom-editor-css';
 const hljsDarkCssId = 'hljs-dark-theme';
-
-function injectCustomCSS(css: string) {
-  let el = document.getElementById(customCssId) as HTMLStyleElement | null;
-  if (!el) {
-    el = document.createElement('style');
-    el.id = customCssId;
-    document.head.appendChild(el);
-  }
-  el.textContent = css;
-}
 
 function syncHljsTheme() {
   const isDark = document.documentElement.classList.contains('dark');
@@ -48,7 +37,6 @@ export function useEditorAppearance() {
   const settingsStore = useSettingsStore();
   const themeObserver = new MutationObserver(syncHljsTheme);
 
-  watch(() => settingsStore.settings.customEditorCSS, injectCustomCSS, { immediate: true });
   watch(() => settingsStore.settings.fontFamily, applyFontFamily, { immediate: true });
 
   // 字号：用户手动调整时覆盖主题默认值

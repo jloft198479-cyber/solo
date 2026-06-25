@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useSettingsStore } from '../stores/settings';
 import { FONT_OPTIONS } from '../constants/fonts';
+import { isFontAvailable } from '../services/fontLoader';
 import CheckIcon from './icons/CheckIcon.vue';
 import './popover-shared.css';
 
@@ -13,9 +14,30 @@ const emit = defineEmits<{ (e: 'toggle'): void; (e: 'select'): void }>();
 const fontOptions = FONT_OPTIONS;
 const currentFont = computed(() => settingsStore.settings.fontFamily);
 
-function selectFont(value: string) {
-  settingsStore.updateSetting('fontFamily', value);
-  emit('select');
+/** 已下载的字体集合（CSS family → 是否已下载） */
+const availableFonts = ref<Record<string, boolean>>({});
+
+onMounted(async () => {
+  const map: Record<string, boolean> = {};
+  for (const opt of fontOptions) {
+    map[opt.value] = await isFontAvailable(opt.value);
+  }
+  availableFonts.value = map;
+});
+
+async function selectFont(value: string) {
+  const available = await isFontAvailable(value);
+  if (!available) {
+    // 未下载的字体先触以下载（ensureFontLoaded 被 useEditorAppearance 调用，
+    // 但 settings 已经更新了，所以先更新再让 watcher 去下载）
+    settingsStore.updateSetting('fontFamily', value);
+    // 标记为等待中
+    availableFonts.value[value] = false;
+    emit('select');
+  } else {
+    settingsStore.updateSetting('fontFamily', value);
+    emit('select');
+  }
 }
 </script>
 
@@ -40,7 +62,10 @@ function selectFont(value: string) {
             @click="selectFont(opt.value)"
           >
             <span class="font-preview" :style="{ fontFamily: opt.value }">永</span>
-            <span class="quick-popover-label">{{ opt.label }}</span>
+            <span class="quick-popover-label">
+              {{ opt.label }}
+              <span v-if="opt.downloadUrl && !availableFonts[opt.value]" class="font-dl-badge">下载</span>
+            </span>
             <CheckIcon v-if="opt.value === currentFont" class="check-icon" />
           </button>
         </div>
@@ -62,5 +87,18 @@ function selectFont(value: string) {
   background: var(--hover-bg);
   border-radius: 5px;
   flex-shrink: 0;
+}
+
+.font-dl-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 1.6;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  color: var(--primary-color);
+  vertical-align: middle;
+  font-weight: 500;
 }
 </style>

@@ -1,27 +1,30 @@
 <script setup lang="ts">
-import WechatThemeSelector from './WechatThemeSelector.vue';
 import './settings-shared.css';
 
 const wechatTheme = defineModel<string>('wechatTheme', { required: true });
+
+// 强制跟随编辑器主题，移除独立的微信主题选择
+wechatTheme.value = 'follow-editor';
 </script>
 
 <template>
   <div class="export-settings-panel">
     <section class="settings-section-card settings-section-card--hero">
       <div>
-        <div class="settings-section-title">导出主题</div>
-        <p class="settings-section-desc">控制复制到微信等场景时的排版风格和主色表现。</p>
+        <div class="settings-section-title">导出</div>
+        <p class="settings-section-desc">复制到微信等场景的排版跟随当前编辑器主题。</p>
       </div>
     </section>
 
     <section class="settings-section-card">
       <div class="settings-section-heading">
         <div>
-          <div class="settings-section-title">主题选择</div>
-          <p class="settings-section-desc">当前为复制到微信的富文本导出提供单独的排版主题。</p>
+          <div class="settings-section-title">导出风格</div>
+          <p class="settings-section-desc">
+            微信导出使用编辑器当前主题的配色方案，所见即所得——编辑时看到什么风格，导出就是什么风格。
+          </p>
         </div>
       </div>
-      <WechatThemeSelector v-model="wechatTheme" />
     </section>
   </div>
 </template>

@@ -8,6 +8,7 @@ import {
   renderEditorDocToHtmlDocument,
   renderEditorDocToWechatFragment,
 } from '../utils/export-renderer';
+import { getExportThemeTokensFromAppTheme } from '../utils/export/theme';
 
 type EditorRefValue = {
   getContent?: () => string;
@@ -96,8 +97,14 @@ export function useExportActions(options: {
     if (!editorRef.value || activeViewMode.value !== 'editor') return;
     const doc = getEditorDoc();
     if (!doc) return;
+
+    const themeId = settingsStore.settings.wechatTheme;
+    const followEditor = themeId === 'follow-editor';
     const result = renderEditorDocToWechatFragment(doc, {
-      themeId: settingsStore.settings.wechatTheme,
+      tokens: followEditor
+        ? getExportThemeTokensFromAppTheme(settingsStore.settings.activeThemeId)
+        : undefined,
+      themeId: followEditor ? undefined : themeId,
       fontFamily: settingsStore.settings.fontFamily,
       fontSize: settingsStore.settings.fontSize,
     });

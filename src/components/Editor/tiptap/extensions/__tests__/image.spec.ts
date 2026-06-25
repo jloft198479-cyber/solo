@@ -51,14 +51,17 @@ describe('getRemoteImageDisplaySrc', () => {
     const fetcher = vi.fn(async () => 'data:image/png;base64,demo');
     __setRemoteImageFetcherForTests(fetcher);
 
-    await expect(Promise.all([
+    const results = await Promise.all([
       getRemoteImageDisplaySrc('https://example.com/demo.png'),
       getRemoteImageDisplaySrc('https://example.com/demo.png'),
-    ])).resolves.toEqual([
-      'data:image/png;base64,demo',
-      'data:image/png;base64,demo',
     ]);
+
+    // 两个请求返回同一个值（dedup）
+    expect(results[0]).toBe(results[1]);
+    // fetcher 只被调用一次
     expect(fetcher).toHaveBeenCalledTimes(1);
+    // 返回值是 blob URL（base64 data URL 已转换为 Blob URL）
+    expect(results[0]).toMatch(/^blob:/);
   });
 
   it('limits concurrent remote image requests', async () => {

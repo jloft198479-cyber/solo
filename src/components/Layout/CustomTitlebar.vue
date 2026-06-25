@@ -38,14 +38,24 @@
     </div>
     <div class="titlebar-buttons">
       <button
-        class="titlebar-btn"
-        :class="{ 'titlebar-btn--active': props.alwaysOnTop }"
-        title="置顶"
+        class="titlebar-btn titlebar-focus-btn"
+        :class="{ 'titlebar-focus-btn--active': props.focusMode }"
+        :title="props.focusMode ? '退出焦点模式' : '焦点模式'"
+        @click="emit('toggleFocusMode')"
+      >
+        <svg class="focus-eye-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+          <path class="eye-outline" d="M1 7.5s3-5 6.5-5 6.5 5 6.5 5-3 5-6.5 5S1 7.5 1 7.5z"/>
+          <circle class="eye-pupil" cx="7.5" cy="7.5" r="2"/>
+        </svg>
+      </button>
+      <button
+        class="titlebar-btn titlebar-pin-btn"
+        :class="{ 'titlebar-pin-btn--active': props.alwaysOnTop }"
+        :title="props.alwaysOnTop ? '取消置顶' : '置顶'"
         @click="emit('toggleAlwaysOnTop')"
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 17v5" />
-          <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+        <svg class="titlebar-pin-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+          <path class="pin-shape" d="M7.5 11v3M5.7 7a1.2 1.2 0 0 1-.67 1.08l-1.07.54A1.2 1.2 0 0 0 3.3 9.6v.4a.5.5 0 0 0 .5.5h7.4a.5.5 0 0 0 .5-.5v-.4a1.2 1.2 0 0 0-.67-1.08l-1.07-.54A1.2 1.2 0 0 1 9.3 7V4.5a.5.5 0 0 1 .5-.5 1.2 1.2 0 0 0 0-2.4H5.2a1.2 1.2 0 0 0 0 2.4.5.5 0 0 1 .5.5z" />
         </svg>
       </button>
       <button class="titlebar-btn" title="最小化" @click="emit('minimize')">
@@ -70,6 +80,7 @@ const props = defineProps<{
   displayName: string;
   autoHide: boolean;
   alwaysOnTop: boolean;
+  focusMode: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -78,6 +89,7 @@ const emit = defineEmits<{
   (e: 'maximize'): void;
   (e: 'close'): void;
   (e: 'toggleAlwaysOnTop'): void;
+  (e: 'toggleFocusMode'): void;
 }>();
 
 const titlebarHovered = ref(false);
@@ -149,7 +161,7 @@ onUnmounted(() => {
 .custom-titlebar--visible {
   opacity: 1;
   pointer-events: auto;
-  border-bottom-color: var(--border-color);
+  border-bottom-color: color-mix(in srgb, var(--border-color) 50%, transparent);
 }
 
 .titlebar-title-area {
@@ -223,9 +235,65 @@ onUnmounted(() => {
   color: #ffffff;
 }
 
-.titlebar-btn--active {
+.titlebar-pin-btn {
+  position: relative;
+  color: var(--text-secondary);
+  transition: color 0.15s ease;
+}
+
+.titlebar-pin-btn:hover {
+  color: var(--text-color);
+}
+
+.pin-shape {
+  transform-origin: center;
+  transition: fill 0.15s ease;
+}
+
+.titlebar-pin-icon {
+  transform-origin: 7.5px 7.5px;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.titlebar-pin-btn--active {
   color: var(--primary-color);
-  opacity: 1;
+}
+
+.titlebar-pin-btn--active .pin-shape {
+  fill: currentColor;
+}
+
+.titlebar-pin-btn--active .titlebar-pin-icon {
+  transform: rotate(35deg);
+}
+
+/* ── 焦点模式按钮 ─────────────────────────────── */
+.titlebar-focus-btn {
+  position: relative;
+  color: var(--text-secondary);
+  transition: color 0.15s ease;
+}
+
+.titlebar-focus-btn:hover {
+  color: var(--text-color);
+}
+
+.focus-eye-icon {
+  transform-origin: center;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.eye-pupil {
+  fill: transparent;
+  transition: fill 0.25s ease;
+}
+
+.titlebar-focus-btn--active {
+  color: var(--primary-color);
+}
+
+.titlebar-focus-btn--active .eye-pupil {
+  fill: currentColor;
 }
 
 .titlebar-trigger {

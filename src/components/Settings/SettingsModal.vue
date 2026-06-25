@@ -3,12 +3,10 @@ import { ref, computed, watch } from 'vue';
 import { useSettingsStore } from '../../stores/settings';
 import { confirm } from '../../services/tauri/dialog';
 import AppearanceSettingsPanel from './AppearanceSettingsPanel.vue';
+import CloseIcon from '../icons/CloseIcon.vue';
 import EditorSettingsPanel from './EditorSettingsPanel.vue';
 import ExportSettingsPanel from './ExportSettingsPanel.vue';
 import SaveSettingsPanel from './SaveSettingsPanel.vue';
-import SettingsModalFooter from './SettingsModalFooter.vue';
-import SettingsModalHeader from './SettingsModalHeader.vue';
-import SettingsPageHeader from './SettingsPageHeader.vue';
 import SettingsSidebarNav, { type SettingsTabKey } from './SettingsSidebarNav.vue';
 import ShortcutSettingsPanel from './ShortcutSettingsPanel.vue';
 import { useShortcutSettings } from './useShortcutSettings';
@@ -117,7 +115,12 @@ function onKeyDown(e: KeyboardEvent) {
           @click.stop
         >
           <!-- 头部 -->
-          <SettingsModalHeader @close="close" />
+          <div class="settings-modal-header">
+            <h2 class="settings-modal-title">设置</h2>
+            <button class="settings-close-btn" @click="close">
+              <CloseIcon class="settings-close-icon" />
+            </button>
+          </div>
 
           <!-- 主体 -->
           <div class="flex flex-1 overflow-hidden settings-shell">
@@ -129,11 +132,16 @@ function onKeyDown(e: KeyboardEvent) {
               class="flex-1 overflow-y-auto settings-content-area settings-modal__content"
             >
               <div class="settings-content">
-                <SettingsPageHeader
-                  :title="activeTabMeta.title"
-                  :description="activeTabMeta.description"
-                  :badge="activeTab === 'appearance' ? `当前主题：${currentThemeName}` : undefined"
-                />
+                <div class="settings-page-header">
+                  <div>
+                    <h3 class="settings-page-title">{{ activeTabMeta.title }}</h3>
+                    <p class="settings-page-desc">{{ activeTabMeta.description }}</p>
+                  </div>
+                  <div
+                    v-if="activeTab === 'appearance'"
+                    class="settings-page-badge"
+                  >{{ `当前主题：${currentThemeName}` }}</div>
+                </div>
 
                 <!-- 外观设置 -->
                 <AppearanceSettingsPanel
@@ -174,6 +182,7 @@ function onKeyDown(e: KeyboardEvent) {
                   v-show="activeTab === 'save'"
                   v-model:auto-save="settingsStore.settings.autoSave"
                   v-model:auto-save-interval="settingsStore.settings.autoSaveInterval"
+                  v-model:image-storage-path="settingsStore.settings.imageStoragePath"
                 />
 
                 <!-- 导出设置 -->
@@ -186,7 +195,10 @@ function onKeyDown(e: KeyboardEvent) {
           </div>
 
           <!-- 底部 -->
-          <SettingsModalFooter @reset="handleReset" @close="close" />
+          <div class="settings-footer">
+            <button class="settings-footer-reset" @click="handleReset">恢复默认</button>
+            <button class="settings-footer-done" @click="close">完成</button>
+          </div>
         </div>
       </div>
     </Transition>
@@ -238,6 +250,113 @@ function onKeyDown(e: KeyboardEvent) {
   width: min(100%, 760px);
   margin: 0 auto;
   padding: 28px 28px 32px;
+}
+
+/* ── 弹窗头部 ──────────────────────────────────── */
+.settings-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 28px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.settings-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.settings-close-btn {
+  padding: 4px;
+  border-radius: 12px;
+  color: var(--muted-color);
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.settings-close-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+
+.settings-close-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* ── 页面标题 ──────────────────────────────────── */
+.settings-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.settings-page-title {
+  margin: 0;
+  color: var(--text-color);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.settings-page-desc {
+  margin: 8px 0 0;
+  color: var(--muted-color);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.settings-page-badge {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--bg-color);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── 弹窗底部 ──────────────────────────────────── */
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--sidebar-bg);
+  box-shadow: 0 -1px 0 rgba(15, 23, 42, 0.02);
+}
+
+.settings-footer-reset {
+  padding: 8px 16px;
+  font-size: 14px;
+  color: var(--muted-color);
+  transition: color 0.15s;
+}
+
+.settings-footer-done {
+  padding: 8px 24px;
+  border-radius: 8px;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.15s;
+}
+
+.settings-footer-done:hover {
+  background: var(--btn-primary-hover);
+}
+
+@media (max-width: 960px) {
+  .settings-page-header {
+    flex-direction: column;
+  }
 }
 
 </style>
