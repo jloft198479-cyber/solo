@@ -48,7 +48,7 @@ const DEFAULT_SETTINGS: Settings = {
   autoSave: false,
   autoSaveInterval: 30,
   spellCheck: true,
-  titlebarAutoHide: true,
+  titlebarAutoHide: false,
   lineHeight: 1.6,
   wechatTheme: 'follow-editor',
   customShortcuts: {},

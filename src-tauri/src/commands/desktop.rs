@@ -81,15 +81,15 @@ pub fn unregister_shell_new() -> Result<(), AppError> {
         let classes_path = "Software\\Classes";
 
         for ext in &[".md", ".markdown"] {
-            let _ = hkcu.delete_subkey(format!("{}\\{}\\ShellNew", classes_path, ext));
-            let _ = hkcu.delete_subkey(format!("{}\\{}", classes_path, ext));
+            let _ = hkcu.delete_subkey_all(format!("{}\\{}\\ShellNew", classes_path, ext));
+            let _ = hkcu.delete_subkey_all(format!("{}\\{}", classes_path, ext));
         }
 
-        let _ = hkcu.delete_subkey(format!("{}\\solo.markdown\\DefaultIcon", classes_path));
-        let _ = hkcu.delete_subkey(format!("{}\\solo.markdown\\shell\\open\\command", classes_path));
-        let _ = hkcu.delete_subkey(format!("{}\\solo.markdown\\shell\\open", classes_path));
-        let _ = hkcu.delete_subkey(format!("{}\\solo.markdown\\shell", classes_path));
-        let _ = hkcu.delete_subkey(format!("{}\\solo.markdown", classes_path));
+        let _ = hkcu.delete_subkey_all(format!("{}\\solo.markdown\\DefaultIcon", classes_path));
+        let _ = hkcu.delete_subkey_all(format!("{}\\solo.markdown\\shell\\open\\command", classes_path));
+        let _ = hkcu.delete_subkey_all(format!("{}\\solo.markdown\\shell\\open", classes_path));
+        let _ = hkcu.delete_subkey_all(format!("{}\\solo.markdown\\shell", classes_path));
+        let _ = hkcu.delete_subkey_all(format!("{}\\solo.markdown", classes_path));
 
         Ok(())
     }
