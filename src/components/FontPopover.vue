@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useSettingsStore } from '../stores/settings';
 import { FONT_OPTIONS } from '../constants/fonts';
-import { isFontAvailable } from '../services/fontLoader';
+import { isFontAvailable, onProgress } from '../services/fontLoader';
 import CheckIcon from './icons/CheckIcon.vue';
 import './popover-shared.css';
 
@@ -14,30 +14,37 @@ const emit = defineEmits<{ (e: 'toggle'): void; (e: 'select'): void }>();
 const fontOptions = FONT_OPTIONS;
 const currentFont = computed(() => settingsStore.settings.fontFamily);
 
-/** 已下载的字体集合（CSS family → 是否已下载） */
-const availableFonts = ref<Record<string, boolean>>({});
+/** 字体可用状态 */
+const fontStatus = ref<Record<string, boolean>>({});
 
-onMounted(async () => {
-  const map: Record<string, boolean> = {};
+async function refreshStatus() {
   for (const opt of fontOptions) {
-    map[opt.value] = await isFontAvailable(opt.value);
+    fontStatus.value[opt.value] = await isFontAvailable(opt.value);
   }
-  availableFonts.value = map;
+}
+
+onMounted(refreshStatus);
+
+/** 实时下载进度 */
+const progressing = ref<Record<string, number>>({});
+
+const unsub = onProgress((family, pct) => {
+  progressing.value = { ...progressing.value, [family]: pct };
+  if (pct < 0 && progressing.value[family] !== undefined) {
+    const { [family]: _, ...rest } = progressing.value;
+    progressing.value = rest;
+    // 下载完成，刷新状态
+    isFontAvailable(family).then((ok) => {
+      if (ok) fontStatus.value[family] = true;
+    });
+  }
 });
 
+onUnmounted(unsub);
+
 async function selectFont(value: string) {
-  const available = await isFontAvailable(value);
-  if (!available) {
-    // 未下载的字体先触以下载（ensureFontLoaded 被 useEditorAppearance 调用，
-    // 但 settings 已经更新了，所以先更新再让 watcher 去下载）
-    settingsStore.updateSetting('fontFamily', value);
-    // 标记为等待中
-    availableFonts.value[value] = false;
-    emit('select');
-  } else {
-    settingsStore.updateSetting('fontFamily', value);
-    emit('select');
-  }
+  settingsStore.updateSetting('fontFamily', value);
+  emit('select');
 }
 </script>
 
@@ -64,10 +71,27 @@ async function selectFont(value: string) {
             <span class="font-preview" :style="{ fontFamily: opt.value }">永</span>
             <span class="quick-popover-label">
               {{ opt.label }}
-              <span v-if="opt.downloadUrl && !availableFonts[opt.value]" class="font-dl-badge">下载</span>
+              <template v-if="progressing[opt.value] !== undefined">
+                <span class="font-dl-badge font-dl-badge--active">下载 {{ progressing[opt.value] }}%</span>
+              </template>
+              <template v-else-if="opt.downloadUrl && !fontStatus[opt.value]">
+                <span class="font-dl-badge">需下载</span>
+              </template>
             </span>
             <CheckIcon v-if="opt.value === currentFont" class="check-icon" />
           </button>
+          <!-- 进度条 -->
+          <div
+            v-for="opt in fontOptions"
+            :key="'bar-' + opt.value"
+            v-show="progressing[opt.value] !== undefined && progressing[opt.value] >= 0"
+            class="font-progress-track"
+          >
+            <div
+              class="font-progress-bar"
+              :style="{ width: progressing[opt.value] + '%' }"
+            />
+          </div>
         </div>
       </div>
     </Transition>
@@ -96,9 +120,29 @@ async function selectFont(value: string) {
   font-size: 10px;
   line-height: 1.6;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-  color: var(--primary-color);
+  background: color-mix(in srgb, var(--muted-color) 12%, transparent);
+  color: var(--muted-color);
   vertical-align: middle;
   font-weight: 500;
+}
+
+.font-dl-badge--active {
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  color: var(--primary-color);
+}
+
+.font-progress-track {
+  height: 2px;
+  margin: 0 12px 4px;
+  border-radius: 1px;
+  background: var(--border-color);
+  overflow: hidden;
+}
+
+.font-progress-bar {
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: 1px;
+  transition: width 0.3s ease;
 }
 </style>
