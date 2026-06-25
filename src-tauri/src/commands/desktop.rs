@@ -1,11 +1,10 @@
 use crate::error::AppError;
 
-/// 为 .md / .markdown 扩展名注册 ShellNew 注册表项，
-/// 使 Windows 资源管理器右键菜单出现"新建 Markdown 文档"。
-/// 写入 HKEY_CURRENT_USER，无需管理员权限。
+/// 注册 .md / .markdown 文件关联和右键"新建"菜单。
 ///
-/// 注意：文件关联（图标、双击打开）由 Tauri NSIS 安装器的
-/// `fileAssociations` 配置处理，不在运行时写入。
+/// - 设置文件图标为 solo.exe 的默认图标
+/// - 注册 ShellNew 使右键出现"新建 Markdown 文档"
+/// - 写入 HKEY_CURRENT_USER，无需管理员权限
 #[tauri::command]
 pub fn register_shell_new() -> Result<(), AppError> {
     #[cfg(target_os = "windows")]
@@ -13,19 +12,54 @@ pub fn register_shell_new() -> Result<(), AppError> {
         use winreg::enums::*;
         use winreg::RegKey;
 
+        // 获取当前可执行文件路径（编译时不知安装位置，运行时才知道）
+        let exe_path = std::env::current_exe()
+            .map_err(|e| AppError::Native(e.to_string()))?
+            .to_string_lossy()
+            .to_string();
+
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let classes = hkcu
             .open_subkey_with_flags("Software\\Classes", KEY_WRITE)
             .or_else(|_| hkcu.create_subkey("Software\\Classes").map(|(key, _)| key))
             .map_err(|e| AppError::Native(e.to_string()))?;
 
+        let prog_id = "solo.markdown";
+
         for ext in &[".md", ".markdown"] {
-            let (key, _) = classes
+            // 设置默认打开程序为 solo
+            let (ext_key, _) = classes
+                .create_subkey(ext)
+                .map_err(|e| AppError::Native(e.to_string()))?;
+            ext_key
+                .set_value("", &prog_id)
+                .map_err(|e| AppError::Native(e.to_string()))?;
+
+            // ShellNew → 右键"新建 Markdown 文档"
+            let (shell_new, _) = classes
                 .create_subkey(&format!("{}\\ShellNew", ext))
                 .map_err(|e| AppError::Native(e.to_string()))?;
-            key.set_value("NullFile", &"")
+            shell_new
+                .set_value("NullFile", &"")
                 .map_err(|e| AppError::Native(e.to_string()))?;
         }
+
+        // 设置 ProgID 默认图标（指向 solo.exe）
+        let (icon_key, _) = classes
+            .create_subkey(&format!("{}\\DefaultIcon", prog_id))
+            .map_err(|e| AppError::Native(e.to_string()))?;
+        icon_key
+            .set_value("", &exe_path)
+            .map_err(|e| AppError::Native(e.to_string()))?;
+
+        // 设置双击打开命令
+        let (cmd_key, _) = classes
+            .create_subkey(&format!("{}\\shell\\open\\command", prog_id))
+            .map_err(|e| AppError::Native(e.to_string()))?;
+        cmd_key
+            .set_value("", &format!("\"{}\" \"%1\"", exe_path))
+            .map_err(|e| AppError::Native(e.to_string()))?;
+
         Ok(())
     }
 
@@ -35,7 +69,7 @@ pub fn register_shell_new() -> Result<(), AppError> {
     }
 }
 
-/// 移除 ShellNew 注册表项（卸载时由 NSIS 安装器调用）。
+/// 移除 solo 的文件关联和右键菜单。
 #[tauri::command]
 pub fn unregister_shell_new() -> Result<(), AppError> {
     #[cfg(target_os = "windows")]
@@ -44,10 +78,19 @@ pub fn unregister_shell_new() -> Result<(), AppError> {
         use winreg::RegKey;
 
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let classes_path = "Software\\Classes";
+
         for ext in &[".md", ".markdown"] {
-            let path = format!("Software\\Classes\\{}\\ShellNew", ext);
-            let _ = hkcu.delete_subkey(&path);
+            let _ = hkcu.delete_subkey(format!("{}\\{}\\ShellNew", classes_path, ext));
+            let _ = hkcu.delete_subkey(format!("{}\\{}", classes_path, ext));
         }
+
+        let _ = hkcu.delete_subkey(format!("{}\\solo.markdown\\DefaultIcon", classes_path));
+        let _ = hkcu.delete_subkey(format!("{}\\solo.markdown\\shell\\open\\command", classes_path));
+        let _ = hkcu.delete_subkey(format!("{}\\solo.markdown\\shell\\open", classes_path));
+        let _ = hkcu.delete_subkey(format!("{}\\solo.markdown\\shell", classes_path));
+        let _ = hkcu.delete_subkey(format!("{}\\solo.markdown", classes_path));
+
         Ok(())
     }
 
