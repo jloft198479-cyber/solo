@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import SettingsFontSelect from './SettingsFontSelect.vue';
 import SettingsRangeField from './SettingsRangeField.vue';
-import ThemeEditor from './ThemeEditor.vue';
 import ThemeSelector from './ThemeSelector.vue';
 import './settings-shared.css';
 
@@ -38,18 +37,6 @@ const lineHeight = defineModel<number>('lineHeight', { required: true });
         </div>
       </div>
       <ThemeSelector />
-    </section>
-
-    <section class="settings-section-card">
-      <div class="settings-section-heading">
-        <div>
-          <div class="settings-section-title">主题定制</div>
-          <p class="settings-section-desc">
-            复制当前主题后进入高级编辑，调整颜色并另存为新的自定义主题。
-          </p>
-        </div>
-      </div>
-      <ThemeEditor />
     </section>
 
     <section class="settings-section-card">

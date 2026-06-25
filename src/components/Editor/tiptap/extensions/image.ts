@@ -65,6 +65,45 @@ const REMOTE_IMAGE_FAILURE_TTL_MS = 5 * 60 * 1000;
 const remoteImageCache = new Map<string, RemoteImageCacheEntry>();
 const remoteImageQueue: Array<() => void> = [];
 
+/** 追踪 fulfilled 条目对应的 Blob URL，缓存淘汰时需 revoke 释放内存 */
+const blobUrlRegistry = new Map<string, string>(); // originalSrc → blobUrl
+
+/**
+ * 将 base64 data URL 转换为 Blob URL，避免大字符串常驻内存。
+ * Blob URL 是轻量引用，浏览器内核管理底层 Blob 内存更高效。
+ * 调用方在缓存淘汰时须通过 revokeBlobUrl() 释放。
+ */
+function dataUrlToBlobUrl(dataUrl: string): string {
+  // 非 data URL 直接返回原值（如 asset:// 协议）
+  if (!dataUrl.startsWith('data:')) return dataUrl;
+
+  try {
+    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) return dataUrl;
+
+    const contentType = match[1];
+    const base64 = match[2];
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: contentType });
+    return URL.createObjectURL(blob);
+  } catch {
+    // decode 失败时回退到原始 data URL
+    return dataUrl;
+  }
+}
+
+function revokeBlobUrl(originalSrc: string) {
+  const blobUrl = blobUrlRegistry.get(originalSrc);
+  if (blobUrl) {
+    URL.revokeObjectURL(blobUrl);
+    blobUrlRegistry.delete(originalSrc);
+  }
+}
+
 let activeRemoteImageFetches = 0;
 let remoteImageFetcher: RemoteImageFetcher | null = null;
 
@@ -91,6 +130,7 @@ function trimRemoteImageCache() {
       break;
     }
     remoteImageCache.delete(removableKey);
+    revokeBlobUrl(removableKey);
   }
 }
 
@@ -147,9 +187,14 @@ export async function getRemoteImageDisplaySrc(src: string): Promise<string> {
 
   const promise = runWithRemoteImageConcurrency(() => getRemoteImageFetcher()(src))
     .then((displaySrc) => {
-      touchRemoteImageCacheEntry(src, { status: 'fulfilled', value: displaySrc });
+      // 将 base64 data URL 转为 Blob URL，避免大字符串常驻内存
+      const blobUrl = dataUrlToBlobUrl(displaySrc);
+      if (blobUrl !== displaySrc) {
+        blobUrlRegistry.set(src, blobUrl);
+      }
+      touchRemoteImageCacheEntry(src, { status: 'fulfilled', value: blobUrl });
       trimRemoteImageCache();
-      return displaySrc;
+      return blobUrl;
     })
     .catch(() => {
       touchRemoteImageCacheEntry(src, {
@@ -170,6 +215,11 @@ export function __setRemoteImageFetcherForTests(fetcher: RemoteImageFetcher | nu
 }
 
 export function __resetRemoteImageCacheForTests() {
+  // 释放所有 Blob URL
+  for (const blobUrl of blobUrlRegistry.values()) {
+    URL.revokeObjectURL(blobUrl);
+  }
+  blobUrlRegistry.clear();
   remoteImageCache.clear();
   remoteImageQueue.splice(0, remoteImageQueue.length);
   activeRemoteImageFetches = 0;
@@ -313,6 +363,20 @@ export const CustomImage = Image.extend({
           event.preventDefault();
           cancel();
           editor.commands.focus();
+        }
+      });
+
+      // 双击图片 → 全屏预览（通过自定义事件冒泡到 MarkdownEditor）
+      image.addEventListener('dblclick', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (image.src) {
+          dom.dispatchEvent(
+            new CustomEvent('editor:image-dblclick', {
+              bubbles: true,
+              detail: { src: image.src },
+            }),
+          );
         }
       });
 

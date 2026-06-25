@@ -302,7 +302,7 @@ export const COMMANDS: CommandDefinition[] = [
     description: '打开编辑器内查找',
     scope: 'app',
     group: 'edit',
-    defaultShortcut: 'Mod-f',
+    defaultShortcut: 'Mod-g',
     menuSection: 'edit',
     palette: true,
   },
@@ -312,7 +312,7 @@ export const COMMANDS: CommandDefinition[] = [
     description: '打开编辑器内查找替换',
     scope: 'app',
     group: 'edit',
-    defaultShortcut: 'Mod-h',
+    defaultShortcut: 'Mod-Shift-g',
     menuSection: 'edit',
     palette: true,
   },
@@ -322,7 +322,7 @@ export const COMMANDS: CommandDefinition[] = [
     description: '切换焦点模式',
     scope: 'app',
     group: 'view',
-    defaultShortcut: 'Mod-Shift-f',
+    defaultShortcut: 'Mod-Alt-f',
     menuSection: 'view',
     palette: true,
   },
@@ -332,7 +332,7 @@ export const COMMANDS: CommandDefinition[] = [
     description: '切换应用全屏显示',
     scope: 'app',
     group: 'view',
-    defaultShortcut: isMac ? 'Mod-Ctrl-f' : 'F11',
+    defaultShortcut: isMac ? 'Mod-Shift-f' : 'F11',
     menuSection: 'view',
     palette: true,
   },
@@ -347,18 +347,8 @@ export const COMMANDS: CommandDefinition[] = [
     palette: true,
   },
   {
-    id: 'help.shortcuts',
-    title: '快捷键帮助',
-    description: '打开快捷键帮助窗口',
-    scope: 'app',
-    group: 'help',
-    defaultShortcut: 'Mod-Shift-k',
-    menuSection: 'help',
-    palette: true,
-  },
-  {
     id: 'help.about',
-    title: '关于 MD编辑器',
+    title: '关于 solo',
     description: '显示应用版本与项目信息',
     scope: 'app',
     group: 'help',
@@ -367,7 +357,7 @@ export const COMMANDS: CommandDefinition[] = [
   },
   {
     id: 'app.quit',
-    title: '退出 MD编辑器',
+    title: '退出 solo',
     description: '退出当前应用',
     scope: 'app',
     group: 'help',
@@ -377,52 +367,6 @@ export const COMMANDS: CommandDefinition[] = [
 ];
 
 export const COMMAND_LOOKUP = new Map(COMMANDS.map((command) => [command.id, command]));
-
-export const WINDOW_TITLEBAR_MENUS: Array<{
-  id: string;
-  label: string;
-  items: Array<string | 'separator'>;
-}> = [
-  {
-    id: 'file',
-    label: '文件',
-    items: [
-      'file.new',
-      'file.open',
-      'separator',
-      'file.save',
-      'file.saveAs',
-      'separator',
-      'export.html',
-      'export.pdf',
-      'export.wechat',
-    ],
-  },
-  {
-    id: 'edit',
-    label: '编辑',
-    items: ['editor.undo', 'editor.redo', 'separator', 'edit.find', 'edit.replace'],
-  },
-  {
-    id: 'view',
-    label: '视图',
-    items: [
-      'view.focusMode',
-      'separator',
-      'view.fullscreen',
-    ],
-  },
-  {
-    id: 'help',
-    label: '帮助',
-    items: [
-      'help.shortcuts',
-      'separator',
-      'settings.open',
-      'help.about',
-    ],
-  },
-];
 
 export function getCommand(commandId: string): CommandDefinition | undefined {
   return COMMAND_LOOKUP.get(commandId);
@@ -514,12 +458,12 @@ function formatKeyForDisplay(shortcut: string, platform: 'mac' | 'win'): string 
       .replace(/-/g, '');
   }
 
-  return shortcut
+  const joined = shortcut
     .replace(/Mod/g, 'Ctrl')
-    .replace(/Shift/g, 'Shift')
-    .replace(/Alt/g, 'Alt')
-    .replace(/Ctrl/g, 'Ctrl')
     .replace(/-/g, '+');
+  const parts = joined.split('+');
+  parts[parts.length - 1] = parts[parts.length - 1].toUpperCase();
+  return parts.join('+');
 }
 
 export function formatShortcutDisplay(shortcut: string): string {

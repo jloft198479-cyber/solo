@@ -33,10 +33,10 @@ export interface Settings {
   wechatTheme: string;
   /** Custom shortcuts */
   customShortcuts: Record<string, string>;
-  /** Custom editor CSS */
-  customEditorCSS: string;
   /** Window always on top */
   alwaysOnTop: boolean;
+  /** Custom image storage directory (empty = use assets/ next to document) */
+  imageStoragePath: string;
   /** Config version */
   configVersion: number;
 }
@@ -50,14 +50,14 @@ const DEFAULT_SETTINGS: Settings = {
   spellCheck: true,
   titlebarAutoHide: true,
   lineHeight: 1.6,
-  wechatTheme: 'scholar',
+  wechatTheme: 'follow-editor',
   customShortcuts: {},
-  customEditorCSS: '',
   alwaysOnTop: false,
-  configVersion: 7,
+  imageStoragePath: '',
+  configVersion: 8,
 };
 
-const CURRENT_CONFIG_VERSION = 7;
+const CURRENT_CONFIG_VERSION = 8;
 
 /** 自动保存间隔下限（秒），防止配置异常导致过于频繁的保存 */
 const MIN_AUTOSAVE_INTERVAL_SECONDS = 5;
@@ -220,24 +220,6 @@ export const useSettingsStore = defineStore('settings', {
       };
       this.settings.customThemes.push(nextTheme);
       this.updateAllThemes();
-    },
-
-    updateCustomTheme(themeId: ThemeId, updatedTheme: AppTheme) {
-      const index = this.settings.customThemes.findIndex((theme) => theme.id === themeId);
-      if (index === -1) {
-        return;
-      }
-
-      this.settings.customThemes[index] = {
-        ...updatedTheme,
-        id: themeId,
-        type: 'custom',
-      };
-      this.updateAllThemes();
-
-      if (this.settings.activeThemeId === themeId) {
-        this.applyCurrentTheme(themeId);
-      }
     },
 
     removeCustomTheme(themeId: ThemeId) {

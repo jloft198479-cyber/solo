@@ -17,6 +17,7 @@ pub struct DocumentSaveResult {
 #[serde(rename_all = "camelCase")]
 pub struct DocumentImageImportResult {
     pub relative_path: String,
+    pub absolute_path: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]

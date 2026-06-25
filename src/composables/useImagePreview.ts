@@ -35,6 +35,12 @@ export function useImagePreview() {
     isFullscreenPreview.value = false;
   }
 
+  /** 编辑器内双击图片 → 直接打开全屏预览浮层（不切换视图模式） */
+  function openFullscreenPreview(url: string) {
+    imagePreviewUrl.value = url;
+    isFullscreenPreview.value = true;
+  }
+
   function resetToEditor() {
     activeViewMode.value = 'editor';
     imagePreviewUrl.value = null;
@@ -46,6 +52,7 @@ export function useImagePreview() {
     isFullscreenPreview,
     handleOpenImage,
     closeFullscreenPreview,
+    openFullscreenPreview,
     resetToEditor,
   };
 }

@@ -54,12 +54,7 @@ export async function renderBlocks(
   blocks: ExportBlock[],
   target: 'html' | 'wechat',
 ): Promise<string> {
-  const rendered: string[] = [];
-
-  for (const block of blocks) {
-    rendered.push(await renderBlock(block, target));
-  }
-
+  const rendered = await Promise.all(blocks.map(block => renderBlock(block, target)));
   return rendered.join('');
 }
 
@@ -106,12 +101,9 @@ async function renderBlock(block: ExportBlock, target: 'html' | 'wechat'): Promi
 }
 
 async function renderListItems(block: ExportList, target: 'html' | 'wechat'): Promise<string> {
-  const rendered: string[] = [];
-
-  for (const item of block.items) {
-    rendered.push(await renderListItem(item, block.kind === 'taskList', target));
-  }
-
+  const rendered = await Promise.all(
+    block.items.map(item => renderListItem(item, block.kind === 'taskList', target)),
+  );
   return rendered.join('');
 }
 
@@ -315,7 +307,7 @@ async function renderMermaidSvg(source: string): Promise<string | null> {
       securityLevel: 'strict',
       theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
     });
-    const id = `marklight-export-mermaid-${(mermaidCounter += 1)}`;
+    const id = `solo-export-mermaid-${(mermaidCounter += 1)}`;
     const { svg } = await mermaid.render(id, source);
     return svg;
   } catch {

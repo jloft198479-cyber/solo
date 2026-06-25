@@ -1,13 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   COMMANDS,
-  WINDOW_TITLEBAR_MENUS,
   checkKeyConflicts,
+  formatShortcutDisplay,
   getMenuShortcuts,
   getShortcut,
   getShortcutGroups,
   getCommand,
 } from '../registry';
+import { isMac } from '../../utils/platform';
+
+vi.mock('../../utils/platform', () => ({
+  isMac: false,
+}));
 
 describe('command registry', () => {
   it('resolves custom shortcuts over defaults', () => {
@@ -45,20 +50,6 @@ describe('command registry', () => {
     }
   });
 
-  it('keeps titlebar menu entries backed by registered commands', () => {
-    const ids = new Set(COMMANDS.map((command) => command.id));
-
-    for (const menu of WINDOW_TITLEBAR_MENUS) {
-      for (const item of menu.items) {
-        if (item === 'separator') {
-          continue;
-        }
-
-        expect(ids.has(item)).toBe(true);
-      }
-    }
-  });
-
   it('keeps menu shortcuts limited to registered menu commands', () => {
     const menuCommandIds = new Set(
       COMMANDS.filter((command) => command.menuSection).map((command) => command.id),
@@ -69,5 +60,16 @@ describe('command registry', () => {
     for (const id of shortcutIds) {
       expect(menuCommandIds.has(id)).toBe(true);
     }
+  });
+});
+
+describe('formatShortcutDisplay', () => {
+  it('uppercases the final key on win/linux', () => {
+    expect(isMac).toBe(false);
+    expect(formatShortcutDisplay('Mod-s')).toBe('Ctrl+S');
+    expect(formatShortcutDisplay('Mod-Shift-f')).toBe('Ctrl+Shift+F');
+    expect(formatShortcutDisplay('Mod-Alt-F')).toBe('Ctrl+Alt+F');
+    expect(formatShortcutDisplay('F11')).toBe('F11');
+    expect(formatShortcutDisplay('Mod-Shift-7')).toBe('Ctrl+Shift+7');
   });
 });

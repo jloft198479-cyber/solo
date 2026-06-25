@@ -10,7 +10,6 @@ export interface AppDomEditorApi {
 export interface AppDomEventsOptions {
   editorRef: Ref<AppDomEditorApi | null>;
   activeViewMode: Ref<'editor' | 'image'>;
-  isSourceMode: Ref<boolean>;
   isFullscreenPreview: Ref<boolean>;
   isFocusMode: () => boolean;
   customShortcuts: () => Record<string, string>;
@@ -28,7 +27,6 @@ export function useAppDomEvents(options: AppDomEventsOptions) {
   function onCopy(event: ClipboardEvent) {
     if (
       !options.editorRef.value ||
-      options.isSourceMode.value ||
       options.activeViewMode.value !== 'editor'
     ) {
       return;
@@ -57,9 +55,12 @@ export function useAppDomEvents(options: AppDomEventsOptions) {
 
     const command = options.findCommandByShortcut(event, options.customShortcuts());
     if (command) {
+      // 编辑器内置快捷键由 ProseMirror 处理，跳过避免重复触发
+      // 但用户自定义的编辑器快捷键（与默认不同）需要放行
       if (
         target?.closest('.tiptap-editor') &&
-        (command.id === 'editor.undo' || command.id === 'editor.redo')
+        command.scope === 'editor' &&
+        !options.customShortcuts()[command.id]
       ) {
         return;
       }

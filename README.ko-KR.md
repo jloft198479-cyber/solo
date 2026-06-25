@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="./public/icon.png" width="160" alt="MarkLight Logo" />
+  <img src="./public/icon.png" width="160" alt="solo Logo" />
 </p>
 
-<h1 align="center">MarkLight</h1>
+<h1 align="center">solo</h1>
 
 <p align="center">
   <strong>Tauri 2, Rust 도메인 코어, TipTap으로 만든 로컬 우선 Markdown 에디터</strong>
@@ -18,18 +18,6 @@
   <a href="./README.ko-KR.md">한국어</a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/xiaodou997/marklight/releases">
-    <img src="https://img.shields.io/github/v/release/xiaodou997/marklight?style=flat-square&color=blue" alt="Version" />
-  </a>
-  <a href="https://gitee.com/xiaodou997/marklight">
-    <img src="https://img.shields.io/badge/Gitee-xiaodou997-red?style=flat-square&logo=gitee" alt="Gitee" />
-  </a>
-  <a href="https://github.com/xiaodou997/marklight/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/License-Apache--2.0-green?style=flat-square" alt="Apache-2.0" />
-  </a>
-</p>
-
 ## 주요 기능
 
 - WYSIWYG 편집: TipTap / ProseMirror 기반으로 코드 블록, 표, 수식, Mermaid, Callout 등을 렌더링된 상태에서 편집할 수 있습니다.
@@ -40,7 +28,7 @@
 
 ## 아키텍처
 
-MarkLight는 명확한 세 계층으로 구성됩니다.
+solo는 명확한 세 계층으로 구성됩니다.
 
 - Vue 3 + Pinia + TipTap: UI, 에디터 상호작용, 명령 디스패치를 담당합니다.
 - Tauri 2: 플러그인, 권한 경계, 명령 / 이벤트 브리지를 담당합니다.
@@ -100,4 +88,4 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 ## License
 
-MarkLight는 [Apache License 2.0](LICENSE)에 따라 오픈소스로 공개됩니다.
+solo는 [Apache License 2.0](LICENSE)에 따라 오픈소스로 공개됩니다.

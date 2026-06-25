@@ -56,6 +56,7 @@ pub fn save_document(
 pub fn import_document_image(
     source_path: String,
     document_path: String,
+    storage_dir: Option<String>,
 ) -> Result<DocumentImageImportResult, AppError> {
     let source = Path::new(&source_path);
     let filename = source
@@ -63,19 +64,29 @@ pub fn import_document_image(
         .and_then(|name| name.to_str())
         .ok_or_else(|| AppError::validation("无法解析图片文件名"))?;
 
-    let document_dir = Path::new(&document_path)
-        .parent()
-        .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
-    let assets_dir = document_dir.join("assets");
-    if !assets_dir.exists() {
-        fs::create_dir_all(&assets_dir)?;
+    let target_dir = if let Some(ref dir) = storage_dir {
+        Path::new(dir).to_path_buf()
+    } else {
+        let document_dir = Path::new(&document_path)
+            .parent()
+            .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
+        document_dir.join("assets")
+    };
+
+    if !target_dir.exists() {
+        fs::create_dir_all(&target_dir)?;
     }
 
-    let (target_path, target_filename) = unique_asset_target(&assets_dir, filename);
+    let (target_path, target_filename) = unique_asset_target(&target_dir, filename);
     fs::copy(source, &target_path)?;
+    let absolute_path = target_path
+        .to_str()
+        .ok_or_else(|| AppError::validation("无法解析图片路径"))?
+        .to_string();
 
     Ok(DocumentImageImportResult {
         relative_path: format!("assets/{}", target_filename),
+        absolute_path,
     })
 }
 
@@ -177,7 +188,7 @@ fn temp_path(path: &Path) -> PathBuf {
     let file_name = path
         .file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or("marklight");
+        .unwrap_or("solo");
     path.with_file_name(format!(".{}.{}.tmp", file_name, millis))
 }
 
@@ -228,7 +239,7 @@ mod tests {
             .map(|duration| duration.as_millis())
             .unwrap_or(0);
         let seq = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("marklight-document-test-{}-{}", millis, seq));
+        let dir = std::env::temp_dir().join(format!("solo-document-test-{}-{}", millis, seq));
         fs::create_dir_all(&dir).unwrap();
         dir
     }

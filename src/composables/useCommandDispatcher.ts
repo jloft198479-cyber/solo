@@ -14,7 +14,6 @@ export interface EditorCommandApi {
 export interface CommandDispatcherOptions {
   editorRef: Ref<EditorCommandApi | null>;
   activeViewMode: Ref<ViewMode>;
-  isSourceMode: Ref<boolean>;
   handleNew: () => void | Promise<void>;
   handleOpen: () => void | Promise<void>;
   handleSave: () => void | Promise<void> | Promise<boolean> | boolean;
@@ -23,7 +22,6 @@ export interface CommandDispatcherOptions {
   exportPdf: () => void | Promise<void>;
   copyToWechat: () => void | Promise<void>;
   openSettings: () => void;
-  openShortcuts: () => void;
   toggleFocusMode: () => void | Promise<void>;
   showAbout: () => void | Promise<void>;
   toggleFullscreen: () => void | Promise<void>;
@@ -34,11 +32,10 @@ export function useCommandDispatcher(options: CommandDispatcherOptions) {
   const {
     editorRef,
     activeViewMode,
-    isSourceMode,
   } = options;
 
   function canRunEditorShortcut() {
-    if (activeViewMode.value !== 'editor' || isSourceMode.value) {
+    if (activeViewMode.value !== 'editor') {
       return false;
     }
     return editorRef.value?.hasFocus?.() ?? false;
@@ -80,13 +77,13 @@ export function useCommandDispatcher(options: CommandDispatcherOptions) {
         await options.copyToWechat();
         return true;
       case 'edit.find':
-        if (activeViewMode.value === 'editor' && !isSourceMode.value) {
+        if (activeViewMode.value === 'editor') {
           editorRef.value?.openSearch?.(false);
           return true;
         }
         return false;
       case 'edit.replace':
-        if (activeViewMode.value === 'editor' && !isSourceMode.value) {
+        if (activeViewMode.value === 'editor') {
           editorRef.value?.openSearch?.(true);
           return true;
         }
@@ -99,9 +96,6 @@ export function useCommandDispatcher(options: CommandDispatcherOptions) {
         return true;
       case 'settings.open':
         options.openSettings();
-        return true;
-      case 'help.shortcuts':
-        options.openShortcuts();
         return true;
       case 'help.about':
         await options.showAbout();

@@ -13,7 +13,7 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
 
   let searchQuery = '';
   let caseSensitive = false;
-  let currentMatches: SearchMatch[] = [];
+  const currentMatches = ref<SearchMatch[]>([]);
 
   function findMatches(query: string): SearchMatch[] {
     if (!editor.value || !query) return [];
@@ -34,8 +34,8 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
   }
 
   function scrollToMatch(index: number) {
-    if (!editor.value || index < 0 || index >= currentMatches.length) return;
-    const match = currentMatches[index];
+    if (!editor.value || index < 0 || index >= currentMatches.value.length) return;
+    const match = currentMatches.value[index];
     editor.value.commands.setTextSelection(match);
     const dom = editor.value.view.domAtPos(match.from);
     const el = dom.node instanceof HTMLElement ? dom.node : dom.node.parentElement;
@@ -44,10 +44,10 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
 
   function onSearchQuery(query: string) {
     searchQuery = query;
-    currentMatches = findMatches(query);
-    searchMatchCount.value = currentMatches.length;
-    searchCurrentIndex.value = currentMatches.length > 0 ? 1 : 0;
-    if (currentMatches.length > 0) scrollToMatch(0);
+    currentMatches.value = findMatches(query);
+    searchMatchCount.value = currentMatches.value.length;
+    searchCurrentIndex.value = currentMatches.value.length > 0 ? 1 : 0;
+    if (currentMatches.value.length > 0) scrollToMatch(0);
   }
 
   function onSearchCaseSensitive(sensitive: boolean) {
@@ -70,10 +70,10 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
   }
 
   function onSearchReplace(replacement: string) {
-    if (!editor.value || currentMatches.length === 0) return;
+    if (!editor.value || currentMatches.value.length === 0) return;
     const idx = searchCurrentIndex.value - 1;
-    if (idx < 0 || idx >= currentMatches.length) return;
-    const match = currentMatches[idx];
+    if (idx < 0 || idx >= currentMatches.value.length) return;
+    const match = currentMatches.value[idx];
     const replaceFrom = match.from;
 
     editor.value
@@ -84,34 +84,34 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
       .insertContent(replacement)
       .run();
 
-    currentMatches = findMatches(searchQuery);
-    searchMatchCount.value = currentMatches.length;
+    currentMatches.value = findMatches(searchQuery);
+    searchMatchCount.value = currentMatches.value.length;
 
-    if (currentMatches.length === 0) {
+    if (currentMatches.value.length === 0) {
       searchCurrentIndex.value = 0;
       return;
     }
 
     // 定位到替换位置之后最近的匹配
-    let nextIdx = currentMatches.findIndex((m) => m.from >= replaceFrom);
+    let nextIdx = currentMatches.value.findIndex((m) => m.from >= replaceFrom);
     if (nextIdx === -1) nextIdx = 0;
     searchCurrentIndex.value = nextIdx + 1;
     scrollToMatch(nextIdx);
   }
 
   function onSearchReplaceAll(replacement: string) {
-    if (!editor.value || currentMatches.length === 0) return;
-    const matches = [...currentMatches].reverse();
+    if (!editor.value || currentMatches.value.length === 0) return;
+    const matches = [...currentMatches.value].reverse();
     const chain = editor.value.chain();
     for (const match of matches) {
       chain.setTextSelection(match).deleteSelection().insertContent(replacement);
     }
     chain.run();
 
-    currentMatches = findMatches(searchQuery);
-    searchMatchCount.value = currentMatches.length;
-    searchCurrentIndex.value = currentMatches.length > 0 ? 1 : 0;
-    if (currentMatches.length > 0) scrollToMatch(0);
+    currentMatches.value = findMatches(searchQuery);
+    searchMatchCount.value = currentMatches.value.length;
+    searchCurrentIndex.value = currentMatches.value.length > 0 ? 1 : 0;
+    if (currentMatches.value.length > 0) scrollToMatch(0);
   }
 
   function openSearch() {
@@ -122,6 +122,7 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     isSearchVisible.value = false;
     searchMatchCount.value = 0;
     searchCurrentIndex.value = 0;
+    currentMatches.value = [];
     searchQuery = '';
   }
 
@@ -129,6 +130,7 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     isSearchVisible,
     searchMatchCount,
     searchCurrentIndex,
+    currentMatches,
     onSearchQuery,
     onSearchCaseSensitive,
     onSearchNext,

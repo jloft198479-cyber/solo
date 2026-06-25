@@ -1,5 +1,5 @@
 {
-  "name": "marklight",
+  "name": "solo",
   "private": true,
   "version": "1.1.6",
   "packageManager": "bun@1.3.14",
@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "dev:tauri": "tauri dev",
-    "dev:tauri:inspect": "MARKLIGHT_OPEN_DEVTOOLS=1 tauri dev",
+    "dev:tauri:inspect": "SOLO_OPEN_DEVTOOLS=1 tauri dev",
     "build:tauri": "tauri build",
     "test": "vitest run",
     "lint": "eslint src/",

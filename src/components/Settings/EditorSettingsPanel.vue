@@ -11,7 +11,7 @@ const titlebarAutoHide = defineModel<boolean>('titlebarAutoHide', { required: tr
     <section class="settings-section-card settings-section-card--hero">
       <div>
         <div class="settings-section-title">编辑器行为</div>
-        <p class="settings-section-desc">控制行号、拼写检查等核心编辑体验。</p>
+        <p class="settings-section-desc">控制拼写检查、标题栏等核心编辑体验。</p>
       </div>
       <div class="settings-hero-metrics">
         <div class="settings-hero-chip">拼写检查：{{ spellCheck ? '开启' : '关闭' }}</div>

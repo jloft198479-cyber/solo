@@ -74,6 +74,7 @@ describe('tauri document service', () => {
       {
         sourcePath: '/tmp/image.png',
         documentPath: '/tmp/demo.md',
+        storageDir: null,
       },
     );
     expect(invokeCommandMock).toHaveBeenNthCalledWith(

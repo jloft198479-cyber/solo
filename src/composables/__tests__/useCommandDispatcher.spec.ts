@@ -19,14 +19,12 @@ function createDispatcher() {
   const exportPdf = vi.fn();
   const copyToWechat = vi.fn();
   const openSettings = vi.fn();
-  const openShortcuts = vi.fn();
   const toggleFocusMode = vi.fn();
   const showAbout = vi.fn();
   const toggleFullscreen = vi.fn();
   const handleQuit = vi.fn();
 
   const activeViewMode = ref<'editor' | 'image'>('editor');
-  const isSourceMode = ref(false);
 
   const dispatcher = useCommandDispatcher({
     editorRef: ref({
@@ -35,7 +33,6 @@ function createDispatcher() {
       openSearch,
     }),
     activeViewMode,
-    isSourceMode,
     handleNew,
     handleOpen,
     handleSave,
@@ -44,7 +41,6 @@ function createDispatcher() {
     exportPdf,
     copyToWechat,
     openSettings,
-    openShortcuts,
     toggleFocusMode,
     showAbout,
     toggleFullscreen,
@@ -65,7 +61,6 @@ function createDispatcher() {
       exportPdf,
       copyToWechat,
       openSettings,
-      openShortcuts,
       toggleFocusMode,
       showAbout,
       toggleFullscreen,
@@ -73,7 +68,6 @@ function createDispatcher() {
     },
     state: {
       activeViewMode,
-      isSourceMode,
     },
   };
 }
@@ -112,7 +106,6 @@ describe('useCommandDispatcher', () => {
   it('handles every registered app command', async () => {
     const { dispatcher, spies, state } = createDispatcher();
     state.activeViewMode.value = 'editor';
-    state.isSourceMode.value = false;
 
     const appCommands = COMMANDS.filter((command) => command.scope === 'app');
 
@@ -132,7 +125,6 @@ describe('useCommandDispatcher', () => {
     expect(spies.toggleFocusMode).toHaveBeenCalled();
     expect(spies.toggleFullscreen).toHaveBeenCalled();
     expect(spies.openSettings).toHaveBeenCalled();
-    expect(spies.openShortcuts).toHaveBeenCalled();
     expect(spies.showAbout).toHaveBeenCalled();
     expect(spies.handleQuit).toHaveBeenCalled();
   });

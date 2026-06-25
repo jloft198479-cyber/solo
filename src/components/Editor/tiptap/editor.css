@@ -596,7 +596,6 @@ html.dark .tiptap-editor mark {
   border-radius: 4px;
 }
 
-.tiptap-editor .mk-image-shell.ProseMirror-selectednode .mk-image-source-text,
 .tiptap-editor .mk-image-shell.is-editing .mk-image-source-text,
 .tiptap-editor .mk-image-shell.is-invalid .mk-image-source-text {
   display: block;

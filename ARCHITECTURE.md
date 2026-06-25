@@ -9,14 +9,12 @@
 
 **solo** 是一款**本地优先**的桌面 Markdown 编辑器，面向中文沉浸式写作，审美对标 Linear / Raycast / Notion。
 
-> 命名说明：项目正式名称为 **solo**。代码库中残留的 `marklight` 字样（`package.json` 的 name、菜单文案、localStorage key 等）是**早期借鉴源码遗留的历史残留**，与 MarkLight 项目无任何归属关系，属待清理项，不代表本项目名称。
-
 技术栈一句话：**Tauri 2（Rust 原生核心）+ Vue 3 + Pinia + TipTap/ProseMirror + Tailwind CSS 4**。
 
 三层结构：
 
 ```
-Rust 核心 (src-tauri/)   ──14 个命令 + 3 个事件──▶  文件/图片/窗口/打印/注册表
+Rust 核心 (src-tauri/)   ──15 个命令 + 3 个事件──▶  文件/图片/窗口/打印/注册表
         ▲ invoke / emit
 IPC 服务层 (src/services/tauri/)  ──契约封装，前端不直接碰 invoke
         ▲
@@ -44,11 +42,10 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 11 个 composables +
 | 测试 | Vitest + happy-dom | 4.x | 24 个 spec 文件 |
 | 包管理 | bun | 1.3.14 | |
 
-**命名说明**（避免新人困惑）：
+**命名说明**：
 - 项目正式名称 = **solo**
 - `tauri.conf.json` 的 `productName` = `solo`（安装包/窗口标题显示名）
 - `identifier` = `com.solomarkdown`（注册表/Bundle 唯一标识）
-- 代码中残留的 `marklight` 字样（`package.json` 的 `name` 字段、`menu.rs` 的 "关于 MarkLight" 文案、`localStorage` 的 `marklight-focus-mode` key 等）是**借鉴源码的历史残留**，不代表本项目名称，属待清理项。
 
 ---
 
@@ -83,7 +80,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 11 个 composables +
 │                   Rust 核心 (src-tauri/src/)                     │
 │                                                                  │
 │   lib.rs ── run() ── 插件注册 / 启动开打 / 菜单 / 关闭拦截        │
-│   commands/ ── document/image/window/desktop ── 14 个 #[command]  │
+│   commands/ ── document/image/window/desktop ── 15 个 #[command]  │
 │   models.rs ── DTO（camelCase 序列化）                            │
 │   error.rs ── AppError 枚举（5 变体 + 结构化序列化）              │
 │   events.rs ── 3 个事件常量                                      │
@@ -203,7 +200,7 @@ md-editor/
 │   ├── tauri.conf.json           #   Tauri 配置（productName=solo）
 │   └── Cargo.toml
 │
-├── public/fonts/                 # 内嵌字体文件（按需加载，见 §10.3）
+├── _docs/                        # 项目文档（版本规划、审查报告等）
 ├── architecture.md               # ← 本文档（代码真相，权威）
 ├── AGENTS.md                     #   早期文档，部分已过时（见附录 C）
 └── package.json                  #   name=marklight (历史残留), version=1.1.6
@@ -219,10 +216,10 @@ md-editor/
 
 1. **注册插件**：single-instance（单实例）、opener、dialog、clipboard-manager、cli、store、window-state（持久化 SIZE/POSITION/MAXIMIZED/FULLSCREEN）。
 2. **`setup()`**：管理 state → 回收早期开打请求 → 解析 CLI/raw args → 建菜单 → 挂关闭拦截 →（macOS）设置窗口背景。
-3. **`invoke_handler`**：注册 **14 个命令**。
+3. **`invoke_handler`**：注册 **15 个命令**。
 4. **`run()` 回调**：macOS/iOS 的 `Opened { urls }` 事件转成开打请求。
 
-### 4.2 命令清单（14 个）
+### 4.2 命令清单（15 个）
 
 | 命令 | 文件 | 职责 |
 |---|---|---|
@@ -448,13 +445,13 @@ ProseMirror Doc
 - `theme.ts`：两套取色函数——`getExportThemeTokens`（微信主题）、`getExportThemeTokensFromAppTheme`（编辑器主题）。**HTML 导出用编辑器主题，微信导出用微信主题，两套独立。**
 - 导出字体用 `buildFontStack(settings.fontFamily)`（与编辑器共享，保证所见即所得）。
 - PDF 导出 = 调 Rust `print_document`（系统打印对话框），不经 IR。
-- `wechat-themes.ts`：微信 4 套文学风主题。
+- `wechat-themes.ts`：微信 4 套文学风主题 + 「跟随当前主题」默认选项。
 
 ### 10.3 字体系统
 
 - `constants/fonts.ts`：`FONT_OPTIONS`（7 种：思源宋体/微软雅黑 UI/朱雀仿宋/小赖字体/霞鹜文楷/汇文明朝/系统默认）。
 - `utils/fontStack.ts`：`buildFontStack(primary)` —— 按字体类型生成带中文 fallback 的完整 font-family 栈，**编辑器与导出端共享**，消除两端不一致。
-- `services/fontLoader.ts`：内嵌字体（`public/fonts/`）按需 `FontFace` 加载，系统字体跳过，已加载缓存复用，加载中去重。
+- `services/fontLoader.ts`：远程字体按需下载 + IndexedDB 缓存 + FontFace 注册，系统字体跳过，已加载缓存复用，加载中去重。
 
 ---
 
@@ -521,8 +518,10 @@ ProseMirror Doc
 | Markdown 保真度 | `parser.ts` / `serializer.ts` → 先看 `roundtrip.spec.ts` |
 | 文件打开/保存 bug | `useDocumentSession.ts` + `commands/document.rs` |
 | 菜单/快捷键行为 | `registry.ts` + `useCommandDispatcher.ts` + Rust `menu.rs` |
+| 搜索/替换 | `useEditorSearch.ts` + `extensions/search-highlight.ts` + 搜索面板模板（`MarkdownEditor.vue`） |
 | 主题/外观 | `stores/settings.ts` + `themes/manager.ts` + `editor.css` |
 | 导出（HTML/微信） | `utils/export/` + `useExportActions.ts` |
+| 图片拖入/处理 | `editor-image-drop.ts` + Rust `commands/document.rs` + `services/tauri/asset.ts` |
 | 字体 | `constants/fonts.ts` + `fontStack.ts` + `fontLoader.ts` + `useEditorAppearance.ts` |
 | 启动开打/单实例 | Rust `lib.rs`（§4.5）+ `useAppWindowSession.ts` |
 | IPC 新增命令 | `command-names.ts` 登记 + `services/tauri/` 封装 + Rust `commands/` 实现 + `lib.rs` 注册 + `capabilities/` 加权限 |
@@ -537,13 +536,13 @@ ProseMirror Doc
 |---|---|
 | 存在文件树 / workspace watcher / `useFileTree.ts` / `useFileOperations.ts` | **已移除**。`useDocumentSession.ts` 内有 `// workspace 功能已移除` 注释 |
 | `fs.rs` / `watch.rs` / `config.rs` | **不存在**。文件操作在 `commands/document.rs`，无 watcher，设置用 tauri-plugin-store |
-| 6 个字体 | **7 个**（新增小赖字体 `Xiaolai SC`） |
+| 6 个字体 | **7 个**（系统默认 + 微软雅黑 UI + 5 款远程下载字体） |
 | emoji 补全未实现 | **已实现**（`emoji-suggest.ts` + `EmojiMenu.vue`，`:` 触发） |
 | 编辑区排版硬编码、不随主题切换 | **已解决**。主题 `typography` → `--mk-*` 变量 → `editor.css` 消费 |
-| 字体依赖本地安装 | **正在解决**（未提交 WIP：`fontLoader.ts` + `public/fonts/` 内嵌按需加载） |
+| 字体依赖本地安装 | **已解决**。改为按需远程下载 + IndexedDB 缓存，安装包不再内嵌字体文件 |
 | 字体栈分散 | **已收口**到 `fontStack.ts::buildFontStack`，编辑器+导出共享 |
 | 序列化防抖 300ms | **实际 500ms**（序列化）/ 50ms（统计）/ 100ms（光标）三档 |
-| Rust 命令 ~20 个 | **实际 14 个** |
+| Rust 命令 ~20 个 | **实际 15 个** |
 
 > 若你发现本附录与代码不符，**以代码为准并更新本表**——这是这份文档保持可信的唯一方式。
 
