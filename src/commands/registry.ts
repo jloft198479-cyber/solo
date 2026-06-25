@@ -96,8 +96,8 @@ export const COMMANDS: CommandDefinition[] = [
   },
   {
     id: 'export.pdf',
-    title: '导出为 PDF',
-    description: '通过系统打印导出 PDF',
+    title: '打印',
+    description: '通过系统打印对话框打印或另存为 PDF',
     scope: 'app',
     group: 'export',
     defaultShortcut: 'Mod-Shift-p',

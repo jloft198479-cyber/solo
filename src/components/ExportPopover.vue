@@ -38,7 +38,7 @@ function doExport(type: 'html' | 'pdf' | 'wechat') {
           </button>
           <button class="quick-popover-option" @click="doExport('pdf')">
             <span class="export-glyph export-glyph--pdf">P</span>
-            <span class="quick-popover-label">导出 PDF</span>
+            <span class="quick-popover-label">打印</span>
           </button>
           <button class="quick-popover-option" @click="doExport('wechat')">
             <span class="export-glyph export-glyph--wechat">W</span>

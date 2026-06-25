@@ -21,6 +21,7 @@ export interface AppDomEventsOptions {
   clearFullscreenPreview: () => void;
   toggleFocusMode: () => void | Promise<void>;
   showImagePasteWarning: (message: string) => void;
+  resetViewMode?: () => void;
 }
 
 export function useAppDomEvents(options: AppDomEventsOptions) {
@@ -38,6 +39,21 @@ export function useAppDomEvents(options: AppDomEventsOptions) {
     if (!markdown) return;
     event.clipboardData?.setData('text/plain', markdown);
     event.preventDefault();
+  }
+
+  function onPaste(event: ClipboardEvent) {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('.tiptap-editor')) return;
+
+    const items = event.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        options.showImagePasteWarning('暂不支持直接粘贴图片，请使用拖拽或工具栏插入图片。');
+        event.preventDefault();
+        return;
+      }
+    }
   }
 
   const handleImagePasteWarning = (event: Event) => {
@@ -75,6 +91,8 @@ export function useAppDomEvents(options: AppDomEventsOptions) {
     if (event.key === 'Escape') {
       if (options.isFullscreenPreview.value) {
         options.clearFullscreenPreview();
+      } else if (options.activeViewMode.value === 'image' && options.resetViewMode) {
+        options.resetViewMode();
       } else if (options.isFocusMode()) {
         await options.toggleFocusMode();
       }
@@ -83,12 +101,14 @@ export function useAppDomEvents(options: AppDomEventsOptions) {
 
   onMounted(() => {
     document.addEventListener('copy', onCopy);
+    document.addEventListener('paste', onPaste);
     window.addEventListener('image-paste-warning', handleImagePasteWarning as EventListener);
     window.addEventListener('keydown', handleKeyDown);
   });
 
   onUnmounted(() => {
     document.removeEventListener('copy', onCopy);
+    document.removeEventListener('paste', onPaste);
     window.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener('image-paste-warning', handleImagePasteWarning as EventListener);
   });

@@ -126,7 +126,27 @@ pub fn authorize_image_asset(
     })
 }
 
+/// 如果路径是符号链接，解析到真实路径
+fn resolve_symlink(path: &Path) -> PathBuf {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_symlink() => {
+            match fs::read_link(path) {
+                Ok(target) => {
+                    if target.is_absolute() {
+                        target
+                    } else {
+                        path.parent().unwrap_or(Path::new("")).join(target)
+                    }
+                }
+                Err(_) => path.to_path_buf(),
+            }
+        }
+        _ => path.to_path_buf(),
+    }
+}
+
 pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), AppError> {
+    let path = resolve_symlink(path);
     let parent = path
         .parent()
         .ok_or_else(|| AppError::validation("无法获取父目录"))?;
@@ -134,7 +154,7 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), AppError> 
         fs::create_dir_all(parent)?;
     }
 
-    let tmp_path = temp_path(path);
+    let tmp_path = temp_path(&path);
     {
         let mut file = fs::File::create(&tmp_path)?;
         file.write_all(content)?;
@@ -144,7 +164,7 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), AppError> 
     // std::fs::rename 在 Windows 上使用 MoveFileExW + MOVEFILE_REPLACE_EXISTING，
     // 在 Unix 上使用 rename(2)，两者都能原子地覆盖目标文件。
     // 无需 Windows 特殊的先删除再重命名（那会引入竞态窗口）。
-    fs::rename(&tmp_path, path)?;
+    fs::rename(&tmp_path, &path)?;
     Ok(())
 }
 

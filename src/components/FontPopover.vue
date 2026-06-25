@@ -74,7 +74,6 @@ function selectFont(value: string) {
             :class="{ 'is-active': opt.value === currentFont }"
             @click="selectFont(opt.value)"
           >
-            <span class="font-preview" :style="{ fontFamily: opt.value }">永</span>
             <span class="quick-popover-label">
               {{ opt.label }}
               <template v-if="progressing[opt.value] !== undefined">
@@ -105,20 +104,6 @@ function selectFont(value: string) {
 </template>
 
 <style scoped>
-.font-preview {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  background: var(--hover-bg);
-  border-radius: 5px;
-  flex-shrink: 0;
-}
-
 .font-dl-badge {
   display: inline-block;
   margin-left: 4px;
