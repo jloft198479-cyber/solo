@@ -5,7 +5,7 @@
 <h1 align="center">solo</h1>
 
 <p align="center">
-  <strong>A local-first Markdown editor built with Tauri 2, a Rust domain core, and TipTap.</strong>
+  <strong>本地优先的 Markdown 编辑器，面向中文沉浸式写作</strong>
 </p>
 
 <p align="center">
@@ -18,70 +18,46 @@
   <a href="./README.ko-KR.md">한국어</a>
 </p>
 
-## Highlights
+solo 是一款极简、专注的本地 Markdown 编辑器。它不是笔记软件，不是知识库，而是一把「专为文字而生的手术刀」——足够轻、足够快、排版足够美。
 
-- WYSIWYG editing: powered by TipTap / ProseMirror, with editable rendered blocks for code, tables, math, Mermaid diagrams, callouts, and more.
-- Local-first workflow: documents, images, and workspaces stay on your machine. Dropped images are saved into an `assets/` folder next to the current document.
-- Desktop-native experience: multi-window editing, persisted window state, native menus, and system printing.
-- Structured workspaces: Rust handles directory filtering, watcher aggregation, external change events, and save-conflict detection.
-- WeChat and HTML export: the frontend renders export-ready content while the native layer handles printing and file writes.
+## 特性
 
-## Architecture
+- **所见即所得编辑** — 基于 TipTap / ProseMirror，输入瞬间渲染，告别分栏预览
+- **沉浸式界面** — 聚焦模式一键隐藏所有干扰，标题栏自动淡入淡出
+- **文艺排版** — 内置 7 套书卷气主题，字体、行距、间距精心调校
+- **本地优先** — 文件存本地，不捆绑云服务。拖入图片自动复制到 `assets/` 目录
+- **桌面原生体验** — 无边框窗口、右键菜单、系统打印、开机还原窗口状态
+- **微信 / HTML 导出** — 所见即所得，导出配色跟随编辑器主题
+- **极速启动** — 安装包仅 ~5MB（字体按需下载），秒开秒关
 
-solo uses three clear layers:
+## 技术栈
 
-- Vue 3 + Pinia + TipTap: UI, editor interactions, and command dispatch.
-- Tauri 2: plugins, permission boundaries, and the command/event bridge.
-- Rust domain core: document, workspace, window runtime, and watcher consistency.
+Tauri 2（Rust）+ Vue 3 + Pinia + TipTap/ProseMirror + Tailwind CSS 4
 
-Project constraints:
+## 安装
 
-- Frontend business logic does not call `invoke`, `listen`, or `emit` directly.
-- Public Rust commands return structured DTOs and `AppError`.
-- Common desktop capabilities should use official Tauri plugins first.
+从 [Releases 页面](https://github.com/jloft198479-cyber/solo/releases) 下载最新版安装包。支持自定义安装路径。
 
-More documentation:
+安装后可在桌面右键菜单创建 `.md` 文档。
 
-- [Architecture](./ARCHITECTURE.md)
-
-## Tech Stack
-
-- Desktop framework: Tauri 2
-- Native core: Rust
-- Frontend: Vue 3 + TypeScript + Pinia + Vite
-- Editor: TipTap / ProseMirror
-- Markdown: markdown-it + custom parser / serializer
-- Styling: Tailwind CSS
-- Native plugins: store / window-state / dialog / opener / cli
-
-## Development
+## 从源码构建
 
 ```bash
+# 安装依赖
 bun install
+
+# 开发模式（纯前端）
 bun run dev
+
+# Tauri 全栈开发模式
 bun run dev:tauri
-bun run build
+
+# 构建安装包
 bun run build:tauri
-bun run lint
-bun run format
-bunx vue-tsc --noEmit
-bun run test
-cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-## Current Architecture Notes
+构建需要 Rust 工具链 + MSVC Build Tools。详见 [产品需求说明](./产品需求说明.txt)。
 
-- Save-conflict detection is centralized in Rust `save_document`.
-- Workspace watcher events are normalized as `workspace-changed`.
-- Startup open, system open, and multi-window pending open requests share the `app-open-paths` payload model.
-- `App.vue` is now a composition surface. Document, workspace, and window lifecycles live in dedicated session composables.
+## 开源
 
-## Contributing
-
-- Issues and pull requests are welcome on GitHub.
-- Before changing architecture or ownership boundaries, read `ARCHITECTURE.md`.
-- When adding a capability, first justify why it cannot be handled by existing plugins or domain modules.
-
-## License
-
-solo is open source under the [Apache License 2.0](LICENSE).
+solo 基于 [Apache License 2.0](LICENSE) 开源，基于 [MarkLight](https://github.com/xiaodou997/marklight) 重构而来。
