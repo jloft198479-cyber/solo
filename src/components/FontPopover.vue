@@ -14,7 +14,6 @@ const emit = defineEmits<{ (e: 'toggle'): void; (e: 'select'): void }>();
 const fontOptions = FONT_OPTIONS;
 const currentFont = computed(() => settingsStore.settings.fontFamily);
 
-/** 字体可用状态 */
 const fontStatus = ref<Record<string, boolean>>({});
 
 async function refreshStatus() {
@@ -25,26 +24,33 @@ async function refreshStatus() {
 
 onMounted(refreshStatus);
 
-/** 实时下载进度 */
 const progressing = ref<Record<string, number>>({});
 
 const unsub = onProgress((family, pct) => {
-  progressing.value = { ...progressing.value, [family]: pct };
-  if (pct < 0 && progressing.value[family] !== undefined) {
+  if (pct >= 0) {
+    progressing.value = { ...progressing.value, [family]: pct };
+  } else {
+    // 下载完成
     const { [family]: _, ...rest } = progressing.value;
     progressing.value = rest;
-    // 下载完成，刷新状态
     isFontAvailable(family).then((ok) => {
-      if (ok) fontStatus.value[family] = true;
+      fontStatus.value[family] = ok;
+      // 下载完成后自动关闭弹窗
+      if (currentFont.value === family) {
+        emit('select');
+      }
     });
   }
 });
 
 onUnmounted(unsub);
 
-async function selectFont(value: string) {
+function selectFont(value: string) {
   settingsStore.updateSetting('fontFamily', value);
-  emit('select');
+  // 已可用的字体：立即关闭弹窗；需下载的：弹窗保持打开，看进度条
+  if (fontStatus.value[value] !== false) {
+    emit('select');
+  }
 }
 </script>
 
