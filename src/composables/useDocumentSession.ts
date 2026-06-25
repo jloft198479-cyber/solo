@@ -59,7 +59,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       fileStore.setLoading(true);
       const document = await openDocument(path);
 
-      // 大文档提示
+      // 加载完成，取消 loading 避免阻塞 UI 交互
+      fileStore.setLoading(false);
+
+      // 大文档提示（此时 loading=false，不会阻塞确认对话框）
       if (document.content.length > LARGE_DOC_THRESHOLD) {
         const sizeKB = Math.round(document.content.length / 1024);
         const proceed = await confirm(
@@ -67,11 +70,11 @@ export function useDocumentSession(options: DocumentSessionOptions) {
           { title: '大文件提示', kind: 'warning', okLabel: '继续打开', cancelLabel: '取消' },
         );
         if (!proceed) {
-          fileStore.setLoading(false);
           return false;
         }
       }
 
+      fileStore.setLoading(true);
       applyLoadedDocument(document);
       return true;
     } catch (error) {

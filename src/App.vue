@@ -81,6 +81,11 @@ const windowSession = useAppWindowSession({
   windowTitle,
 });
 
+function switchToImageView() {
+  activeViewMode.value = 'image';
+  isFullscreenPreview.value = false;
+}
+
 function showAbout() {
   message(
     `solo v${appVersion}\n\n极简 Markdown 编辑器`,
@@ -120,7 +125,8 @@ useAppDomEvents({
     isFullscreenPreview.value = false;
   },
   toggleFocusMode: () => settingsStore.toggleFocusMode(),
-  showImagePasteWarning: () => {},
+  showImagePasteWarning: (msg) => message(msg, { title: '粘贴图片', kind: 'warning' }),
+  resetViewMode: resetToEditor,
 });
 
 useMenuEvents(async (commandId) => {
@@ -252,6 +258,7 @@ onUnmounted(() => {
       :visible="isFullscreenPreview && Boolean(imagePreviewUrl)"
       :image-url="imagePreviewUrl || ''"
       @close="closeFullscreenPreview"
+      @open-in-viewer="switchToImageView"
     />
   </div>
 </template>

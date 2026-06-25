@@ -8,6 +8,7 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void;
+  (e: 'open-in-viewer'): void;
 }>();
 </script>
 
@@ -25,6 +26,12 @@ const emit = defineEmits<{
           @click="emit('close')"
         >
           <CloseIcon class="w-6 h-6" />
+        </button>
+        <button
+          class="absolute bottom-6 right-6 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white text-xs transition-colors backdrop-blur-sm"
+          @click.stop="emit('open-in-viewer')"
+        >
+          在图片视图中打开
         </button>
       </div>
     </Transition>
