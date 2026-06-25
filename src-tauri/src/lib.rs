@@ -312,6 +312,7 @@ pub fn run() {
             authorize_image_asset,
             fetch_remote_image,
             consume_startup_open_request,
+            fetch_font_data,
             notify_frontend_ready,
             refresh_native_menu_shortcuts,
             reveal_startup_open_log,

@@ -65,3 +65,7 @@ export async function authorizeImageAsset(path: string) {
 export async function fetchRemoteImageData(url: string) {
   return invokeCommand<string>(TAURI_COMMANDS.fetchRemoteImage, { url });
 }
+
+export async function fetchFontData(url: string) {
+  return invokeCommand<string>(TAURI_COMMANDS.fetchFontData, { url });
+}
