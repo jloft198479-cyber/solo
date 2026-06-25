@@ -14,6 +14,7 @@ pub fn attach_close_interceptor(window: &WebviewWindow) {
     });
 }
 
+#[cfg(target_os = "macos")]
 fn parse_hex_color(color: &str) -> Option<(f64, f64, f64, f64)> {
     let hex = color.trim().trim_start_matches('#');
     match hex.len() {
@@ -105,9 +106,11 @@ pub async fn reveal_in_finder(app: tauri::AppHandle, path: String) -> Result<(),
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "macos")]
     use super::parse_hex_color;
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn parses_hex_rgb_colors() {
         assert_eq!(parse_hex_color("#ffffff"), Some((1.0, 1.0, 1.0, 1.0)));
         assert_eq!(

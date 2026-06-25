@@ -237,10 +237,14 @@ function createEditor(content: string) {
 
   editor.value = e;
 
-  // 同步基线：setContent + appendTransaction 完成后，序列化结果作为 store 基准
-  // 避免 parser/serializer round-trip 差异导致误判 dirty
+  // 同步基线 + 初始字数统计
   const baseline = serializeMarkdown(e.state.doc);
   fileStore.setContent(baseline);
+
+  // 触发初始字数统计
+  const wc = getEditorWordCount(e);
+  const ol = extractEditorOutline(e);
+  emit('update', { wordCount: wc, outline: ol });
 }
 
 // ── 更新回调 ──────────────────────────────────────────────────

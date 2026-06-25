@@ -63,3 +63,7 @@ export async function unregisterShellNew() {
 export async function setCurrentWindowAlwaysOnTop(onTop: boolean) {
   await getCurrentWindow().setAlwaysOnTop(onTop);
 }
+
+export async function revealInFinder(path: string) {
+  await invokeCommand<void>(TAURI_COMMANDS.revealInFinder, { path });
+}

@@ -124,6 +124,11 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     searchCurrentIndex.value = 0;
     currentMatches.value = [];
     searchQuery = '';
+
+    // 触发事务清除 ProseMirror 搜索高亮装饰
+    if (editor.value) {
+      editor.value.view.dispatch(editor.value.state.tr);
+    }
   }
 
   return {
