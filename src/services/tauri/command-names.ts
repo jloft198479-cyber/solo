@@ -1,6 +1,7 @@
 export const TAURI_COMMANDS = {
   authorizeImageAsset: 'authorize_image_asset',
   consumeStartupOpenRequest: 'consume_startup_open_request',
+  fetchFontData: 'fetch_font_data',
   fetchRemoteImage: 'fetch_remote_image',
   importDocumentImage: 'import_document_image',
   notifyFrontendReady: 'notify_frontend_ready',

@@ -1,5 +1,6 @@
 pub mod desktop;
 pub mod document;
+pub mod font;
 pub mod image;
 pub mod window;
 
@@ -8,6 +9,7 @@ pub use document::{
     authorize_image_asset, import_document_image, open_document, resolve_document_image_path,
     save_document,
 };
+pub use font::fetch_font_data;
 pub use image::fetch_remote_image;
 pub use window::{
     attach_close_interceptor, print_document, reveal_in_finder, set_window_background_color,

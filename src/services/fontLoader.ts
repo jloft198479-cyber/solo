@@ -3,10 +3,13 @@
  *
  * 支持本地已安装字体、远程下载两种来源。
  * 系统字体（微软雅黑 UI、system-ui）立即返回。
- * 远程字体首次选择时从 GitHub Release 下载，成功后永久缓存在 IndexedDB。
+ * 远程字体首次选择时通过 Rust 后端下载并缓存到 IndexedDB。
  *
- * 加载优先级：系统已安装 → IndexedDB 缓存 → 远程下载
+ * 通过 Rust 的 reqwest 下载（绕过前端 CSP/CORS 限制），
+ * 下载成功后转为 Blob → blob: URL → FontFace 注册。
  */
+
+import { fetchFontData } from '../services/tauri/document';
 
 /** 字体下载基址（本仓库的 GitHub Release asset 目录） */
 const DOWNLOAD_BASE = 'https://github.com/jloft198479-cyber/solo/releases/download/v1.1.6';
@@ -78,9 +81,6 @@ async function saveBlobCache(family: string, blob: Blob): Promise<void> {
   } catch { /* 静默 */ }
 }
 
-/**
- * 使用 @font-face 注册字体（支持 blob: 和 https: 来源）
- */
 async function registerFont(family: string, url: string): Promise<boolean> {
   try {
     const fontFace = new FontFace(family, `url('${url}')`);
@@ -97,7 +97,8 @@ async function registerFont(family: string, url: string): Promise<boolean> {
  *
  * - 系统字体 / 已加载字体 → 立即返回 true
  * - 正在加载 → 返回同一个 Promise
- * - 需要远程下载 → 下载并缓存到 IDB，再用 @font-face 注册
+ * - 需要远程下载 → 通过 Rust 后端下载（reqwest，无 CORS 限制）
+ *                     → 缓存到 IDB → 用 blob: URL 注册字体
  * - 全部失败 → 返回 false，浏览器使用 fallback 字体
  */
 export async function ensureFontLoaded(family: string): Promise<boolean> {
@@ -125,16 +126,21 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
         return ok;
       }
 
-      // 2) 远程下载
+      // 2) 通过 Rust 后端下载（绕过 CSP/CORS 限制）
       const remoteUrl = `${DOWNLOAD_BASE}/${fileName}`;
-      const res = await fetch(remoteUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
+      const base64 = await fetchFontData(remoteUrl);
+
+      // base64 → Uint8Array → Blob
+      const binaryStr = atob(base64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: 'application/octet-stream' });
 
       // 写入缓存（异步，不阻塞）
       saveBlobCache(family, blob);
 
-      // 用 blob: URL 注册（避免 https: CSP 兼容性问题）
       const blobUrl = URL.createObjectURL(blob);
       const ok = await registerFont(family, blobUrl);
       URL.revokeObjectURL(blobUrl);
@@ -154,7 +160,6 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
 
 /**
  * 检查字体是否已下载到本地缓存（UI 展示用）。
- * 系统字体和已加载字体也算"可用"。
  */
 export async function isFontAvailable(family: string): Promise<boolean> {
   if (SYSTEM_FONTS.has(family)) return true;
