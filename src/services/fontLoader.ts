@@ -6,11 +6,11 @@
  *
  * 加载优先级：系统已安装 → IndexedDB 缓存 → 远程下载（并写入缓存）
  *
- * TODO: 打包上传 GitHub 后替换 DOWNLOAD_BASE URL 为实际 Release asset 地址。
+ * 字体放在 GitHub Release assets 中，和安装包同目录。
  */
 
 /** 字体下载基址（本仓库的 GitHub Release asset 目录） */
-const DOWNLOAD_BASE = 'https://github.com/{owner}/{repo}/releases/download/fonts-v1';
+const DOWNLOAD_BASE = 'https://github.com/jloft198479-cyber/solo/releases/download/v1.1.6';
 
 /** 可远程下载的字体：CSS family → 文件名 */
 const REMOTE_FONTS: Readonly<Record<string, string>> = {
