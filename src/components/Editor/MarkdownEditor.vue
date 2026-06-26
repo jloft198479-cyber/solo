@@ -115,8 +115,10 @@ type EditorUpdatePayload = {
   outline?: EditorOutlineItem[];
 };
 
-// 字数/大纲统计防抖：50ms 快速响应，用户输入时几乎实时更新字数显示
-const STATS_UPDATE_DEBOUNCE_MS = 50;
+// 字数统计轻量（读 doc.textContent），150ms 均衡响应与开销
+const WORD_COUNT_DEBOUNCE_MS = 150;
+// 大纲提取需遍历 headings，500ms 避免高频编辑时频繁重建
+const OUTLINE_DEBOUNCE_MS = 500;
 // 序列化防抖：500ms 停顿后再序列化 markdown 并同步 store，避免连续击键时频繁序列化
 const SERIALIZE_DEBOUNCE_MS = 500;
 // 光标信息防抖：拖选时频繁触发 selection 更新，100ms 节流避免全量遍历 doc 计算行号
@@ -222,8 +224,10 @@ function createEditor(content: string) {
       },
     },
     onUpdate: ({ editor: ed }) => {
-      debouncedStatsUpdate(ed as unknown as TiptapEditor);
-      debouncedSerialize(ed as unknown as TiptapEditor);
+      const t = ed as unknown as TiptapEditor;
+      debouncedWordCount(t);
+      debouncedOutline(t);
+      debouncedSerialize(t);
     },
     onSelectionUpdate: ({ editor: ed }) => {
       updateBubbleMenu(ed as unknown as TiptapEditor);
@@ -250,13 +254,17 @@ function createEditor(content: string) {
 
 // ── 更新回调 ──────────────────────────────────────────────────
 
-// 字数/大纲统计：轻量操作，50ms 快速响应
-const debouncedStatsUpdate = debounce((ed: TiptapEditor) => {
+// 字数统计：轻量操作，150ms 快速响应
+const debouncedWordCount = debounce((ed: TiptapEditor) => {
   if (ed.isDestroyed) return;
-  const wordCount = getEditorWordCount(ed);
-  const outline = extractEditorOutline(ed);
-  emit('update', { wordCount, outline });
-}, STATS_UPDATE_DEBOUNCE_MS);
+  emit('update', { wordCount: getEditorWordCount(ed) });
+}, WORD_COUNT_DEBOUNCE_MS);
+
+// 大纲提取：需遍历 headings，500ms 低频率刷新
+const debouncedOutline = debounce((ed: TiptapEditor) => {
+  if (ed.isDestroyed) return;
+  emit('update', { outline: extractEditorOutline(ed) });
+}, OUTLINE_DEBOUNCE_MS);
 
 // 序列化 + store 同步：重量操作，500ms 防抖减少频繁序列化开销
 const debouncedSerialize = debounce((ed: TiptapEditor) => {
@@ -290,7 +298,8 @@ watch(
     const targetMarkdown = content.replace(/\n+$/, '');
     if (currentMarkdown === targetMarkdown) return;
 
-    debouncedStatsUpdate.cancel();
+    debouncedWordCount.cancel();
+    debouncedOutline.cancel();
     debouncedSerialize.cancel();
     debouncedEmitCursorInfo.cancel();
     const doc = parseMarkdown(editor.value.schema, content);
@@ -403,7 +412,8 @@ onBeforeUnmount(() => {
   unlistenFocus = null;
 
   // 2. 取消所有防抖操作，防止回调中操作已销毁的 editor
-  debouncedStatsUpdate.cancel();
+  debouncedWordCount.cancel();
+  debouncedOutline.cancel();
   debouncedSerialize.cancel();
   debouncedEmitCursorInfo.cancel();
 

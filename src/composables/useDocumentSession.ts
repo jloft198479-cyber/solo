@@ -1,5 +1,5 @@
 import { onUnmounted, ref, watch } from 'vue';
-import { openDocument, saveDocument, type DocumentOpenResult } from '../services/tauri/document';
+import { openDocument, saveDocument, renameFile, type DocumentOpenResult } from '../services/tauri/document';
 import { normalizeTauriError } from '../services/tauri/client';
 import { confirm, message, open, save } from '../services/tauri/dialog';
 import { useFileStore } from '../stores/file';
@@ -164,6 +164,11 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       return saveCurrentDocumentAs();
     }
 
+    // 标题栏重命名后保存：走另存为流程，用新名字保存到新路径
+    if (currentFile.displayName !== currentFile.originalBaseName) {
+      return saveRenamedDocument();
+    }
+
     isSaving = true;
     try {
       const result = await persistDocument(currentFile.path, force, currentFile.lastModifiedTime);
@@ -218,6 +223,37 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     } catch (error) {
       const appError = normalizeTauriError(error);
       console.error('Failed to save document:', appError.message);
+      await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
+      return false;
+    } finally {
+      isSaving = false;
+    }
+  }
+
+  /**
+   * 标题栏重命名后的保存：先用 Rust rename 移动文件到新名字，
+   * 再把内容写入新路径。受 isSaving 互斥保护，不会与自动保存竞态。
+   */
+  async function saveRenamedDocument(): Promise<boolean> {
+    if (isSaving) return false;
+
+    const currentFile = fileStore.currentFile;
+    if (!currentFile.path) return saveCurrentDocumentAs();
+
+    isSaving = true;
+    try {
+      // 1. Rust fs::rename：原子移动文件到新名字
+      const renameResult = await renameFile(currentFile.path, currentFile.displayName);
+
+      // 2. 保存内容到新路径（force=true，因为文件刚被 rename 过来）
+      const saveResult = await persistDocument(renameResult.path, true, null);
+
+      fileStore.setFile(fileStore.currentFile.content, saveResult.path, saveResult.lastModifiedMs);
+      autoSavePaused = false;
+      return true;
+    } catch (error) {
+      const appError = normalizeTauriError(error);
+      console.error('Failed to save renamed document:', appError.message);
       await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
       return false;
     } finally {

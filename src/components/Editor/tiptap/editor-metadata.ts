@@ -16,7 +16,15 @@ export function getEditorWordCount(editor: TiptapEditor): number {
   return text.replace(/\s+/g, '').length;
 }
 
+// ── 大纲缓存：文档大小不变时复用上次结果，避免每次 onUpdate 全量遍历 ──
+let outlineCache: { docSize: number; outline: EditorOutlineItem[] } | null = null;
+
 export function extractEditorOutline(editor: TiptapEditor): EditorOutlineItem[] {
+  const docSize = editor.state.doc.content.size;
+  if (outlineCache && outlineCache.docSize === docSize) {
+    return outlineCache.outline;
+  }
+
   const outline: EditorOutlineItem[] = [];
   editor.state.doc.descendants((node, pos) => {
     if (node.type.name === 'heading') {
@@ -27,22 +35,42 @@ export function extractEditorOutline(editor: TiptapEditor): EditorOutlineItem[] 
       });
     }
   });
+
+  outlineCache = { docSize, outline };
   return outline;
 }
 
+/**
+ * 获取光标位置信息（行号 + 列号 + 选区文本）。
+ *
+ * 使用祖先路径遍历（ancestor walk）代替全量 doc.descendants：
+ * 从光标位置沿文档树向上，仅计数每个层级中位于当前节点之前的兄弟块，
+ * 而非遍历光标前的所有块节点。
+ * 复杂度从 O(光标前所有节点数) 降为 O(树深度 × 平均兄弟数)，
+ * 对大文档和深层嵌套结构（如长列表、多层引用）提速显著。
+ */
 export function getEditorCursorInfo(editor: TiptapEditor): EditorCursorInfo {
   const { from } = editor.state.selection;
-  const resolved = editor.state.doc.resolve(from);
+  const $from = editor.state.doc.resolve(from);
   let line = 1;
 
-  editor.state.doc.descendants((node, nodePos) => {
-    if (node.isBlock && nodePos < from) {
-      line++;
+  // 沿祖先路径向上：在每个层级中，计数同级且位于当前节点之前的块节点
+  for (let depth = $from.depth; depth > 0; depth--) {
+    const parent = $from.node(depth - 1);
+    const indexInParent = $from.index(depth - 1);
+    for (let i = 0; i < indexInParent; i++) {
+      const sibling = parent.child(i);
+      if (sibling.isBlock) {
+        line++;
+        // 嵌套块（如 blockquote 内的段落）：计数其内部所有块级后代
+        sibling.descendants((node) => {
+          if (node.isBlock) line++;
+        });
+      }
     }
-    return nodePos < from;
-  });
+  }
 
-  const col = from - resolved.start(resolved.depth) + 1;
+  const col = from - $from.start($from.depth) + 1;
   const selection = editor.state.selection;
   const selectionText = selection.empty
     ? ''

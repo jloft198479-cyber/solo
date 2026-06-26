@@ -6,10 +6,14 @@
  *
  * 使用有状态的 token interceptor：检测到 callout blockquote 后，
  * 手动处理内部所有 token，并跳过主循环对这些 token 的重复处理。
+ *
+ * inline children 委托给主解析器的 handler dispatch，确保所有插件注册的
+ * inline token（math、footnote、wikilink、sup/sub 等）在 callout 内正常工作。
  */
 import type Token from 'markdown-it/lib/token.mjs';
 import type { Schema } from '@tiptap/pm/model';
-import type { MarkdownParseState } from '../parser';
+import type { MarkdownParseState, TokenHandler } from '../parser';
+import { getTokenHandlers } from '../parser';
 import type { NodeSerializer } from '../serializer';
 import type { MarkdownSerializerState } from '../serializer';
 import type { MarkdownSyntaxPlugin, TokenInterceptor } from './index';
@@ -52,59 +56,23 @@ function stripCalloutMarker(inlineToken: Token) {
 }
 
 /**
- * 手动处理 inline token 的 children，支持常见行内标记
+ * 处理 inline token 的 children，委托给主解析器的 handler dispatch。
+ * 不再硬编码 switch case，所有插件注册的 inline token 类型自动支持。
  */
-function processInlineChildren(state: MarkdownParseState, schema: Schema, children: Token[]) {
-  for (const child of children) {
-    switch (child.type) {
-      case 'text':
-        state.addText(child.content);
-        break;
-      case 'softbreak':
-        state.addText('\n');
-        break;
-      case 'hardbreak':
-        state.addNode(schema.nodes.hardBreak);
-        break;
-      case 'strong_open':
-        state.openMark(schema.marks.bold);
-        break;
-      case 'strong_close':
-        state.closeMark(schema.marks.bold);
-        break;
-      case 'em_open':
-        state.openMark(schema.marks.italic);
-        break;
-      case 'em_close':
-        state.closeMark(schema.marks.italic);
-        break;
-      case 's_open':
-        if (schema.marks.strike) state.openMark(schema.marks.strike);
-        break;
-      case 's_close':
-        if (schema.marks.strike) state.closeMark(schema.marks.strike);
-        break;
-      case 'code_inline':
-        state.openMark(schema.marks.code);
-        state.addText(child.content);
-        state.closeMark(schema.marks.code);
-        break;
-      case 'link_open': {
-        const href = child.attrGet('href') || '';
-        const title = child.attrGet('title') || null;
-        state.openMark(schema.marks.link, { href, target: null, title });
-        break;
-      }
-      case 'link_close':
-        state.closeMark(schema.marks.link);
-        break;
-      case 'mark_open':
-        if (schema.marks.highlight) state.openMark(schema.marks.highlight);
-        break;
-      case 'mark_close':
-        if (schema.marks.highlight) state.closeMark(schema.marks.highlight);
-        break;
+function processInlineChildren(
+  state: MarkdownParseState,
+  handlers: Record<string, TokenHandler>,
+  children: Token[],
+) {
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    const handler = handlers[child.type];
+    if (handler) {
+      handler(state, child, children, i);
+    } else if (child.type === 'text') {
+      state.addText(child.content);
     }
+    // 未注册的 token 类型静默跳过（与主解析器行为一致）
   }
 }
 
@@ -112,6 +80,9 @@ const calloutTokenInterceptor: (schema: Schema) => TokenInterceptor = (schema) =
   // 有状态闭包：记录需要跳过的 token 范围
   let skipUntilClose = false;
   let skipLevel = -1;
+
+  // 构建完整的 token handler 映射（含所有插件注册的 handler）
+  const handlers = getTokenHandlers(schema);
 
   return (state: MarkdownParseState, token: Token, tokens: Token[], index: number): boolean => {
     // 如果正在跳过 callout blockquote 的内部 token
@@ -162,7 +133,7 @@ const calloutTokenInterceptor: (schema: Schema) => TokenInterceptor = (schema) =
       } else if (t.type === 'paragraph_close') {
         state.closeNode();
       } else if (t.type === 'inline' && t.children) {
-        processInlineChildren(state, schema, t.children);
+        processInlineChildren(state, handlers, t.children);
       }
     }
 

@@ -4,7 +4,7 @@ import { authorizeImageAsset, importDocumentImage } from '../../../services/taur
 import { toAssetUrl } from '../../../services/tauri/asset';
 import { confirm } from '../../../services/tauri/dialog';
 import {
-  listenCurrentWebviewDragDrop,
+  subscribeDragDrop,
   type UnlistenFn,
 } from '../../../services/tauri/webview';
 
@@ -31,9 +31,8 @@ export async function setupEditorImageDrop({
   getStoragePath,
 }: SetupEditorImageDropOptions): Promise<UnlistenFn | null> {
   try {
-    return await listenCurrentWebviewDragDrop(async (event) => {
-      if (event.payload.type !== 'drop') return;
-      const paths = event.payload.paths;
+    return await subscribeDragDrop(async (payload) => {
+      const paths = payload.paths;
       if (!paths?.length || !editor.value) return;
 
       const storagePath = getStoragePath();

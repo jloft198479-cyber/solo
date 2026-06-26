@@ -1,8 +1,9 @@
 use crate::error::AppError;
 use crate::events::emit_window_close_requested;
+use crate::state::FocusedWindow;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSColor, NSWindow};
-use tauri::{Emitter, WebviewWindow};
+use tauri::{Emitter, Manager, WebviewWindow};
 
 #[cfg(target_os = "windows")]
 use webview2_com::Microsoft::Web::WebView2::Win32::{
@@ -52,6 +53,20 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
                     "solo:editor-blur"
                 };
                 let _ = handle.emit_to(label.as_str(), event_name, ());
+
+                // 跟踪焦点窗口，供菜单事件定向分发使用
+                if let Some(focused_state) = handle.try_state::<FocusedWindow>() {
+                    if *focused {
+                        let _ = focused_state.set(label.clone());
+                    } else {
+                        // 仅当自己是当前焦点窗口时才清除，避免其他窗口 blur 误清
+                        if let Ok(Some(current)) = focused_state.get() {
+                            if current == label {
+                                let _ = focused_state.clear();
+                            }
+                        }
+                    }
+                }
 
                 // blur → 降低 WebView2 内存占用，focus → 恢复
                 #[cfg(target_os = "windows")]

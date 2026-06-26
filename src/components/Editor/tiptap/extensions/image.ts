@@ -59,27 +59,27 @@ type RemoteImageCacheEntry =
   | { status: 'pending'; promise: Promise<string> }
   | { status: 'failed'; expiresAt: number };
 
-const MAX_REMOTE_IMAGE_CACHE_ENTRIES = 100;
+const MAX_REMOTE_IMAGE_CACHE_BYTES = 50 * 1024 * 1024; // 50MB
 const MAX_CONCURRENT_REMOTE_IMAGE_FETCHES = 4;
 const REMOTE_IMAGE_FAILURE_TTL_MS = 5 * 60 * 1000;
 const remoteImageCache = new Map<string, RemoteImageCacheEntry>();
 const remoteImageQueue: Array<() => void> = [];
 
-/** 追踪 fulfilled 条目对应的 Blob URL，缓存淘汰时需 revoke 释放内存 */
-const blobUrlRegistry = new Map<string, string>(); // originalSrc → blobUrl
+/** 追踪 fulfilled 条目对应的 Blob URL 及其字节大小，用于缓存淘汰和释放 */
+const blobUrlRegistry = new Map<string, { url: string; size: number }>(); // originalSrc → { url, size }
 
 /**
  * 将 base64 data URL 转换为 Blob URL，避免大字符串常驻内存。
  * Blob URL 是轻量引用，浏览器内核管理底层 Blob 内存更高效。
  * 调用方在缓存淘汰时须通过 revokeBlobUrl() 释放。
  */
-function dataUrlToBlobUrl(dataUrl: string): string {
+function dataUrlToBlobUrl(dataUrl: string): { url: string; size: number } {
   // 非 data URL 直接返回原值（如 asset:// 协议）
-  if (!dataUrl.startsWith('data:')) return dataUrl;
+  if (!dataUrl.startsWith('data:')) return { url: dataUrl, size: 0 };
 
   try {
     const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) return dataUrl;
+    if (!match) return { url: dataUrl, size: 0 };
 
     const contentType = match[1];
     const base64 = match[2];
@@ -89,17 +89,16 @@ function dataUrlToBlobUrl(dataUrl: string): string {
       bytes[i] = binary.charCodeAt(i);
     }
     const blob = new Blob([bytes], { type: contentType });
-    return URL.createObjectURL(blob);
+    return { url: URL.createObjectURL(blob), size: blob.size };
   } catch {
-    // decode 失败时回退到原始 data URL
-    return dataUrl;
+    return { url: dataUrl, size: 0 };
   }
 }
 
 function revokeBlobUrl(originalSrc: string) {
-  const blobUrl = blobUrlRegistry.get(originalSrc);
-  if (blobUrl) {
-    URL.revokeObjectURL(blobUrl);
+  const entry = blobUrlRegistry.get(originalSrc);
+  if (entry) {
+    URL.revokeObjectURL(entry.url);
     blobUrlRegistry.delete(originalSrc);
   }
 }
@@ -116,8 +115,19 @@ function touchRemoteImageCacheEntry(src: string, entry: RemoteImageCacheEntry) {
   remoteImageCache.set(src, entry);
 }
 
+/** 计算当前缓存总字节数 */
+function totalCachedBytes(): number {
+  let total = 0;
+  for (const { size } of blobUrlRegistry.values()) {
+    total += size;
+  }
+  return total;
+}
+
+/** 按字节预算 + 后进先出淘汰。pending 条目不计入预算。 */
 function trimRemoteImageCache() {
-  while (remoteImageCache.size > MAX_REMOTE_IMAGE_CACHE_ENTRIES) {
+  let budget = totalCachedBytes();
+  while (budget > MAX_REMOTE_IMAGE_CACHE_BYTES) {
     let removableKey: string | null = null;
     for (const [src, entry] of remoteImageCache) {
       if (entry.status !== 'pending') {
@@ -125,13 +135,25 @@ function trimRemoteImageCache() {
         break;
       }
     }
-
-    if (!removableKey) {
-      break;
-    }
+    if (!removableKey) break;
+    budget -= blobUrlRegistry.get(removableKey)?.size ?? 0;
     remoteImageCache.delete(removableKey);
     revokeBlobUrl(removableKey);
   }
+}
+
+/** 释放所有远程图片 Blob 缓存。编辑器销毁时调用，防止残留 Blob 占用内存。 */
+export function releaseRemoteImageBlobs() {
+  for (const src of remoteImageCache.keys()) {
+    revokeBlobUrl(src);
+  }
+  remoteImageCache.clear();
+  remoteImageQueue.length = 0;
+  activeRemoteImageFetches = 0;
+}
+
+export function releaseRemoteImageBlobsForTests() {
+  releaseRemoteImageBlobs();
 }
 
 function runWithRemoteImageConcurrency<T>(task: () => Promise<T>): Promise<T> {
@@ -188,9 +210,9 @@ export async function getRemoteImageDisplaySrc(src: string): Promise<string> {
   const promise = runWithRemoteImageConcurrency(() => getRemoteImageFetcher()(src))
     .then((displaySrc) => {
       // 将 base64 data URL 转为 Blob URL，避免大字符串常驻内存
-      const blobUrl = dataUrlToBlobUrl(displaySrc);
+      const { url: blobUrl, size } = dataUrlToBlobUrl(displaySrc);
       if (blobUrl !== displaySrc) {
-        blobUrlRegistry.set(src, blobUrl);
+        blobUrlRegistry.set(src, { url: blobUrl, size });
       }
       touchRemoteImageCacheEntry(src, { status: 'fulfilled', value: blobUrl });
       trimRemoteImageCache();
@@ -216,8 +238,8 @@ export function __setRemoteImageFetcherForTests(fetcher: RemoteImageFetcher | nu
 
 export function __resetRemoteImageCacheForTests() {
   // 释放所有 Blob URL
-  for (const blobUrl of blobUrlRegistry.values()) {
-    URL.revokeObjectURL(blobUrl);
+  for (const { url } of blobUrlRegistry.values()) {
+    URL.revokeObjectURL(url);
   }
   blobUrlRegistry.clear();
   remoteImageCache.clear();

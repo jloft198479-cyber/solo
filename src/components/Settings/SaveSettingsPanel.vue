@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { open } from '../../services/tauri/dialog';
+import { isWindows } from '../../utils/platform';
 import SettingsRangeField from './SettingsRangeField.vue';
 import SettingsSwitch from './SettingsSwitch.vue';
 import './settings-shared.css';
@@ -7,6 +8,8 @@ import './settings-shared.css';
 const autoSave = defineModel<boolean>('autoSave', { required: true });
 const autoSaveInterval = defineModel<number>('autoSaveInterval', { required: true });
 const imageStoragePath = defineModel<string>('imageStoragePath', { required: true });
+const shellIntegration = defineModel<boolean>('shellIntegration', { required: true });
+const alwaysOnTop = defineModel<boolean>('alwaysOnTop', { required: true });
 
 async function pickFolder() {
   const selected = await open({ directory: true, multiple: false, title: '选择图片存储文件夹' });
@@ -89,6 +92,32 @@ function clearStoragePath() {
             </button>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- Windows Shell 集成（仅 Windows 显示） -->
+    <section v-if="isWindows" class="settings-section-card">
+      <div class="settings-row">
+        <div>
+          <label class="settings-row-title">Windows 文件关联</label>
+          <p class="settings-row-desc">
+            将 solo 设为 .md 文件的默认打开程序，并在右键"新建"菜单中添加 Markdown 文档入口。
+          </p>
+        </div>
+        <SettingsSwitch v-model="shellIntegration" label="切换文件关联" />
+      </div>
+    </section>
+
+    <!-- 窗口置顶 -->
+    <section class="settings-section-card">
+      <div class="settings-row">
+        <div>
+          <label class="settings-row-title">窗口置顶</label>
+          <p class="settings-row-desc">
+            solo 窗口始终保持在最前，不被其他应用遮挡。
+          </p>
+        </div>
+        <SettingsSwitch v-model="alwaysOnTop" label="切换窗口置顶" />
       </div>
     </section>
   </div>

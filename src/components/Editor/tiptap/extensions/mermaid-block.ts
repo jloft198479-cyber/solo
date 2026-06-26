@@ -24,18 +24,6 @@ function getMermaid() {
   return mermaidPromise;
 }
 
-// 预热：在浏览器空闲时提前加载 mermaid，避免首次插入图表时的卡顿
-if (typeof window !== 'undefined') {
-  const schedulePreheat = (cb: () => void) => {
-    if ('requestIdleCallback' in window) {
-      (window as Window).requestIdleCallback(cb, { timeout: 3000 });
-    } else {
-      setTimeout(cb, 2000);
-    }
-  };
-  schedulePreheat(() => { void getMermaid(); });
-}
-
 /** 主题切换时重新初始化 Mermaid 并刷新所有图表 */
 export async function reinitializeMermaidTheme() {
   if (!mermaidPromise) return;

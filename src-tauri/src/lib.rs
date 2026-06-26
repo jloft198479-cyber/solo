@@ -7,7 +7,7 @@ mod state;
 
 use commands::*;
 use models::{AppOpenPathsPayload, AppOpenSource};
-use state::{LoadedWindows, PendingWindowPaths, StartupOpenRequests};
+use state::{FocusedWindow, LoadedWindows, PendingWindowPaths, StartupOpenRequests};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -243,7 +243,7 @@ fn dispatch_or_store_open_request(app: &tauri::AppHandle, payload: AppOpenPathsP
         }
     } else if let Some(state) = app.try_state::<StartupOpenRequests>() {
         append_startup_log(Some(app), "frontend not loaded, storing startup request");
-        let _ = state.replace(payload);
+        let _ = state.merge(payload);
     } else {
         append_startup_log(
             Some(app),
@@ -297,6 +297,7 @@ pub fn run() {
             app.manage(StartupOpenRequests::default());
             app.manage(PendingWindowPaths::default());
             app.manage(LoadedWindows::default());
+            app.manage(FocusedWindow::default());
 
             {
                 if let Some(payload) = take_early_open_request() {
@@ -305,7 +306,7 @@ pub fn run() {
                         format!("setup recovered early open request={:?}", payload),
                     );
                     if let Some(state) = app.try_state::<StartupOpenRequests>() {
-                        let _ = state.replace(payload);
+                        let _ = state.merge(payload);
                     }
                 }
 
@@ -322,7 +323,7 @@ pub fn run() {
                         format!("startup paths from raw args={:?}", raw_paths),
                     );
                     if let Some(state) = app.try_state::<StartupOpenRequests>() {
-                        let _ = state.replace(AppOpenPathsPayload {
+                        let _ = state.merge(AppOpenPathsPayload {
                             paths: raw_paths,
                             source: AppOpenSource::Cli,
                         });
@@ -339,13 +340,13 @@ pub fn run() {
                             );
                             if let Some(file_path) = normalize_open_path(file_path, None) {
                                 if let Some(state) = app.try_state::<StartupOpenRequests>() {
-                                    let _ = state.replace(AppOpenPathsPayload {
+                                    let _ = state.merge(AppOpenPathsPayload {
                                         paths: vec![file_path],
                                         source: AppOpenSource::Cli,
                                     });
                                 }
                             } else if let Some(state) = app.try_state::<StartupOpenRequests>() {
-                                let _ = state.replace(AppOpenPathsPayload {
+                                let _ = state.merge(AppOpenPathsPayload {
                                     paths: vec![file_path.to_string()],
                                     source: AppOpenSource::Cli,
                                 });
