@@ -9,7 +9,6 @@ const autoSave = defineModel<boolean>('autoSave', { required: true });
 const autoSaveInterval = defineModel<number>('autoSaveInterval', { required: true });
 const imageStoragePath = defineModel<string>('imageStoragePath', { required: true });
 const shellIntegration = defineModel<boolean>('shellIntegration', { required: true });
-const alwaysOnTop = defineModel<boolean>('alwaysOnTop', { required: true });
 
 async function pickFolder() {
   const selected = await open({ directory: true, multiple: false, title: '选择图片存储文件夹' });
@@ -108,18 +107,6 @@ function clearStoragePath() {
       </div>
     </section>
 
-    <!-- 窗口置顶 -->
-    <section class="settings-section-card">
-      <div class="settings-row">
-        <div>
-          <label class="settings-row-title">窗口置顶</label>
-          <p class="settings-row-desc">
-            solo 窗口始终保持在最前，不被其他应用遮挡。
-          </p>
-        </div>
-        <SettingsSwitch v-model="alwaysOnTop" label="切换窗口置顶" />
-      </div>
-    </section>
   </div>
 </template>
 
