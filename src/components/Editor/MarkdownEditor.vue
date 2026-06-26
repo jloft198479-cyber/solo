@@ -407,18 +407,31 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  // 1. 先断开 focus/blur 事件，防止销毁期间回调触发
+  unlistenBlur?.();
+  unlistenBlur = null;
+  unlistenFocus?.();
+  unlistenFocus = null;
+
+  // 2. 取消所有防抖操作，防止回调中操作已销毁的 editor
   debouncedStatsUpdate.cancel();
   debouncedSerialize.cancel();
   debouncedEmitCursorInfo.cancel();
-  editor.value?.destroy();
-  editor.value = null;
-  editorWrapRef.value?.removeEventListener('editor:image-dblclick', handleImageDblClick);
+
+  // 3. 清理拖拽监听
   if (unlistenDragDrop) {
     unlistenDragDrop();
     unlistenDragDrop = null;
   }
-  unlistenBlur?.();
-  unlistenFocus?.();
+
+  // 4. 销毁 TipTap editor（释放 ProseMirror DOM + 内部事件监听）
+  if (editor.value && !editor.value.isDestroyed) {
+    editor.value.destroy();
+  }
+  editor.value = null;
+
+  // 5. 清理 DOM 级事件监听
+  editorWrapRef.value?.removeEventListener('editor:image-dblclick', handleImageDblClick);
 });
 
 // 拼写检查：编辑器创建后 settings 变更时动态更新 DOM 属性

@@ -1,7 +1,7 @@
 import type { Ref } from 'vue';
 import { onUnmounted, watch } from 'vue';
 import type { AppOpenPathsPayload } from '../services/tauri/events';
-import { listenAppOpenPaths, listenWindowCloseRequested } from '../services/tauri/events';
+import { listenWindowCloseRequested } from '../services/tauri/events';
 import { listenCurrentWebviewDragDrop } from '../services/tauri/webview';
 import {
   consumeStartupOpenRequest,
@@ -72,7 +72,6 @@ export function confirmUnsavedChanges(): Promise<'save' | 'discard' | 'cancel'> 
 }
 
 export function useAppWindowSession(options: AppWindowSessionOptions) {
-  let unlistenAppOpenPaths: (() => void) | null = null;
   let unlistenCloseRequest: (() => void) | null = null;
   let unlistenDragDrop: (() => void) | null = null;
   let removeDragOverListener: (() => void) | null = null;
@@ -151,7 +150,6 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
       { immediate: true },
     );
 
-    unlistenAppOpenPaths = await listenAppOpenPaths(handleOpenPayload);
     unlistenCloseRequest = await listenWindowCloseRequested(async () => {
       await handleCloseRequest();
     });
@@ -165,8 +163,6 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
   }
 
   function cleanup() {
-    unlistenAppOpenPaths?.();
-    unlistenAppOpenPaths = null;
     unlistenCloseRequest?.();
     unlistenCloseRequest = null;
     unlistenDragDrop?.();
