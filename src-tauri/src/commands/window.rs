@@ -43,7 +43,6 @@ fn set_memory_target(_window: &WebviewWindow, _level: ()) {}
 /// 窗口最小化时暂停 WebView2 renderer 进程，释放物理内存。
 /// 恢复时 WebView2 自动 Resume（IsVisible=true 触发）。
 #[cfg(target_os = "windows")]
-#[allow(unused_unsafe)]
 fn suspend_webview(window: &WebviewWindow) {
     use tauri::webview::PlatformWebview;
     let _ = window.with_webview(move |wv: PlatformWebview| {
@@ -55,7 +54,7 @@ fn suspend_webview(window: &WebviewWindow) {
                 if let Ok(core3) = core.cast::<ICoreWebView2_3>() {
                     // 最佳努力：挂起 renderer（fire-and-forget，不阻塞主线程）
                     let handler = TrySuspendCompletedHandler::create(Box::new(|_err, _ok| Ok(())));
-                    unsafe { core3.TrySuspend(&handler).ok(); }
+                    core3.TrySuspend(&handler).ok();
                 }
             }
         }
