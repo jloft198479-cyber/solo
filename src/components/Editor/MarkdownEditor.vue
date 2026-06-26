@@ -1,6 +1,7 @@
 <template>
   <div
     class="editor-shell relative h-full w-full cursor-text transition-colors"
+    @click.self="lazyInitEditor"
   >
     <div ref="editorWrapRef" class="mk-editor h-full overflow-y-auto outline-none">
       <div class="mk-editor-inner">
@@ -77,6 +78,7 @@
 import { nextTick, onMounted, ref, shallowRef, onBeforeUnmount, watch } from 'vue';
 import { debounce } from 'lodash-es';
 import { Editor as TiptapEditor, EditorContent } from '@tiptap/vue-3';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { useFileStore } from '../../stores/file';
 import { useSettingsStore } from '../../stores/settings';
@@ -354,11 +356,51 @@ async function setupDragDrop() {
   });
 }
 
+// ── 非活跃窗口内存管理 + 编辑器懒初始化 ──────────────────────────
+// 窗口失去焦点时销毁编辑器释放内存，重新聚焦时恢复编辑状态
+// 新窗口打开时不立即创建编辑器，首次聚焦或点击时再初始化
+
+function lazyInitEditor() {
+  if (editor.value && !editor.value.isDestroyed) return;
+  createEditor(fileStore.currentFile.content || props.initialContent || '');
+}
+
+let unlistenBlur: (() => void) | null = null;
+let unlistenFocus: (() => void) | null = null;
+
+async function setupWindowFocusHandlers() {
+  try {
+    const appWindow = getCurrentWindow();
+    unlistenBlur = await appWindow.listen('solo:editor-blur', () => {
+      if (!editor.value || editor.value.isDestroyed) return;
+      // 确保挂起的序列化和统计操作完成
+      debouncedSerialize.flush();
+      debouncedStatsUpdate.flush();
+      debouncedEmitCursorInfo.flush();
+      editor.value.destroy();
+      editor.value = null;
+    });
+    unlistenFocus = await appWindow.listen('solo:editor-focus', () => {
+      if (editor.value && !editor.value.isDestroyed) return;
+      lazyInitEditor();
+    });
+  } catch {
+    // 事件系统初始化失败，跳过非活跃窗口优化
+  }
+}
+
 // ── 生命周期 ──────────────────────────────────────────────────
 
-onMounted(() => {
-  createEditor(props.initialContent || '');
+onMounted(async () => {
   setupDragDrop();
+  await setupWindowFocusHandlers();
+
+  // 编辑器懒初始化：只在窗口已聚焦时立即创建
+  // Focused(true) 事件可能早于 listener 注册到达而被丢弃，
+  // 所以通过 document.hasFocus() 兜底
+  if (document.hasFocus()) {
+    createEditor(props.initialContent || '');
+  }
 
   // 图片双击 → 全屏预览（从 CustomImage NodeView 冒泡上来的自定义事件）
   editorWrapRef.value?.addEventListener('editor:image-dblclick', handleImageDblClick);
@@ -375,6 +417,8 @@ onBeforeUnmount(() => {
     unlistenDragDrop();
     unlistenDragDrop = null;
   }
+  unlistenBlur?.();
+  unlistenFocus?.();
 });
 
 // 拼写检查：编辑器创建后 settings 变更时动态更新 DOM 属性
