@@ -1,10 +1,32 @@
 use crate::error::AppError;
 
+/// 通知 Explorer 刷新文件关联缓存，使 ShellNew 立即生效。
+fn notify_shell_change() {
+    #[cfg(target_os = "windows")]
+    {
+        // SHCNE_ASSOCCHANGED = 0x08000000, SHCNF_IDLIST = 0x0000
+        const SHCNE_ASSOCCHANGED: u32 = 0x08000000;
+        const SHCNF_IDLIST: u32 = 0x0000;
+        extern "system" {
+            fn SHChangeNotify(
+                wEventId: u32,
+                uFlags: u32,
+                dwItem1: *const std::ffi::c_void,
+                dwItem2: *const std::ffi::c_void,
+            );
+        }
+        unsafe {
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, std::ptr::null(), std::ptr::null());
+        }
+    }
+}
+
 /// 注册 .md / .markdown 文件关联和右键"新建"菜单。
 ///
 /// - 设置文件图标为 solo.exe 的默认图标
 /// - 注册 ShellNew 使右键出现"新建 Markdown 文档"
 /// - 写入 HKEY_CURRENT_USER，无需管理员权限
+/// - 通知 Explorer 刷新，不要求重启
 #[tauri::command]
 pub fn register_shell_new() -> Result<(), AppError> {
     #[cfg(target_os = "windows")]
@@ -59,6 +81,9 @@ pub fn register_shell_new() -> Result<(), AppError> {
         cmd_key
             .set_value("", &format!("\"{}\" \"%1\"", exe_path))
             .map_err(|e| AppError::Native(e.to_string()))?;
+
+        // 通知 Explorer 刷新文件关联缓存，即刻生效
+        notify_shell_change();
 
         Ok(())
     }

@@ -80,11 +80,13 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
   let stopTitleWatcher: (() => void) | null = null;
 
   async function handleOpenPayload(payload: AppOpenPathsPayload | null | undefined) {
-    const firstPath = payload?.paths[0];
-    if (!firstPath) {
+    if (!payload?.paths?.length) {
       return;
     }
-    await options.openDocument(firstPath);
+    for (const path of payload.paths) {
+      if (!path) continue;
+      await options.openDocument(path);
+    }
   }
 
   async function handleCloseRequest() {
@@ -158,8 +160,8 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
     await setupDragDrop();
     await handleOpenPayload(await notifyFrontendReady());
 
-    // 注册 Windows 右键"新建 Markdown 文档"（静默失败不影响主流程）
-    await registerShellNew().catch(() => {});
+    // 注册 Windows 右键"新建 Markdown 文档"
+    await registerShellNew().catch((e) => console.warn('[ShellNew] registration failed:', e));
   }
 
   function cleanup() {
