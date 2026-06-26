@@ -28,6 +28,8 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   let autoSavePaused = false;
   /** 保存互斥锁：防止自动保存与手动保存并发执行导致冲突 */
   let isSaving = false;
+  /** 文件打开互斥锁：防止同时打开两个文件导致编辑器状态竞争 */
+  let isOpeningFile = false;
   /** 自动保存是否应继续运行（用户关闭/禁用时停止递归） */
   let autoSaveActive = false;
 
@@ -55,6 +57,8 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   }
 
   async function loadDocumentFromPath(path: string): Promise<boolean> {
+    if (isOpeningFile) return false;
+    isOpeningFile = true;
     try {
       fileStore.setLoading(true);
       const document = await openDocument(path);
@@ -84,6 +88,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       return false;
     } finally {
       fileStore.setLoading(false);
+      isOpeningFile = false;
     }
   }
 
