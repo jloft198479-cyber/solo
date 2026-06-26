@@ -1,10 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
+    <script>
+      try {
+        var _t = JSON.parse(localStorage.getItem('solo-theme-paint'));
+        if (_t) {
+          _t.d && document.documentElement.classList.add('dark');
+          var _s = document.documentElement.style;
+          for (var _k in _t.v) _s.setProperty(_k, _t.v[_k]);
+        }
+      } catch (e) { /* localStorage unavailable */ }
+    </script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri + Vue + Typescript App</title>
+    <title>solo</title>
   </head>
 
   <body>

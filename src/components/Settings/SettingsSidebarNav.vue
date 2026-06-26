@@ -1,14 +1,13 @@
 <script setup lang="ts">
-export type SettingsTabKey = 'appearance' | 'editor' | 'shortcuts' | 'save' | 'export';
+export type SettingsTabKey = 'appearance' | 'editor' | 'shortcuts' | 'save';
 
 const activeTab = defineModel<SettingsTabKey>({ required: true });
 
-const tabs: Array<{ key: SettingsTabKey; label: string; icon: string }> = [
-  { key: 'appearance', label: '外观', icon: '🎨' },
-  { key: 'editor', label: '编辑器', icon: '✏️' },
-  { key: 'shortcuts', label: '快捷键', icon: '⌨️' },
-  { key: 'save', label: '保存', icon: '💾' },
-  { key: 'export', label: '导出', icon: '📤' },
+const tabs: Array<{ key: SettingsTabKey; label: string }> = [
+  { key: 'appearance', label: '外观' },
+  { key: 'editor', label: '编辑器' },
+  { key: 'shortcuts', label: '快捷键' },
+  { key: 'save', label: '保存' },
 ];
 </script>
 
@@ -22,8 +21,7 @@ const tabs: Array<{ key: SettingsTabKey; label: string; icon: string }> = [
       :class="{ 'settings-nav-btn--active': activeTab === tab.key }"
       @click="activeTab = tab.key"
     >
-      <span>{{ tab.icon }}</span>
-      <span>{{ tab.label }}</span>
+      {{ tab.label }}
     </button>
   </nav>
 </template>
@@ -49,9 +47,6 @@ const tabs: Array<{ key: SettingsTabKey; label: string; icon: string }> = [
 
 .settings-nav-btn {
   width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 8px;
   margin-bottom: 4px;
   padding: 10px 12px;
   border-radius: 12px;

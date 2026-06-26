@@ -6,6 +6,8 @@ import { mathMarkdownPlugin } from './math';
 import { mermaidMarkdownPlugin } from './mermaid';
 import { wikilinkMarkdownPlugin } from './wikilink';
 import { calloutMarkdownPlugin } from './callout';
+import { frontmatterMarkdownPlugin } from './frontmatter';
+import { footnoteMarkdownPlugin } from './footnote';
 
 export interface PreprocessContext {
   content: string;
@@ -46,6 +48,8 @@ export interface MarkdownSyntaxPlugin {
 }
 
 export const markdownSyntaxPlugins = [
+  frontmatterMarkdownPlugin,
+  footnoteMarkdownPlugin,
   calloutMarkdownPlugin,
   mathMarkdownPlugin,
   mermaidMarkdownPlugin,

@@ -30,14 +30,20 @@ const unsub = onProgress((family, pct) => {
   if (pct >= 0) {
     progressing.value = { ...progressing.value, [family]: pct };
   } else {
-    // 下载完成
-    const { [family]: _, ...rest } = progressing.value;
-    progressing.value = rest;
+    progressing.value = { ...progressing.value, [family]: 100 };
     isFontAvailable(family).then((ok) => {
       fontStatus.value[family] = ok;
-      // 下载完成后自动关闭弹窗
       if (currentFont.value === family) {
-        emit('select');
+        setTimeout(() => {
+          const rest = { ...progressing.value };
+          delete rest[family];
+          progressing.value = rest;
+          emit('select');
+        }, 600);
+      } else {
+        const rest = { ...progressing.value };
+        delete rest[family];
+        progressing.value = rest;
       }
     });
   }
@@ -88,8 +94,8 @@ function selectFont(value: string) {
           <!-- 进度条 -->
           <div
             v-for="opt in fontOptions"
-            :key="'bar-' + opt.value"
             v-show="progressing[opt.value] !== undefined && progressing[opt.value] >= 0"
+            :key="'bar-' + opt.value"
             class="font-progress-track"
           >
             <div

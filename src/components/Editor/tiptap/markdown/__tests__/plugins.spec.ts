@@ -16,6 +16,8 @@ describe('markdown syntax plugin registry', () => {
 
   it('keeps feature plugins registered in preprocessing order', () => {
     expect(markdownSyntaxPlugins.map((plugin) => plugin.name)).toEqual([
+      'frontmatter',
+      'footnote',
       'callout',
       'math',
       'mermaid',
@@ -24,16 +26,26 @@ describe('markdown syntax plugin registry', () => {
   });
 
   it('aggregates parser and serializer hooks from plugins', () => {
-    expect(getPluginPreprocessors(schema)).toHaveLength(0);
+    expect(getPluginPreprocessors(schema)).toHaveLength(1); // frontmatter
     expect(getPluginFenceHandlers(schema)).toHaveLength(1);
     expect(getPluginTokenInterceptors(schema)).toHaveLength(1); // callout
     expect(Object.keys(getPluginTokenHandlers(schema)).sort()).toEqual([
+      'footnote_anchor',
+      'footnote_block_close',
+      'footnote_block_open',
+      'footnote_close',
+      'footnote_open',
+      'footnote_ref',
       'math_block',
       'math_inline',
       'text',
     ]);
     expect(Object.keys(getPluginNodeSerializers()).sort()).toEqual([
       'callout',
+      'footnoteDef',
+      'footnoteRef',
+      'footnoteSection',
+      'frontmatter',
       'mathBlock',
       'mathInline',
       'mermaidBlock',

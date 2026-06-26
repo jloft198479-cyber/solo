@@ -5,9 +5,10 @@ import type {
   ExportListItem,
   ExportMark,
   ExportRenderOptions,
+  ExportThemeTokens,
   WechatRenderResult,
 } from '../model';
-import { getExportThemeTokens } from '../theme';
+import { getExportThemeTokensFromAppTheme } from '../theme';
 import { buildFontStack } from '../../fontStack';
 import { escapeAttribute, escapeHtml, renderPlainText, sanitizeHref, wrapMarks } from '../utils';
 
@@ -15,7 +16,7 @@ export function renderWechatFragment(
   document: ExportDocument,
   options: ExportRenderOptions = {},
 ): WechatRenderResult {
-  const theme = options.tokens ?? getExportThemeTokens(options.themeId);
+  const theme = options.tokens ?? getExportThemeTokensFromAppTheme(options.themeId || 'scholar-light');
   const fontFamily = options.fontFamily
     ? buildFontStack(options.fontFamily)
     : "'Microsoft YaHei', 'PingFang SC', system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -30,7 +31,7 @@ export function renderWechatFragment(
   };
 }
 
-function renderBlock(block: ExportBlock, theme: ReturnType<typeof getExportThemeTokens>, fontSize: number): string {
+function renderBlock(block: ExportBlock, theme: ExportThemeTokens, fontSize: number): string {
   switch (block.kind) {
     case 'paragraph':
       return `<p style="margin:0 0 1.2em;line-height:1.8;color:${theme.text};font-size:${fontSize}px;">${renderInlines(block.inlines, theme)}</p>`;
@@ -83,7 +84,7 @@ function renderBlock(block: ExportBlock, theme: ReturnType<typeof getExportTheme
 function renderListItem(
   item: ExportListItem,
   isTaskItem: boolean,
-  theme: ReturnType<typeof getExportThemeTokens>,
+  theme: ExportThemeTokens,
   fontSize: number,
 ): string {
   const prefix = isTaskItem
@@ -109,14 +110,14 @@ function renderListItem(
 
 function renderInlines(
   inlines: ExportInline[],
-  theme: ReturnType<typeof getExportThemeTokens>,
+  theme: ExportThemeTokens,
 ): string {
   return inlines.map((inline) => renderInline(inline, theme)).join('');
 }
 
 function renderInline(
   inline: ExportInline,
-  theme: ReturnType<typeof getExportThemeTokens>,
+  theme: ExportThemeTokens,
 ): string {
   let content: string;
 
@@ -143,7 +144,7 @@ function renderInline(
 function renderMark(
   content: string,
   mark: ExportMark,
-  theme: ReturnType<typeof getExportThemeTokens>,
+  theme: ExportThemeTokens,
 ): string {
   switch (mark.kind) {
     case 'bold':

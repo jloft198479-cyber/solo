@@ -22,11 +22,19 @@ beforeEach(() => {
     documentElement: {
       classList: {
         toggle: mocks.toggleMock,
+        add: vi.fn(),
+        remove: vi.fn(),
       },
       style: {
         setProperty: mocks.setPropertyMock,
       },
+      getBoundingClientRect: vi.fn(),
     },
+  });
+  vi.stubGlobal('localStorage', {
+    getItem: vi.fn(),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
   });
 });
 

@@ -148,7 +148,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     return saveDocument(path, fileStore.currentFile.content, expectedLastModifiedMs, force);
   }
 
-  async function saveCurrentDocument(force = false, options: { fromAutoSave?: boolean } = {}): Promise<boolean> {
+  async function saveCurrentDocument(force = false): Promise<boolean> {
     // 保存互斥锁：正在保存时跳过，避免自动保存与手动保存并发冲突
     if (isSaving) {
       return false;
@@ -156,16 +156,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
     const currentFile = fileStore.currentFile;
     if (!currentFile.path) {
-      return saveCurrentDocumentAs();
-    }
-
-    // 标题被改动过：手动保存走另存为；自动保存跳过本次（不静默写回也不弹框），等用户手动处理
-    const titleChanged = currentFile.displayName !== currentFile.originalBaseName;
-    if (titleChanged) {
-      if (options.fromAutoSave) {
-        // 自动保存不弹框：跳过本次保存，保留内存中的变更
-        return false;
-      }
       return saveCurrentDocumentAs();
     }
 
@@ -282,7 +272,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
           if (!autoSaveActive) return;
 
           if (fileStore.currentFile.isDirty && fileStore.currentFile.path && !autoSavePaused) {
-            const saved = await saveCurrentDocument(false, { fromAutoSave: true });
+            const saved = await saveCurrentDocument(false);
             if (saved) {
               autoSavePaused = false;
               updateAutoSaveStatus('已自动保存');

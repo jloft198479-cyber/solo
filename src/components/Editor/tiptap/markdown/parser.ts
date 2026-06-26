@@ -15,6 +15,7 @@ import markdownItMark from 'markdown-it-mark';
 import markdownItSub from 'markdown-it-sub';
 import markdownItSup from 'markdown-it-sup';
 import markdownItTexmath from 'markdown-it-texmath';
+import markdownItFootnote from 'markdown-it-footnote';
 import {
   getPluginFenceHandlers,
   getPluginPreprocessors,
@@ -43,6 +44,8 @@ function createMarkdownIt(): MarkdownIt {
     engine: dummyKatexEngine,
     delimiters: 'dollars',
   });
+
+  md.use(markdownItFootnote);
 
   return md;
 }

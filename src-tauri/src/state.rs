@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use crate::models::AppOpenPathsPayload;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 #[derive(Default)]
@@ -22,6 +22,27 @@ impl StartupOpenRequests {
             .map_err(|error| AppError::Native(error.to_string()))?
             .take();
         Ok(payload)
+    }
+}
+
+#[derive(Default)]
+pub struct PendingWindowPaths(pub Mutex<HashMap<String, AppOpenPathsPayload>>);
+
+impl PendingWindowPaths {
+    pub fn insert(&self, label: String, payload: AppOpenPathsPayload) -> Result<(), AppError> {
+        self.0
+            .lock()
+            .map_err(|error| AppError::Native(error.to_string()))?
+            .insert(label, payload);
+        Ok(())
+    }
+
+    pub fn take(&self, label: &str) -> Result<Option<AppOpenPathsPayload>, AppError> {
+        Ok(self
+            .0
+            .lock()
+            .map_err(|error| AppError::Native(error.to_string()))?
+            .remove(label))
     }
 }
 

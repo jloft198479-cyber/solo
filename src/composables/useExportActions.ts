@@ -27,7 +27,6 @@ type FileStoreLike = {
 type SettingsStoreLike = {
   settings: {
     activeThemeId: string;
-    wechatTheme: string;
     fontFamily: string;
     fontSize: number;
   };
@@ -98,13 +97,8 @@ export function useExportActions(options: {
     const doc = getEditorDoc();
     if (!doc) return;
 
-    const themeId = settingsStore.settings.wechatTheme;
-    const followEditor = themeId === 'follow-editor';
     const result = renderEditorDocToWechatFragment(doc, {
-      tokens: followEditor
-        ? getExportThemeTokensFromAppTheme(settingsStore.settings.activeThemeId)
-        : undefined,
-      themeId: followEditor ? undefined : themeId,
+      tokens: getExportThemeTokensFromAppTheme(settingsStore.settings.activeThemeId),
       fontFamily: settingsStore.settings.fontFamily,
       fontSize: settingsStore.settings.fontSize,
     });

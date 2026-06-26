@@ -100,12 +100,12 @@
   justify-content: flex-end;
   width: calc(var(--mk-heading-gutter-width) - var(--mk-heading-gutter-gap));
   line-height: 1;
-  color: var(--muted-color);
+  color: var(--primary-color);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.08em;
-  opacity: 0.58;
+  opacity: 0.45;
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
@@ -150,12 +150,12 @@
   justify-content: flex-end;
   width: calc(var(--mk-heading-gutter-width) - var(--mk-heading-gutter-gap));
   line-height: 1;
-  color: var(--muted-color);
+  color: var(--primary-color);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.08em;
-  opacity: 0.58;
+  opacity: 0.45;
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
@@ -367,13 +367,9 @@
 }
 
 .tiptap-editor mark {
-  background-color: #fef08a;
+  background-color: var(--mark-bg);
   border-radius: 2px;
   padding: 0 2px;
-}
-
-html.dark .tiptap-editor mark {
-  background-color: rgba(254, 240, 138, 0.3);
 }
 
 /* ── 链接 ──────────────────────────────────────────────────── */
@@ -620,7 +616,7 @@ html.dark .tiptap-editor mark {
 
 /* ── 选中状态 ──────────────────────────────────────────────── */
 .tiptap-editor ::selection {
-  background-color: rgba(139, 115, 85, 0.18);
+  background-color: color-mix(in srgb, var(--primary-color) 18%, transparent);
 }
 
 /* ── 光标 ──────────────────────────────────────────────────── */
@@ -768,8 +764,20 @@ html.dark .tiptap-editor mark {
   border-radius: 4px;
   padding: 12px 16px;
   margin: 8px 0;
+  border-left: 3px solid var(--callout-note);
   background-color: var(--callout-note-bg);
 }
+.tiptap-editor .mk-callout[data-callout-type="abstract"] { border-left-color: var(--callout-abstract); background-color: var(--callout-abstract-bg); }
+.tiptap-editor .mk-callout[data-callout-type="info"] { border-left-color: var(--callout-info); background-color: var(--callout-info-bg); }
+.tiptap-editor .mk-callout[data-callout-type="tip"] { border-left-color: var(--callout-tip); background-color: var(--callout-tip-bg); }
+.tiptap-editor .mk-callout[data-callout-type="success"] { border-left-color: var(--callout-success); background-color: var(--callout-success-bg); }
+.tiptap-editor .mk-callout[data-callout-type="question"] { border-left-color: var(--callout-question); background-color: var(--callout-question-bg); }
+.tiptap-editor .mk-callout[data-callout-type="warning"] { border-left-color: var(--callout-warning); background-color: var(--callout-warning-bg); }
+.tiptap-editor .mk-callout[data-callout-type="failure"] { border-left-color: var(--callout-failure); background-color: var(--callout-failure-bg); }
+.tiptap-editor .mk-callout[data-callout-type="danger"] { border-left-color: var(--callout-danger); background-color: var(--callout-danger-bg); }
+.tiptap-editor .mk-callout[data-callout-type="bug"] { border-left-color: var(--callout-bug); background-color: var(--callout-bug-bg); }
+.tiptap-editor .mk-callout[data-callout-type="example"] { border-left-color: var(--callout-example); background-color: var(--callout-example-bg); }
+.tiptap-editor .mk-callout[data-callout-type="quote"] { border-left-color: var(--callout-quote); background-color: var(--callout-quote-bg); }
 
 /* ── Frontmatter ───────────────────────────────────────────── */
 .tiptap-editor .mk-frontmatter {
@@ -1067,6 +1075,24 @@ html.dark .mk-slash-menu {
 .mk-drag-handle--dragging {
   opacity: 0.8;
   cursor: grabbing;
+}
+
+/* ── Footnote ──────────────────────────────────────────────── */
+.tiptap-editor sup[data-footnote-ref] {
+  font-size: 0.75em;
+  vertical-align: super;
+  color: var(--primary-color);
+  cursor: default;
+}
+.tiptap-editor [data-footnote-section] {
+  margin-top: 24px;
+  border-top: 1px solid var(--border-color);
+  padding-top: 8px;
+  font-size: 0.875em;
+}
+.tiptap-editor [data-footnote-def] {
+  margin: 4px 0;
+  line-height: 1.6;
 }
 
 .mk-drop-indicator {

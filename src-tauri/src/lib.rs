@@ -6,19 +6,20 @@ mod models;
 mod state;
 
 use commands::*;
-use events::emit_app_open_paths;
 use models::{AppOpenPathsPayload, AppOpenSource};
-use state::{LoadedWindows, StartupOpenRequests};
+use state::{LoadedWindows, PendingWindowPaths, StartupOpenRequests};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::Manager;
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_window_state::StateFlags;
 
 static EARLY_OPEN_REQUEST: Mutex<Option<AppOpenPathsPayload>> = Mutex::new(None);
+static WINDOW_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[tauri::command]
 fn consume_startup_open_request(
@@ -32,10 +33,26 @@ fn consume_startup_open_request(
 #[tauri::command]
 fn notify_frontend_ready(
     loaded_windows: tauri::State<'_, LoadedWindows>,
+    pending_paths: tauri::State<'_, PendingWindowPaths>,
     startup_requests: tauri::State<'_, StartupOpenRequests>,
     window: tauri::WebviewWindow,
 ) -> Result<Option<AppOpenPathsPayload>, error::AppError> {
     loaded_windows.mark_loaded(window.label().to_string())?;
+
+    // 新窗口：先查自己的待打开路径
+    let label = window.label().to_string();
+    if let Some(payload) = pending_paths.take(&label)? {
+        append_startup_log(
+            Some(&window.app_handle()),
+            format!(
+                "notify_frontend_ready: label={}, from pending_paths, payload={:?}",
+                label, payload
+            ),
+        );
+        return Ok(Some(payload));
+    }
+
+    // 主窗口：回退到全局启动请求
     let payload = startup_requests.take()?;
     append_startup_log(
         Some(&window.app_handle()),
@@ -46,6 +63,60 @@ fn notify_frontend_ready(
         ),
     );
     Ok(payload)
+}
+
+/// 创建一个新的编辑器窗口。
+/// 通过原子计数器保证 label 唯一性。
+fn create_editor_window(
+    app: &tauri::AppHandle,
+    path: Option<String>,
+) -> Result<String, error::AppError> {
+    let label = format!("editor-{}", WINDOW_COUNTER.fetch_add(1, Ordering::Relaxed));
+
+    let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
+        .title("solo")
+        .inner_size(1200.0, 800.0)
+        .min_inner_size(320.0, 240.0)
+        .center()
+        .resizable(true)
+        .decorations(false)
+        .visible(false)
+        .build()
+        .map_err(|e| error::AppError::Native(e.to_string()))?;
+
+    // 有关联文件：存入 PendingWindowPaths，等前端 ready 后取走
+    if let Some(file_path) = path {
+        if let Some(pending) = app.try_state::<PendingWindowPaths>() {
+            let payload = AppOpenPathsPayload {
+                paths: vec![file_path],
+                source: AppOpenSource::NewWindow,
+            };
+            let _ = pending.insert(label.clone(), payload);
+        }
+    }
+
+    attach_close_interceptor(&window);
+
+    #[cfg(target_os = "macos")]
+    window::apply_macos_window_background(&window, "#ffffff")?;
+
+    #[cfg(debug_assertions)]
+    if std::env::var_os("SOLO_OPEN_DEVTOOLS").is_some() {
+        window.open_devtools();
+    }
+
+    window.show().map_err(|e| error::AppError::Native(e.to_string()))?;
+
+    append_startup_log(Some(app), format!("created window: label={}", label));
+    Ok(label)
+}
+
+#[tauri::command]
+async fn new_editor_window(
+    app: tauri::AppHandle,
+    path: Option<String>,
+) -> Result<String, error::AppError> {
+    create_editor_window(&app, path)
 }
 
 #[tauri::command]
@@ -164,8 +235,12 @@ fn dispatch_or_store_open_request(app: &tauri::AppHandle, payload: AppOpenPathsP
         .unwrap_or(false);
 
     if has_loaded_window {
-        append_startup_log(Some(app), "frontend loaded, emitting app-open-paths");
-        emit_app_open_paths(app, payload);
+        // 已有加载完成的窗口：每个文件在新窗口中打开
+        for path in &payload.paths {
+            if let Err(e) = create_editor_window(app, Some(path.clone())) {
+                append_startup_log(Some(app), format!("create_editor_window error: {e}"));
+            }
+        }
     } else if let Some(state) = app.try_state::<StartupOpenRequests>() {
         append_startup_log(Some(app), "frontend not loaded, storing startup request");
         let _ = state.replace(payload);
@@ -220,6 +295,7 @@ pub fn run() {
         )
         .setup(|app| {
             app.manage(StartupOpenRequests::default());
+            app.manage(PendingWindowPaths::default());
             app.manage(LoadedWindows::default());
 
             {
@@ -307,11 +383,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_document,
             save_document,
+            rename_file,
             import_document_image,
             resolve_document_image_path,
             authorize_image_asset,
             fetch_remote_image,
             consume_startup_open_request,
+            new_editor_window,
             fetch_font_data,
             notify_frontend_ready,
             refresh_native_menu_shortcuts,

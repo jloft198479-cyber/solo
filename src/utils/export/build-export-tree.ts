@@ -116,8 +116,8 @@ function buildBlock(node: PMNode): ExportBlock | null {
     case 'callout':
       return {
         kind: 'callout',
-        calloutType: typeof node.attrs.type === 'string' ? node.attrs.type : 'note',
-        title: typeof node.attrs.title === 'string' ? node.attrs.title : '',
+        calloutType: typeof node.attrs.calloutType === 'string' ? node.attrs.calloutType : 'note',
+        title: '',
         blocks: buildBlocks(node),
       } satisfies ExportCallout;
     case 'horizontalRule':

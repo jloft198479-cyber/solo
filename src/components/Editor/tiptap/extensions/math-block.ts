@@ -12,7 +12,12 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 let katexPromise: Promise<typeof import('katex')> | null = null;
 export function getKatex() {
   if (!katexPromise) {
-    katexPromise = import('katex');
+    katexPromise = (async () => {
+      const katex = await import('katex');
+      // 首次使用 KaTeX 时注入其 CSS，文档无公式时不加载
+      await import('katex/dist/katex.min.css');
+      return katex;
+    })();
   }
   return katexPromise;
 }

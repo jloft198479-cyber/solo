@@ -8,7 +8,6 @@ export type AppEditorExpose = {
   openSearch: (showReplace?: boolean) => void;
   getContent?: () => string;
   getDoc?: () => PMNode | null;
-  getSelectionMarkdown?: () => string;
   getEditorView: () => EditorView | null;
   hasFocus?: () => boolean;
   executeCommand?: (commandId: string) => boolean;

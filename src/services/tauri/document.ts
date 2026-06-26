@@ -12,6 +12,10 @@ export interface DocumentSaveResult {
   lastModifiedMs: number;
 }
 
+export interface DocumentRenameResult {
+  path: string;
+}
+
 export interface DocumentImageImportResult {
   relativePath: string;
   absolutePath: string;
@@ -41,6 +45,10 @@ export async function saveDocument(
     expectedLastModifiedMs,
     force,
   });
+}
+
+export async function renameFile(oldPath: string, newName: string) {
+  return invokeCommand<DocumentRenameResult>(TAURI_COMMANDS.renameFile, { oldPath, newName });
 }
 
 export async function importDocumentImage(sourcePath: string, documentPath: string, storageDir?: string) {

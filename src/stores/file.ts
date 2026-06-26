@@ -10,11 +10,7 @@ export interface FileState {
   lastModifiedTime: number | null;
   /** Display name shown in titlebar (editable by user) */
   displayName: string;
-  /**
-   * 从 path 提取的原始文件名基础名（去扩展名）。
-   * 用于在保存时判断“标题是否被改过”：
-   * displayName !== originalBaseName 意味着用户改了标题，下次保存应走另存为。
-   */
+  /** 从 path 提取的原始文件名基础名（去扩展名）。保存后 displayName 会重置回此值。 */
   originalBaseName: string;
 }
 
@@ -85,9 +81,19 @@ export const useFileStore = defineStore('file', {
       this.hasUserEdit = true;
     },
 
+    renamePath(newPath: string) {
+      const baseName = newPath
+        ? (newPath.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
+        : DEFAULT_DISPLAY_NAME;
+      this.currentFile.path = newPath;
+      this.currentFile.displayName = baseName;
+      this.currentFile.originalBaseName = baseName;
+    },
+
     markSaved(lastModifiedTime: number | null = null) {
       this.currentFile.isDirty = false;
       this.hasUserEdit = false;
+      this.currentFile.displayName = this.currentFile.originalBaseName;
       if (lastModifiedTime !== null) {
         this.currentFile.lastModifiedTime = lastModifiedTime;
       }

@@ -67,3 +67,8 @@ export async function setCurrentWindowAlwaysOnTop(onTop: boolean) {
 export async function revealInFinder(path: string) {
   await invokeCommand<void>(TAURI_COMMANDS.revealInFinder, { path });
 }
+
+/** 创建一个新的编辑器窗口，可选关联文件路径 */
+export async function newEditorWindow(path?: string): Promise<string> {
+  return invokeCommand<string>(TAURI_COMMANDS.newEditorWindow, { path: path ?? null });
+}

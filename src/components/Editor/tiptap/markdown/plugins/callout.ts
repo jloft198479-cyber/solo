@@ -38,12 +38,16 @@ function stripCalloutMarker(inlineToken: Token) {
   const firstChild = inlineToken.children[0];
   if (firstChild.type !== 'text') return;
 
-  // 剥离 [!TYPE] 及后面可能的空白/换行
-  firstChild.content = firstChild.content.replace(/^\[![A-Za-z]+\]\s*\n?/, '');
+  // 剥离 [!TYPE]
+  firstChild.content = firstChild.content.replace(/^\[![A-Za-z]+\]/, '');
 
   // 如果剥离后文本为空，移除该 token
   if (!firstChild.content) {
     inlineToken.children.splice(0, 1);
+    // 如果下一个 sibling 是 softbreak（[!TYPE]\n 中的 \n），一并移除
+    if (inlineToken.children.length > 0 && inlineToken.children[0].type === 'softbreak') {
+      inlineToken.children.splice(0, 1);
+    }
   }
 }
 

@@ -104,11 +104,33 @@ function createTestSchema(): Schema {
         group: 'block',
         content: 'block+',
         attrs: {
-          type: { default: 'note' },
-          title: { default: '' },
+          calloutType: { default: 'note' },
         },
-        parseDOM: [{ tag: 'div[data-type="callout"]' }],
+        parseDOM: [{ tag: 'div.mk-callout' }],
         toDOM: () => ['div', { 'data-type': 'callout' }, 0],
+      },
+      footnoteRef: {
+        inline: true,
+        group: 'inline',
+        atom: true,
+        attrs: { label: { default: '' } },
+        parseDOM: [{ tag: 'sup[data-footnote-ref]' }],
+        toDOM: () => ['sup', { 'data-footnote-ref': '' }, 0],
+      },
+      footnoteSection: {
+        group: 'block',
+        content: 'footnoteDef+',
+        defining: true,
+        parseDOM: [{ tag: 'div[data-footnote-section]' }],
+        toDOM: () => ['div', { 'data-footnote-section': '' }, 0],
+      },
+      footnoteDef: {
+        group: 'block',
+        content: 'block+',
+        defining: true,
+        attrs: { label: { default: '' } },
+        parseDOM: [{ tag: 'div[data-footnote-def]' }],
+        toDOM: () => ['div', { 'data-footnote-def': '' }, 0],
       },
       wikilink: {
         inline: true,
@@ -409,6 +431,49 @@ describe('Round-trip: parse → serialize', () => {
     it('escapes quoted link titles', () => {
       const md = '[text](https://example.com "say \\"hi\\"")\n';
       expect(roundTrip(md)).toBe(normalize(md));
+    });
+  });
+
+  describe('callout', () => {
+    it('callout with default type', () => {
+      expect(roundTrip('> [!note]\n> hello\n')).toBe(normalize('> [!NOTE]\n> hello\n'));
+    });
+
+    it('callout with warning type', () => {
+      expect(roundTrip('> [!warning]\n> be careful\n')).toBe(normalize('> [!WARNING]\n> be careful\n'));
+    });
+
+    it('callout with info type', () => {
+      expect(roundTrip('> [!info]\n> some info\n')).toBe(normalize('> [!INFO]\n> some info\n'));
+    });
+  });
+
+  describe('frontmatter', () => {
+    it('parses and serializes YAML frontmatter', () => {
+      const md = '---\ntitle: Hello\ncreated: 2025-01-01\n---\n\nbody text\n';
+      expect(roundTrip(md)).toBe(normalize('---\ntitle: Hello\ncreated: 2025-01-01\n---\n\nbody text\n'));
+    });
+
+    it('frontmatter preserves multiple lines', () => {
+      const md = '---\ntitle: My Document\ntags: [a, b, c]\ndraft: true\n---\n\nContent here\n';
+      expect(roundTrip(md)).toBe(normalize('---\ntitle: My Document\ntags: [a, b, c]\ndraft: true\n---\n\nContent here\n'));
+    });
+  });
+
+  describe('footnotes', () => {
+    it('single footnote', () => {
+      const md = 'Here is text[^1]\n\n[^1]: the footnote\n';
+      expect(roundTrip(md)).toBe(normalize('Here is text[^1]\n\n[^1]: the footnote\n'));
+    });
+
+    it('multiple footnotes', () => {
+      const md = 'First[^1] and second[^2]\n\n[^1]: First footnote\n\n[^2]: Second footnote\n';
+      expect(roundTrip(md)).toBe(normalize('First[^1] and second[^2]\n\n[^1]: First footnote\n\n[^2]: Second footnote\n'));
+    });
+
+    it('footnote with rich text', () => {
+      const md = 'Ref[^1]\n\n[^1]: **bold** and *italic* in footnote\n';
+      expect(roundTrip(md)).toBe(normalize('Ref[^1]\n\n[^1]: **bold** and *italic* in footnote\n'));
     });
   });
 
