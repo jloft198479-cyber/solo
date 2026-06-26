@@ -4,6 +4,34 @@ use crate::events::emit_window_close_requested;
 use objc2_app_kit::{NSColor, NSWindow};
 use tauri::{Emitter, WebviewWindow};
 
+#[cfg(target_os = "windows")]
+use webview2_com::Microsoft::Web::WebView2::Win32::{
+    ICoreWebView2_19, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL,
+    COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW, COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL,
+};
+#[cfg(target_os = "windows")]
+use windows_core::Interface;
+
+/// 设置 WebView2 的内存目标等级，低内存模式下允许 OS 将 renderer 物理内存页换出。
+/// 仅在 Windows 上生效；其他平台静默跳过。
+#[cfg(target_os = "windows")]
+fn set_memory_target(window: &WebviewWindow, level: COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL) {
+    use tauri::webview::PlatformWebview;
+    let _ = window.with_webview(move |wv: PlatformWebview| {
+        let controller = wv.controller();
+        unsafe {
+            if let Ok(core) = controller.CoreWebView2() {
+                if let Ok(core19) = core.cast::<ICoreWebView2_19>() {
+                    let _ = core19.SetMemoryUsageTargetLevel(level);
+                }
+            }
+        }
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_memory_target(_window: &WebviewWindow, _level: ()) {}
+
 pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
     let label = window.label().to_string();
     let window_clone = window.clone();
@@ -22,6 +50,17 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
                     "solo:editor-blur"
                 };
                 let _ = handle.emit_to(label.as_str(), event_name, ());
+
+                // 内存优化：失焦降低 WebView2 内存占用，聚焦恢复
+                #[cfg(target_os = "windows")]
+                {
+                    let level = if *focused {
+                        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+                    } else {
+                        COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+                    };
+                    set_memory_target(&window_clone, level);
+                }
             }
             _ => {}
         }
