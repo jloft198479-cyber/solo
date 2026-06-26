@@ -133,7 +133,7 @@ export type TokenHandler = (
   index: number,
 ) => void;
 
-function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
+export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   const handlers: Record<string, TokenHandler> = {};
   const fenceHandlers = getPluginFenceHandlers(schema);
 

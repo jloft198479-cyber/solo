@@ -7,6 +7,7 @@ const confirmMock = vi.fn();
 const messageMock = vi.fn();
 const openDocumentMock = vi.fn();
 const saveDocumentMock = vi.fn();
+const renameFileMock = vi.fn();
 
 const fileStoreState = {
   currentFile: {
@@ -56,6 +57,7 @@ vi.mock('../../services/tauri/dialog', () => ({
 vi.mock('../../services/tauri/document', () => ({
   openDocument: openDocumentMock,
   saveDocument: saveDocumentMock,
+  renameFile: renameFileMock,
 }));
 
 vi.mock('../../stores/file', async (importOriginal) => {
@@ -250,8 +252,8 @@ describe('useDocumentSession', () => {
     expect(callArgs.defaultPath).toBe('改名后的笔记.md');
   });
 
-  it('routes save through save-as when displayName differs from original base name', async () => {
-    // 打开 original.md，标题被改为“新标题”且未保存
+  it('routes save through rename when displayName differs from original base name', async () => {
+    // 打开 original.md，标题被改为”新标题”且未保存
     fileStoreState.currentFile = {
       path: '/tmp/original.md',
       content: 'draft',
@@ -260,7 +262,10 @@ describe('useDocumentSession', () => {
       displayName: '新标题',
       originalBaseName: 'original',
     };
-    saveMock.mockResolvedValue('/tmp/新标题.md');
+    renameFileMock.mockResolvedValue({
+      path: '/tmp/新标题.md',
+      lastModifiedMs: 1500,
+    });
     saveDocumentMock.mockResolvedValue({
       path: '/tmp/新标题.md',
       lastModifiedMs: 2000,
@@ -272,9 +277,10 @@ describe('useDocumentSession', () => {
     });
 
     await session.saveCurrentDocument();
-    // 走的是另存为路径：saveMock 被调，saveDocumentMock 也被调（以新路径）
-    expect(saveMock).toHaveBeenCalledTimes(1);
+    // 走 rename 路径：renameFile 被调，saveDocument 在新路径上被调，不弹保存对话框
+    expect(renameFileMock).toHaveBeenCalledWith('/tmp/original.md', '新标题');
     expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/新标题.md', 'draft', null, true);
+    expect(saveMock).not.toHaveBeenCalled();
     // 原文件 /tmp/original.md 未被静默写回
     expect(saveDocumentMock).not.toHaveBeenCalledWith('/tmp/original.md', 'draft', 1000, expect.anything());
   });
@@ -328,7 +334,7 @@ describe('useDocumentSession', () => {
     expect(fileStoreState.currentFile.isDirty).toBe(true);
   });
 
-  it('sanitizes illegal filesystem characters in buildDefaultSavePath', async () => {
+  it('passes displayName to renameFile for save-after-rename flow', async () => {
     fileStoreState.currentFile = {
       path: '/tmp/original.md',
       content: 'draft',
@@ -337,7 +343,10 @@ describe('useDocumentSession', () => {
       displayName: 'a/b:c*d?e',
       originalBaseName: 'original',
     };
-    saveMock.mockResolvedValue('/tmp/a_b_c_d_e.md');
+    renameFileMock.mockResolvedValue({
+      path: '/tmp/a_b_c_d_e.md',
+      lastModifiedMs: 1500,
+    });
     saveDocumentMock.mockResolvedValue({
       path: '/tmp/a_b_c_d_e.md',
       lastModifiedMs: 2000,
@@ -349,7 +358,9 @@ describe('useDocumentSession', () => {
     });
 
     await session.saveCurrentDocument();
-    const callArgs = saveMock.mock.calls[0][0] as { defaultPath?: string };
-    expect(callArgs.defaultPath).toBe('a_b_c_d_e.md');
+    // rename 路径：displayName 直接传给 renameFile，不弹保存对话框
+    expect(renameFileMock).toHaveBeenCalledWith('/tmp/original.md', 'a/b:c*d?e');
+    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/a_b_c_d_e.md', 'draft', null, true);
+    expect(saveMock).not.toHaveBeenCalled();
   });
 });

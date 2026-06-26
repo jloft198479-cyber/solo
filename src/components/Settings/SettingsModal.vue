@@ -180,6 +180,8 @@ function onKeyDown(e: KeyboardEvent) {
                   v-model:auto-save="settingsStore.settings.autoSave"
                   v-model:auto-save-interval="settingsStore.settings.autoSaveInterval"
                   v-model:image-storage-path="settingsStore.settings.imageStoragePath"
+                  v-model:shell-integration="settingsStore.settings.shellIntegration"
+                  v-model:always-on-top="settingsStore.settings.alwaysOnTop"
                 />
               </div>
             </div>

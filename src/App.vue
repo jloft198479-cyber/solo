@@ -52,26 +52,16 @@ async function handleOpenFile(path: string) {
   await documentSession.openDocumentWithPrompt(path);
 }
 
-import { renameFile } from './services/tauri/document';
-import { normalizeTauriError } from './services/tauri/client';
-
+/**
+ * 标题栏重命名：统一延迟模型。
+ * 无论文件是否已保存，都只改 displayName 并标脏。
+ * 实际文件重命名在保存时通过 save-as 流程完成，
+ * 避免与自动保存的 atomic_write 产生竞态导致文件分裂。
+ */
 async function handleRename(name: string) {
-  const currentFile = fileStore.currentFile;
-  if (!currentFile.path) {
-    fileStore.setDisplayName(name);
-    return;
-  }
-
   const trimmed = name.trim();
-  if (!trimmed || trimmed === currentFile.displayName) return;
-
-  try {
-    const result = await renameFile(currentFile.path, trimmed);
-    fileStore.renamePath(result.path);
-  } catch (error) {
-    const { message: errorMsg } = normalizeTauriError(error);
-    await message(`重命名失败: ${errorMsg}`, { title: '错误', kind: 'error' });
-  }
+  if (!trimmed || trimmed === fileStore.currentFile.displayName) return;
+  fileStore.setDisplayName(trimmed);
 }
 
 const { autoSaveStatus, externalFileWarning } = documentSession;
@@ -88,6 +78,35 @@ watch(() => settingsStore.isFocusMode, (active) => {
     }, 2000);
   }
 });
+
+// ── Shell 集成动态注册/注销 ─────────────────────────────────
+import { registerShellNew, unregisterShellNew, setCurrentWindowAlwaysOnTop } from './services/tauri/window';
+import { isWindows } from './utils/platform';
+
+watch(
+  () => settingsStore.settings.shellIntegration,
+  async (enabled) => {
+    if (!isWindows) return;
+    try {
+      if (enabled) {
+        await registerShellNew();
+      } else {
+        await unregisterShellNew();
+      }
+    } catch (e) {
+      console.warn('[ShellIntegration] toggle failed:', e);
+    }
+  },
+);
+
+watch(
+  () => settingsStore.settings.alwaysOnTop,
+  (enabled) => {
+    setCurrentWindowAlwaysOnTop(enabled).catch((e) =>
+      console.warn('[AlwaysOnTop] toggle failed:', e),
+    );
+  },
+);
 
 const { exportHtml, exportPdf, copyToWechat } = useExportActions({
   editorRef,
@@ -117,6 +136,7 @@ const windowSession = useAppWindowSession({
   saveDocument: documentSession.saveCurrentDocument,
   isDirty: () => fileStore.currentFile.isDirty,
   windowTitle,
+  shellIntegration: () => settingsStore.settings.shellIntegration,
 });
 
 function switchToImageView() {

@@ -2,7 +2,7 @@ import type { Ref } from 'vue';
 import { onUnmounted, watch } from 'vue';
 import type { AppOpenPathsPayload } from '../services/tauri/events';
 import { listenWindowCloseRequested } from '../services/tauri/events';
-import { listenCurrentWebviewDragDrop } from '../services/tauri/webview';
+import { subscribeDragDrop } from '../services/tauri/webview';
 import {
   consumeStartupOpenRequest,
   destroyCurrentWindow,
@@ -19,7 +19,12 @@ interface AppWindowSessionOptions {
   saveDocument: () => Promise<boolean>;
   isDirty: () => boolean;
   windowTitle: Ref<string>;
+  /** 是否启用 Windows Shell 集成（注册表文件关联） */
+  shellIntegration: () => boolean;
 }
+
+/** 当前打开的确认弹窗的清理函数，供外部（如组件 unmount 时）强制关闭 */
+let pendingDialogCleanup: (() => void) | null = null;
 
 export function confirmUnsavedChanges(): Promise<'save' | 'discard' | 'cancel'> {
   return new Promise((resolve) => {
@@ -42,25 +47,41 @@ export function confirmUnsavedChanges(): Promise<'save' | 'discard' | 'cancel'> 
 
     overlay.appendChild(dialog);
 
+    let resolved = false;
+
+    function cleanup() {
+      overlay.remove();
+      document.removeEventListener('keydown', handleKeyDown);
+      dialog.removeEventListener('click', handleClick);
+      pendingDialogCleanup = null;
+    }
+
     function handleClick(e: MouseEvent) {
       const target = (e.target as HTMLElement).closest('[data-action]');
       if (!target) return;
       const action = (target as HTMLElement).dataset.action as 'save' | 'discard' | 'cancel';
+      if (resolved) return;
+      resolved = true;
       cleanup();
       resolve(action);
     }
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        if (resolved) return;
+        resolved = true;
         cleanup();
         resolve('cancel');
       }
     }
 
-    function cleanup() {
-      overlay.remove();
-      document.removeEventListener('keydown', handleKeyDown);
-    }
+    // 注册外部清理路径：组件 unmount 时可强制关闭弹窗
+    pendingDialogCleanup = () => {
+      if (resolved) return;
+      resolved = true;
+      cleanup();
+      resolve('cancel');
+    };
 
     dialog.addEventListener('click', handleClick);
     document.addEventListener('keydown', handleKeyDown);
@@ -126,11 +147,9 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
       };
     }
 
-    unlistenDragDrop = await listenCurrentWebviewDragDrop(async (event) => {
-      if (event.payload.type !== 'drop') {
-        return;
-      }
-      const documentPath = event.payload.paths.find((path) => /\.(md|markdown|txt)$/i.test(path));
+    // 使用共享拖拽监听器：与图片拖入共用同一个 Tauri 事件订阅
+    unlistenDragDrop = await subscribeDragDrop(async (payload) => {
+      const documentPath = payload.paths.find((path) => /\.(md|markdown|txt)$/i.test(path));
       if (documentPath) {
         await options.openDocument(documentPath);
       }
@@ -158,11 +177,17 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
     await setupDragDrop();
     await handleOpenPayload(await notifyFrontendReady());
 
-    // 注册 Windows 右键"新建 Markdown 文档"
-    await registerShellNew().catch((e) => console.warn('[ShellNew] registration failed:', e));
+    // 仅在用户启用 Shell 集成时注册 Windows 右键"新建 Markdown 文档"
+    if (options.shellIntegration()) {
+      await registerShellNew().catch((e) => console.warn('[ShellNew] registration failed:', e));
+    }
   }
 
   function cleanup() {
+    // 关闭可能残留的确认弹窗，防止 DOM/监听器泄漏
+    pendingDialogCleanup?.();
+    pendingDialogCleanup = null;
+
     unlistenCloseRequest?.();
     unlistenCloseRequest = null;
     unlistenDragDrop?.();

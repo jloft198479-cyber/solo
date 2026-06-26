@@ -1,6 +1,8 @@
 use crate::events::emit_menu_event;
+use crate::state::FocusedWindow;
 use std::collections::HashMap;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::{Emitter, Manager};
 
 fn accelerator(
     shortcuts: &HashMap<String, String>,
@@ -196,7 +198,25 @@ pub fn attach_menu_events(app: &tauri::AppHandle) {
         match menu_id {
             ref id if id == "app.hide" || id == "app.hideOthers" || id == "app.showAll" => {}
             _ => {
-                emit_menu_event(app, menu_id);
+                // P0 修复：菜单事件定向发送到焦点窗口，不再全局广播
+                let focused_label = app
+                    .try_state::<FocusedWindow>()
+                    .and_then(|state| state.get().ok().flatten());
+
+                let target = focused_label
+                    .as_deref()
+                    .and_then(|label| app.get_webview_window(label));
+
+                match target {
+                    Some(window) => emit_menu_event(&window, &menu_id),
+                    None => {
+                        // 兜底：无法确定焦点窗口时回退到全局广播（不应发生）
+                        eprintln!("[menu] 无法确定焦点窗口，回退全局广播: {menu_id}");
+                        if let Err(e) = app.emit(crate::events::MENU_EVENT, &menu_id) {
+                            eprintln!("[menu] 全局广播也失败: {e}");
+                        }
+                    }
+                }
             }
         }
     });

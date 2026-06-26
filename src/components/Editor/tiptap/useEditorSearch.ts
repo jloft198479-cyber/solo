@@ -1,4 +1,5 @@
 import { ref, type Ref } from 'vue';
+import { debounce } from 'lodash-es';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
 interface SearchMatch {
@@ -14,6 +15,15 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
   let searchQuery = '';
   let caseSensitive = false;
   const currentMatches = ref<SearchMatch[]>([]);
+
+  // 120ms 防抖：避免长文档下每个按键都触发全文扫描
+  const doSearch = debounce((query: string) => {
+    const matches = findMatches(query);
+    currentMatches.value = matches;
+    searchMatchCount.value = matches.length;
+    searchCurrentIndex.value = matches.length > 0 ? 1 : 0;
+    if (matches.length > 0) scrollToMatch(0);
+  }, 120);
 
   function findMatches(query: string): SearchMatch[] {
     if (!editor.value || !query) return [];
@@ -44,10 +54,14 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
 
   function onSearchQuery(query: string) {
     searchQuery = query;
-    currentMatches.value = findMatches(query);
-    searchMatchCount.value = currentMatches.value.length;
-    searchCurrentIndex.value = currentMatches.value.length > 0 ? 1 : 0;
-    if (currentMatches.value.length > 0) scrollToMatch(0);
+    if (!query) {
+      currentMatches.value = [];
+      searchMatchCount.value = 0;
+      searchCurrentIndex.value = 0;
+      doSearch.cancel();
+      return;
+    }
+    doSearch(query);
   }
 
   function onSearchCaseSensitive(sensitive: boolean) {
@@ -124,6 +138,7 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     searchCurrentIndex.value = 0;
     currentMatches.value = [];
     searchQuery = '';
+    doSearch.cancel();
 
     // 触发事务清除 ProseMirror 搜索高亮装饰
     if (editor.value) {

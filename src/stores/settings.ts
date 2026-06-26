@@ -35,6 +35,8 @@ export interface Settings {
   alwaysOnTop: boolean;
   /** Custom image storage directory (empty = use assets/ next to document) */
   imageStoragePath: string;
+  /** Windows shell integration: register .md file association and right-click "New" menu */
+  shellIntegration: boolean;
   /** Config version */
   configVersion: number;
 }
@@ -51,10 +53,11 @@ const DEFAULT_SETTINGS: Settings = {
   customShortcuts: {},
   alwaysOnTop: false,
   imageStoragePath: '',
-  configVersion: 9,
+  shellIntegration: false,
+  configVersion: 10,
 };
 
-const CURRENT_CONFIG_VERSION = 9;
+const CURRENT_CONFIG_VERSION = 10;
 
 /** 自动保存间隔下限（秒），防止配置异常导致过于频繁的保存 */
 const MIN_AUTOSAVE_INTERVAL_SECONDS = 5;
