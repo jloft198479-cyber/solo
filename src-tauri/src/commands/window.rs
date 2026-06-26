@@ -53,15 +53,9 @@ fn suspend_webview(window: &WebviewWindow) {
             let _ = controller.SetIsVisible(false);
             if let Ok(core) = controller.CoreWebView2() {
                 if let Ok(core3) = core.cast::<ICoreWebView2_3>() {
-                    // 最佳努力：挂起 renderer，失败不报错
-                    let core3_clone = core3.clone();
-                    let _ = TrySuspendCompletedHandler::wait_for_async_operation(
-                        Box::new(move |handler| unsafe {
-                            core3_clone.TrySuspend(&handler).ok();
-                            Ok(())
-                        }),
-                        Box::new(|_error_code, _is_successful| Ok(())),
-                    );
+                    // 最佳努力：挂起 renderer（fire-and-forget，不阻塞主线程）
+                    let handler = TrySuspendCompletedHandler::create(Box::new(|_err, _ok| Ok(())));
+                    unsafe { core3.TrySuspend(&handler).ok(); }
                 }
             }
         }
