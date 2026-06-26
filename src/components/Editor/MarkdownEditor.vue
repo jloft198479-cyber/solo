@@ -234,7 +234,7 @@ function createEditor(content: string) {
   // 解析 markdown 并设置文档
   if (content) {
     const doc = parseMarkdown(e.schema, content);
-    e.commands.setContent(doc.toJSON());
+    e.commands.setContent(doc.toJSON(), { emitUpdate: false });
   }
 
   editor.value = e;
