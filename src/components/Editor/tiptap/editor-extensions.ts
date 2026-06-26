@@ -22,6 +22,8 @@ import { MermaidBlock } from './extensions/mermaid-block';
 import { MarkdownInput } from './extensions/markdown-input';
 import { MarkdownPaste } from './extensions/markdown-paste';
 import { Superscript, Subscript } from './extensions/sub-sup';
+import { Frontmatter } from './extensions/frontmatter';
+import { FootnoteRef, FootnoteSection, FootnoteDef } from './extensions/footnote';
 import { Wikilink } from './extensions/wikilink';
 import {
   SlashCommands,
@@ -71,6 +73,10 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
       link: false,
       heading: false,
     }),
+    Frontmatter,
+    FootnoteRef,
+    FootnoteSection,
+    FootnoteDef,
     SemanticHeading,
     CustomCodeBlock,
     CustomTable,

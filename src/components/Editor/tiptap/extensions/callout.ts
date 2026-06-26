@@ -1,13 +1,24 @@
 /**
- * Callout 块扩展 — 极简重点提示
+ * Callout 块扩展 — 重点提示
  *
- * 仅一个类型，无 icon 无 label，仅有底色区分。
- * 语法：> [!callout]
+ * 语法：> [!type] 其中 type 可为 note/warning/tip/info 等
+ * 参见 Obsidian callout 语法兼容。
  */
 import { Node, mergeAttributes } from '@tiptap/core';
 
-export function normalizeCalloutType(_type: string | null | undefined): 'callout' {
-  return 'callout';
+const VALID_TYPES = [
+  'note', 'abstract', 'info', 'tip', 'success', 'question',
+  'warning', 'failure', 'danger', 'bug', 'example', 'quote',
+  'callout',
+] as const;
+
+export type CalloutType = (typeof VALID_TYPES)[number];
+
+export function normalizeCalloutType(type: string | null | undefined): CalloutType {
+  if (!type) return 'note';
+  const lower = type.toLowerCase().trim() as CalloutType;
+  if (VALID_TYPES.includes(lower)) return lower;
+  return 'note';
 }
 
 export const Callout = Node.create({
@@ -22,9 +33,10 @@ export const Callout = Node.create({
   addAttributes() {
     return {
       calloutType: {
-        default: 'callout',
-        parseHTML: () => 'callout',
-        renderHTML: () => ({
+        default: 'note',
+        parseHTML: (el) => normalizeCalloutType(el.getAttribute('data-callout-type')),
+        renderHTML: (attrs) => ({
+          'data-callout-type': (attrs.calloutType as string) || 'note',
           class: 'mk-callout',
         }),
       },

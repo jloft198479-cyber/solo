@@ -84,7 +84,9 @@ function clearStoragePath() {
               v-if="imageStoragePath"
               class="storage-path-btn storage-path-btn--reset"
               @click="clearStoragePath"
-            >恢复默认</button>
+            >
+              恢复默认
+            </button>
           </div>
         </div>
       </div>

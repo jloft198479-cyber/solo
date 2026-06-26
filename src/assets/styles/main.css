@@ -4,6 +4,8 @@
 :root {
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-text:
+    'Inter', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, Helvetica, Arial,
     'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC',
     'Hiragino Sans GB', 'STHeiti', system-ui, sans-serif;
 }
@@ -96,9 +98,34 @@
   --popover-border: #e4ddd2;
   --popover-shadow: 0 10px 15px -3px rgba(44, 36, 22, 0.1);
 
-  /* Callout — 跟随书卷气主色 */
+  /* Callout */
   --callout-note: #8b7355;
   --callout-note-bg: rgba(139, 115, 85, 0.08);
+  --callout-abstract: #0891b2;
+  --callout-abstract-bg: rgba(8, 145, 178, 0.08);
+  --callout-info: #2563eb;
+  --callout-info-bg: rgba(37, 99, 235, 0.08);
+  --callout-tip: #16a34a;
+  --callout-tip-bg: rgba(22, 163, 74, 0.08);
+  --callout-success: #16a34a;
+  --callout-success-bg: rgba(22, 163, 74, 0.08);
+  --callout-question: #7c3aed;
+  --callout-question-bg: rgba(124, 58, 237, 0.08);
+  --callout-warning: #d97706;
+  --callout-warning-bg: rgba(217, 119, 6, 0.08);
+  --callout-failure: #dc2626;
+  --callout-failure-bg: rgba(220, 38, 38, 0.08);
+  --callout-danger: #dc2626;
+  --callout-danger-bg: rgba(220, 38, 38, 0.08);
+  --callout-bug: #dc2626;
+  --callout-bug-bg: rgba(220, 38, 38, 0.08);
+  --callout-example: #7c3aed;
+  --callout-example-bg: rgba(124, 58, 237, 0.08);
+  --callout-quote: #78716c;
+  --callout-quote-bg: rgba(120, 113, 108, 0.08);
+
+  /* 高亮标记 — 荧光笔色，不严格跟随主题色 */
+  --mark-bg: #fef08a;
 }
 
 /* ── 深色主题（夜读墨色） ──────────────────────────────────── */
@@ -189,9 +216,34 @@ html.dark {
   --popover-border: #322e28;
   --popover-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
 
-  /* Callout — 跟随夜读墨色主色 */
+  /* Callout */
   --callout-note: #b0a080;
   --callout-note-bg: rgba(176, 160, 128, 0.1);
+  --callout-abstract: #67e8f9;
+  --callout-abstract-bg: rgba(103, 232, 249, 0.1);
+  --callout-info: #93c5fd;
+  --callout-info-bg: rgba(147, 197, 253, 0.1);
+  --callout-tip: #86efac;
+  --callout-tip-bg: rgba(134, 239, 172, 0.1);
+  --callout-success: #86efac;
+  --callout-success-bg: rgba(134, 239, 172, 0.1);
+  --callout-question: #c4b5fd;
+  --callout-question-bg: rgba(196, 181, 253, 0.1);
+  --callout-warning: #fcd34d;
+  --callout-warning-bg: rgba(252, 211, 77, 0.1);
+  --callout-failure: #fca5a5;
+  --callout-failure-bg: rgba(252, 165, 165, 0.1);
+  --callout-danger: #fca5a5;
+  --callout-danger-bg: rgba(252, 165, 165, 0.1);
+  --callout-bug: #fca5a5;
+  --callout-bug-bg: rgba(252, 165, 165, 0.1);
+  --callout-example: #c4b5fd;
+  --callout-example-bg: rgba(196, 181, 253, 0.1);
+  --callout-quote: #a8a29e;
+  --callout-quote-bg: rgba(168, 162, 158, 0.1);
+
+  /* 高亮标记 */
+  --mark-bg: rgba(254, 240, 138, 0.3);
 }
 
 /* ── 基础布局 ──────────────────────────────────────────────── */
@@ -263,6 +315,16 @@ html.focus-mode .paragraph-active {
   transition: opacity 0.35s ease;
 }
 
+html.focus-mode [class*="mk-editor"] h1::before,
+html.focus-mode [class*="mk-editor"] h2::before,
+html.focus-mode [class*="mk-editor"] h3::before,
+html.focus-mode [class*="mk-editor"] h4::before,
+html.focus-mode [class*="mk-editor"] h5::before,
+html.focus-mode [class*="mk-editor"] h6::before,
+html.focus-mode [class*="mk-editor"] .mk-pending-heading::before {
+  opacity: 0.2;
+}
+
 html.focus-mode .custom-titlebar {
   position: fixed;
   top: 0;
@@ -287,6 +349,14 @@ html.focus-mode .statusbar-container {
 html.focus-mode .statusbar-container:hover {
   opacity: 1 !important;
   pointer-events: auto !important;
+}
+
+/* ── 主题切换过渡：仅 background-color + color，避开昂贵的 border/box-shadow ── */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: background-color 0.25s ease, color 0.25s ease !important;
 }
 
 /* ── 深色模式下 highlight.js 代码高亮 ─────────────────────── */
@@ -431,4 +501,97 @@ html.dark .hljs {
   width: 8px;
   height: 8px;
   cursor: se-resize;
+}
+
+/* ── 未保存更改对话框 ─────────────────────────────────────── */
+.unsaved-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--modal-overlay);
+  animation: unsaved-fade-in 0.12s ease;
+}
+
+.unsaved-dialog {
+  background: var(--modal-bg);
+  border: 1px solid var(--modal-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--modal-shadow);
+  min-width: 320px;
+  max-width: 400px;
+  animation: unsaved-scale-in 0.15s ease;
+}
+
+.unsaved-dialog-inner {
+  padding: 24px;
+}
+
+.unsaved-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.unsaved-message {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.unsaved-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.unsaved-btn {
+  padding: 6px 16px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.unsaved-btn--save {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+}
+
+.unsaved-btn--save:hover {
+  background: var(--btn-primary-hover);
+}
+
+.unsaved-btn--discard {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.unsaved-btn--discard:hover {
+  background: var(--btn-ghost-hover);
+  color: var(--error-color);
+}
+
+.unsaved-btn--cancel {
+  background: var(--btn-secondary-bg);
+  color: var(--btn-secondary-text);
+}
+
+.unsaved-btn--cancel:hover {
+  background: var(--btn-secondary-hover);
+}
+
+@keyframes unsaved-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes unsaved-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }

@@ -6,8 +6,8 @@ pub mod window;
 
 pub use desktop::{register_shell_new, unregister_shell_new};
 pub use document::{
-    authorize_image_asset, import_document_image, open_document, resolve_document_image_path,
-    save_document,
+    authorize_image_asset, import_document_image, open_document, rename_file,
+    resolve_document_image_path, save_document,
 };
 pub use font::fetch_font_data;
 pub use image::fetch_remote_image;

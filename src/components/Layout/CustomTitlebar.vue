@@ -1,7 +1,7 @@
 <template>
-  <!-- 悬停触发区域：顶部 12px 透明条（仅在自动隐藏模式下生效） -->
+  <!-- 悬停触发区域：顶部 12px 透明条（自动隐藏 or 焦点模式） -->
   <div
-    v-if="autoHide"
+    v-if="autoHide || focusMode"
     class="titlebar-trigger"
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
@@ -44,8 +44,8 @@
         @click="emit('toggleFocusMode')"
       >
         <svg class="focus-eye-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
-          <path class="eye-outline" d="M1 7.5s3-5 6.5-5 6.5 5 6.5 5-3 5-6.5 5S1 7.5 1 7.5z"/>
-          <circle class="eye-pupil" cx="7.5" cy="7.5" r="2"/>
+          <path class="eye-outline" d="M1 7.5s3-5 6.5-5 6.5 5 6.5 5-3 5-6.5 5S1 7.5 1 7.5z" />
+          <circle class="eye-pupil" cx="7.5" cy="7.5" r="2" />
         </svg>
       </button>
       <button
@@ -59,13 +59,13 @@
         </svg>
       </button>
       <button class="titlebar-btn" title="最小化" @click="emit('minimize')">
-        <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+        <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor" /></svg>
       </button>
       <button class="titlebar-btn" title="最大化" @click="emit('maximize')">
-        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></svg>
+        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1" /></svg>
       </button>
       <button class="titlebar-btn titlebar-btn--close" title="关闭" @click="emit('close')">
-        <svg width="10" height="10" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/></svg>
+        <svg width="10" height="10" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2" /><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2" /></svg>
       </button>
     </div>
   </div>
@@ -102,7 +102,7 @@ let hoverTimer: ReturnType<typeof setTimeout> | null = null;
 const TITLEBAR_HIDE_DELAY_MS = 300;
 
 const titlebarVisible = computed(() =>
-  props.autoHide ? titlebarHovered.value : true,
+  (props.autoHide || props.focusMode) ? titlebarHovered.value : true,
 );
 
 function onMouseEnter() {
@@ -161,7 +161,7 @@ onUnmounted(() => {
 .custom-titlebar--visible {
   opacity: 1;
   pointer-events: auto;
-  border-bottom-color: color-mix(in srgb, var(--border-color) 50%, transparent);
+  border-bottom-color: var(--border-color);
 }
 
 .titlebar-title-area {

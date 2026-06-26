@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, onUnmounted } from 'vue';
+import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAppWindowSession } from './composables/useAppWindowSession';
 import { useCommandDispatcher } from './composables/useCommandDispatcher';
@@ -20,6 +20,7 @@ import WindowResizeHandles from './components/Layout/WindowResizeHandles.vue';
 import { useFileStore } from './stores/file';
 import { useSettingsStore } from './stores/settings';
 import { message } from './services/tauri/dialog';
+import { destroyCurrentWindow, newEditorWindow } from './services/tauri/window';
 import { findCommandByShortcut } from './commands/registry';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import pkg from '../package.json';
@@ -31,6 +32,8 @@ const settingsStore = useSettingsStore();
 const { settings, isLoaded } = storeToRefs(settingsStore);
 const appVersion = pkg.version;
 const { editorRef, stats, handleEditorUpdate } = useAppEditorState();
+
+const showAboutModal = ref(false);
 
 const {
   activeViewMode,
@@ -49,7 +52,42 @@ async function handleOpenFile(path: string) {
   await documentSession.openDocumentWithPrompt(path);
 }
 
+import { renameFile } from './services/tauri/document';
+import { normalizeTauriError } from './services/tauri/client';
+
+async function handleRename(name: string) {
+  const currentFile = fileStore.currentFile;
+  if (!currentFile.path) {
+    fileStore.setDisplayName(name);
+    return;
+  }
+
+  const trimmed = name.trim();
+  if (!trimmed || trimmed === currentFile.displayName) return;
+
+  try {
+    const result = await renameFile(currentFile.path, trimmed);
+    fileStore.renamePath(result.path);
+  } catch (error) {
+    const { message: errorMsg } = normalizeTauriError(error);
+    await message(`重命名失败: ${errorMsg}`, { title: '错误', kind: 'error' });
+  }
+}
+
 const { autoSaveStatus, externalFileWarning } = documentSession;
+
+const focusModeNotice = ref<{ message: string; timestamp: number } | null>(null);
+watch(() => settingsStore.isFocusMode, (active) => {
+  if (!active) {
+    const msg = { message: '已退出焦点模式', timestamp: Date.now() };
+    focusModeNotice.value = msg;
+    setTimeout(() => {
+      if (focusModeNotice.value?.timestamp === msg.timestamp) {
+        focusModeNotice.value = null;
+      }
+    }, 2000);
+  }
+});
 
 const { exportHtml, exportPdf, copyToWechat } = useExportActions({
   editorRef,
@@ -87,19 +125,15 @@ function switchToImageView() {
 }
 
 function showAbout() {
-  message(
-    `solo v${appVersion}\n\n极简 Markdown 编辑器`,
-    {
-      title: '关于',
-      kind: 'info',
-    },
-  );
+  showAboutModal.value = true;
 }
 
 const { executeCommand } = useCommandDispatcher({
   editorRef,
   activeViewMode,
-  handleNew: documentSession.handleNewDocument,
+  handleNew: async () => {
+    await newEditorWindow();
+  },
   handleOpen: documentSession.handleOpenDocument,
   handleSave: documentSession.saveCurrentDocument,
   handleSaveAs: documentSession.saveCurrentDocumentAs,
@@ -114,7 +148,6 @@ const { executeCommand } = useCommandDispatcher({
 });
 
 useAppDomEvents({
-  editorRef,
   activeViewMode,
   isFullscreenPreview,
   isFocusMode: () => settingsStore.isFocusMode,
@@ -148,15 +181,24 @@ async function handleMaximize() {
 }
 
 async function handleClose() {
-  await getCurrentWindow().close();
+  try {
+    await windowSession.handleCloseRequest();
+  } catch (e) {
+    console.error('[handleClose] close failed, forcing destroy:', e);
+    await destroyCurrentWindow();
+  }
 }
 
 onMounted(async () => {
-  await Promise.all([
-    settingsStore.init(),
-    windowSession.setup(),
-    syncMenuShortcuts(),
-  ]);
+  try {
+    await Promise.all([
+      settingsStore.init(),
+      windowSession.setup(),
+      syncMenuShortcuts(),
+    ]);
+  } catch (e) {
+    console.error('[App] onMounted init failed:', e);
+  }
 });
 
 onUnmounted(() => {
@@ -179,7 +221,7 @@ onUnmounted(() => {
       :auto-hide="settingsStore.settings.titlebarAutoHide"
       :always-on-top="settingsStore.settings.alwaysOnTop"
       :focus-mode="settingsStore.isFocusMode"
-      @rename="fileStore.setDisplayName"
+      @rename="handleRename"
       @minimize="handleMinimize"
       @maximize="handleMaximize"
       @close="handleClose"
@@ -212,7 +254,9 @@ onUnmounted(() => {
     >
       <div class="minimal-statusbar">
         <div class="statusbar-left">
-          <span v-if="stats.selectionText" class="statusbar-stat statusbar-stat--accent">{{ stats.selectionText.length }} 字选中</span>
+          <span class="statusbar-brand">solo</span>
+          <span v-if="focusModeNotice" class="statusbar-stat statusbar-stat--accent">{{ focusModeNotice.message }}</span>
+          <span v-else-if="stats.selectionText" class="statusbar-stat statusbar-stat--accent">{{ stats.selectionText.length }} 字选中</span>
           <span v-else-if="externalFileWarning" class="statusbar-stat statusbar-stat--warn">{{ externalFileWarning }}</span>
           <span v-else class="statusbar-stat">{{ stats.wordCount }} 字</span>
         </div>
@@ -242,8 +286,8 @@ onUnmounted(() => {
             @click="settingsStore.openModal()"
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="8" cy="8" r="2.2"/>
-              <path d="M13.1 10a1.2 1.2 0 0 0 .24 1.32l.04.04a1.45 1.45 0 1 1-2.06 2.06l-.04-.04a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.73 1.1v.11a1.45 1.45 0 1 1-2.9 0v-.06a1.2 1.2 0 0 0-.79-1.1 1.2 1.2 0 0 0-1.32.24l-.04.04a1.45 1.45 0 1 1-2.06-2.06l.04-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.73h-.11a1.45 1.45 0 1 1 0-2.9h.06a1.2 1.2 0 0 0 1.1-.79 1.2 1.2 0 0 0-.24-1.32l-.04-.04a1.45 1.45 0 1 1 2.06-2.06l.04.04a1.2 1.2 0 0 0 1.32.24h.06a1.2 1.2 0 0 0 .73-1.1v-.11a1.45 1.45 0 1 1 2.9 0v.06a1.2 1.2 0 0 0 .73 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.04a1.45 1.45 0 1 1 2.06 2.06l-.04.04a1.2 1.2 0 0 0-.24 1.32v.06a1.2 1.2 0 0 0 1.1.73h.11a1.45 1.45 0 1 1 0 2.9h-.06a1.2 1.2 0 0 0-1.1.73z"/>
+              <circle cx="8" cy="8" r="2.2" />
+              <path d="M13.1 10a1.2 1.2 0 0 0 .24 1.32l.04.04a1.45 1.45 0 1 1-2.06 2.06l-.04-.04a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.73 1.1v.11a1.45 1.45 0 1 1-2.9 0v-.06a1.2 1.2 0 0 0-.79-1.1 1.2 1.2 0 0 0-1.32.24l-.04.04a1.45 1.45 0 1 1-2.06-2.06l.04-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.73h-.11a1.45 1.45 0 1 1 0-2.9h.06a1.2 1.2 0 0 0 1.1-.79 1.2 1.2 0 0 0-.24-1.32l-.04-.04a1.45 1.45 0 1 1 2.06-2.06l.04.04a1.2 1.2 0 0 0 1.32.24h.06a1.2 1.2 0 0 0 .73-1.1v-.11a1.45 1.45 0 1 1 2.9 0v.06a1.2 1.2 0 0 0 .73 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.04a1.45 1.45 0 1 1 2.06 2.06l-.04.04a1.2 1.2 0 0 0-.24 1.32v.06a1.2 1.2 0 0 0 1.1.73h.11a1.45 1.45 0 1 1 0 2.9h-.06a1.2 1.2 0 0 0-1.1.73z" />
             </svg>
           </button>
         </div>
@@ -260,6 +304,27 @@ onUnmounted(() => {
       @close="closeFullscreenPreview"
       @open-in-viewer="switchToImageView"
     />
+
+    <!-- About 弹窗 -->
+    <Teleport to="body">
+      <Transition name="about">
+        <div
+          v-if="showAboutModal"
+          class="about-overlay"
+          @click.self="showAboutModal = false"
+        >
+          <div class="about-dialog">
+            <div class="about-header">
+              <h2 class="about-title">solo</h2>
+              <span class="about-version">v{{ appVersion }}</span>
+            </div>
+            <p class="about-desc">极简 Markdown 编辑器</p>
+            <p class="about-sub">基于 Tauri 2 · Rust · Vue 3 · TipTap</p>
+            <button class="about-close" @click="showAboutModal = false">关闭</button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -282,13 +347,13 @@ onUnmounted(() => {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
-  opacity: 0.62;
+  opacity: 0.55;
   transition: opacity 0.25s ease;
   user-select: none;
 }
 
 .minimal-statusbar:hover {
-  opacity: 0.92;
+  opacity: 0.78;
 }
 
 .statusbar-left,
@@ -296,6 +361,15 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.statusbar-brand {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary-color);
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+  text-transform: lowercase;
 }
 
 .statusbar-stat {
@@ -374,6 +448,102 @@ onUnmounted(() => {
   background-color: var(--hover-bg);
   color: var(--text-color);
   opacity: 1;
+}
+
+/* ── About 弹窗 ────────────────────────────────────── */
+.about-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--modal-overlay);
+  backdrop-filter: blur(4px);
+}
+
+.about-dialog {
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--modal-shadow);
+  padding: 36px 40px 32px;
+  text-align: center;
+  max-width: 320px;
+}
+
+.about-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.about-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-color);
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.about-version {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.about-desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin: 0 0 4px;
+}
+
+.about-sub {
+  font-size: 12px;
+  color: var(--muted-color);
+  margin: 0 0 20px;
+}
+
+.about-close {
+  padding: 8px 28px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.about-close:hover {
+  background: var(--btn-primary-hover);
+}
+
+/* ── About 弹窗过渡动画 ──────────────────────────── */
+.about-enter-active,
+.about-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.about-enter-active .about-dialog,
+.about-leave-active .about-dialog {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.about-enter-from,
+.about-leave-to {
+  opacity: 0;
+}
+
+.about-enter-from .about-dialog,
+.about-leave-to .about-dialog {
+  transform: scale(0.95);
+  opacity: 0;
 }
 </style>
 

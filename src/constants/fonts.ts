@@ -7,7 +7,7 @@
  * 下载型字体（有 downloadUrl）首次使用时从远端加载并缓存到本地，
  * 系统字体（微软雅黑 UI、system-ui）无需加载。
  *
- * TODO: 打包上传 GitHub 后替换 downloadUrl 为实际 Release asset 地址。
+ * 实际下载地址见 services/fontLoader.ts REMOTE_FONTS + DOWNLOAD_BASE。
  */
 
 export interface FontOption {
@@ -24,17 +24,14 @@ export interface FontOption {
 /**
  * 可选字体清单。
  * 顺序即展示顺序：思源宋体 → 微软雅黑 UI → 朱雀仿宋 → 小赖字体 → 霞鹜文楷 → 汇文明朝 → 系统默认。
- *
- * 下载 URL 占位符 {owner}/{repo}/releases/download/fonts-v1/ 替换为实际 GitHub 仓库信息后生效。
  */
-const DL = 'https://github.com/{owner}/{repo}/releases/download/fonts-v1';
 
 export const FONT_OPTIONS: readonly FontOption[] = [
   { value: 'system-ui',      label: '系统默认' },
   { value: 'Microsoft YaHei UI', label: '微软雅黑 UI' },
-  { value: 'Noto Serif SC',  label: '思源宋体',   downloadUrl: `${DL}/NotoSerifSC-Regular.otf`,    fileName: 'NotoSerifSC-Regular.otf' },
-  { value: 'Zhuque Fangsong', label: '朱雀仿宋',   downloadUrl: `${DL}/ZhuqueFangsong-Regular.ttf`,  fileName: 'ZhuqueFangsong-Regular.ttf' },
-  { value: 'Xiaolai SC',     label: '小赖字体',   downloadUrl: `${DL}/XiaolaiSC-Regular.ttf`,     fileName: 'XiaolaiSC-Regular.ttf' },
-  { value: 'LXGW WenKai',    label: '霞鹜文楷',   downloadUrl: `${DL}/LXGWWenKai-Regular.ttf`,    fileName: 'LXGWWenKai-Regular.ttf' },
-  { value: 'Huiwen-mincho',  label: '汇文明朝',   downloadUrl: `${DL}/Huiwen-mincho-Regular.otf`,  fileName: 'Huiwen-mincho-Regular.otf' },
+  { value: 'Noto Serif SC',  label: '思源宋体',   downloadUrl: '1', fileName: 'NotoSerifSC-Regular.otf' },
+  { value: 'Zhuque Fangsong', label: '朱雀仿宋',   downloadUrl: '1', fileName: 'ZhuqueFangsong-Regular.ttf' },
+  { value: 'Xiaolai SC',     label: '小赖字体',   downloadUrl: '1', fileName: 'XiaolaiSC-Regular.ttf' },
+  { value: 'LXGW WenKai',    label: '霞鹜文楷',   downloadUrl: '1', fileName: 'LXGWWenKai-Regular.ttf' },
+  { value: 'Huiwen-mincho',  label: '汇文明朝',   downloadUrl: '1', fileName: 'Huiwen-mincho-Regular.otf' },
 ] as const;

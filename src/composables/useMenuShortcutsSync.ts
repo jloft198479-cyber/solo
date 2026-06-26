@@ -20,7 +20,6 @@ export function useMenuShortcutsSync(options: MenuShortcutSyncOptions) {
       }
       void syncMenuShortcuts();
     },
-    { deep: true },
   );
 
   return {

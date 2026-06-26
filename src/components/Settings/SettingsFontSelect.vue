@@ -20,7 +20,8 @@ const unsub = onProgress((family, pct) => {
     progressPct.value[family] = pct;
     fontStatus.value[family] = 'loading';
   } else {
-    const { [family]: _, ...rest } = progressPct.value;
+    const rest = { ...progressPct.value };
+    delete rest[family];
     progressPct.value = rest;
     isFontAvailable(family).then((ok) => { fontStatus.value[family] = ok; });
   }

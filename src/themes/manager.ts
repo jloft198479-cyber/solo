@@ -107,12 +107,35 @@ function injectTypography(typography?: ThemeTypography) {
   }
 }
 
+const THEME_PAINT_KEY = 'solo-theme-paint';
+
+function persistThemeColors(colors: ThemeColors, appearance: ThemeAppearance) {
+  try {
+    const vars: Record<string, string> = {};
+    for (const [key, cssVar] of Object.entries(CSS_VAR_MAP)) {
+      vars[cssVar] = colors[key as keyof ThemeColors];
+    }
+    localStorage.setItem(
+      THEME_PAINT_KEY,
+      JSON.stringify({ d: appearance === 'dark', v: vars }),
+    );
+  } catch {
+    // localStorage unavailable (private browsing, etc.)
+  }
+}
+
 export function applyTheme(theme: Theme) {
+  document.documentElement.classList.add('theme-transitioning');
+  document.documentElement.getBoundingClientRect();
   applyDarkClass(theme.appearance);
   injectColors(theme.colors);
+  persistThemeColors(theme.colors, theme.appearance);
   injectTypography(theme.typography);
   void syncNativeWindowTheme(theme.appearance);
   void syncNativeWindowBackground(theme.colors.bgColor);
+  setTimeout(() => {
+    document.documentElement.classList.remove('theme-transitioning');
+  }, 300);
 }
 
 export function getPresetTheme(id: string): Theme | undefined {
@@ -187,7 +210,7 @@ export function importTheme(json: string, appearance: ThemeAppearance = 'light')
 }
 
 export function generateThemeId(): string {
-  return `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `custom-${crypto.randomUUID()}`;
 }
 
 export function cloneTheme(theme: Theme): Theme {

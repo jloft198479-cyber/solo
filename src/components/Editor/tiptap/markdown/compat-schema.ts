@@ -138,6 +138,28 @@ export function createMarkdownCompatSchema(): Schema {
         parseDOM: [{ tag: 'td' }],
         toDOM: () => ['td', 0],
       },
+      footnoteRef: {
+        inline: true,
+        group: 'inline',
+        atom: true,
+        attrs: { label: { default: '' } },
+        parseDOM: [{ tag: 'span[data-footnote-ref]' }],
+        toDOM: () => ['span', { 'data-footnote-ref': '' }, 0],
+      },
+      footnoteSection: {
+        group: 'block',
+        content: 'footnoteDef+',
+        parseDOM: [{ tag: 'section[data-footnote-section]' }],
+        toDOM: () => ['section', { 'data-footnote-section': '' }, 0],
+      },
+      footnoteDef: {
+        group: 'block',
+        content: 'block+',
+        defining: true,
+        attrs: { label: { default: '' } },
+        parseDOM: [{ tag: 'div[data-footnote-def]' }],
+        toDOM: () => ['div', { 'data-footnote-def': '' }, 0],
+      },
       wikilink: {
         inline: true,
         group: 'inline',

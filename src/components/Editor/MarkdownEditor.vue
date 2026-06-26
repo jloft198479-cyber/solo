@@ -1,7 +1,6 @@
 <template>
   <div
     class="editor-shell relative h-full w-full cursor-text transition-colors"
-    @click="handleContainerClick"
   >
     <div ref="editorWrapRef" class="mk-editor h-full overflow-y-auto outline-none">
       <div class="mk-editor-inner">
@@ -17,8 +16,8 @@
     <div v-if="isSearchVisible" class="search-panel" @keydown.escape.stop="handleSearchEscape">
       <div class="search-row">
         <svg class="search-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="6" cy="6" r="4.5"/>
-          <line x1="9.5" y1="9.5" x2="14" y2="14"/>
+          <circle cx="6" cy="6" r="4.5" />
+          <line x1="9.5" y1="9.5" x2="14" y2="14" />
         </svg>
         <input
           ref="searchInputRef"
@@ -28,7 +27,7 @@
           class="search-input"
           spellcheck="false"
           @input="onSearchQuery(searchQuery)"
-          @keydown.enter.prevent="onSearchNext()"
+          @keydown.enter.exact.prevent="onSearchNext()"
           @keydown.shift.enter.prevent="onSearchPrev()"
         />
         <div class="search-meta">
@@ -37,23 +36,25 @@
             :class="{ active: caseSensitive }"
             title="区分大小写"
             @click="toggleCaseSensitive"
-          >Aa</button>
+          >
+            Aa
+          </button>
           <span v-if="searchMatchCount > 0" class="search-count">{{ searchCurrentIndex }}/{{ searchMatchCount }}</span>
         </div>
         <button class="search-btn-nav" title="上一个 (Shift+Enter)" @click="onSearchPrev()">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 2l4 6H1z"/></svg>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 2l4 6H1z" /></svg>
         </button>
         <button class="search-btn-nav" title="下一个 (Enter)" @click="onSearchNext()">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M1 2h8l-4 6z"/></svg>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M1 2h8l-4 6z" /></svg>
         </button>
         <button class="search-btn-close" title="关闭 (Esc)" @click="closeSearch()">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg>
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9" /><line x1="9" y1="1" x2="1" y2="9" /></svg>
         </button>
       </div>
 
       <div v-if="showReplace" class="search-row search-replace-row">
         <svg class="search-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4.5 2v10M2.5 9.5l2 2 2-2M10.5 13V3M8.5 5.5l2-2 2 2"/>
+          <path d="M4.5 2v10M2.5 9.5l2 2 2-2M10.5 13V3M8.5 5.5l2-2 2 2" />
         </svg>
         <input
           v-model="replaceText"
@@ -64,8 +65,8 @@
           @keydown.enter.prevent="onSearchReplace(replaceText)"
         />
         <div class="search-actions">
-          <button class="search-action-btn" @click="onSearchReplace(replaceText)" :disabled="searchMatchCount === 0">替换</button>
-          <button class="search-action-btn" @click="onSearchReplaceAll(replaceText)" :disabled="searchMatchCount === 0">全部替换</button>
+          <button class="search-action-btn" :disabled="searchMatchCount === 0" @click="onSearchReplace(replaceText)">替换</button>
+          <button class="search-action-btn" :disabled="searchMatchCount === 0" @click="onSearchReplaceAll(replaceText)">全部替换</button>
         </div>
       </div>
     </div>
@@ -104,7 +105,6 @@ import SlashMenu from './views/SlashMenu.vue';
 import EmojiMenu from './views/EmojiMenu.vue';
 import './tiptap/editor.css';
 import 'highlight.js/styles/github.css';
-import 'katex/dist/katex.min.css';
 
 type EditorUpdatePayload = {
   wordCount?: number;
@@ -237,9 +237,8 @@ function createEditor(content: string) {
 
   editor.value = e;
 
-  // 同步基线 + 初始字数统计
-  const baseline = serializeMarkdown(e.state.doc);
-  fileStore.setContent(baseline);
+  // 同步基线 — 直接用原始内容建立，避免无意义的解析→序列化轮转
+  fileStore.setContent(content || '');
 
   // 触发初始字数统计
   const wc = getEditorWordCount(e);
@@ -343,16 +342,6 @@ function onBubbleMenuAction(type: string, data?: BubbleMenuActionData) {
   runBubbleMenuAction(editor.value, type, data);
 }
 
-// ── 容器点击 ──────────────────────────────────────────────────
-
-function handleContainerClick(event: MouseEvent) {
-  // 点击编辑器空白区域时聚焦到编辑器末尾
-  const target = event.target as HTMLElement;
-  if (target === editorWrapRef.value) {
-    editor.value?.commands.focus('end');
-  }
-}
-
 // ── 图片拖拽上传 ──────────────────────────────────────────────
 
 let unlistenDragDrop: (() => void) | null = null;
@@ -427,12 +416,6 @@ defineExpose({
     return serializeMarkdown(editor.value.state.doc);
   },
   getDoc: () => editor.value?.state.doc ?? null,
-  getSelectionMarkdown: () => {
-    if (!editor.value) return '';
-    const { from, to, empty } = editor.value.state.selection;
-    if (empty) return '';
-    return editor.value.state.doc.textBetween(from, to, '\n');
-  },
   getEditorView: () => editor.value?.view ?? null,
   hasFocus: () => editor.value?.isFocused ?? false,
   executeCommand: (commandId: string) => executeEditorCommand(editor.value, commandId),

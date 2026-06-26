@@ -27,12 +27,12 @@
       <div class="bubble-menu-divider"></div>
       <button :class="btnClass(activeMarks.bulletList)" title="无序列表" @click="exec('bulletList')">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-          <circle cx="3" cy="4" r="1.2" fill="currentColor" stroke="none"/>
-          <circle cx="3" cy="8" r="1.2" fill="currentColor" stroke="none"/>
-          <circle cx="3" cy="12" r="1.2" fill="currentColor" stroke="none"/>
-          <line x1="6" y1="4" x2="14" y2="4"/>
-          <line x1="6" y1="8" x2="14" y2="8"/>
-          <line x1="6" y1="12" x2="14" y2="12"/>
+          <circle cx="3" cy="4" r="1.2" fill="currentColor" stroke="none" />
+          <circle cx="3" cy="8" r="1.2" fill="currentColor" stroke="none" />
+          <circle cx="3" cy="12" r="1.2" fill="currentColor" stroke="none" />
+          <line x1="6" y1="4" x2="14" y2="4" />
+          <line x1="6" y1="8" x2="14" y2="8" />
+          <line x1="6" y1="12" x2="14" y2="12" />
         </svg>
       </button>
       <div class="bubble-menu-divider"></div>
@@ -41,9 +41,9 @@
       <div class="bubble-menu-divider"></div>
       <button class="bubble-menu-clear-btn" title="清除格式" @click="exec('clearFormat')">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 4l8 8"/>
-          <path d="M3 12h3l1.5-5"/>
-          <path d="M7 3h6l-1.5 3"/>
+          <path d="M4 4l8 8" />
+          <path d="M3 12h3l1.5-5" />
+          <path d="M7 3h6l-1.5 3" />
         </svg>
       </button>
     </div>

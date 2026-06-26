@@ -1,6 +1,5 @@
 import type { Ref } from 'vue';
 import { onUnmounted, watch } from 'vue';
-import { confirm } from '../services/tauri/dialog';
 import type { AppOpenPathsPayload } from '../services/tauri/events';
 import { listenAppOpenPaths, listenWindowCloseRequested } from '../services/tauri/events';
 import { listenCurrentWebviewDragDrop } from '../services/tauri/webview';
@@ -22,27 +21,54 @@ interface AppWindowSessionOptions {
   windowTitle: Ref<string>;
 }
 
-export async function confirmUnsavedChanges(): Promise<'save' | 'discard' | 'cancel'> {
-  const shouldSave = await confirm(
-    '文件未保存，是否保存后再继续？\n\n选择"保存"保存文件，选择"不保存"放弃更改。',
-    {
-      title: '未保存的更改',
-      kind: 'warning',
-      okLabel: '保存',
-      cancelLabel: '不保存',
-    },
-  );
-  if (shouldSave) {
-    return 'save';
-  }
+export function confirmUnsavedChanges(): Promise<'save' | 'discard' | 'cancel'> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'unsaved-overlay';
 
-  const discard = await confirm('确定不保存直接关闭吗？未保存的更改将丢失。', {
-    title: '确认放弃更改',
-    kind: 'warning',
-    okLabel: '不保存并关闭',
-    cancelLabel: '取消',
+    const dialog = document.createElement('div');
+    dialog.className = 'unsaved-dialog';
+    dialog.innerHTML = `
+      <div class="unsaved-dialog-inner">
+        <h3 class="unsaved-title">未保存的更改</h3>
+        <p class="unsaved-message">文件内容尚未保存。</p>
+        <div class="unsaved-actions">
+          <button class="unsaved-btn unsaved-btn--save" data-action="save">保存</button>
+          <button class="unsaved-btn unsaved-btn--discard" data-action="discard">不保存</button>
+          <button class="unsaved-btn unsaved-btn--cancel" data-action="cancel">取消</button>
+        </div>
+      </div>
+    `;
+
+    overlay.appendChild(dialog);
+
+    function handleClick(e: MouseEvent) {
+      const target = (e.target as HTMLElement).closest('[data-action]');
+      if (!target) return;
+      const action = (target as HTMLElement).dataset.action as 'save' | 'discard' | 'cancel';
+      cleanup();
+      resolve(action);
+    }
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        cleanup();
+        resolve('cancel');
+      }
+    }
+
+    function cleanup() {
+      overlay.remove();
+      document.removeEventListener('keydown', handleKeyDown);
+    }
+
+    dialog.addEventListener('click', handleClick);
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.appendChild(overlay);
+
+    const firstBtn = dialog.querySelector('[data-action]') as HTMLButtonElement | null;
+    firstBtn?.focus();
   });
-  return discard ? 'discard' : 'cancel';
 }
 
 export function useAppWindowSession(options: AppWindowSessionOptions) {
@@ -166,5 +192,6 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
     cleanup,
     toggleFullscreen,
     handleQuit,
+    handleCloseRequest,
   };
 }

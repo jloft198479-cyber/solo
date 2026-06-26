@@ -2,13 +2,7 @@ import type { Ref } from 'vue';
 import { onMounted, onUnmounted } from 'vue';
 import type { CommandDefinition } from '../commands/registry';
 
-export interface AppDomEditorApi {
-  getEditorView?: () => { hasFocus: () => boolean } | null;
-  getSelectionMarkdown?: () => string;
-}
-
 export interface AppDomEventsOptions {
-  editorRef: Ref<AppDomEditorApi | null>;
   activeViewMode: Ref<'editor' | 'image'>;
   isFullscreenPreview: Ref<boolean>;
   isFocusMode: () => boolean;
@@ -25,22 +19,6 @@ export interface AppDomEventsOptions {
 }
 
 export function useAppDomEvents(options: AppDomEventsOptions) {
-  function onCopy(event: ClipboardEvent) {
-    if (
-      !options.editorRef.value ||
-      options.activeViewMode.value !== 'editor'
-    ) {
-      return;
-    }
-
-    const view = options.editorRef.value.getEditorView?.();
-    if (!view || !view.hasFocus()) return;
-    const markdown = options.editorRef.value.getSelectionMarkdown?.() || '';
-    if (!markdown) return;
-    event.clipboardData?.setData('text/plain', markdown);
-    event.preventDefault();
-  }
-
   function onPaste(event: ClipboardEvent) {
     const target = event.target as HTMLElement | null;
     if (target?.closest('.tiptap-editor')) return;
@@ -90,24 +68,25 @@ export function useAppDomEvents(options: AppDomEventsOptions) {
 
     if (event.key === 'Escape') {
       if (options.isFullscreenPreview.value) {
+        event.preventDefault();
         options.clearFullscreenPreview();
       } else if (options.activeViewMode.value === 'image' && options.resetViewMode) {
+        event.preventDefault();
         options.resetViewMode();
       } else if (options.isFocusMode()) {
+        event.preventDefault();
         await options.toggleFocusMode();
       }
     }
   }
 
   onMounted(() => {
-    document.addEventListener('copy', onCopy);
     document.addEventListener('paste', onPaste);
     window.addEventListener('image-paste-warning', handleImagePasteWarning as EventListener);
     window.addEventListener('keydown', handleKeyDown);
   });
 
   onUnmounted(() => {
-    document.removeEventListener('copy', onCopy);
     document.removeEventListener('paste', onPaste);
     window.removeEventListener('keydown', handleKeyDown);
     window.removeEventListener('image-paste-warning', handleImagePasteWarning as EventListener);
@@ -115,6 +94,5 @@ export function useAppDomEvents(options: AppDomEventsOptions) {
 
   return {
     handleKeyDown,
-    onCopy,
   };
 }

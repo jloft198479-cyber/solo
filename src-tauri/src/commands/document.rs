@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::models::{
-    DocumentImageImportResult, DocumentImageResolveResult, DocumentOpenResult, DocumentSaveResult,
-    ImageAssetAuthorizationResult,
+    DocumentImageImportResult, DocumentImageResolveResult, DocumentOpenResult, DocumentRenameResult,
+    DocumentSaveResult, ImageAssetAuthorizationResult,
 };
 use std::fs;
 use std::io::Write;
@@ -50,6 +50,65 @@ pub fn save_document(
         path,
         last_modified_ms,
     })
+}
+
+#[tauri::command]
+pub fn rename_file(old_path: String, new_name: String) -> Result<DocumentRenameResult, AppError> {
+    let trimmed = new_name.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::validation("文件名不能为空"));
+    }
+
+    let illegal_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
+    if trimmed.chars().any(|c| illegal_chars.contains(&c)) {
+        return Err(AppError::validation("文件名包含非法字符"));
+    }
+
+    let old_path_ref = Path::new(&old_path);
+    if !old_path_ref.exists() {
+        return Err(AppError::validation("原文件不存在"));
+    }
+
+    let extension = old_path_ref
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .ok_or_else(|| AppError::validation("无法识别文件扩展名"))?;
+
+    let parent = old_path_ref
+        .parent()
+        .ok_or_else(|| AppError::validation("无法获取父目录"))?;
+
+    // 去掉用户可能自己加的 .md 后缀
+    let stem = trimmed
+        .strip_suffix(".md")
+        .or_else(|| trimmed.strip_suffix(".markdown"))
+        .or_else(|| trimmed.strip_suffix(".txt"))
+        .unwrap_or(trimmed);
+
+    let new_filename = format!("{}.{}", stem, extension);
+    let new_path = parent.join(&new_filename);
+
+    // 目标已存在且不是同一文件 → 冲突
+    if new_path.exists() {
+        let same = old_path_ref.canonicalize().ok()
+            == new_path.canonicalize().ok();
+        if !same {
+            return Err(AppError::conflict("目标文件已存在"));
+        }
+        // 同一文件（如仅大小写变化）→ 无需操作
+        return Ok(DocumentRenameResult {
+            path: new_path.to_string_lossy().to_string(),
+        });
+    }
+
+    fs::rename(old_path_ref, &new_path)?;
+
+    let new_path_str = new_path
+        .to_str()
+        .ok_or_else(|| AppError::validation("路径包含非法字符"))?
+        .to_string();
+
+    Ok(DocumentRenameResult { path: new_path_str })
 }
 
 #[tauri::command]
@@ -158,7 +217,6 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), AppError> 
     {
         let mut file = fs::File::create(&tmp_path)?;
         file.write_all(content)?;
-        file.sync_all()?;
     }
 
     // std::fs::rename 在 Windows 上使用 MoveFileExW + MOVEFILE_REPLACE_EXISTING，

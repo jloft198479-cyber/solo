@@ -5,7 +5,6 @@ import { confirm } from '../../services/tauri/dialog';
 import AppearanceSettingsPanel from './AppearanceSettingsPanel.vue';
 import CloseIcon from '../icons/CloseIcon.vue';
 import EditorSettingsPanel from './EditorSettingsPanel.vue';
-import ExportSettingsPanel from './ExportSettingsPanel.vue';
 import SaveSettingsPanel from './SaveSettingsPanel.vue';
 import SettingsSidebarNav, { type SettingsTabKey } from './SettingsSidebarNav.vue';
 import ShortcutSettingsPanel from './ShortcutSettingsPanel.vue';
@@ -55,10 +54,6 @@ const tabMeta = {
   save: {
     title: '保存策略',
     description: '控制自动保存与文件持久化行为。',
-  },
-  export: {
-    title: '导出',
-    description: '设置复制到微信等导出场景的排版风格。',
   },
 } as const;
 
@@ -140,7 +135,9 @@ function onKeyDown(e: KeyboardEvent) {
                   <div
                     v-if="activeTab === 'appearance'"
                     class="settings-page-badge"
-                  >{{ `当前主题：${currentThemeName}` }}</div>
+                  >
+                    {{ `当前主题：${currentThemeName}` }}
+                  </div>
                 </div>
 
                 <!-- 外观设置 -->
@@ -183,12 +180,6 @@ function onKeyDown(e: KeyboardEvent) {
                   v-model:auto-save="settingsStore.settings.autoSave"
                   v-model:auto-save-interval="settingsStore.settings.autoSaveInterval"
                   v-model:image-storage-path="settingsStore.settings.imageStoragePath"
-                />
-
-                <!-- 导出设置 -->
-                <ExportSettingsPanel
-                  v-show="activeTab === 'export'"
-                  v-model:wechat-theme="settingsStore.settings.wechatTheme"
                 />
               </div>
             </div>

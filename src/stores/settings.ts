@@ -29,8 +29,6 @@ export interface Settings {
   titlebarAutoHide: boolean;
   /** Editor line height */
   lineHeight: number;
-  /** Export theme */
-  wechatTheme: string;
   /** Custom shortcuts */
   customShortcuts: Record<string, string>;
   /** Window always on top */
@@ -50,14 +48,13 @@ const DEFAULT_SETTINGS: Settings = {
   spellCheck: true,
   titlebarAutoHide: false,
   lineHeight: 1.6,
-  wechatTheme: 'follow-editor',
   customShortcuts: {},
   alwaysOnTop: false,
   imageStoragePath: '',
-  configVersion: 8,
+  configVersion: 9,
 };
 
-const CURRENT_CONFIG_VERSION = 8;
+const CURRENT_CONFIG_VERSION = 9;
 
 /** 自动保存间隔下限（秒），防止配置异常导致过于频繁的保存 */
 const MIN_AUTOSAVE_INTERVAL_SECONDS = 5;
@@ -186,7 +183,7 @@ export const useSettingsStore = defineStore('settings', {
       }
 
       const fallbackAppearance = this.currentTheme?.appearance ?? 'light';
-      const fallbackId = fallbackAppearance === 'dark' ? 'scholar-dark' : 'default-light';
+      const fallbackId = fallbackAppearance === 'dark' ? 'scholar-dark' : DEFAULT_SETTINGS.activeThemeId;
       return getTheme(fallbackId, this.settings.customThemes)
         ? fallbackId
         : DEFAULT_SETTINGS.activeThemeId;
@@ -238,22 +235,22 @@ export const useSettingsStore = defineStore('settings', {
 
     startWatchers() {
       if (!this._stopSettingsWatcher) {
-        // deep watch 负责持久化，不再调用 updateAllThemes
+        // 浅层 watch 所有顶层字段（不包括嵌套的 customThemes 数组），触发时持久化
         this._stopSettingsWatcher = watch(
-          () => this.settings,
-          (newSettings) => {
-            void this.saveSettingsToStore(newSettings);
+          () => ({ ...this.settings }),
+          () => {
+            void this.saveSettingsToStore(this.settings);
           },
-          { deep: true },
         );
       }
 
-      // customThemes 变化时才重建主题数组
+      // customThemes 变化时重建主题数组并持久化
       if (!this._stopThemeWatcher) {
         this._stopThemeWatcher = watch(
           () => this.settings.customThemes,
           () => {
             this.updateAllThemes();
+            void this.saveSettingsToStore(this.settings);
           },
           { deep: true },
         );
