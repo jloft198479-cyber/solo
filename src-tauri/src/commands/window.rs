@@ -43,6 +43,7 @@ fn set_memory_target(_window: &WebviewWindow, _level: ()) {}
 /// 窗口最小化时暂停 WebView2 renderer 进程，释放物理内存。
 /// 恢复时 WebView2 自动 Resume（IsVisible=true 触发）。
 #[cfg(target_os = "windows")]
+#[allow(unused_unsafe)]
 fn suspend_webview(window: &WebviewWindow) {
     use tauri::webview::PlatformWebview;
     let _ = window.with_webview(move |wv: PlatformWebview| {
