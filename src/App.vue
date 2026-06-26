@@ -80,7 +80,7 @@ watch(() => settingsStore.isFocusMode, (active) => {
 });
 
 // ── Shell 集成动态注册/注销 ─────────────────────────────────
-import { registerShellNew, unregisterShellNew, setCurrentWindowAlwaysOnTop } from './services/tauri/window';
+import { registerShellNew, unregisterShellNew } from './services/tauri/window';
 import { isWindows } from './utils/platform';
 
 watch(
@@ -96,15 +96,6 @@ watch(
     } catch (e) {
       console.warn('[ShellIntegration] toggle failed:', e);
     }
-  },
-);
-
-watch(
-  () => settingsStore.settings.alwaysOnTop,
-  (enabled) => {
-    setCurrentWindowAlwaysOnTop(enabled).catch((e) =>
-      console.warn('[AlwaysOnTop] toggle failed:', e),
-    );
   },
 );
 
