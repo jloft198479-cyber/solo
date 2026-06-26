@@ -356,36 +356,27 @@ async function setupDragDrop() {
   });
 }
 
-// ── 非活跃窗口内存管理 + 编辑器懒初始化 ──────────────────────────
-// 窗口失去焦点时销毁编辑器释放内存，重新聚焦时恢复编辑状态
-// 新窗口打开时不立即创建编辑器，首次聚焦或点击时再初始化
+// ── 编辑器懒初始化 ────────────────────────────────────────────────
+// 新窗口打开时不立即创建编辑器，首次聚焦或点击时才初始化。
+// 注意：不活跃窗口不销毁编辑器——保留内容可见，仅由 Rust 侧
+// MemoryUsageTargetLevel=Low 降低 WebView2 内存占用。
 
 function lazyInitEditor() {
   if (editor.value && !editor.value.isDestroyed) return;
   createEditor(fileStore.currentFile.content || props.initialContent || '');
 }
 
-let unlistenBlur: (() => void) | null = null;
 let unlistenFocus: (() => void) | null = null;
 
 async function setupWindowFocusHandlers() {
   try {
     const appWindow = getCurrentWindow();
-    unlistenBlur = await appWindow.listen('solo:editor-blur', () => {
-      if (!editor.value || editor.value.isDestroyed) return;
-      // 确保挂起的序列化和统计操作完成
-      debouncedSerialize.flush();
-      debouncedStatsUpdate.flush();
-      debouncedEmitCursorInfo.flush();
-      editor.value.destroy();
-      editor.value = null;
-    });
     unlistenFocus = await appWindow.listen('solo:editor-focus', () => {
       if (editor.value && !editor.value.isDestroyed) return;
       lazyInitEditor();
     });
   } catch {
-    // 事件系统初始化失败，跳过非活跃窗口优化
+    // 事件系统初始化失败，跳过懒初始化
   }
 }
 
@@ -407,9 +398,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  // 1. 先断开 focus/blur 事件，防止销毁期间回调触发
-  unlistenBlur?.();
-  unlistenBlur = null;
+  // 1. 先断开 focus 事件，防止销毁期间回调触发
   unlistenFocus?.();
   unlistenFocus = null;
 
