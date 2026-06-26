@@ -95,7 +95,7 @@ fn create_editor_window(
         }
     }
 
-    attach_close_interceptor(&window);
+    attach_window_events(&window, app);
 
     #[cfg(target_os = "macos")]
     window::apply_macos_window_background(&window, "#ffffff")?;
@@ -372,7 +372,7 @@ pub fn run() {
                     main_window.open_devtools();
                 }
 
-                attach_close_interceptor(&main_window);
+                attach_window_events(&main_window, app.handle());
 
                 // 窗口启动时先隐藏，状态恢复后再显示，避免闪烁
                 main_window.show().map_err(error::AppError::from)?;

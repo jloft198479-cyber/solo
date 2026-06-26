@@ -2,14 +2,28 @@ use crate::error::AppError;
 use crate::events::emit_window_close_requested;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSColor, NSWindow};
-use tauri::WebviewWindow;
+use tauri::{Emitter, WebviewWindow};
 
-pub fn attach_close_interceptor(window: &WebviewWindow) {
+pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
+    let label = window.label().to_string();
     let window_clone = window.clone();
+    let handle = app.clone();
+
     window.on_window_event(move |event| {
-        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-            api.prevent_close();
-            emit_window_close_requested(&window_clone);
+        match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
+                emit_window_close_requested(&window_clone);
+            }
+            tauri::WindowEvent::Focused(focused) => {
+                let event_name = if *focused {
+                    "solo:editor-focus"
+                } else {
+                    "solo:editor-blur"
+                };
+                let _ = handle.emit_to(label.as_str(), event_name, ());
+            }
+            _ => {}
         }
     });
 }
