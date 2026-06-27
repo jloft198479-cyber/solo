@@ -1,0 +1,99 @@
+{
+  // solo — 轻量 Markdown 编辑器
+  // 项目路径: F:\fzz-Project\md-editor\md-editor
+
+  "techStack": {
+    "frontend": "Vue 3 + Pinia + TypeScript",
+    "editor": "TipTap v3 (ProseMirror)",
+    "markdownParser": "markdown-it",
+    "desktop": "Tauri v2.11 / Rust",
+    "packageManager": "bun v1.3.14"
+  },
+
+  "completedTasks": [
+    "Phase A: Rust on_window_event 合并 close + focus，前端 blur → destroy editor / focus → lazyInitEditor",
+    "Phase B: Editor 懒初始化 — onMounted 不创建，等 focus/click 再建",
+    "Fix #5: 通用 Markdown 粘贴检测 — markdown-paste.ts 扩展 detects 标题/引用/围栏/列表",
+    "Fix #6: Ctrl+C 带 Markdown 源码 — clipboardTextSerializer 注入 editorProps",
+    "Fix #7: 确认「导出 PDF」已改为「打印」— ExportPopover.vue + commands/registry.ts 均已改",
+    "Bug 1: create_editor_window 缺 set_focus() — lib.rs 加 window.set_focus() 解决窗口前台锁",
+    "Bug 2: Focused 事件竞争条件 — setTimeout(50ms) 兜底创建编辑器，打破死锁",
+    "Bug 3: @click.self 失效 — 改成 @click，lazyInitEditor 内部有守卫防重复",
+    "P0: isSaving 锁阻塞关闭时保存 — saveCurrentDocument 改为等待 ≤1s，handleCloseRequest 先停 auto-save",
+    "P2: 菜单「退出」不退出进程 — exit_app Rust 命令 + 前端 handleQuit 联动",
+    "P4: FULLSCREEN 被持久化 — 从 StateFlags 移除",
+    "P1: LoadedWindows/FocusedWindow 不清理 — Destroyed 事件处理器移除过期条目"
+  ],
+
+  "sessionDiagnostics": {
+    "buildResult": {
+      "vue-tsc": "clean (no errors)",
+      "vite-build": "success, 13.08s",
+      "rust": "cannot verify (no cargo in environment)"
+    },
+    "githubResearch": {
+      "verifiedBestPractices": [
+        "Window creation from sync command deadlocks on Windows — 已使用 async",
+        "additional_browser_args + missing data_directory deadlock — 未使用，无风险",
+        "on_window_event 全局 vs 单窗口不冲突 — 插件用 Builder::on_window_event，项目用 window.on_window_event",
+        "AppHandle::exit() 在主线程调用报错 — IPC 命令在异步线程执行，安全",
+        "Label 唯一性 v2 内置检测 — WINDOW_COUNTER 原子递增",
+        "StateFlags::VISIBLE 不保存 — 避免窗口闪烁",
+        "FULLSCREEN 移除正确 — known bug #3215 确认此做法"
+      ],
+      "noNewIssuesFound": true
+    }
+  },
+
+  "keyDecisions": {
+    "rustOnWindowEventVsJS": "原生窗口事件更可靠，涵盖标题栏点击、Alt+Tab",
+    "onWindowEventSingleCallback": "Tauri v2 只支持一个回调 → 必须合并 close + focus",
+    "pasteTwoPhase": "GFM 表格优先（精确匹配），通用 markdown 次之（保守）",
+    "clipboardTextSerializer": "ProseMirror 原生 API，不需手动管理 HTML",
+    "setTimeoutFallback": "Focus 事件竞争条件：onMounted 注册 listener 后加 setTimeout(50ms) 兜底创建",
+    "clickSelfToClick": "lazyInitEditor 从 @click.self 改成 @click，编辑器未创建时 target 不是 shell 自身",
+    "saveCurrentDocumentWait": "isSaving 锁改为等待 ≤1s 而非直接返回 false，解决关闭时 auto-save 正在进行的 race",
+    "stopAutoSaveBeforeClose": "handleCloseRequest 优先停 auto-save 再弹保存对话框 → 避免新 save 介入",
+    "exitAppViaRustCommand": "app.exit(0) 在 Rust 侧通过 IPC 调用（异步线程），绕过主线程调用报错问题",
+    "removeFULLSCREENFromStateFlags": "StateFlags::FULLSCREEN 持久化后窗口尺寸恢复异常（已验证 GH issue #3215）",
+    "onWindowEventDestroyedCleanup": "Destroyed 事件处理器中移除 LoadedWindows 和 FocusedWindow 到期条目"
+  },
+
+  "knownLimitations": [
+    "表格内 <br> 序列化转义 — GFM 标准不支持表格换行，不是 bug",
+    "Mark 顺序重排 (~~**x~~** → **~~x~~**) — ProseMirror schema 行为，渲染一致",
+    "MathInline atom 不可遍历编辑 — 通过 NodeView 双击编辑",
+    "复杂 Frontmatter YAML — 手写解析器只覆盖 key:value 和缩进列表",
+    "PDF 导出 = 浏览器打印 — 真 PDF 生成太繁重，改名「打印」诚实",
+    "延迟兜底(50ms) 牺牲背景窗口懒加载 — 但 Phase A 的 MemoryUsageTargetLevel=Low 仍生效",
+    "P3: 崩溃 .tmp 残留清理 — 方案复杂（跨目录、多实例检测），收益低，搁置"
+  ],
+
+  "environmentNotes": {
+    "noCargo": "Cargo 未安装，无法验证 Rust 编译",
+    "noGitHubAccess": "github.com / raw.githubusercontent.com 不可达（Microsoft docs 可访问）",
+    "os": "Windows"
+  },
+
+  // 关键文件索引
+  "keyFiles": {
+    "markdownEditor": "src/components/Editor/MarkdownEditor.vue",
+    "pasteExtension": "src/components/Editor/tiptap/extensions/markdown-paste.ts",
+    "rustWindowEvents": "src-tauri/src/commands/window.rs",
+    "rustLib": "src-tauri/src/lib.rs",
+    "rustState": "src-tauri/src/state.rs",
+    "rustCommandsMod": "src-tauri/src/commands/mod.rs",
+    "markdownParser": "src/components/Editor/tiptap/markdown/parser.ts",
+    "markdownSerializer": "src/components/Editor/tiptap/markdown/serializer.ts",
+    "exportPopover": "src/components/ExportPopover.vue",
+    "commandRegistry": "src/commands/registry.ts",
+    "useDocumentSession": "src/composables/useDocumentSession.ts",
+    "useAppWindowSession": "src/composables/useAppWindowSession.ts",
+    "tauriWindowService": "src/services/tauri/window.ts",
+    "tauriCommandNames": "src/services/tauri/command-names.ts"
+  },
+
+  "pendingItems": {
+    "P3": "崩溃 .tmp 残留清理 — 搁置"
+  }
+}
