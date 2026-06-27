@@ -78,6 +78,8 @@
 import { nextTick, onMounted, ref, shallowRef, onBeforeUnmount, watch } from 'vue';
 import { debounce } from 'lodash-es';
 import { Editor as TiptapEditor, EditorContent } from '@tiptap/vue-3';
+import type { Slice } from '@tiptap/pm/model';
+import type { EditorView } from '@tiptap/pm/view';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { useFileStore } from '../../stores/file';
@@ -221,6 +223,11 @@ function createEditor(content: string) {
       attributes: {
         class: 'tiptap-editor',
         spellcheck: settingsStore.settings.spellCheck ? 'true' : 'false',
+      },
+      clipboardTextSerializer(slice: Slice, view: EditorView) {
+        if (slice.content.size === 0) return '';
+        const wrapper = view.state.schema.nodes.doc.create(null, slice.content);
+        return serializeMarkdown(wrapper);
       },
     },
     onUpdate: ({ editor: ed }) => {
