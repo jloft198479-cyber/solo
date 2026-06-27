@@ -763,7 +763,7 @@
 
 /* ── Callout 块 ────────────────────────────────────────────── */
 .tiptap-editor .mk-callout {
-  border-radius: 6px;
+  border-radius: 0;
   padding: 14px 18px;
   margin: 12px 0;
   background-color: var(--callout-note-bg);

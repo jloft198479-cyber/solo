@@ -64,7 +64,7 @@
     "popoverBorder": "#322e28",
     "popoverShadow": "0 10px 15px -3px rgba(0, 0, 0, 0.4)",
     "calloutNote": "#b0a080",
-    "calloutNoteBg": "rgba(176, 160, 128, 0.1)",
+    "calloutNoteBg": "rgba(176, 160, 128, 0.12)",
     "markBg": "rgba(254, 240, 138, 0.45)"
   },
   "typography": {
