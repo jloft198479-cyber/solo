@@ -3,10 +3,14 @@
   // 项目路径: F:\fzz-Project\md-editor\md-editor
   //
   // 全面档案见同目录 PROFILE.md，新会话先读那篇
+  //
+  // 本文件用于多 agent 快速索引，不保留细节。
+  // 所有问题、决策、影响范围统一记录在 PROFILE.md 对应章节。
 
   "techStack": {
     "frontend": "Vue 3 + Pinia + TypeScript",
     "editor": "TipTap v3 (ProseMirror)",
+    "markdownParseSerializer": "自研 parser/serializer（非 prosemirror-markdown）",
     "desktop": "Tauri v2.11 / Rust 1.96.0",
     "build": "bun run build → bunx tauri build",
     "packageManager": "bun v1.3.14"
@@ -15,24 +19,68 @@
   "profile": ".opencode/PROFILE.md",
 
   "completedTasks": [
+    // ── 窗口/生命周期系列 (v1.2.1) ──
     "Phase A: Rust on_window_event 合并 close+focus，前端 blur→destroy/focus→lazyInit",
     "Phase B: Editor 懒初始化 — onMounted 不创建，等 focus/click",
+    "Bug 1-3: set_focus / setTimeout 兜底 / @click.self→@click",
+    "P0: isSaving 锁阻塞关闭时保存 — saveCurrentDocument 等待≤1s",
+    "P1: LoadedWindows/FocusedWindow 不清理 — Destroyed 清理",
+    "P2: 菜单退出不退出进程 — exit_app Rust 命令",
+    "P4: FULLSCREEN 从 StateFlags 移除",
+
+    // ── 粘贴/复制/导出系列 (v1.2.2) ──
     "Fix #5: 通用 Markdown 粘贴检测 — 标题/引用/围栏/列表",
     "Fix #6: Ctrl+C 带 Markdown 源码 — clipboardTextSerializer",
     "Fix #7: 确认「导出 PDF」→「打印」",
-    "Bug 1-3: set_focus / setTimeout 兜底 / @click.self→@click",
-    "P0: isSaving 锁阻塞关闭时保存 — saveCurrentDocument 等待≤1s",
-    "P2: 菜单退出不退出进程 — exit_app Rust 命令",
-    "P4: FULLSCREEN 从 StateFlags 移除",
-    "P1: LoadedWindows/FocusedWindow 不清理 — Destroyed 清理",
-    "v1.2.3: 文件关联移入 NSIS installerHooks — 安装即生效"
+
+    // ── 文件关联系列 (v1.2.3) ──
+    "v1.2.3: 文件关联移入 NSIS installerHooks — 安装即生效",
+
+    // ── Markdown roundtrip 系列 (ffa2d2a) ──
+    "嵌套列表序列化：子列表前空行破坏嵌套 → serializer renderContent 增加 inTightList 判断",
+    "嵌套列表序列化：子列表无缩进 → renderList 增加 listDepth 和 3sp/级 缩进",
+    "3 层嵌套 roundtrip 不稳定 → 同上两处修复",
+    "任务列表 checked 状态丢失 → parser html_inline 提取 checked=\"\" 设到 parent taskItem",
+    "任务列表 checkbox 后文本双空格 → inline handler 跳过前导空格",
+    "test schema 缺 taskList/taskItem 节点 → test-utils.ts + roundtrip.spec.ts 补充",
+
+    // ── 主题系统 (ffa2d2a) ──
+    "highlight mark 样式硬编码 → 提取为 theme markBg / markBorderRadius CSS 变量",
+
+    // ── blockquote vs callout 视觉差异化 ──
+    "blockquote 引用 和 callout 重点 左边框+背景色一模一样 → blockquote 去背景改线条风，callout 加类型标签改卡片风"
   ],
 
   "keyDecisions": {
-    "installerHooksForFileAssoc": "Tauri fileAssociations 不写 ShellNew/DefaultIcon；Rust 运行时注册太晚。NSIS 安装阶段写注册表 + SHChangeNotify 刷新，装完即生效。见 PROFILE.md",
+    // ── 窗口/生命周期 ──
     "onWindowEventSingleCallback": "Tauri v2 只支持一个回调→必须合并",
     "saveCurrentDocumentWait": "isSaving 锁改为等待≤1s 而非直接 false",
-    "exitAppViaRustCommand": "app.exit(0) 通过 IPC 调用，不在主线程"
+    "exitAppViaRustCommand": "app.exit(0) 通过 IPC 调用，不在主线程",
+
+    // ── 文件关联 ──
+    "installerHooksForFileAssoc": "Tauri fileAssociations 不写 ShellNew/DefaultIcon；Rust 运行时注册太晚。NSIS 安装阶段写注册表 + SHChangeNotify 刷新，装完即生效。见 PROFILE.md §文件关联",
+
+    // ── Markdown roundtrip ──
+    "serializerEscapeTwoModes": "clipboard=false（文件保存）严格转义 16 字符保证 fidelity；clipboard=true（剪贴板）仅转义 \\ ` * + 行首特殊字符，避免 \= \? \! 多余符号。见 serializer.ts:136-150",
+    "nestedListIndentDepth": "每级嵌套 3 空格缩进（CommonMark 标准）。serializer.ts listDepth 计数",
+    "taskListDetection": "parser bullet_list_open 前看 token 检测 task-list-item class → 开 taskList 代替 bulletList；checked 状态从 html_inline <input checked=\"\"> 提取，不从 class 属性（markdown-it-task-lists 仅 token 阶段不加 checked class）",
+  },
+
+  "testInfrastructure": {
+    "testFramework": "Vitest + happy-dom",
+    "testCommand": "bun run test",
+    "buildValidation": "vue-tsc --noEmit && vite build",
+    "roundtripTestDir": "src/components/Editor/tiptap/markdown/__tests__/",
+    "fixtureDir": "src/components/Editor/tiptap/markdown/__tests__/fixtures/",
+    "fixtureCount": 17,
+    "fuzzCount": 100,
+    "coreFiles": {
+      "testUtils": "src/components/Editor/tiptap/markdown/__tests__/test-utils.ts",
+      "fixtureSpec": "src/components/Editor/tiptap/markdown/__tests__/fixtures.spec.ts",
+      "fuzzSpec": "src/components/Editor/tiptap/markdown/__tests__/fuzz.spec.ts",
+      "roundtripSpec": "src/components/Editor/tiptap/markdown/__tests__/roundtrip.spec.ts"
+    },
+    "testingStrategy": "两轮稳定性（parse→serialize→parse→serialize，round1===round2）而非精确匹配输入/输出。每改动 parser/serializer 后必须 bun run test"
   },
 
   "knownLimitations": [
@@ -49,7 +97,8 @@
     "gitHubAccess": false,
     "buildScripts": {
       "fullBundle": "M:\\temp\\build_solo_tauri.bat",
-      "rustOnly": "M:\\temp\\build_solo_full.bat"
+      "rustOnly": "M:\\temp\\build_solo_full.bat",
+      "frontendOnly": "M:\\temp\\build_solo_frontend.bat"
     }
   },
 
