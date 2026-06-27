@@ -5,7 +5,7 @@
 <h1 align="center">solo</h1>
 
 <p align="center">
-  <strong>一款基于 Tauri 2、Rust 领域内核与 TipTap 的本地优先 Markdown 编辑器</strong>
+  <strong>本地优先、极简沉浸的 Markdown 编辑器</strong>
 </p>
 
 <p align="center">
@@ -18,74 +18,47 @@
   <a href="./README.ko-KR.md">한국어</a>
 </p>
 
+## 产品定位
+
+solo 是一把「专为文字而生的手术刀」——秒开秒关、书卷气质、本地文件、不作生态。不是笔记软件，不是知识库。
+
 ## 核心特性
 
-- 所见即所得编辑：基于 TipTap / ProseMirror，代码块、表格、数学公式、Mermaid、Callout 等都在渲染态编辑。
-- 本地优先：文档、图片和工作区全部在本地管理，图片自动落到文档目录下的 `assets/`。
-- 多窗口桌面体验：支持新窗口打开文档、窗口状态持久化、原生菜单和系统打印。
-- 结构化工作区：Rust 负责目录过滤、watcher 聚合、外部变更事件和保存冲突检测。
-- 微信与 HTML 导出：前端渲染导出内容，原生侧负责打印与文件写入。
+- **所见即所得** — 基于 TipTap / ProseMirror，输入即渲染，告别分栏预览。
+- **多窗口** — 同时打开多个文件，每窗口独立会话。切窗口内容不丢失，并排对照无压力。
+- **扩展语法** — KaTeX 数学公式、Mermaid 图表、GFM 表格、脚注、Frontmatter YAML、Callout（12 色）、WikiLink、高亮、上下标。
+- **文艺版面** — 3 套书卷气主题（纸白 / 墨黑 / 砚青），字体按需下载，精心调校行距与留白。
+- **桌面原生** — 无边框窗口、系统菜单、右键新建 .md、双击标题栏最大化、置顶、自动保存。
+- **内存克制** — 多窗口下 WebView2 MemoryUsageTargetLevel 自动降级，编辑器懒初始化，安装包仅 ~5MB。
+- **HTML 导出** — 完整主题跟随导出，所见即所得。
+- **格式保真** — parser ↔ serializer round-trip 测试 56 项全覆盖，粘贴 Markdown 自动转换，Ctrl+C 同时写入源码到剪贴板。
 
 ## 技术架构
 
-solo 现在采用明确的三层边界：
+Tauri 2（Rust）→ Vue 3 + Pinia + TipTap/ProseMirror + Tailwind CSS 4
 
-- Vue 3 + Pinia + TipTap：负责 UI、编辑器体验和命令分发
-- Tauri 2：负责插件、权限边界和命令/事件桥接
-- Rust 领域内核：负责文档、工作区、窗口运行时和 watcher 一致性
+* 前端业务层统一通过 `services/tauri/` 封装调用 Rust 命令
+* Rust 侧返回结构化 DTO + `AppError`
+* 通用能力优先使用 Tauri 官方插件
 
-约束如下：
+## 安装
 
-- 前端业务层不直接调用 `invoke` / `listen` / `emit`
-- Rust 对外命令全部返回结构化 DTO 和 `AppError`
-- 通用桌面能力优先使用官方插件
+从 [Releases](https://github.com/jloft198479-cyber/solo/releases) 下载最新安装包。支持自定义安装路径。
 
-更多说明见：
-
-- [文档索引](./docs/README.md)
-- [架构说明](./docs/ARCHITECTURE.md)
-- [工程标准](./docs/ENGINEERING_STANDARDS.md)
-- [路线图](./docs/ROADMAP.md)
-- [更新日志](./docs/CHANGELOG.md)
-
-## 技术栈
-
-- 桌面框架：Tauri 2
-- 原生内核：Rust
-- 前端：Vue 3 + TypeScript + Pinia + Vite
-- 编辑器：TipTap / ProseMirror
-- Markdown：markdown-it + 自定义 parser / serializer
-- 样式：Tailwind CSS
-- 原生插件：store / window-state / dialog / opener / cli
+首次启动后可在设置中开启 Windows 文件关联（右键新建 .md）。
 
 ## 开发
 
 ```bash
 bun install
-bun run dev
-bun run dev:tauri
-bun run build
-bun run build:tauri
-bun run lint
-bun run format
-bunx vue-tsc --noEmit
-bun run test
-cargo check --manifest-path src-tauri/Cargo.toml
+bun run dev          # 纯前端
+bun run dev:tauri    # 全栈开发
+bun run build:tauri  # 构建安装包
+bun run test         # 运行测试
 ```
 
-## 当前架构重点
-
-- 文档保存冲突检测已经统一移到 Rust `save_document`
-- 工作区 watcher 事件统一为 `workspace-changed`
-- 启动打开、系统打开、多窗口待处理打开请求统一使用 `app-open-paths` payload 模型
-- `App.vue` 只做组合面，文档/工作区/窗口生命周期已经分别下沉到 session composable
-
-## 贡献
-
-- Issue 和 PR 欢迎提交到 GitHub
-- 架构或边界变更前，请先阅读 `docs/ARCHITECTURE.md` 和 `docs/ENGINEERING_STANDARDS.md`
-- 新能力进入项目时，请优先证明为什么不能由现有插件或现有领域模块承担
+需要 Rust 1.96+ 和 MSVC Build Tools。项目提供 `launch-dev.bat` 一键启动开发模式。
 
 ## License
 
-solo 基于 [Apache License 2.0](LICENSE) 开源。
+solo 基于 [Apache License 2.0](LICENSE) 开源，基于 [MarkLight](https://github.com/xiaodou997/marklight) 重构而来。

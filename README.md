@@ -5,7 +5,7 @@
 <h1 align="center">solo</h1>
 
 <p align="center">
-  <strong>本地优先的 Markdown 编辑器，面向中文沉浸式写作</strong>
+  <strong>Local-first, minimalist Markdown editor for immersive writing</strong>
 </p>
 
 <p align="center">
@@ -18,48 +18,43 @@
   <a href="./README.ko-KR.md">한국어</a>
 </p>
 
-solo 是一款极简、专注的本地 Markdown 编辑器。它不是笔记软件，不是知识库，而是一把「专为文字而生的手术刀」——足够轻、足够快、排版足够美。
+## What is solo?
 
-## 特性
+solo is a "scalpel for words" — launches instantly, stays out of your way, and works directly on local `.md` files. It is not a note-taking app, not a knowledge base, and not a platform.
 
-- **所见即所得编辑** — 基于 TipTap / ProseMirror，输入瞬间渲染，告别分栏预览
-- **多窗口支持** — 同时打开多个文件，每窗口独立编辑，对照参考无压力
-- **沉浸式界面** — 聚焦模式一键隐藏所有干扰，标题栏自动淡入淡出。双击标题栏最大化
-- **文艺排版** — 内置 3 套书卷气主题（纸白 / 墨黑 / 砚青），字体、行距、间距精心调校
-- **本地优先** — 文件存本地，不捆绑云服务。拖入图片自动复制到 `assets/` 目录
-- **桌面原生体验** — 无边框窗口、右键菜单、右键新建 .md、系统打印、开机还原窗口状态
-- **HTML 导出** — 所见即所得，导出配色跟随编辑器主题
-- **极速启动** — 安装包仅 ~5MB，多窗口内存占用经深度优化（WebView2 MemoryUsageTargetLevel）
-- **扩展语法** — KaTeX 数学公式、Mermaid 图表、脚注、Frontmatter YAML、Callout、WikiLink
+## Features
 
-## 技术栈
+- **WYSIWYG editing** — TipTap / ProseMirror under the hood. Type and see it rendered instantly.
+- **Multi-window** — Open multiple files in separate windows. Switch focus without losing content. Compare documents side-by-side.
+- **Extended syntax** — KaTeX math, Mermaid diagrams, GFM tables, footnotes, Frontmatter YAML, Callouts (12 colors), WikiLinks, highlighting, superscript/subscript.
+- **Elegant typography** — 3 hand-crafted themes (Paper White / Ink Black / Inkstone Cyan). Fonts downloaded on demand.
+- **Desktop-native** — Frameless window, system menu, right-click "New .md", double-click titlebar to maximize, always-on-top, auto-save.
+- **Memory-conscious** — WebView2 MemoryUsageTargetLevel on blur, lazy editor initialization, ~5MB installer.
+- **HTML export** — Theme-following export, what you see is what you get.
+- **Format fidelity** — 56 round-trip tests covering parser ↔ serializer. Paste Markdown auto-converts. Ctrl+C writes Markdown source alongside HTML.
 
-Tauri 2（Rust）+ Vue 3 + Pinia + TipTap/ProseMirror + Tailwind CSS 4
+## Tech Stack
 
-## 安装
+Tauri 2 (Rust) → Vue 3 + Pinia + TipTap/ProseMirror + Tailwind CSS 4
 
-从 [Releases 页面](https://github.com/jloft198479-cyber/solo/releases) 下载最新版安装包。支持自定义安装路径。
+## Install
 
-安装后首次启动自动注册右键「新建 Markdown 文档」。卸载时自动清理。
+Download the latest installer from [Releases](https://github.com/jloft198479-cyber/solo/releases). Custom install path supported.
 
-## 从源码构建
+After first launch, enable Windows file association in Settings for right-click "New .md".
+
+## Development
 
 ```bash
-# 安装依赖
 bun install
-
-# 开发模式（纯前端）
-bun run dev
-
-# Tauri 全栈开发模式
-bun run dev:tauri
-
-# 构建安装包
-bun run build:tauri
+bun run dev          # Frontend only
+bun run dev:tauri    # Full-stack with Tauri
+bun run build:tauri  # Build installer
+bun run test         # Run tests
 ```
 
-构建需要 Rust 1.96+ 工具链 + MSVC Build Tools。项目提供 `launch-dev.bat` 一键启动开发模式。
+Requires Rust 1.96+ and MSVC Build Tools.
 
-## 开源
+## License
 
-solo 基于 [Apache License 2.0](LICENSE) 开源，基于 [MarkLight](https://github.com/xiaodou997/marklight) 重构而来。
+solo is open-sourced under [Apache License 2.0](LICENSE), forked from [MarkLight](https://github.com/xiaodou997/marklight).
