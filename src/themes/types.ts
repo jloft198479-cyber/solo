@@ -99,6 +99,8 @@ export interface ThemeColors {
   calloutSuccessBg: string;
   calloutQuote: string;
   calloutQuoteBg: string;
+  /** 高亮标记背景色 */
+  markBg: string;
 }
 
 /** Theme typography (optional, overrides editor defaults) */
@@ -125,6 +127,8 @@ export interface ThemeTypography {
   heading6Size?: string;
   /** 引用块边框宽度，默认 2px */
   quoteBorderWidth?: string;
+  /** 高亮标记圆角，默认 0.25em */
+  markBorderRadius?: string;
 }
 
 /** Single theme definition */
@@ -213,6 +217,7 @@ export const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
   calloutSuccessBg: '--callout-success-bg',
   calloutQuote: '--callout-quote',
   calloutQuoteBg: '--callout-quote-bg',
+  markBg: '--mark-bg',
 };
 
 /** Preset theme IDs */

@@ -161,7 +161,21 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.closeNode();
   };
 
-  handlers.bullet_list_open = (state) => {
+  handlers.bullet_list_open = (state, _token, tokens, index) => {
+    // 前看：检查列表项是否包含任务列表标记（class="task-list-item"）
+    if (schema.nodes.taskList && schema.nodes.taskItem) {
+      for (let i = index + 1; i < tokens.length; i++) {
+        const t = tokens[i];
+        if (t.type === 'bullet_list_close') break;
+        if (t.type === 'list_item_open') {
+          const cls = t.attrGet('class');
+          if (cls?.includes('task-list-item')) {
+            state.openNode(schema.nodes.taskList);
+            return;
+          }
+        }
+      }
+    }
     state.openNode(schema.nodes.bulletList);
   };
   handlers.bullet_list_close = (state) => {
@@ -178,11 +192,11 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
 
   handlers.list_item_open = (state, token) => {
     // 检测是否是任务列表项
-    // markdown-it-task-lists 会在 token 的 children 中产生 checkbox
+    // markdown-it-task-lists 在 li_open 的 class 中标记 task-list-item
+    // checked 状态实际在子 html_inline 的 <input checked="" ...> 中，不在 class 里
     const isTask = token.attrGet('class')?.includes('task-list-item') ?? false;
     if (isTask) {
-      const checked = token.attrGet('class')?.includes('checked') ?? false;
-      state.openNode(schema.nodes.taskItem, { checked });
+      state.openNode(schema.nodes.taskItem, { checked: false });
     } else {
       state.openNode(schema.nodes.listItem);
     }
@@ -336,15 +350,25 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
 
   handlers.inline = (state, token) => {
     if (token.children) {
+      let skipNextSpace = false;
       for (let i = 0; i < token.children.length; i++) {
         const child = token.children[i];
+        // 任务列表 checkbox 后，下一个文本节点开头的空格是 checkbox 与内容之间的分隔符
+        // 去掉它以保持输出整洁（否则 - [ ] todo → - [ ]  todo）
+        if (skipNextSpace && child.type === 'text' && child.content.startsWith(' ')) {
+          state.addText(child.content.slice(1));
+          skipNextSpace = false;
+          continue;
+        }
         const handler = handlers[child.type];
         if (handler) {
           handler(state, child, token.children!, i);
+          if (child.type === 'html_inline' && child.content.includes('type="checkbox"')) {
+            skipNextSpace = true;
+          }
         } else if (child.type === 'text') {
           state.addText(child.content);
         }
-        // 跳过 checkbox input（markdown-it-task-lists 的产物）
       }
     }
   };
@@ -360,8 +384,19 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   // ── HTML 块（忽略） ──
   handlers.html_block = () => {};
   handlers.html_inline = (state, token) => {
-    // 跳过 task-lists 插件生成的 <input> 标签
-    if (token.content.includes('type="checkbox"')) return;
+    // 任务列表复选框：inline 在 paragraph 中处理，paragraph 在 taskItem 中
+    // 提取 checked="" 状态设置到父级 taskItem 节点
+    if (token.content.includes('type="checkbox"')) {
+      if (token.content.includes('checked=""')) {
+        for (let i = state.stack.length - 1; i >= 0; i--) {
+          if (state.stack[i].type.name === 'taskItem') {
+            state.stack[i].attrs = { ...state.stack[i].attrs, checked: true };
+            break;
+          }
+        }
+      }
+      return;
+    }
     if (/^<br\s*\/?>$/i.test(token.content.trim())) {
       state.addNode(schema.nodes.hardBreak);
       return;

@@ -270,7 +270,7 @@ echo ===== Done =====
 | 文件 | 路径 | 说明 |
 |---|---|---|
 | `solo.exe` | `src-tauri\target\release\solo.exe` | 绿色可执行文件（约 15MB） |
-| `solo_1.2.2_x64-setup.exe` | `src-tauri\target\release\bundle\nsis\solo_1.2.2_x64-setup.exe` | NSIS 安装包 |
+| `solo_1.2.3_x64-setup.exe` | `src-tauri\target\release\bundle\nsis\solo_1.2.3_x64-setup.exe` | NSIS 安装包 |
 
 ---
 
@@ -367,6 +367,31 @@ call M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat
 **现象**：Rust 编译出现 `warning: method 'replace' is never used`。
 
 **原因**：`state.rs` 中为 `StartupOpenRequests` 定义了 `replace()` 方法，但当前未在任何代码路径中调用。此警告已有，不影响功能。
+
+### 6.11 文件关联必须在安装时写入，不能依赖首次运行时注册
+
+**现象**：`desktop.rs` 的 `register_shell_new` 会在 app 启动时写入 ShellNew + 修复图标，但用户期望的是**装完直接有效**。首次启动延迟导致用户打开文件时关联还没生效。
+
+**原因**：Tauri 的 `fileAssociations` 只写 HKCU\Software\Classes\solo.markdown 和 .md 的 UserChoice，但**不写** ShellNew（新建菜单）和 DefaultIcon 的 `,0` 后缀（图标索引）。Rust 代码 `register_shell_new` 补写了这些，但仅在 app 运行时才执行。
+
+**解决（推荐方案）**：使用 Tauri v2 的 `installerHooks` 在 NSIS 安装阶段写入：
+
+1. 创建 `src-tauri\nsis-hooks.nsh`，定义 `NSIS_HOOK_POSTINSTALL` 宏：
+   - `WriteRegStr HKCU "Software\Classes\.md\ShellNew" "NullFile" ""` — 添加新建菜单
+   - `DeleteRegKey HKCU "Software\Classes\.markdown\ShellNew"` — 清理旧版重复
+   - `ReadRegStr/WriteRegStr` 读 DefaultIcon 追加 `,0` — 修复图标
+   - `SHChangeNotify(0x08000000)` — 通知 Explorer 刷新
+2. `tauri.conf.json` 中配置：
+   ```json
+   "nsis": {
+     "installerHooks": "./nsis-hooks.nsh"
+   }
+   ```
+3. 首次启动时 `register_shell_new` 作为保底（Settings 页面重新注册），但安装本身已包含正确关联。
+
+**验证方式**：安装后立即检查注册表 `HKCU\Software\Classes\.md\ShellNew` 是否存在、`HKCU\Software\Classes\solo.markdown\DefaultIcon` 是否以 `,0` 结尾。
+
+**相关文件**：`src-tauri\nsis-hooks.nsh`, `src-tauri\tauri.conf.json`
 
 ---
 
@@ -493,6 +518,7 @@ pinia: ^3.0.4
 | Rust 菜单 | `src-tauri/src/menu.rs` |
 | Rust 错误模型 | `src-tauri/src/error.rs` |
 | Tauri 配置 | `src-tauri/tauri.conf.json` |
+| NSIS 安装钩子 | `src-tauri/nsis-hooks.nsh` |
 | Cargo 配置 | `src-tauri/Cargo.toml` |
 | 前端入口 | `src/main.ts` |
 | 前端协调层 | `src/App.vue` |
@@ -504,6 +530,7 @@ pinia: ^3.0.4
 | Tailwind 配置 | `tailwind.config.js` |
 | Vite 配置 | `vite.config.ts` |
 | 架构文档 | `ARCHITECTURE.md` |
+| 运行故障排查 | `TROUBLESHOOTING.md` |
 
 ### 8.5 常用命令速查
 
