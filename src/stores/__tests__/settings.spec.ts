@@ -72,6 +72,7 @@ function createColors(overrides: Partial<ThemeColors> = {}): ThemeColors {
     calloutSuccessBg: '#dcfce7',
     calloutQuote: '#6b7280',
     calloutQuoteBg: '#f3f4f6',
+    markBg: '#fef08a',
     ...overrides,
   };
 }

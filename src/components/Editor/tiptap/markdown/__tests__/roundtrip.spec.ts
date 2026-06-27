@@ -28,6 +28,8 @@ function createTestSchema(): Schema {
       bulletList: { group: 'block', content: 'listItem+', parseDOM: [{ tag: 'ul' }], toDOM: () => ['ul', 0] },
       orderedList: { group: 'block', content: 'listItem+', attrs: { start: { default: 1 } }, parseDOM: [{ tag: 'ol' }], toDOM: () => ['ol', 0] },
       listItem: { content: 'block+', parseDOM: [{ tag: 'li' }], toDOM: () => ['li', 0] },
+      taskList: { group: 'block', content: 'taskItem+', parseDOM: [{ tag: 'ul[data-type="taskList"]' }], toDOM: () => ['ul', { 'data-type': 'taskList' }, 0] },
+      taskItem: { content: 'block+', attrs: { checked: { default: false } }, parseDOM: [{ tag: 'li[data-type="taskItem"]' }], toDOM: (n: PMNode) => ['li', { 'data-type': 'taskItem', 'data-checked': n.attrs.checked }, 0] },
       codeBlock: {
         group: 'block', content: 'text*', marks: '', code: true,
         attrs: { language: { default: null } },

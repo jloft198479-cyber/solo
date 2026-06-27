@@ -85,7 +85,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useFileStore } from '../../stores/file';
 import { useSettingsStore } from '../../stores/settings';
 import { parseMarkdown } from './tiptap/markdown/parser';
-import { serializeMarkdown } from './tiptap/markdown/serializer';
+import { serializeMarkdown, serializeMarkdownForClipboard } from './tiptap/markdown/serializer';
 import type { SlashCommandItem } from './tiptap/extensions/slash-commands';
 import type { EmojiItem } from './tiptap/extensions/emoji-suggest';
 import {
@@ -227,7 +227,7 @@ function createEditor(content: string) {
       clipboardTextSerializer(slice: Slice, view: EditorView) {
         if (slice.content.size === 0) return '';
         const wrapper = view.state.schema.nodes.doc.create(null, slice.content);
-        return serializeMarkdown(wrapper);
+        return serializeMarkdownForClipboard(wrapper);
       },
     },
     onUpdate: ({ editor: ed }) => {
@@ -315,6 +315,10 @@ watch(
     // 重置基线，避免 parser/serializer round-trip 差异导致误判
     const baseline = serializeMarkdown(editor.value.state.doc);
     fileStore.setContent(baseline);
+    // setContent({ emitUpdate:false }) 不触发 onUpdate → 手动补发字数和大纲
+    const wc = getEditorWordCount(editor.value);
+    const ol = extractEditorOutline(editor.value);
+    emit('update', { wordCount: wc, outline: ol });
     editor.value.commands.focus('start');
   },
 );

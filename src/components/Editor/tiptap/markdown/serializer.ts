@@ -13,6 +13,12 @@ export class MarkdownSerializerState {
   output = '';
   private closed: PMNode | null = null;
   private inTightList = false;
+  private listDepth = 0;
+  private readonly clipboard: boolean;
+
+  constructor(options?: { clipboard?: boolean }) {
+    this.clipboard = options?.clipboard ?? false;
+  }
 
   /** 写入文本 */
   write(text: string) {
@@ -126,16 +132,23 @@ export class MarkdownSerializerState {
       this.output.length === 0 ||
       this.output.endsWith('\n');
 
-    let result = text
-      .replace(/\\/g, '\\\\')
-      .replace(/([`[\]()*~^=!?|$<>{}])/g, '\\$1');
+    let result = text.replace(/\\/g, '\\\\');
 
-    // 行首字符转义：# (标题) + (列表) - (列表/分隔线) . (有序列表前缀)
-    if (atLineStart) {
-      result = result.replace(/^([#+\-.])/, '\\$1');
+    if (this.clipboard) {
+      // 剪贴板模式：只转义核心 markdown 语法，避免 `\=` `\?` `\!` 等多余符号
+      result = result.replace(/([`*])/g, '\\$1');
+      if (atLineStart) {
+        result = result.replace(/^([#+\-.>=])/, '\\$1');
+      }
+      result = result.replace(/\n([#+\-.>=])/g, '\n\\$1');
+    } else {
+      // 文件保存模式：严格转义所有特殊字符，保证 roundtrip fidelity
+      result = result.replace(/([`[\]()*~^=!?|$<>{}])/g, '\\$1');
+      if (atLineStart) {
+        result = result.replace(/^([#+\-.])/, '\\$1');
+      }
+      result = result.replace(/\n([#+\-.])/g, '\n\\$1');
     }
-    // 文本内换行后的行首字符也需要转义
-    result = result.replace(/\n([#+\-.])/g, '\n\\$1');
 
     return result;
   }
@@ -160,9 +173,12 @@ export class MarkdownSerializerState {
   renderContent(parent: PMNode) {
     parent.forEach((child, _offset, index) => {
       if (index > 0) {
-        // 块级节点之间插入空行
         if (child.isBlock) {
-          this.blankLine();
+          if (this.inTightList) {
+            this.ensureNewline();
+          } else {
+            this.blankLine();
+          }
         }
       }
       this.renderNode(child);
@@ -173,12 +189,16 @@ export class MarkdownSerializerState {
   renderList(node: PMNode, getDelim: (index: number, node: PMNode) => string) {
     const prevTight = this.inTightList;
     this.inTightList = true;
+    const savedDepth = this.listDepth;
+    this.listDepth++;
+    const indent = '   '.repeat(savedDepth);
     node.forEach((child, _offset, index) => {
       if (index > 0) this.ensureNewline();
       const delim = getDelim(index, child);
-      this.write(delim);
+      this.write(indent + delim);
       this.renderContent(child);
     });
+    this.listDepth = savedDepth;
     this.inTightList = prevTight;
   }
 }
@@ -345,6 +365,15 @@ export function serializeMarkdown(doc: PMNode): string {
   state.renderNode(doc);
   let output = state.output;
   // 确保文件以单个换行结尾
+  output = output.replace(/\n*$/, '\n');
+  return output;
+}
+
+/** 剪贴板序列化：使用轻量转义，避免 `\=` `\?` `\!` 等多余符号 */
+export function serializeMarkdownForClipboard(doc: PMNode): string {
+  const state = new MarkdownSerializerState({ clipboard: true });
+  state.renderNode(doc);
+  let output = state.output;
   output = output.replace(/\n*$/, '\n');
   return output;
 }

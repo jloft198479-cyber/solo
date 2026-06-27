@@ -85,6 +85,7 @@ const TYPOGRAPHY_VAR_MAP: Record<keyof ThemeTypography, string> = {
   heading5Size: '--mk-heading5-size',
   heading6Size: '--mk-heading6-size',
   quoteBorderWidth: '--mk-quote-border-width',
+  markBorderRadius: '--mk-mark-radius',
 };
 
 function injectTypography(typography?: ThemeTypography) {
