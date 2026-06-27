@@ -24,7 +24,8 @@ fn notify_shell_change() {
 /// 注册 .md / .markdown 文件关联和右键"新建"菜单。
 ///
 /// - 设置文件图标为 solo.exe 的默认图标
-/// - 注册 ShellNew 使右键出现"新建 Markdown 文档"
+/// - 仅 .md 注册 ShellNew（避免 Explorer 右键出现两个"新建"项）
+/// - 设置显示名为"solo文档"
 /// - 写入 HKEY_CURRENT_USER，无需管理员权限
 /// - 通知 Explorer 刷新，不要求重启
 #[tauri::command]
@@ -56,22 +57,33 @@ pub fn register_shell_new() -> Result<(), AppError> {
             ext_key
                 .set_value("", &prog_id)
                 .map_err(|e| AppError::Native(e.to_string()))?;
-
-            // ShellNew → 右键"新建 Markdown 文档"
-            let (shell_new, _) = classes
-                .create_subkey(&format!("{}\\ShellNew", ext))
-                .map_err(|e| AppError::Native(e.to_string()))?;
-            shell_new
-                .set_value("NullFile", &"")
-                .map_err(|e| AppError::Native(e.to_string()))?;
         }
 
-        // 设置 ProgID 默认图标（指向 solo.exe）
+        // 清理旧版可能残留的 .markdown\ShellNew，避免 Explorer 右键出现两个"新建"项
+        let _ = classes.delete_subkey_all(".markdown\\ShellNew");
+
+        // 仅 .md 注册 ShellNew（右键"新建"菜单）
+        let (shell_new, _) = classes
+            .create_subkey(".md\\ShellNew")
+            .map_err(|e| AppError::Native(e.to_string()))?;
+        shell_new
+            .set_value("NullFile", &"")
+            .map_err(|e| AppError::Native(e.to_string()))?;
+
+        // 设置 ProgID 显示名（影响右键"新建"菜单的显示文本）
+        let (prog_key, _) = classes
+            .create_subkey(prog_id)
+            .map_err(|e| AppError::Native(e.to_string()))?;
+        prog_key
+            .set_value("", &"solo文档")
+            .map_err(|e| AppError::Native(e.to_string()))?;
+
+        // 设置 ProgID 默认图标（指向 solo.exe，显式指定图标索引 0）
         let (icon_key, _) = classes
             .create_subkey(&format!("{}\\DefaultIcon", prog_id))
             .map_err(|e| AppError::Native(e.to_string()))?;
         icon_key
-            .set_value("", &exe_path)
+            .set_value("", &format!("{},0", exe_path))
             .map_err(|e| AppError::Native(e.to_string()))?;
 
         // 设置双击打开命令
