@@ -128,6 +128,7 @@ const windowSession = useAppWindowSession({
   isDirty: () => fileStore.currentFile.isDirty,
   windowTitle,
   shellIntegration: () => settingsStore.settings.shellIntegration,
+  stopAutoSave: documentSession.stopAutoSave,
 });
 
 function switchToImageView() {

@@ -13,6 +13,7 @@ export const TAURI_COMMANDS = {
   registerShellNew: 'register_shell_new',
   resolveDocumentImagePath: 'resolve_document_image_path',
   revealInFinder: 'reveal_in_finder',
+  exitApp: 'exit_app',
   revealStartupOpenLog: 'reveal_startup_open_log',
   saveDocument: 'save_document',
   setWindowBackgroundColor: 'set_window_background_color',

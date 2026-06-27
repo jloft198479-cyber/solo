@@ -106,6 +106,8 @@ fn create_editor_window(
     }
 
     window.show().map_err(|e| error::AppError::Native(e.to_string()))?;
+    // 显式请求前台焦点，绕过 Windows 前台锁限制
+    let _ = window.set_focus();
 
     append_startup_log(Some(app), format!("created window: label={}", label));
     Ok(label)
@@ -281,8 +283,7 @@ pub fn run() {
                 .with_state_flags(
                     StateFlags::SIZE
                         | StateFlags::POSITION
-                        | StateFlags::MAXIMIZED
-                        | StateFlags::FULLSCREEN,
+                        | StateFlags::MAXIMIZED,
                 )
                 .map_label(|label| {
                     if label.starts_with("main-") {
@@ -397,6 +398,7 @@ pub fn run() {
             reveal_startup_open_log,
             print_document,
             reveal_in_finder,
+            exit_app,
             set_window_background_color,
             register_shell_new,
             unregister_shell_new

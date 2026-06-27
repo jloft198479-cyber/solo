@@ -12,5 +12,5 @@ pub use document::{
 pub use font::fetch_font_data;
 pub use image::fetch_remote_image;
 pub use window::{
-    attach_window_events, print_document, reveal_in_finder, set_window_background_color,
+    attach_window_events, exit_app, print_document, reveal_in_finder, set_window_background_color,
 };

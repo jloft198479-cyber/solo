@@ -21,6 +21,8 @@ interface AppWindowSessionOptions {
   windowTitle: Ref<string>;
   /** 是否启用 Windows Shell 集成（注册表文件关联） */
   shellIntegration: () => boolean;
+  /** 关闭前停掉自动保存，避免 isSaving 锁阻塞 */
+  stopAutoSave?: () => void;
 }
 
 /** 当前打开的确认弹窗的清理函数，供外部（如组件 unmount 时）强制关闭 */
@@ -109,16 +111,18 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
     }
   }
 
-  async function handleCloseRequest() {
+  async function handleCloseRequest(): Promise<boolean> {
+    options.stopAutoSave?.();
+
     if (options.isDirty()) {
       const result = await confirmUnsavedChanges();
       if (result === 'cancel') {
-        return;
+        return false;
       }
       if (result === 'save') {
         const saved = await options.saveDocument();
         if (!saved) {
-          return;
+          return false;
         }
       }
     }
@@ -130,6 +134,7 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
       // 窗口状态保存失败不影响关闭流程
     }
     await destroyCurrentWindow();
+    return true;
   }
 
   async function setupDragDrop() {
@@ -205,7 +210,11 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
   }
 
   async function handleQuit() {
-    await handleCloseRequest();
+    const closed = await handleCloseRequest();
+    if (closed) {
+      const { exitApp } = await import('../services/tauri/window');
+      await exitApp();
+    }
   }
 
   onUnmounted(cleanup);
