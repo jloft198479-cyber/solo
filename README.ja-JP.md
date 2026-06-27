@@ -5,7 +5,7 @@
 <h1 align="center">solo</h1>
 
 <p align="center">
-  <strong>Tauri 2、Rust ドメインコア、TipTap で構築されたローカルファーストの Markdown エディター</strong>
+  <strong>ローカル優先、ミニマルで没入感のあるMarkdownエディタ</strong>
 </p>
 
 <p align="center">
@@ -18,45 +18,28 @@
   <a href="./README.ko-KR.md">한국어</a>
 </p>
 
-## 主な機能
+## 概要
 
-- WYSIWYG 編集：TipTap / ProseMirror をベースに、コードブロック、テーブル、数式、Mermaid、Callout などをレンダリング状態のまま編集できます。
-- ローカルファースト：文書、画像、ワークスペースはすべてローカルで管理されます。ドロップした画像は現在の文書と同じ階層の `assets/` に保存されます。
-- デスクトップらしい操作感：複数ウィンドウでの編集、ウィンドウ状態の永続化、ネイティブメニュー、システム印刷に対応しています。
-- 構造化されたワークスペース：Rust がディレクトリフィルタリング、watcher の集約、外部変更イベント、保存競合の検出を担います。
-- WeChat / HTML エクスポート：フロントエンドがエクスポート用コンテンツをレンダリングし、ネイティブ側が印刷とファイル書き込みを処理します。
+solo は「言葉のためのメス」——瞬時に起動し、ローカル `.md` ファイルを直接編集し、必要がなくなれば消える。ノートアプリでも知識ベースでもプラットフォームでもない。
 
-## アーキテクチャ
+## 機能
 
-solo は明確な 3 層構造を採用しています。
-
-- Vue 3 + Pinia + TipTap：UI、エディター体験、コマンドディスパッチを担当します。
-- Tauri 2：プラグイン、権限境界、コマンド / イベントブリッジを担当します。
-- Rust ドメインコア：文書、ワークスペース、ウィンドウランタイム、watcher の一貫性を担当します。
-
-プロジェクト上の制約：
-
-- フロントエンドのビジネスロジックから `invoke` / `listen` / `emit` を直接呼び出しません。
-- 公開 Rust コマンドは構造化 DTO と `AppError` を返します。
-- 汎用的なデスクトップ機能は、まず公式 Tauri プラグインの利用を優先します。
-
-詳しいドキュメント：
-
-- [ドキュメント索引](./docs/README.md)
-- [アーキテクチャ](./docs/ARCHITECTURE.md)
-- [エンジニアリング標準](./docs/ENGINEERING_STANDARDS.md)
-- [ロードマップ](./docs/ROADMAP.md)
-- [変更履歴](./docs/CHANGELOG.md)
+- **WYSIWYG 編集** — TipTap / ProseMirror 採用。入力が即座にレンダリングされる
+- **マルチウィンドウ** — 複数ファイルを別ウィンドウで同時編集。フォーカス切替で内容消失なし
+- **拡張構文** — KaTeX 数式、Mermaid 図、GFM テーブル、脚注、Frontmatter YAML、Callout（12色）、WikiLink、ハイライト、上付き/下付き
+- **美しい組版** — 3種類のテーマ（紙白 / 墨黒 / 硯青）、フォントはオンデマンドでダウンロード
+- **デスクトップネイティブ** — フレームレスウィンドウ、右クリックで .md 新規作成、タイトルバーダブルクリック最大化、常に手前に表示
+- **省メモリ** — フォーカス喪失時に WebView2 MemoryUsageTargetLevel 低減、エディタ遅延初期化、インストーラ約5MB
+- **HTML エクスポート** — テーマに従ったエクスポート、見たままを出力
+- **フォーマット忠実性** — パーサー・シリアライザ間で56項目のラウンドトリップテスト合格。Markdown貼り付け自動変換、Ctrl+Cでソースもクリップボードへ
 
 ## 技術スタック
 
-- デスクトップフレームワーク：Tauri 2
-- ネイティブコア：Rust
-- フロントエンド：Vue 3 + TypeScript + Pinia + Vite
-- エディター：TipTap / ProseMirror
-- Markdown：markdown-it + カスタム parser / serializer
-- スタイル：Tailwind CSS
-- ネイティブプラグイン：store / window-state / dialog / opener / cli
+Tauri 2 (Rust) → Vue 3 + Pinia + TipTap/ProseMirror + Tailwind CSS 4
+
+## インストール
+
+[Releases](https://github.com/jloft198479-cyber/solo/releases) から最新インストーラをダウンロード。
 
 ## 開発
 
@@ -64,28 +47,12 @@ solo は明確な 3 層構造を採用しています。
 bun install
 bun run dev
 bun run dev:tauri
-bun run build
 bun run build:tauri
-bun run lint
-bun run format
-bunx vue-tsc --noEmit
 bun run test
-cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-## 現在のアーキテクチャ上の要点
-
-- 文書保存時の競合検出は Rust の `save_document` に集約されています。
-- ワークスペース watcher イベントは `workspace-changed` に正規化されています。
-- 起動時オープン、システムからのオープン、複数ウィンドウの保留オープン要求は、共通の `app-open-paths` payload モデルを使います。
-- `App.vue` は合成レイヤーに徹し、文書、ワークスペース、ウィンドウのライフサイクルは専用の session composable に分離されています。
-
-## コントリビュート
-
-- Issue と Pull Request は GitHub で歓迎します。
-- アーキテクチャや責務境界を変更する前に、`docs/ARCHITECTURE.md` と `docs/ENGINEERING_STANDARDS.md` を読んでください。
-- 新しい機能を追加する場合は、既存のプラグインやドメインモジュールで扱えない理由を先に明確にしてください。
+Rust 1.96+ と MSVC Build Tools が必要。
 
 ## License
 
-solo は [Apache License 2.0](LICENSE) のもとで公開されています。
+[Apache License 2.0](LICENSE) の下でオープンソース。[MarkLight](https://github.com/xiaodou997/marklight) からフォーク。
