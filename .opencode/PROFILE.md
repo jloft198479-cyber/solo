@@ -66,6 +66,13 @@ set PATH=M:\rust\.cargo\bin;%PATH%
 | 粘贴检测 | `src/components/Editor/tiptap/extensions/markdown-paste.ts` |
 | 导出弹窗 | `src/components/ExportPopover.vue` |
 | 命令注册 | `src/commands/registry.ts` |
+| **Parser** | `src/components/Editor/tiptap/markdown/parser.ts` |
+| **Serializer** | `src/components/Editor/tiptap/markdown/serializer.ts` |
+| **测试工具** | `src/components/Editor/tiptap/markdown/__tests__/test-utils.ts` |
+| **Fixture 测试** | `src/components/Editor/tiptap/markdown/__tests__/fixtures.spec.ts` |
+| **Fuzz 测试** | `src/components/Editor/tiptap/markdown/__tests__/fuzz.spec.ts` |
+| **Roundtrip 测试** | `src/components/Editor/tiptap/markdown/__tests__/roundtrip.spec.ts` |
+| **Fixture 文档** | `src/components/Editor/tiptap/markdown/__tests__/fixtures/*.md`（17 个） |
 
 ## 架构决策（不可违反）
 
@@ -108,6 +115,55 @@ set PATH=M:\rust\.cargo\bin;%PATH%
 
 **效果**：安装即生效，无需启动 app。Rust `register_shell_new` 保留为 Settings 重注册保底。
 
+### Markdown parser/serializer roundtrip 修复（ffa2d2a）
+
+**问题一：嵌套列表序列化结构丢失**
+
+| 步骤 | 现象 |
+|------|------|
+| 编辑器中创建 `- parent` + indent `- child` | 视觉上正确 |
+| save（serialize） | `- parent\n\n- child`（空行隔开了！） |
+| reopen（parse） | 变成两个独立列表，嵌套丢失 |
+
+**根因**：`serializer.ts::renderContent()` 在所有块级子节点之间插入 `blankLine()`，listItem 内含 paragraph + bulletList 时，子列表前被加了空行。同时 `renderList()` 对嵌套层级的 `- ` 前缀不做缩进。
+
+**修复**（`serializer.ts`）：
+- 新增 `listDepth` 计数器，`renderList` 自增，退出恢复
+- `renderList` 每项前缀加 `'   '.repeat(savedDepth)` 缩进（3sp/级）
+- `renderContent` 在 `inTightList` 时用 `ensureNewline()` 替代 `blankLine()`
+
+**问题二：任务列表 roundtrip 内容丢失**
+
+| 步骤 | 现象 |
+|------|------|
+| `- [x] done` → parse | 开 `bulletList` + `taskItem{checked:true}` |
+| serialize | `- [x] done` ✓ 但 `[ ]` 每次多 1 个空格 |
+| 再 parse | checked 丢光，空格膨胀 |
+
+**根因**：
+1. `bullet_list_open` 始终开 `bulletList`，不接受 `taskItem` 子节点 → `createAndFill` 退化到空段落
+2. `checked` 状态在 markdown-it-task-lists 的 `html_inline` token 里（`<input checked="" type="checkbox">`），不在 `li_open` class 中。原 parser 跳过了所有 checkbox
+3. checkbox 被删除后，文本 `" done"` 前导空格残留，与 serializer delimiter 空格叠成双空格
+
+**修复**（`parser.ts`）：
+- `bullet_list_open`：前看 token 检测 `task-list-item` class → 开 `taskList`
+- `html_inline`：检测 `checked=""` → 在 stack 中找 parent `taskItem` 设置 `attrs.checked = true`
+- `inline`：checkbox 后相邻文本去掉 1 个前导空格
+
+**测试策略**：fixtures.spec.ts 每次读 `.md` 文件跑 `parse→serialize→parse→serialize`，两轮输出一致才算通过。不依赖精确输入/输出匹配（serializer 会归一化空格/缩进）。新增 fixture 只需在 `fixtures/` 放一个 `.md` 文件，零代码改动。
+
+### blockquote（引用）vs callout（重点）视觉差异化
+
+**原则**：引用可以带边线底色，重点（callout）不允许任何边线——纯背景色卡片。
+
+**blockquote（引用）**：保留原本设计——左边框 + 微底色 + 灰文字 + 右侧圆角。
+
+**callout（重点）**：纯卡片，无 `border`，无 `border-left`，只有 `background-color` + `border-radius` + 类型标签（`::before` 显示 NOTE/TIP/WARNING 等，颜色按 type 区分）。
+
+### 主题 highlight 样式硬编码问题与 serializer 双 escape 模式
+- **文件保存**（`clipboard=false`）：严格转义 16 个字符，保证 roundtrip fidelity
+- **剪贴板**（`clipboard=true`）：仅转义 `\` `` ` `` `*` + 行首 `#+-.>=`，避免 `\=` `\?` `\!` 等多余符号
+
 ## 编译须知
 
 ### 版本号同步修改
@@ -149,13 +205,89 @@ HKCU\Software\Classes\.markdown\ShellNew\  （旧版残留，安装时已删）
 HKCU\Software\Classes\solo.markdown\DefaultIcon\  (默认) = "C:\...\solo.exe,0"
 ```
 
+## 测试
+
+### 测试命令
+
+```bash
+bun run test       # 全量测试（vitest + happy-dom）
+vue-tsc --noEmit   # 类型检查
+vite build         # 前端构建验证
+```
+
+### roundtrip 测试
+
+所有 Markdown 解析/序列化相关的改动必须通过 roundtrip 验证。
+
+**策略**：两轮稳定性（parse→serialize→parse→serialize，round1 输出 === round2 输出）。
+不依赖精确输入↔输出匹配，因为 serializer 会归一化空格/缩进/标记顺序。
+
+**套件**：
+| 套件 | 文件 | 数量 | 内容 |
+|------|------|------|------|
+| Fixture | `fixtures.spec.ts` | 17 | 预置 .md 文件，覆盖 empty/chinese/mixed/marks/headings/lists/blockquotes/code-blocks/table/links-images/footnotes/frontmatter/callouts/math/mermaid/wikilinks/edge-cases/real-world/lists(含嵌套+任务列表) |
+| Fuzz | `fuzz.spec.ts` | 100 | 随机生成 bold/italic/strike/highlight/code 组合 |
+| Roundtrip | `roundtrip.spec.ts` | 56 | 原有 roundtrip 用例 |
+
+**新增 fixture**：只需在 `fixtures/` 放一个 `.md` 文件，自动被发现，零代码改动。
+
+### 修改 parser/serializer 后的验证步骤
+
+```
+1. bun run test              # roundtrip 全过
+2. vue-tsc --noEmit          # 类型检查通过
+3. vite build                # 前端构建通过
+4. 手动打开 solo 验证真实编辑场景
+```
+
+## parser/serializer 内部约定（新接手必读）
+
+### 处理路径
+
+```
+保存: Editor state → serializer.ts serializeMarkdown(doc) → .md 文件
+剪贴板: Editor state → serializer.ts serializeMarkdownForClipboard(doc) → 系统剪贴板
+打开: .md 文件 → parser.ts parse(markdown, schema) → Editor state
+粘贴: 剪贴板文本 → markdown-paste.ts 检测 → parser.ts parse(...) → 插入编辑器
+```
+
+### escapeInline 双模式（serializer.ts:136-150）
+
+```typescript
+// clipboard = false（文件保存）: 严格模式
+\_\*`\[\]()~^!?|$<>{}#+-.=
+
+// clipboard = true（剪贴板）: 轻量模式
+\` \* 行首 # - + . > =
+```
+
+### 任务列表流程（parser.ts）
+
+```
+bullet_list_open:
+  ├─ 前看"task-list-item" class? → open taskList node
+  └─ 否则 → open bulletList node
+
+html_inline:
+  ├─ 内容匹配 <input checked="" type="checkbox">?
+  │   → 在 stack 中找 parent taskItem, 设 checked=true
+  └─ 否则 → 跳过
+
+inline:
+  ├─ 前一个兄弟是 checkbox?
+  │   → 文本去掉 1 个前导空格
+  └─ 否则 → 正常处理
+```
+
 ## 待办
 
 - P3: 崩溃 `.tmp` 残留清理（搁置）
+- TBD: 修改 parser/serializer 前先读 fixture 文件确认预期行为
 
 ## 开发习惯
 
 - 任何改动前先读相关文件确认代码实际行为，不以注释为准
 - `vue-tsc --noEmit` + `vite build` + `cargo build --release` 逐级验证
 - 改了后端（Rust）必须验证前端（`window.ts` / composables 调用方），反之亦然
+- 改了 parser/serializer 必须 `bun run test`，全部 roundtrip 通过才算完成
 - 每次版本发布先清 `node_modules` + `cargo clean` 再全量构建

@@ -763,23 +763,44 @@
 
 /* ── Callout 块 ────────────────────────────────────────────── */
 .tiptap-editor .mk-callout {
-  border-radius: 4px;
-  padding: 12px 16px;
-  margin: 8px 0;
-  border-left: 3px solid var(--callout-note);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin: 12px 0;
   background-color: var(--callout-note-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type="abstract"] { border-left-color: var(--callout-abstract); background-color: var(--callout-abstract-bg); }
-.tiptap-editor .mk-callout[data-callout-type="info"] { border-left-color: var(--callout-info); background-color: var(--callout-info-bg); }
-.tiptap-editor .mk-callout[data-callout-type="tip"] { border-left-color: var(--callout-tip); background-color: var(--callout-tip-bg); }
-.tiptap-editor .mk-callout[data-callout-type="success"] { border-left-color: var(--callout-success); background-color: var(--callout-success-bg); }
-.tiptap-editor .mk-callout[data-callout-type="question"] { border-left-color: var(--callout-question); background-color: var(--callout-question-bg); }
-.tiptap-editor .mk-callout[data-callout-type="warning"] { border-left-color: var(--callout-warning); background-color: var(--callout-warning-bg); }
-.tiptap-editor .mk-callout[data-callout-type="failure"] { border-left-color: var(--callout-failure); background-color: var(--callout-failure-bg); }
-.tiptap-editor .mk-callout[data-callout-type="danger"] { border-left-color: var(--callout-danger); background-color: var(--callout-danger-bg); }
-.tiptap-editor .mk-callout[data-callout-type="bug"] { border-left-color: var(--callout-bug); background-color: var(--callout-bug-bg); }
-.tiptap-editor .mk-callout[data-callout-type="example"] { border-left-color: var(--callout-example); background-color: var(--callout-example-bg); }
-.tiptap-editor .mk-callout[data-callout-type="quote"] { border-left-color: var(--callout-quote); background-color: var(--callout-quote-bg); }
+.tiptap-editor .mk-callout::before {
+  content: attr(data-callout-type);
+  display: block;
+  font-size: 0.7em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--callout-note);
+  margin-bottom: 6px;
+  opacity: 0.8;
+}
+.tiptap-editor .mk-callout[data-callout-type="abstract"] { background-color: var(--callout-abstract-bg); }
+.tiptap-editor .mk-callout[data-callout-type="abstract"]::before { color: var(--callout-abstract); }
+.tiptap-editor .mk-callout[data-callout-type="info"] { background-color: var(--callout-info-bg); }
+.tiptap-editor .mk-callout[data-callout-type="info"]::before { color: var(--callout-info); }
+.tiptap-editor .mk-callout[data-callout-type="tip"] { background-color: var(--callout-tip-bg); }
+.tiptap-editor .mk-callout[data-callout-type="tip"]::before { color: var(--callout-tip); }
+.tiptap-editor .mk-callout[data-callout-type="success"] { background-color: var(--callout-success-bg); }
+.tiptap-editor .mk-callout[data-callout-type="success"]::before { color: var(--callout-success); }
+.tiptap-editor .mk-callout[data-callout-type="question"] { background-color: var(--callout-question-bg); }
+.tiptap-editor .mk-callout[data-callout-type="question"]::before { color: var(--callout-question); }
+.tiptap-editor .mk-callout[data-callout-type="warning"] { background-color: var(--callout-warning-bg); }
+.tiptap-editor .mk-callout[data-callout-type="warning"]::before { color: var(--callout-warning); }
+.tiptap-editor .mk-callout[data-callout-type="failure"] { background-color: var(--callout-failure-bg); }
+.tiptap-editor .mk-callout[data-callout-type="failure"]::before { color: var(--callout-failure); }
+.tiptap-editor .mk-callout[data-callout-type="danger"] { background-color: var(--callout-danger-bg); }
+.tiptap-editor .mk-callout[data-callout-type="danger"]::before { color: var(--callout-danger); }
+.tiptap-editor .mk-callout[data-callout-type="bug"] { background-color: var(--callout-bug-bg); }
+.tiptap-editor .mk-callout[data-callout-type="bug"]::before { color: var(--callout-bug); }
+.tiptap-editor .mk-callout[data-callout-type="example"] { background-color: var(--callout-example-bg); }
+.tiptap-editor .mk-callout[data-callout-type="example"]::before { color: var(--callout-example); }
+.tiptap-editor .mk-callout[data-callout-type="quote"] { background-color: var(--callout-quote-bg); }
+.tiptap-editor .mk-callout[data-callout-type="quote"]::before { color: var(--callout-quote); }
 
 /* ── Frontmatter ───────────────────────────────────────────── */
 .tiptap-editor .mk-frontmatter {
