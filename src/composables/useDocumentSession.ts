@@ -154,9 +154,14 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   }
 
   async function saveCurrentDocument(force = false): Promise<boolean> {
-    // 保存互斥锁：正在保存时跳过，避免自动保存与手动保存并发冲突
+    // 保存互斥锁：正在保存时等待，避免自动保存与手动保存并发冲突
     if (isSaving) {
-      return false;
+      // 等正在执行的保存完成（最多 1 秒）
+      for (let i = 0; i < 20; i++) {
+        await new Promise(r => setTimeout(r, 50));
+        if (!isSaving) break;
+      }
+      if (isSaving) return false;
     }
 
     const currentFile = fileStore.currentFile;
@@ -346,5 +351,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     handleOpenDocument,
     saveCurrentDocument,
     saveCurrentDocumentAs,
+    stopAutoSave,
   };
 }

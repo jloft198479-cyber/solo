@@ -106,6 +106,14 @@ impl LoadedWindows {
         Ok(())
     }
 
+    pub fn remove(&self, label: &str) -> Result<(), AppError> {
+        self.0
+            .lock()
+            .map_err(|error| AppError::Native(error.to_string()))?
+            .remove(label);
+        Ok(())
+    }
+
     pub fn has_loaded_window(&self) -> Result<bool, AppError> {
         let has_loaded = !self
             .0

@@ -72,3 +72,8 @@ export async function revealInFinder(path: string) {
 export async function newEditorWindow(path?: string): Promise<string> {
   return invokeCommand<string>(TAURI_COMMANDS.newEditorWindow, { path: path ?? null });
 }
+
+/** 强制退出整个应用进程 */
+export async function exitApp() {
+  await invokeCommand<void>(TAURI_COMMANDS.exitApp);
+}

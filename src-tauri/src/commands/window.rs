@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use crate::events::emit_window_close_requested;
-use crate::state::FocusedWindow;
+use crate::state::{FocusedWindow, LoadedWindows};
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSColor, NSWindow};
 use tauri::{Emitter, Manager, WebviewWindow};
@@ -80,6 +80,19 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
                 }
             }
 
+            tauri::WindowEvent::Destroyed => {
+                if let Some(loaded) = handle.try_state::<LoadedWindows>() {
+                    let _ = loaded.remove(&label);
+                }
+                if let Some(focused) = handle.try_state::<FocusedWindow>() {
+                    if let Ok(Some(current)) = focused.get() {
+                        if current == label {
+                            let _ = focused.clear();
+                        }
+                    }
+                }
+            }
+
             _ => {}
         }
     });
@@ -151,6 +164,12 @@ pub fn print_document(window: WebviewWindow) -> Result<(), AppError> {
     window
         .print()
         .map_err(|error| AppError::Native(error.to_string()))
+}
+
+#[tauri::command]
+pub fn exit_app(app: tauri::AppHandle) -> Result<(), AppError> {
+    app.exit(0);
+    Ok(())
 }
 
 #[tauri::command]

@@ -1,8 +1,8 @@
 <template>
-  <div
-    class="editor-shell relative h-full w-full cursor-text transition-colors"
-    @click.self="lazyInitEditor"
-  >
+    <div
+      class="editor-shell relative h-full w-full cursor-text transition-colors"
+      @click="lazyInitEditor"
+    >
     <div ref="editorWrapRef" class="mk-editor h-full overflow-y-auto outline-none">
       <div class="mk-editor-inner">
         <EditorContent v-if="editor" :editor="editor" />
@@ -402,11 +402,18 @@ onMounted(async () => {
   setupDragDrop();
   await setupWindowFocusHandlers();
 
-  // 编辑器懒初始化：只在窗口已聚焦时立即创建
-  // Focused(true) 事件可能早于 listener 注册到达而被丢弃，
-  // 所以通过 document.hasFocus() 兜底
+  // 编辑器懒初始化
   if (document.hasFocus()) {
+    // 快速路径：窗口已有焦点，直接创建
     createEditor(props.initialContent || '');
+  } else {
+    // 延迟兜底：Focused(true) 事件可能早于 listener 注册到达而被丢弃。
+    // 短延迟给事件队列一次额外处理机会，之后仍无焦点则强行创建编辑器
+    // （失去的只是懒加载优化，窗口正确可用更重要）
+    setTimeout(() => {
+      if (editor.value && !editor.value.isDestroyed) return;
+      lazyInitEditor();
+    }, 50);
   }
 
   // 图片双击 → 全屏预览（从 CustomImage NodeView 冒泡上来的自定义事件）
