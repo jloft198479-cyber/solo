@@ -50,7 +50,7 @@
         "ext": ["md", "markdown"],
         "contentTypes": ["net.daringfireball.markdown", "public.plain-text", "public.text"],
         "name": "solo文档",
-        "description": "用 solo 打开 Markdown 文件",
+        "description": "solo文档",
         "role": "Editor",
         "mimeType": "text/markdown"
       }
