@@ -154,15 +154,40 @@ set PATH=M:\rust\.cargo\bin;%PATH%
 
 ### blockquote（引用）vs callout（重点）视觉差异化
 
-**原则**：引用可以带边线底色，重点（callout）不允许任何边线——纯背景色卡片。
+**原则**：引用可以带边线底色，重点（callout）不允许任何边线——纯背景色卡片。blockquote 是唯一带边线的元素。
 
-**blockquote（引用）**：保留原本设计——左边框 + 微底色 + 灰文字 + 右侧圆角。
+**blockquote（引用）**：左边框 + 微底色 + 灰文字 + 右侧圆角。保留原始设计。
 
-**callout（重点）**：纯卡片，无 `border`，无 `border-left`，只有 `background-color` + `border-radius` + 类型标签（`::before` 显示 NOTE/TIP/WARNING 等，颜色按 type 区分）。
+**callout（重点）**：纯卡片，无 `border`，无 `border-left`，无 `border-radius`（`border-radius: 0` 匹配其他 UI 组件）。`::before` 显示类型标签（NOTE/TIP/WARNING...），大写 0.7em weight 700，颜色按 type 使用主题变量。
+
+**背景色浓度**：light 主题 `calloutNoteBg` opacity 0.08→0.11，dark 0.10→0.12（v1.2.4 调重）。
 
 ### 主题 highlight 样式硬编码问题与 serializer 双 escape 模式
 - **文件保存**（`clipboard=false`）：严格转义 16 个字符，保证 roundtrip fidelity
 - **剪贴板**（`clipboard=true`）：仅转义 `\` `` ` `` `*` + 行首 `#+-.>=`，避免 `\=` `\?` `\!` 等多余符号
+
+### 全进程卡死根因修复 — 单实例拆除 + 多进程独立 WebView2 数据目录（v1.2.5）
+
+**问题**：solo 在长时间使用后偶发全进程卡死（所有窗口无响应）。重启后短期恢复但最终复发。
+
+**根因（架构级）**：
+1. 所有窗口共享同一个 WebView2 EBWebView 目录 → LevelDB 锁竞争（IndexedDB 锁文件残留）
+2. 窗口创建（`WebviewWindowBuilder::build()` + `.show()`）在主线程同步执行 → 锁等待直接卡死消息泵
+3. `tauri-plugin-single-instance` 将新文件打开路由到已卡死的老进程 → 新进程也陷入死等
+
+**方案**：拆除 `tauri-plugin-single-instance`，改为纯多进程架构。每个 .md 双击启动独立 solo.exe，互不依赖。
+
+**改动文件**：
+- `src-tauri/Cargo.toml`：删除 `tauri-plugin-single-instance = "2"`
+- `src-tauri/src/main.rs`：新增 `setup_webview2_data_dir()`，启动时通过 `WEBVIEW2_USER_DATA_FOLDER` 环境变量为每个进程分配独立临时目录（`%TEMP%\com.solomarkdown\EBWebView-{PID}-{ms}`），并清理 24h 前过期目录
+- `src-tauri/src/lib.rs`：删除 `EARLY_OPEN_REQUEST` static、`store_early_open_request`、`take_early_open_request`、`dispatch_or_store_open_request`、single-instance 插件注册、setup 早期请求恢复；`RunEvent::Opened` 改为直接 `create_editor_window`
+- `src-tauri/src/models.rs`：`AppOpenSource` 删除 `Startup` / `SingleInstance` 变体
+
+**内存变化**：~80MB/进程，3 进程 ≈ 240MB（之前 150MB），16GB 机器无感。
+
+**关键约束**：
+- `Settings`（tauri-plugin-store JSON + 文件锁）多进程读写安全
+- `StartupOpenRequests` / `PendingWindowPaths` / `LoadedWindows` / `FocusedWindow` state 保留，每个进程独立
 
 ## 编译须知
 
@@ -278,6 +303,16 @@ inline:
   │   → 文本去掉 1 个前导空格
   └─ 否则 → 正常处理
 ```
+
+## 版本历史
+
+| 版本 | 主要变更 |
+|------|----------|
+| 1.2.5 | **拆除 `tauri-plugin-single-instance`，改为多进程独立架构**：每个 .md 双击启动独立 solo.exe，独立 WebView2 数据目录（`%TEMP%\com.solomarkdown\EBWebView-{PID}-{ms}`），消除 LevelDB 锁竞争导致的全进程卡死。启动时自动清理 24h 前过期目录。 |
+| 1.2.4 | callout 去圆角+加重底色，7主题预设 calloutNoteBg 同步；发布 solo_1.2.4_x64-setup.exe |
+| 1.2.3 | 文件关联移入 NSIS installerHooks；word count 切换文件修复；highlight mark 主题化；markdown 导出多余转义修复；roundtrip 测试框架 |
+| 1.2.2 | 粘贴检测 + Ctrl+C 带源码 + PDF→打印 |
+| 1.2.1 | 窗口生命周期全面修复 + 编辑器懒加载 + 保存退出流程 |
 
 ## 待办
 

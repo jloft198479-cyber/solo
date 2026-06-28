@@ -48,10 +48,26 @@
     "highlight mark 样式硬编码 → 提取为 theme markBg / markBorderRadius CSS 变量",
 
     // ── blockquote vs callout 视觉差异化 ──
-    "blockquote 引用 和 callout 重点 左边框+背景色一模一样 → blockquote 去背景改线条风，callout 加类型标签改卡片风"
+    "blockquote 引用 和 callout 重点 左边框+背景色一模一样 → blockquote 保留边框底色，callout 去边框改纯背景卡片 + ::before 类型标签",
+
+    // ── v1.2.4 ──
+    "callout border-radius 0（去圆角）+ 加重底色（light 0.08→0.11, dark 0.10→0.12），7主题预设同步",
+    "版本 1.2.4 发布：solo_1.2.4_x64-setup.exe",
+
+    // ── v1.2.5: 全进程卡死根因修复 ──
+    "拆除 tauri-plugin-single-instance，改为多进程独立架构",
+    "main.rs: setup_webview2_data_dir() — 每进程独立 %TEMP% EBWebView 目录 + 24h 过期清理",
+    "lib.rs: 删除 EARLY_OPEN_REQUEST / dispatch_or_store_open_request / store_early_open_request / take_early_open_request / single-instance 插件注册 / setup 早期请求恢复",
+    "models.rs: AppOpenSource 删除 Startup / SingleInstance 变体",
+    "RunEvent::Opened 改为直接 create_editor_window",
+    "修复 macOS 闭包参数名不匹配的潜伏编译 bug",
+    "版本 1.2.5 发布：solo_1.2.5_x64-setup.exe（编译通过）"
   ],
 
   "keyDecisions": {
+    // ── v1.2.5: 多进程独立架构 ──
+    "multiProcessInsteadOfSingleInstance": "tauri-plugin-single-instance 导致全进程卡死（LevelDB 锁竞争 + 主线程同步阻塞）。拆除改多进程：每个 .md 双击启动独立 solo.exe，独立 WebView2 数据目录（%TEMP%），互不牵连。Settings 用 tauri-plugin-store JSON + 文件锁，多进程安全。见 PROFILE.md §全进程卡死根因修复",
+
     // ── 窗口/生命周期 ──
     "onWindowEventSingleCallback": "Tauri v2 只支持一个回调→必须合并",
     "saveCurrentDocumentWait": "isSaving 锁改为等待≤1s 而非直接 false",
@@ -104,5 +120,7 @@
 
   "pendingItems": {
     "P3": "崩溃 .tmp 残留清理 — 搁置"
-  }
+  },
+
+  "latestSession": "2026-06-29 v1.2.5 全进程卡死根因修复：拆除 single-instance 改为多进程独立架构 + 独立 WebView2 数据目录。改动文件：main.rs / lib.rs / models.rs / Cargo.toml / tauri.conf.json / package.json。proposal 咨询文档在项目根目录 咨询问题描述.md。记录写入 PROFILE.md + project-context.jsonc"
 }
