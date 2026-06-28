@@ -13,12 +13,10 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_window_state::StateFlags;
 
-static EARLY_OPEN_REQUEST: Mutex<Option<AppOpenPathsPayload>> = Mutex::new(None);
 static WINDOW_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[tauri::command]
@@ -204,75 +202,8 @@ where
         .collect()
 }
 
-fn store_early_open_request(payload: AppOpenPathsPayload) {
-    let Ok(mut pending) = EARLY_OPEN_REQUEST.lock() else {
-        return;
-    };
-
-    if let Some(existing) = pending.as_mut() {
-        for path in payload.paths {
-            if !existing.paths.iter().any(|existing_path| existing_path == &path) {
-                existing.paths.push(path);
-            }
-        }
-        return;
-    }
-
-    *pending = Some(payload);
-}
-
-fn take_early_open_request() -> Option<AppOpenPathsPayload> {
-    EARLY_OPEN_REQUEST.lock().ok().and_then(|mut pending| pending.take())
-}
-
-fn dispatch_or_store_open_request(app: &tauri::AppHandle, payload: AppOpenPathsPayload) {
-    append_startup_log(
-        Some(app),
-        format!("dispatch_or_store_open_request: {:?}", payload),
-    );
-
-    let has_loaded_window = app
-        .try_state::<LoadedWindows>()
-        .and_then(|state| state.has_loaded_window().ok())
-        .unwrap_or(false);
-
-    if has_loaded_window {
-        // 已有加载完成的窗口：每个文件在新窗口中打开
-        for path in &payload.paths {
-            if let Err(e) = create_editor_window(app, Some(path.clone())) {
-                append_startup_log(Some(app), format!("create_editor_window error: {e}"));
-            }
-        }
-    } else if let Some(state) = app.try_state::<StartupOpenRequests>() {
-        append_startup_log(Some(app), "frontend not loaded, storing startup request");
-        let _ = state.merge(payload);
-    } else {
-        append_startup_log(
-            Some(app),
-            "startup state not initialized, storing early request",
-        );
-        store_early_open_request(payload);
-    }
-}
-
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
-            append_startup_log(
-                Some(app),
-                format!("single-instance args={:?}, cwd={}", args, cwd),
-            );
-            let paths = open_paths_from_args(args, Some(&cwd));
-            if !paths.is_empty() {
-                dispatch_or_store_open_request(
-                    app,
-                    AppOpenPathsPayload {
-                        paths,
-                        source: AppOpenSource::SingleInstance,
-                    },
-                );
-            }
-        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -300,59 +231,47 @@ pub fn run() {
             app.manage(LoadedWindows::default());
             app.manage(FocusedWindow::default());
 
-            {
-                if let Some(payload) = take_early_open_request() {
-                    append_startup_log(
-                        Some(&app.handle()),
-                        format!("setup recovered early open request={:?}", payload),
-                    );
-                    if let Some(state) = app.try_state::<StartupOpenRequests>() {
-                        let _ = state.merge(payload);
-                    }
-                }
+            let raw_args = std::env::args().collect::<Vec<_>>();
+            append_startup_log(
+                Some(&app.handle()),
+                format!("setup raw args={:?}", raw_args),
+            );
 
-                let raw_args = std::env::args().collect::<Vec<_>>();
+            let raw_paths = open_paths_from_args(raw_args.iter().skip(1), None);
+            if !raw_paths.is_empty() {
                 append_startup_log(
                     Some(&app.handle()),
-                    format!("setup raw args={:?}", raw_args),
+                    format!("startup paths from raw args={:?}", raw_paths),
                 );
-
-                let raw_paths = open_paths_from_args(raw_args.iter().skip(1), None);
-                if !raw_paths.is_empty() {
-                    append_startup_log(
-                        Some(&app.handle()),
-                        format!("startup paths from raw args={:?}", raw_paths),
-                    );
-                    if let Some(state) = app.try_state::<StartupOpenRequests>() {
-                        let _ = state.merge(AppOpenPathsPayload {
-                            paths: raw_paths,
-                            source: AppOpenSource::Cli,
-                        });
-                    }
+                if let Some(state) = app.try_state::<StartupOpenRequests>() {
+                    let _ = state.merge(AppOpenPathsPayload {
+                        paths: raw_paths,
+                        source: AppOpenSource::Cli,
+                    });
                 }
+            }
 
-                use tauri_plugin_cli::CliExt;
-                if let Ok(matches) = app.cli().matches() {
-                    if let Some(file_arg) = matches.args.get("file") {
-                        if let Some(file_path) = file_arg.value.as_str() {
-                            append_startup_log(
-                                Some(&app.handle()),
-                                format!("startup cli file arg={}", file_path),
-                            );
-                            if let Some(file_path) = normalize_open_path(file_path, None) {
-                                if let Some(state) = app.try_state::<StartupOpenRequests>() {
-                                    let _ = state.merge(AppOpenPathsPayload {
-                                        paths: vec![file_path],
-                                        source: AppOpenSource::Cli,
-                                    });
-                                }
-                            } else if let Some(state) = app.try_state::<StartupOpenRequests>() {
+            use tauri_plugin_cli::CliExt;
+            if let Ok(matches) = app.cli().matches() {
+                if let Some(file_arg) = matches.args.get("file") {
+                    if let Some(file_path) = file_arg.value.as_str() {
+                        append_startup_log(
+                            Some(&app.handle()),
+                            format!("startup cli file arg={}", file_path),
+                        );
+                        if let Some(file_path) = normalize_open_path(file_path, None) {
+                            if let Some(state) = app.try_state::<StartupOpenRequests>() {
                                 let _ = state.merge(AppOpenPathsPayload {
-                                    paths: vec![file_path.to_string()],
+                                    paths: vec![file_path],
                                     source: AppOpenSource::Cli,
                                 });
-                            };
-                        }
+                            }
+                        } else if let Some(state) = app.try_state::<StartupOpenRequests>() {
+                            let _ = state.merge(AppOpenPathsPayload {
+                                paths: vec![file_path.to_string()],
+                                source: AppOpenSource::Cli,
+                            });
+                        };
                     }
                 }
             }
@@ -407,9 +326,9 @@ pub fn run() {
         .expect("error while running tauri application")
         .run(|_app_handle, _event| {
             #[cfg(any(target_os = "macos", target_os = "ios"))]
-            if let tauri::RunEvent::Opened { urls } = &event {
+            if let tauri::RunEvent::Opened { urls } = &_event {
                 append_startup_log(
-                    Some(app_handle),
+                    Some(_app_handle),
                     format!("RunEvent::Opened urls={:?}", urls),
                 );
                 let paths = urls
@@ -418,14 +337,10 @@ pub fn run() {
                     .filter_map(|path| path.to_str().map(|value| value.to_string()))
                     .collect::<Vec<_>>();
 
-                if !paths.is_empty() {
-                    dispatch_or_store_open_request(
-                        app_handle,
-                        AppOpenPathsPayload {
-                            paths,
-                            source: AppOpenSource::OsOpen,
-                        },
-                    );
+                for path in paths {
+                    if let Err(e) = create_editor_window(_app_handle, Some(path)) {
+                        append_startup_log(Some(_app_handle), format!("RunEvent::Opened create_editor_window error: {e}"));
+                    }
                 }
             }
         });

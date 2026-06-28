@@ -41,10 +41,8 @@ pub struct DocumentRenameResult {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum AppOpenSource {
-    Startup,
     Cli,
     OsOpen,
-    SingleInstance,
     NewWindow,
 }
 

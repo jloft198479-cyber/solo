@@ -29,7 +29,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 11 个 composables +
 
 | 层 | 技术 | 版本 | 备注 |
 |---|---|---|---|
-| 桌面框架 | Tauri | 2.x | 无边框窗口、自定义标题栏、CLI/单实例/OS-open |
+| 桌面框架 | Tauri | 2.x | 无边框窗口、自定义标题栏、CLI（多进程）、OS-open |
 | 原生核心 | Rust | — | thiserror + serde + reqwest + winreg(Windows) |
 | 前端框架 | Vue 3 | 3.5 | Composition API + `<script setup>` |
 | 语言 | TypeScript | ~6.0 | strict 模式 |
@@ -214,7 +214,7 @@ md-editor/
 
 按顺序做四件事：
 
-1. **注册插件**：single-instance（单实例）、opener、dialog、clipboard-manager、cli、store、window-state（持久化 SIZE/POSITION/MAXIMIZED/FULLSCREEN）。
+1. **注册插件**：opener、dialog、clipboard-manager、cli、store、window-state（持久化 SIZE/POSITION/MAXIMIZED）。
 2. **`setup()`**：管理 state → 回收早期开打请求 → 解析 CLI/raw args → 建菜单 → 挂关闭拦截 →（macOS）设置窗口背景。
 3. **`invoke_handler`**：注册 **15 个命令**。
 4. **`run()` 回调**：macOS/iOS 的 `Opened { urls }` 事件转成开打请求。
@@ -237,13 +237,12 @@ md-editor/
 | `notify_frontend_ready` | lib.rs | 前端 ready 标记 + 返回待处理请求 |
 | `refresh_native_menu_shortcuts` | lib.rs | 自定义快捷键 → 重建原生菜单 |
 
-### 4.3 事件（3 个）
+### 4.3 事件（2 个）
 
 | 事件名 | 方向 | 载荷 |
 |---|---|---|
 | `menu-event` | Rust→前端 | 菜单项 id 字符串 |
 | `window-close-requested` | Rust→前端 | `()`（关闭被拦截，交前端确认） |
-| `app-open-paths` | Rust→前端 | `{ paths, source }`（要打开的文件） |
 
 ### 4.4 错误模型 `AppError`
 
@@ -251,13 +250,12 @@ md-editor/
 
 ### 4.5 启动文件开打的竞态处理（`state.rs` + `lib.rs`）
 
-"前端还没 ready 就来了开文件请求"是真实竞态。三层缓冲兜底：
-- **`EARLY_OPEN_REQUEST`**（静态 Mutex）：状态都没初始化时的最早期请求。
-- **`StartupOpenRequests`**（managed state）：setup 阶段已就绪后。
-- **`LoadedWindows`**（managed state）：标记哪个 window label 已 `notify_frontend_ready`。
+"前端还没 ready 就来了开文件请求"是真实竞态。两层缓冲兜底：
+- **`StartupOpenRequests`**（managed state）：setup 阶段解析 CLI args 后存入。
+- **`PendingWindowPaths`**（managed state）：`create_editor_window` 创建新窗口时存入，按 window label 索引。
 
-`dispatch_or_store_open_request()` 决策：有已加载窗口 → 直接 emit `app-open-paths`；否则存进 state/early buffer。请求来源四类：`Startup`/`Cli`/`OsOpen`/`SingleInstance`/`NewWindow`。
-所有过程写 `startup-open.log`（`help.diagnostics` 命令可定位此文件）。
+`notify_frontend_ready()` 先查 `PendingWindowPaths`（新窗口专属），无则回退 `StartupOpenRequests`（主窗口启动请求）。请求来源三类：`Cli`/`OsOpen`/`NewWindow`。
+所有过程写 `startup-open.log`（`reveal_startup_open_log` 命令可定位此文件）。
 
 ---
 
@@ -478,7 +476,7 @@ ProseMirror Doc
 
 ### 11.5 启动开打是竞态敏感的
 
-`StartupOpenRequests` + `LoadedWindows` + `EARLY_OPEN_REQUEST` 三层缓冲（见 §4.5）。动启动事件顺序前务必理解 `dispatch_or_store_open_request` 的分支。
+`StartupOpenRequests` + `PendingWindowPaths` + `LoadedWindows` 两层缓冲（见 §4.5）。动启动事件顺序前务必理解 `notify_frontend_ready` 的分支。
 
 ### 11.6 真理源自一处
 
@@ -523,7 +521,7 @@ ProseMirror Doc
 | 导出（HTML/微信） | `utils/export/` + `useExportActions.ts` |
 | 图片拖入/处理 | `editor-image-drop.ts` + Rust `commands/document.rs` + `services/tauri/asset.ts` |
 | 字体 | `constants/fonts.ts` + `fontStack.ts` + `fontLoader.ts` + `useEditorAppearance.ts` |
-| 启动开打/单实例 | Rust `lib.rs`（§4.5）+ `useAppWindowSession.ts` |
+| 启动开打 | Rust `lib.rs`（§4.5）+ `useAppWindowSession.ts` |
 | IPC 新增命令 | `command-names.ts` 登记 + `services/tauri/` 封装 + Rust `commands/` 实现 + `lib.rs` 注册 + `capabilities/` 加权限 |
 
 ---
