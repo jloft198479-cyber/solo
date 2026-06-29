@@ -52,11 +52,19 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: |
+          # Generate changelog from git log
+          $tag = "${{ github.ref_name }}"
+          $prevTag = git tag --sort=-v:refname | Select-Object -Index 1
+          if ($prevTag) {
+            $changelog = git log "$prevTag..$tag" --oneline --no-decorate
+          }
+          if (-not $changelog) { $changelog = "首次发布" }
+          $changelog | Set-Content changelog.txt
+
           # Find installer
           $exe = Get-Item "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
           if (-not $exe) { throw "No installer found" }
           $version = "${{ github.ref_name }}" -replace "^v", ""
-          $tag = "${{ github.ref_name }}"
           $repo = "${{ github.repository }}"
 
           # Sign installer → get signature
@@ -72,9 +80,12 @@ jobs:
           # Create latest.json
           $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
           $url = "https://github.com/$repo/releases/download/$tag/$($exe.Name)"
+          $notes = if ($changelog -is [array]) { $changelog -join "`n" } else { $changelog }
+          # Trim notes for latest.json (keep first 200 chars)
+          $notesShort = if ($notes.Length -gt 200) { $notes.Substring(0,200) + "..." } else { $notes }
           $json = @{
             version  = $version
-            notes    = "请查看 RELEASE_NOTES.md 了解本次更新内容。"
+            notes    = $notesShort
             pub_date = $pubDate
             platforms = @{
               "windows-x86_64" = @{
@@ -90,7 +101,7 @@ jobs:
           if ($existing) {
             gh release delete $tag --yes 2>$null
           }
-          gh release create $tag --title $tag --draft --notes "请查看 RELEASE_NOTES.md 了解本次更新内容。"
+          gh release create $tag --title $tag --draft --notes-file changelog.txt
 
           # Upload all assets
           Write-Host "Uploading: $($exe.Name)"
