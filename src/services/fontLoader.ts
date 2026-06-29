@@ -32,6 +32,7 @@ function mimeFromFileName(name: string): string {
 const SYSTEM_FONTS = new Set(['system-ui', 'Microsoft YaHei UI']);
 
 const loadedFonts = new Set<string>();
+const downloadFailures = new Set<string>();
 const loadingPromises = new Map<string, Promise<boolean>>();
 
 /** 下载进度 0–100，-1 表示未开始/已完成 */
@@ -154,6 +155,7 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
 
   const promise = (async () => {
     try {
+      downloadFailures.delete(family);
       const fileName = REMOTE_FONTS[family];
       if (!fileName) { loadedFonts.add(family); return true; }
 
@@ -194,6 +196,7 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
       return ok;
     } catch (e) {
       console.warn(`[fontLoader] Failed to load font: ${family}`, e);
+      downloadFailures.add(family);
       notifyProgress(family, -1);
       return false;
     } finally {
@@ -210,4 +213,8 @@ export async function isFontAvailable(family: string): Promise<boolean> {
   if (loadedFonts.has(family)) return true;
   const cached = await getCachedBlob(family);
   return cached !== null;
+}
+
+export function isFontFailed(family: string): boolean {
+  return downloadFailures.has(family);
 }
