@@ -435,7 +435,34 @@ export function parseMarkdown(schema: Schema, content: string): PMNode {
     }
   }
 
-  // 1. 用 markdown-it 解析主体内容
+  // 1.5. 预处理：插入 ZWNJ，防止 markdown-it 因 Unicode 标点边界拒绝打开或关闭
+  // 详见 AGENTS.md 「方案决策」章节了解背景和取舍。
+  // 顺序很重要：必须先关后开，避免互踩。
+  // 关闭方向：punct**word → punct\u200C**word（如 」**吗 → right_flanking=false）
+  // 排除 ASCII 标点（!-/:;?@[-`{-~），它们是 markdown 语法字符而非内容标点。
+  content = content.replace(
+    /(?<!\*)(?<=[\p{P}\p{S}])(\*+)(?=[^\s\p{P}\p{S}])/gu,
+    (_match, delim: string, offset: number) => {
+      const prevChar = content[offset - 1];
+      if (prevChar && /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/.test(prevChar)) {
+        return delim;
+      }
+      return '\u200C' + delim;
+    },
+  );
+  // 开启方向：word**punct → word**\u200Cpunct（如 嘿**「→ left_flanking=false）
+  content = content.replace(
+    /(?<!\*)(?<=[^\s\p{P}\p{S}])(\*{1,2})(?=[\p{P}\p{S}])(?!\*)/gu,
+    (_match, delim: string, offset: number) => {
+      const nextChar = content[offset + delim.length];
+      if (nextChar && /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/.test(nextChar)) {
+        return delim;
+      }
+      return delim + '\u200C';
+    },
+  );
+
+  // 2. 用 markdown-it 解析主体内容
   const tokens = md.parse(content, {});
   const handlers = getTokenHandlers(schema);
   const tokenInterceptors = getPluginTokenInterceptors(schema);

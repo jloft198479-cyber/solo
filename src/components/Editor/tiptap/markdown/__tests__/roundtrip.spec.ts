@@ -242,35 +242,33 @@ describe('Round-trip: parse → serialize', () => {
         expect(roundTrip('**hello?**\n')).toBe(normalize('**hello?**\n'));
       });
 
-      // 非段落末尾（后接文本）—— CommonMark 无法识别 CJK 标点后的 ** 关闭符
-      // 实际使用中：TipTap 直接加粗 → serializer 边界检测 → 插入 ZWNJ (U+200C) → 解析器正常
-      // 纯 markdown roundtrip（不经 TipTap）退化为转义输出
+      // 非段落末尾（后接文本）——通过 preprocessor 插入 ZWNJ 使关闭符 + 内容正确
+      // ZWNJ 在序列化时被剥离，roundtrip 输出干净
       it('bold with Chinese punctuation followed by more text', () => {
-        expect(roundTrip('**沉浸式体验，**继续\n')).toBe(normalize('\\*\\*沉浸式体验，\\*\\*继续\n'));
+        expect(roundTrip('**沉浸式体验，**继续\n')).toBe(normalize('**沉浸式体验，**继续\n'));
       });
-      // serializer 在此场景会自动插入 ZWNJ，此用例验证含 ZWNJ 的 reopen 场景
+      // 显式 ZWNJ 也会被剥离
       it('bold with Chinese punctuation followed by more text (ZWNJ workaround)', () => {
-        expect(roundTrip('**沉浸式体验，\u200C**继续\n')).toBe(normalize('**沉浸式体验，\u200C**继续\n'));
+        expect(roundTrip('**沉浸式体验，\u200C**继续\n')).toBe(normalize('**沉浸式体验，**继续\n'));
       });
 
-      // italic 同理——CommonMark 无法识别 CJK 标点后的 * 关闭符
+      // italic 同理
       it('italic with Chinese punctuation followed by more text', () => {
-        expect(roundTrip('*沉浸式体验，*继续\n')).toBe(normalize('\\*沉浸式体验，\\*继续\n'));
+        expect(roundTrip('*沉浸式体验，*继续\n')).toBe(normalize('*沉浸式体验，*继续\n'));
       });
-      // italic 的 ZWNJ reopen 场景
       it('italic with Chinese punctuation followed by more text (ZWNJ workaround)', () => {
-        expect(roundTrip('*沉浸式体验，\u200C*继续\n')).toBe(normalize('*沉浸式体验，\u200C*继续\n'));
+        expect(roundTrip('*沉浸式体验，\u200C*继续\n')).toBe(normalize('*沉浸式体验，*继续\n'));
       });
-      // 其他 Unicde 标点符号也统一处理
+      // Unicode 符号标点也统一处理
       it('italic with Unicode symbol at boundary', () => {
-        expect(roundTrip('*hello™*world\n')).toBe(normalize('\\*hello™\\*world\n'));
+        expect(roundTrip('*hello™*world\n')).toBe(normalize('*hello™*world\n'));
       });
-      // bold + italic 混合标记——ZWNJ 只插一次
+      // bold + italic 混合标记
       it('bold-italic with Chinese punctuation followed by more text', () => {
-        expect(roundTrip('***你好，***继续\n')).toBe(normalize('\\*\\*\\*你好，\\*\\*\\*继续\n'));
+        expect(roundTrip('***你好，***继续\n')).toBe(normalize('***你好，***继续\n'));
       });
       it('bold-italic with Chinese punctuation followed by more text (ZWNJ workaround)', () => {
-        expect(roundTrip('***你好，\u200C***继续\n')).toBe(normalize('***你好，\u200C***继续\n'));
+        expect(roundTrip('***你好，\u200C***继续\n')).toBe(normalize('***你好，***继续\n'));
       });
       it('italic with Chinese punctuation at paragraph end', () => {
         expect(roundTrip('*沉浸式体验，*\n')).toBe(normalize('*沉浸式体验，*\n'));

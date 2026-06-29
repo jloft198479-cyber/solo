@@ -46,6 +46,9 @@
   --mk-heading-gutter-width: 1.9rem;
   --mk-heading-gutter-gap: 0.25rem;
 
+  /* Windows 专用：提示 IME 保持内嵌候选模式而非浮动窗口 */
+  ime-mode: active;
+
   outline: none;
   font-family: var(--font-text);
   color: var(--text-color);
