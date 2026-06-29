@@ -31,7 +31,7 @@ solo is a "scalpel for words" — launches instantly, stays out of your way, and
 - **Desktop-native** — Frameless window, system menu, right-click "New .md", double-click titlebar to maximize, always-on-top, auto-save.
 - **Memory-conscious** — WebView2 MemoryUsageTargetLevel on blur, lazy editor initialization, ~5MB installer.
 - **HTML export** — Theme-following export, what you see is what you get.
-- **Format fidelity** — 56 round-trip tests covering parser ↔ serializer. Paste Markdown auto-converts. Ctrl+C writes Markdown source alongside HTML.
+- **Format fidelity** — 977 round-trip tests + 652 CommonMark spec stability checks (618 pass / 34 design constraints). Paste Markdown auto-converts. Ctrl+C writes Markdown source alongside HTML.
 
 ## Tech Stack
 
@@ -54,6 +54,10 @@ bun run test         # Run tests
 ```
 
 Requires Rust 1.96+ and MSVC Build Tools.
+
+## Contact
+
+- WeChat: fzz198479
 
 ## License
 
