@@ -163,8 +163,44 @@ set PATH=M:\rust\.cargo\bin;%PATH%
 **背景色浓度**：light 主题 `calloutNoteBg` opacity 0.08→0.11，dark 0.10→0.12（v1.2.4 调重）。
 
 ### 主题 highlight 样式硬编码问题与 serializer 双 escape 模式
-- **文件保存**（`clipboard=false`）：严格转义 16 个字符，保证 roundtrip fidelity
+- **文件保存**（`clipboard=false`）：严格转义 14 个字符，保证 roundtrip fidelity
 - **剪贴板**（`clipboard=true`）：仅转义 `\` `` ` `` `*` + 行首 `#+-.>=`，避免 `\=` `\?` `\!` 等多余符号
+
+### Roundtrip 修复 — `!` `?` 过度转义 + CJK 标点加粗边界（2026-06-29）
+
+**背景**：v1.2.5 后 roundtrip 测试（parse→serialize→parse→serialize）共 75 项，3 项失败：
+1. `**hello!**` → roundtrip 后 `\*…\*`（`!` 被 seq2 误转义）
+2. `**hello?**` → 同上（`?`）
+3. `**沉浸式体验，**继续` → 解析器无法识别 CJK 标点 `，` 后的 `**` 关闭符
+
+**根因分析**：
+
+**Fix A（`!`/`?` 过度转义）**：serializer `escapeInline` 正则 `/([\\`\*_{}\[\]()#+\-.!?~|<>])/g` 包含 16 个字符，其中 `!` 和 `?` 在 CommonMark 中无特殊语义，序列化时多余。直接删去即消除 2 个失败。
+
+**Fix B（CJK 标点后 `**` / `*` 边界）**：markdown-it 的 `scanDelims` 中，当 delimiter `**`/`*` 前字符为 Unicode 标点且后字符非空白非标点时，`right_flanking` 判定为 false → `canClose=false` → 强调标记无法关闭。影响 `**` bold 和 `*` italic 两种强调标记。
+
+**Fix B 方案**（serializer.ts）：
+- 新增 `_isUnicodePunctOrSym(c: string)` → `\p{P}|\p{S}` Unicode 类别判断
+- 新增 `_delimiterBoundaryUnsafe(mark, text, nextText)` → 检测 closing `**`/`*` 前是否：文本以 Unicode 标点结尾 && 后文非空且首字符非空白非标点
+- `renderMarks` closing 分支：当 `boundaryUnsafe` 时，在 delimiter 前插入 ZWNJ（U+200C）→ 解析器 `right_flanking=true` → 正确关闭加粗/斜体
+- 作用于 bold `**` 和 italic `*` 两种强调标记
+- ZWNJ 属于 Unicode Cf（Format），不影响渲染，不触发边界，不会级联退化
+
+**方案对比**：
+- `a)` 改 markdown-it 内部 `right_flanking` 规则 → 风险高，破坏 CommonMark 合规性
+- `b)` `<strong>` 标签兜底 → parser 当前 `html: false` 会丢弃标签
+- `c)` 开启 `html: true` → 改变 HTML 块处理行为，副作用不可控
+- `d)` **ZWNJ 插入（采用）** → 零副作用，仅影响 editor→file→editor 回环
+
+**方案对比**：
+- `a)` 改 markdown-it 内部 `right_flanking` 规则 → 风险高，破坏 CommonMark 合规性
+- `b)` `<strong>` 标签兜底 → parser 当前 `html: false` 会丢弃标签
+- `c)` 开启 `html: true` → 改变 HTML 块处理行为，副作用不可控
+- `d)` **ZWNJ 插入（采用）** → 零副作用，仅影响 editor→file→editor 回环
+
+**测试更新**：
+- `!` 转义测试：移去 `\!` 预期 → 不转义
+- CJK 边界测试：分两个 case — 纯 markdown roundtrip 退化 `\*\*…\*\*` 预期；含 ZWNJ 的 reopen 场景保真
 
 ### 全进程卡死根因修复 — 单实例拆除 + 多进程独立 WebView2 数据目录（v1.2.5）
 
@@ -188,6 +224,33 @@ set PATH=M:\rust\.cargo\bin;%PATH%
 **关键约束**：
 - `Settings`（tauri-plugin-store JSON + 文件锁）多进程读写安全
 - `StartupOpenRequests` / `PendingWindowPaths` / `LoadedWindows` / `FocusedWindow` state 保留，每个进程独立
+
+### CommonMark spec roundtrip 修复（v1.2.6，2026-06-29）
+
+**目标**：fix CommonMark spec roundtrip failures，保持 977 tests all green。
+
+**6项修复（全在 `serializer.ts`）**：
+
+1. **List item block separation**（`renderContent`:260-268）：移除 `inTightList` 判断，所有块间统一 `blankLine()`。Fix Ex 254,263,264,270,271,286-290,300。
+
+2. **Code span backtick delimiter**（`_codeSpanDelims()`:115-148）：计算相邻 code text 中最长 backtick run → N+1 分隔符，首尾字符为 backtick 时加 space padding。Fix Ex 17,329,330,339。
+
+3. **ATX heading trailing # escape**（`:315-322`）：heading inline 后扫描 trailing space+# → 插入 `\` 防 ATX closing marker。Fix Ex 76。
+
+4. **Code fence adaptive delimiter**（`:362-376`）：fence 长度取 content 最长 backtick run，language 含 backtick 时自动切 `~~~` fence。新增 `_maxCharRun()` / `_lineClash()` helpers（`:462-477`）。Fix Ex 123,124,127,134,146。
+
+5. **URL parenthesis escaping**（`:201-203`）：link href 中 `(`→`\(`，`)`→`\)`。Fix Ex 492,498,499,500。
+
+6. **Consecutive HR blank line suppression**（`:270-277`）：相邻 `horizontalRule` 间用 `ensureNewline()` 而非 `blankLine()`。Fix Ex 98。
+
+**测试状态**：
+- 27 files / 977 tests all green
+- CommonMark spec: 618 pass + 34 skip（设计约束：entity non-re-encoding、setext→ATX、nested emphasis PM limitation、list normalization 等）
+- SKIP table（`commonmark.spec.ts`）: 34 entries with documented reasons
+
+**其他**：
+- CJK punctuation + bold/italic delimiter boundary protection（ZWNJ insertion）+ ZWNJ dedup from previous session
+- 创建 `SOLO_BUILD_PROMPT.md` 用于 Claude Code handoff
 
 ## 编译须知
 
@@ -252,7 +315,8 @@ vite build         # 前端构建验证
 |------|------|------|------|
 | Fixture | `fixtures.spec.ts` | 17 | 预置 .md 文件，覆盖 empty/chinese/mixed/marks/headings/lists/blockquotes/code-blocks/table/links-images/footnotes/frontmatter/callouts/math/mermaid/wikilinks/edge-cases/real-world/lists(含嵌套+任务列表) |
 | Fuzz | `fuzz.spec.ts` | 100 | 随机生成 bold/italic/strike/highlight/code 组合 |
-| Roundtrip | `roundtrip.spec.ts` | 56 | 原有 roundtrip 用例 |
+| Roundtrip | `roundtrip.spec.ts` | 75 | 原有 roundtrip 用例 |
+| CommonMark | `commonmark.spec.ts` | 652 | 全量 CommonMark spec（618 pass + 34 skip） |
 
 **新增 fixture**：只需在 `fixtures/` 放一个 `.md` 文件，自动被发现，零代码改动。
 
@@ -308,6 +372,7 @@ inline:
 
 | 版本 | 主要变更 |
 |------|----------|
+| 1.2.6 | **CommonMark spec roundtrip 6项修复**：code span delimiter、list item blank line、ATX heading # escape、code fence adaptive delimiter、URL parenthesis escaping、consecutive HR blank line suppression。CommonMark skip table 45→34、977 tests all green。 |
 | 1.2.5 | **拆除 `tauri-plugin-single-instance`，改为多进程独立架构**：每个 .md 双击启动独立 solo.exe，独立 WebView2 数据目录（`%TEMP%\com.solomarkdown\EBWebView-{PID}-{ms}`），消除 LevelDB 锁竞争导致的全进程卡死。启动时自动清理 24h 前过期目录。 |
 | 1.2.4 | callout 去圆角+加重底色，7主题预设 calloutNoteBg 同步；发布 solo_1.2.4_x64-setup.exe |
 | 1.2.3 | 文件关联移入 NSIS installerHooks；word count 切换文件修复；highlight mark 主题化；markdown 导出多余转义修复；roundtrip 测试框架 |
