@@ -28,6 +28,9 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Install JS dependencies
+        run: bun install
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
