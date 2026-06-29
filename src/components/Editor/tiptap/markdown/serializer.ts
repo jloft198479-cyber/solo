@@ -93,14 +93,9 @@ export class MarkdownSerializerState {
       }
     } else {
       const next = this.findNextNonToken(parent, index);
-      let zwnjInserted = false;
       for (let i = marks.length - 1; i >= 0; i--) {
         const mark = marks[i];
         if (!next || !mark.isInSet(next.marks)) {
-          if (!zwnjInserted && (mark.type.name === 'bold' || mark.type.name === 'italic') && next && this._delimiterBoundaryUnsafe(node, next)) {
-            this.output += '\u200C';
-            zwnjInserted = true;
-          }
           this.activeMarks = mark.removeFromSet(this.activeMarks);
           if (mark.type.name === 'code') {
             this.write(this._codeSpanDelims(node, parent, index).close);
@@ -157,36 +152,6 @@ export class MarkdownSerializerState {
     return true;
   }
 
-  /** 检查 bold/italic 关闭边界是否不安全——前字符为 Unicode 标点且后字符非空白/非标点 */
-  private _delimiterBoundaryUnsafe(node: PMNode, next: PMNode): boolean {
-    if (!node.isText) return false;
-    const text = node.text ?? '';
-    if (!text) return false;
-    const lastChar = text.charAt(text.length - 1);
-    if (!lastChar || !this._isUnicodePunctOrSym(lastChar)) return false;
-
-    const nextText = next.isText ? (next.text ?? '') : '';
-    if (!nextText) return false;
-    const firstNextChar = nextText.charAt(0);
-    const code = firstNextChar.charCodeAt(0);
-
-    // 同 markdown-it isWhiteSpace 逻辑
-    if (code >= 0x2000 && code <= 0x200A) return false;
-    switch (code) {
-      case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D:
-      case 0x20: case 0xA0: case 0x1680: case 0x202F:
-      case 0x205F: case 0x3000:
-        return false;
-    }
-
-    if (this._isUnicodePunctOrSym(firstNextChar)) return false;
-    return true;
-  }
-
-  private _isUnicodePunctOrSym(ch: string): boolean {
-    return /\p{P}|\p{S}/u.test(ch);
-  }
-
   private markDelimiter(mark: Mark, _opening: boolean): string {
     switch (mark.type.name) {
       case 'bold': return '**';
@@ -238,6 +203,9 @@ export class MarkdownSerializerState {
       }
       result = result.replace(/\n([#+\-.])/g, '\n\\$1');
     }
+
+    // ZWNJ 仅供解析阶段使用，序列化时移除以避免污染输出
+    result = result.replace(/\u200C/g, '');
 
     return result;
   }

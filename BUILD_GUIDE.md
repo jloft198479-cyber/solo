@@ -2,7 +2,7 @@
 
 > **目标**：任何开发者（人或 AI）按此文档操作，均可在干净 Windows 环境下成功编译 solo。
 > **适用范围**：Windows 10+ x64，Tauri v2.11.2，Rust 1.96.0，Bun 1.3.14。
-> **最后验证**：2026-06-27，`vue-tsc --noEmit` ✅ → `vite build` ✅ → `cargo build --release` ✅ → `makensis` ✅
+> **最后验证**：2026-06-29，`vue-tsc --noEmit` ✅ → `vite build` ✅ → `cargo build --release` ✅ → `makensis` ✅
 
 ---
 
@@ -127,11 +127,11 @@ src/ (Vue + TS)  ──vue-tsc──▶ 类型检查
                              ──vite build──▶ dist/ (前端产物)
 
 src-tauri/src/ (Rust)  ──cargo build --release──▶ solo.exe
-                                                  ──makensis──▶ solo_1.2.2_x64-setup.exe
+                                                  ──makensis──▶ solo_1.2.7_x64-setup.exe
 ```
 
 `solo.exe` → 绿色可执行文件
-`solo_1.2.2_x64-setup.exe` → NSIS 安装包
+`solo_1.2.7_x64-setup.exe` → NSIS 安装包
 
 ### 4.2 方式一：前端独立编译（验证前端改动）
 
@@ -270,7 +270,7 @@ echo ===== Done =====
 | 文件 | 路径 | 说明 |
 |---|---|---|
 | `solo.exe` | `src-tauri\target\release\solo.exe` | 绿色可执行文件（约 15MB） |
-| `solo_1.2.3_x64-setup.exe` | `src-tauri\target\release\bundle\nsis\solo_1.2.3_x64-setup.exe` | NSIS 安装包 |
+| `solo_1.2.7_x64-setup.exe` | `src-tauri\target\release\bundle\nsis\solo_1.2.7_x64-setup.exe` | NSIS 安装包 |
 
 ---
 
@@ -459,7 +459,12 @@ MSVC:
   Path:    M:\VS\BuildTools
   vcvars:  M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat
 
-Node.js / Bun:
+Node.js:
+  node:    v24.16.0
+  npm:     11.13.0
+  Path:    D:\nodejs\
+
+Bun:
   bun:     1.3.14
 
 项目:
@@ -470,6 +475,10 @@ Node.js / Bun:
   windows: 0.61.3
 ```
 
+工具链磁盘占用：
+- Rust 工具链（rustup + cargo）：~1.4GB
+- MSVC Build Tools：~3.4GB
+
 ### 8.2 关键依赖的 Cargo 版本
 
 ```
@@ -478,7 +487,6 @@ tauri-plugin-opener = "2" (2.5.4)
 tauri-plugin-dialog = "2.7.1" (2.7.1)
 tauri-plugin-clipboard-manager = "2" (2.3.2)
 tauri-plugin-cli = "2" (2.4.1)
-tauri-plugin-single-instance = "2" (2.4.2)
 tauri-plugin-store = "2.4.3" (2.4.3)
 tauri-plugin-window-state = "2.4.1" (2.4.1)
 serde = "1" (with derive)
@@ -580,3 +588,4 @@ Project: 1.3.14
 ---
 
 > **最后提醒**：编译环境最大的敌人是**环境变量和目录**。每次报错先确认：当前在哪个目录、环境变量设对了没有、`vcvars64.bat` 执行了没有。保持冷静，按文档一步步来，你一定能编译成功。
+
