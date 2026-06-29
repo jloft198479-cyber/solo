@@ -37,6 +37,8 @@ export interface Settings {
   imageStoragePath: string;
   /** Windows shell integration: register .md file association and right-click "New" menu */
   shellIntegration: boolean;
+  /** Auto check for updates on startup */
+  enableAutoUpdateCheck: boolean;
   /** Config version */
   configVersion: number;
 }
@@ -54,10 +56,11 @@ const DEFAULT_SETTINGS: Settings = {
   alwaysOnTop: false,
   imageStoragePath: '',
   shellIntegration: false,
-  configVersion: 10,
+  enableAutoUpdateCheck: true,
+  configVersion: 11,
 };
 
-const CURRENT_CONFIG_VERSION = 10;
+const CURRENT_CONFIG_VERSION = 11;
 
 /** 自动保存间隔下限（秒），防止配置异常导致过于频繁的保存 */
 const MIN_AUTOSAVE_INTERVAL_SECONDS = 5;

@@ -8,6 +8,7 @@ import EditorSettingsPanel from './EditorSettingsPanel.vue';
 import SaveSettingsPanel from './SaveSettingsPanel.vue';
 import SettingsSidebarNav, { type SettingsTabKey } from './SettingsSidebarNav.vue';
 import ShortcutSettingsPanel from './ShortcutSettingsPanel.vue';
+import AboutSettingsPanel from './AboutSettingsPanel.vue';
 import { useShortcutSettings } from './useShortcutSettings';
 
 const settingsStore = useSettingsStore();
@@ -54,6 +55,10 @@ const tabMeta = {
   save: {
     title: '保存策略',
     description: '控制自动保存与文件持久化行为。',
+  },
+  about: {
+    title: '关于',
+    description: '版本信息与软件更新。',
   },
 } as const;
 
@@ -181,6 +186,12 @@ function onKeyDown(e: KeyboardEvent) {
                   v-model:auto-save-interval="settingsStore.settings.autoSaveInterval"
                   v-model:image-storage-path="settingsStore.settings.imageStoragePath"
                   v-model:shell-integration="settingsStore.settings.shellIntegration"
+                />
+
+                <!-- 关于 -->
+                <AboutSettingsPanel
+                  v-show="activeTab === 'about'"
+                  v-model:enable-auto-update-check="settingsStore.settings.enableAutoUpdateCheck"
                 />
               </div>
             </div>

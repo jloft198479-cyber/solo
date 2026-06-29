@@ -83,7 +83,7 @@ describe('normalizeSettings', () => {
 
     expect(normalized.activeThemeId).toBe('scholar-light');
     expect(normalized.autoSave).toBe(false);
-    expect(normalized.configVersion).toBe(10);
+    expect(normalized.configVersion).toBe(11);
   });
 
   it('preserves current-format stored themes and updates config version', () => {
@@ -106,6 +106,6 @@ describe('normalizeSettings', () => {
       id: 'custom-42',
       appearance: 'dark',
     });
-    expect(normalized.configVersion).toBe(10);
+    expect(normalized.configVersion).toBe(11);
   });
 });
