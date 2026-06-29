@@ -142,8 +142,27 @@ hello **「world」**                    → bold
 
 ---
 
-## 历史
+## 会话日志
 
-| 日期 | 变更 |
-|------|------|
-| 2026-06-29 | 初版 — 解决 CJK 标点导致 `**`/`*` 无法关闭问题，通过全部 829 测试 |
+### 2026-06-29 会话 #1 — CJK 标点修复 + IME 优化
+
+**目标**：解决 markdown-it 因 CJK 标点边界导致 `**`/`*`/`***` 无法正确关闭或打开的问题。
+
+**完成项**：
+- [x] parser.ts preprocessor：插入 ZWNJ 处理关闭方向（punct→`**`→word）和开启方向（word→`**`→punct）
+- [x] 排除 ASCII 标点（`~` `` ` `` `=` `[` `]` `(` `)` 等），只对非 ASCII `\p{P}\p{S}` 加 ZWNJ
+- [x] `\*+` 兼容 `***`（加粗+斜体混合）
+- [x] `(?<!\*)` 放首位而非末尾（JS lookbehind 位置陷阱）
+- [x] serializer.ts：删除 `_delimiterBoundaryUnsafe` ZWNJ 插入逻辑，改由预处理统一接管
+- [x] serializer.ts：`escapeInline` 中 strip ZWNJ，保证输出干净
+- [x] `editor.css`：添加 `ime-mode: active` 缓解微软拼音浮动候选框
+- [x] 更新 roundtrip 测试期望值（CJK 边界从转义恢复到正确解析）
+- [x] 前端构建通过（`bun run build`）
+- [ ] Tauri 打包未完成（缺 Rust 工具链）
+
+**测试结果**：978 全过（27 个测试文件），markdown 相关 829 全过（6 个文件）
+**经验沉淀**：本文件 + `parser.ts` 注释索引
+
+**未完成任务**（留给下次）：
+1. 在用户环境执行 `bun run build && bun run tauri build` 打包
+2. 验证 `ime-mode: active` 对微软拼音浮动框的实际缓解效果；如效果不佳，考虑在 Tauri Rust 层加 WebView2 TSF 标志

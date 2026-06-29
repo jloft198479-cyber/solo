@@ -127,11 +127,11 @@ src/ (Vue + TS)  ──vue-tsc──▶ 类型检查
                              ──vite build──▶ dist/ (前端产物)
 
 src-tauri/src/ (Rust)  ──cargo build --release──▶ solo.exe
-                                                  ──makensis──▶ solo_1.2.7_x64-setup.exe
+                                                  ──makensis──▶ solo_1.2.8_x64-setup.exe
 ```
 
 `solo.exe` → 绿色可执行文件
-`solo_1.2.7_x64-setup.exe` → NSIS 安装包
+`solo_1.2.8_x64-setup.exe` → NSIS 安装包
 
 ### 4.2 方式一：前端独立编译（验证前端改动）
 
@@ -270,7 +270,7 @@ echo ===== Done =====
 | 文件 | 路径 | 说明 |
 |---|---|---|
 | `solo.exe` | `src-tauri\target\release\solo.exe` | 绿色可执行文件（约 15MB） |
-| `solo_1.2.7_x64-setup.exe` | `src-tauri\target\release\bundle\nsis\solo_1.2.7_x64-setup.exe` | NSIS 安装包 |
+| `solo_1.2.8_x64-setup.exe` | `src-tauri\target\release\bundle\nsis\solo_1.2.8_x64-setup.exe` | NSIS 安装包 |
 
 ---
 
