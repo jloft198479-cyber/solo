@@ -299,7 +299,7 @@ fn unique_asset_target(assets_dir: &Path, filename: &str) -> (PathBuf, String) {
 #[cfg(test)]
 mod tests {
     use super::{
-        atomic_write, import_document_image, open_document, save_document,
+        atomic_write, import_document_image, open_document, rename_file, save_document,
         validate_image_asset_path,
     };
     use crate::error::AppError;
@@ -377,6 +377,7 @@ mod tests {
         let imported = import_document_image(
             source_path.to_string_lossy().to_string(),
             document_path.to_string_lossy().to_string(),
+            None,
         )
         .unwrap();
 
@@ -412,6 +413,211 @@ mod tests {
         let validated = validate_image_asset_path(&image_path).unwrap();
 
         assert_eq!(validated, image_path.canonicalize().unwrap());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn save_document_force_skips_conflict_check() {
+        let dir = test_dir();
+        let path = dir.join("force.md");
+        atomic_write(&path, b"original").unwrap();
+        let opened = open_document(path.to_string_lossy().to_string()).unwrap();
+
+        // externally modify file
+        thread::sleep(Duration::from_millis(5));
+        atomic_write(&path, b"external").unwrap();
+
+        // force=true should succeed despite mtime mismatch
+        let result = save_document(
+            opened.path.clone(),
+            "forced content".into(),
+            Some(opened.last_modified_ms),
+            true,
+        )
+        .unwrap();
+
+        assert_eq!(result.path, opened.path);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn save_document_creates_parent_directory() {
+        let dir = test_dir();
+        let nested = dir.join("sub").join("new.md");
+        let result = save_document(
+            nested.to_string_lossy().to_string(),
+            "new file".into(),
+            None,
+            true,
+        )
+        .unwrap();
+
+        assert!(nested.exists());
+        assert_eq!(fs::read_to_string(&nested).unwrap(), "new file");
+        assert!(result.last_modified_ms > 0);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn rename_file_rejects_empty_name() {
+        let dir = test_dir();
+        let path = dir.join("old.md");
+        atomic_write(&path, b"content").unwrap();
+
+        let err = rename_file(path.to_string_lossy().to_string(), "  ".into()).unwrap_err();
+        match err {
+            AppError::Validation(msg) => assert_eq!(msg, "文件名不能为空"),
+            _ => panic!("expected validation error"),
+        }
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn rename_file_rejects_illegal_chars() {
+        let dir = test_dir();
+        let path = dir.join("old.md");
+        atomic_write(&path, b"content").unwrap();
+
+        let err = rename_file(path.to_string_lossy().to_string(), "a/b".into()).unwrap_err();
+        match err {
+            AppError::Validation(msg) => assert_eq!(msg, "文件名包含非法字符"),
+            _ => panic!("expected validation error"),
+        }
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn rename_file_strips_md_extension_from_new_name() {
+        let dir = test_dir();
+        let path = dir.join("old.md");
+        atomic_write(&path, b"content").unwrap();
+
+        let result = rename_file(path.to_string_lossy().to_string(), "new.md".into()).unwrap();
+
+        let expected = dir.join("new.md");
+        assert_eq!(result.path, expected.to_string_lossy());
+        assert!(expected.exists());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn rename_file_rejects_target_exists() {
+        let dir = test_dir();
+        let old = dir.join("old.md");
+        let target = dir.join("target.md");
+        atomic_write(&old, b"old").unwrap();
+        atomic_write(&target, b"target").unwrap();
+
+        let err = rename_file(old.to_string_lossy().to_string(), "target".into()).unwrap_err();
+        match err {
+            AppError::Conflict(msg) => assert_eq!(msg, "目标文件已存在"),
+            _ => panic!("expected conflict error"),
+        }
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn rename_file_success() {
+        let dir = test_dir();
+        let old = dir.join("old.md");
+        atomic_write(&old, b"hello").unwrap();
+
+        let result = rename_file(old.to_string_lossy().to_string(), "renamed".into()).unwrap();
+
+        let expected = dir.join("renamed.md");
+        assert_eq!(result.path, expected.to_string_lossy());
+        assert!(!old.exists());
+        assert!(expected.exists());
+        assert_eq!(fs::read_to_string(&expected).unwrap(), "hello");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn resolve_document_image_path_rejects_absolute() {
+        let err = super::resolve_document_image_path("/abs/path.md".into(), "/evil/passwd".into())
+            .unwrap_err();
+        match err {
+            AppError::Validation(msg) => assert_eq!(msg, "图片路径无效"),
+            _ => panic!("expected validation error"),
+        }
+    }
+
+    #[test]
+    fn resolve_document_image_path_rejects_path_traversal() {
+        let err =
+            super::resolve_document_image_path("/abs/path.md".into(), "../../etc/passwd".into())
+                .unwrap_err();
+        match err {
+            AppError::Validation(msg) => assert_eq!(msg, "图片路径无效"),
+            _ => panic!("expected validation error"),
+        }
+    }
+
+    #[test]
+    fn resolve_document_image_path_resolves_relative_path() {
+        let dir = test_dir();
+        let doc_path = dir.join("doc.md");
+        let result =
+            super::resolve_document_image_path(doc_path.to_string_lossy().to_string(), "images/x.png".into())
+                .unwrap();
+        let expected = dir.join("images/x.png");
+        assert_eq!(result.absolute_path, expected.to_string_lossy());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn temp_path_has_expected_format() {
+        let dir = test_dir();
+        let path = dir.join("demo.md");
+        let tmp = super::temp_path(&path);
+
+        let filename = tmp.file_name().unwrap().to_string_lossy();
+        assert!(filename.starts_with(".demo."));
+        assert!(filename.ends_with(".tmp"));
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn unique_asset_target_returns_first_available_slot() {
+        let dir = test_dir();
+        let assets = dir.join("assets");
+        fs::create_dir_all(&assets).unwrap();
+
+        let (p1, n1) = super::unique_asset_target(&assets, "cover.png");
+        assert_eq!(n1, "cover.png");
+        assert_eq!(p1, assets.join("cover.png"));
+
+        // create the file so next call deduplicates
+        fs::write(&p1, b"img").unwrap();
+        let (p2, n2) = super::unique_asset_target(&assets, "cover.png");
+        assert_eq!(n2, "cover-1.png");
+        assert_eq!(p2, assets.join("cover-1.png"));
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn unique_asset_target_without_extension() {
+        let dir = test_dir();
+        let assets = dir.join("assets");
+        fs::create_dir_all(&assets).unwrap();
+
+        let (p1, n1) = super::unique_asset_target(&assets, "image");
+        assert_eq!(n1, "image");
+
+        fs::write(&p1, b"img").unwrap();
+        let (_p2, n2) = super::unique_asset_target(&assets, "image");
+        assert_eq!(n2, "image-1");
 
         let _ = fs::remove_dir_all(dir);
     }

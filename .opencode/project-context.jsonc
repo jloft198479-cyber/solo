@@ -44,6 +44,12 @@
     "任务列表 checkbox 后文本双空格 → inline handler 跳过前导空格",
     "test schema 缺 taskList/taskItem 节点 → test-utils.ts + roundtrip.spec.ts 补充",
 
+    // ── Roundtrip Fix B — !? 过度转义 + CJK 标点加粗边界 (2026-06-29) ──
+    "Fix A: serialzer escapeInline 正则移除 !? —— 非 CommonMark 特殊字符，消除 2 个 roundtrip 失败",
+    "Fix B: CJK 标点后 **/* 无法关闭 — serializer renderMarks 边界检测 + ZWNJ (U+200C) 插入，覆盖 bold + italic，消除 3 个 roundtrip 失败",
+    "新增 _isUnicodePunctOrSym + _delimiterBoundaryUnsafe 方法到 serializer.ts",
+    "新增 ZWNJ reopen 测试用例到 roundtrip.spec.ts",
+
     // ── 主题系统 (ffa2d2a) ──
     "highlight mark 样式硬编码 → 提取为 theme markBg / markBorderRadius CSS 变量",
 
@@ -77,9 +83,10 @@
     "installerHooksForFileAssoc": "Tauri fileAssociations 不写 ShellNew/DefaultIcon；Rust 运行时注册太晚。NSIS 安装阶段写注册表 + SHChangeNotify 刷新，装完即生效。见 PROFILE.md §文件关联",
 
     // ── Markdown roundtrip ──
-    "serializerEscapeTwoModes": "clipboard=false（文件保存）严格转义 16 字符保证 fidelity；clipboard=true（剪贴板）仅转义 \\ ` * + 行首特殊字符，避免 \= \? \! 多余符号。见 serializer.ts:136-150",
+    "serializerEscapeTwoModes": "clipboard=false（文件保存）严格转义 14 字符（移除 !?）保证 fidelity；clipboard=true（剪贴板）仅转义 \\ ` * + 行首特殊字符。见 serializer.ts:136-150",
     "nestedListIndentDepth": "每级嵌套 3 空格缩进（CommonMark 标准）。serializer.ts listDepth 计数",
     "taskListDetection": "parser bullet_list_open 前看 token 检测 task-list-item class → 开 taskList 代替 bulletList；checked 状态从 html_inline <input checked=\"\"> 提取，不从 class 属性（markdown-it-task-lists 仅 token 阶段不加 checked class）",
+    "cjkBoldBoundaryZWNJ": "CJK 标点后 **/* 边界问题同根因：CommonMark scanDelims 以 Unicode 类别判定 right_flanking。Po/S 类使 canClose=false。serializer 为 bold 和 italic 插入 ZWNJ (Cf 类) 使 parser 正确识别关闭符，零副作用。纯 markdown roundtrip（不经编辑）退化为转义，这是规范限制。见 PROFILE.md §CJK 标点加粗边界",
   },
 
   "testInfrastructure": {
@@ -103,7 +110,9 @@
     "表格内 <br> 不能换行 — GFM 标准限制",
     "Mark 顺序重排 — ProseMirror schema 行为",
     "PDF 导出 = 浏览器打印 — 改名诚实",
-    "P3: 崩溃 .tmp 残留清理 — 方案复杂，搁置"
+    "P3: 崩溃 .tmp 残留清理 — 方案复杂，搁置",
+    "P4: 多进程内存占用偏高（每进程 ~80MB），合 3 窗口 ≈240MB。候选方案：(a) MemoryUsageTargetLevel=Low 零风险，收益一般；(b) TrySuspendAsync 失焦挂起渲染进程，收益大但有白屏/事件丢失风险。下次版本迭代时评估。",
+    "CJK 标点后 **/* 关闭符：CommonMark scanDelims 视 Unicode 标点为 right_flanking=false。serializer 插入 ZWNJ 修复 editor→file→editor 回环；纯 markdown roundtrip（不经编辑）退化为 \\*\\*…\\*\\* 或 \\*…\\*，属规范限制，无法在 serializer 层根除。"
   ],
 
   "buildEnv": {
@@ -119,8 +128,9 @@
   },
 
   "pendingItems": {
-    "P3": "崩溃 .tmp 残留清理 — 搁置"
+    "P3": "崩溃 .tmp 残留清理 — 搁置",
+    "P4": "多进程内存优化 — 下次版本评估。候选：MemoryUsageTargetLevel=Low / TrySuspendAsync 窗口失焦挂起"
   },
 
-  "latestSession": "2026-06-29 v1.2.5 全进程卡死根因修复：拆除 single-instance 改为多进程独立架构 + 独立 WebView2 数据目录。改动文件：main.rs / lib.rs / models.rs / Cargo.toml / tauri.conf.json / package.json。proposal 咨询文档在项目根目录 咨询问题描述.md。记录写入 PROFILE.md + project-context.jsonc"
+    "latestSession": "2026-06-29 roundtrip 修复：serializer escapeInline 移除 !?（2 个失败归零）；CJK 边界 ZWNJ 覆盖 bold + italic（+3 失败归零 + reopen 场景）；79 roundtrip tests 全绿，357 total tests 全绿，vue-tsc + vite build 无错误"
 }
