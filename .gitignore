@@ -49,3 +49,6 @@ coverage/
 
 # Gitee sync workflow (don't sync this file to Gitee)
 .github/workflows/sync-to-gitee.yml
+
+# Tauri updater signing key (keep private!)
+src-tauri/.tauri/

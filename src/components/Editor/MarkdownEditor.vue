@@ -78,14 +78,12 @@
 import { nextTick, onMounted, ref, shallowRef, onBeforeUnmount, watch } from 'vue';
 import { debounce } from 'lodash-es';
 import { Editor as TiptapEditor, EditorContent } from '@tiptap/vue-3';
-import type { Slice } from '@tiptap/pm/model';
-import type { EditorView } from '@tiptap/pm/view';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { useFileStore } from '../../stores/file';
 import { useSettingsStore } from '../../stores/settings';
 import { parseMarkdown } from './tiptap/markdown/parser';
-import { serializeMarkdown, serializeMarkdownForClipboard } from './tiptap/markdown/serializer';
+import { serializeMarkdown } from './tiptap/markdown/serializer';
 import type { SlashCommandItem } from './tiptap/extensions/slash-commands';
 import type { EmojiItem } from './tiptap/extensions/emoji-suggest';
 import {
@@ -223,11 +221,6 @@ function createEditor(content: string) {
       attributes: {
         class: 'tiptap-editor',
         spellcheck: settingsStore.settings.spellCheck ? 'true' : 'false',
-      },
-      clipboardTextSerializer(slice: Slice, view: EditorView) {
-        if (slice.content.size === 0) return '';
-        const wrapper = view.state.schema.nodes.doc.create(null, slice.content);
-        return serializeMarkdownForClipboard(wrapper);
       },
     },
     onUpdate: ({ editor: ed }) => {
