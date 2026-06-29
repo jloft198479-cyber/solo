@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useSettingsStore } from '../stores/settings';
 import { FONT_OPTIONS } from '../constants/fonts';
-import { isFontAvailable, onProgress } from '../services/fontLoader';
+import { isFontAvailable, isFontFailed, onProgress } from '../services/fontLoader';
 import CheckIcon from './icons/CheckIcon.vue';
 import './popover-shared.css';
 
@@ -15,10 +15,12 @@ const fontOptions = FONT_OPTIONS;
 const currentFont = computed(() => settingsStore.settings.fontFamily);
 
 const fontStatus = ref<Record<string, boolean>>({});
+const fontFailed = ref<Record<string, boolean>>({});
 
 async function refreshStatus() {
   for (const opt of fontOptions) {
     fontStatus.value[opt.value] = await isFontAvailable(opt.value);
+    fontFailed.value[opt.value] = isFontFailed(opt.value);
   }
 }
 
@@ -33,6 +35,7 @@ const unsub = onProgress((family, pct) => {
     progressing.value = { ...progressing.value, [family]: 100 };
     isFontAvailable(family).then((ok) => {
       fontStatus.value[family] = ok;
+      fontFailed.value[family] = !ok && isFontFailed(family);
       if (currentFont.value === family) {
         setTimeout(() => {
           const rest = { ...progressing.value };
@@ -85,6 +88,9 @@ function selectFont(value: string) {
               <template v-if="progressing[opt.value] !== undefined">
                 <span class="font-dl-badge font-dl-badge--active">下载 {{ progressing[opt.value] }}%</span>
               </template>
+              <template v-else-if="fontFailed[opt.value]">
+                <span class="font-dl-badge font-dl-badge--fail">下载失败</span>
+              </template>
               <template v-else-if="opt.downloadUrl && !fontStatus[opt.value]">
                 <span class="font-dl-badge">需下载</span>
               </template>
@@ -121,6 +127,11 @@ function selectFont(value: string) {
   color: var(--muted-color);
   vertical-align: middle;
   font-weight: 500;
+}
+
+.font-dl-badge--fail {
+  background: color-mix(in srgb, var(--error-color) 12%, transparent);
+  color: var(--error-color);
 }
 
 .font-dl-badge--active {
