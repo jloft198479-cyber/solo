@@ -1,5 +1,5 @@
 <script setup lang="ts">
-export type SettingsTabKey = 'appearance' | 'editor' | 'shortcuts' | 'save';
+export type SettingsTabKey = 'appearance' | 'editor' | 'shortcuts' | 'save' | 'about';
 
 const activeTab = defineModel<SettingsTabKey>({ required: true });
 
@@ -8,6 +8,7 @@ const tabs: Array<{ key: SettingsTabKey; label: string }> = [
   { key: 'editor', label: '编辑器' },
   { key: 'shortcuts', label: '快捷键' },
   { key: 'save', label: '保存' },
+  { key: 'about', label: '关于' },
 ];
 </script>
 

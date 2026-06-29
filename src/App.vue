@@ -208,10 +208,21 @@ onMounted(async () => {
       windowSession.setup(),
       syncMenuShortcuts(),
     ]);
+    autoCheckForUpdate();
   } catch (e) {
     console.error('[App] onMounted init failed:', e);
   }
 });
+
+async function autoCheckForUpdate() {
+  if (!settings.value.enableAutoUpdateCheck) return;
+  try {
+    const { check } = await import('@tauri-apps/plugin-updater');
+    await check();
+  } catch {
+    // 静默忽略网络错误，不打扰用户
+  }
+}
 
 onUnmounted(() => {
   windowSession.cleanup();
