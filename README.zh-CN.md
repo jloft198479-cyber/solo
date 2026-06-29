@@ -31,7 +31,7 @@ solo 是一把「专为文字而生的手术刀」——秒开秒关、书卷气
 - **桌面原生** — 无边框窗口、系统菜单、右键新建 .md、双击标题栏最大化、置顶、自动保存。
 - **内存克制** — 多窗口下 WebView2 MemoryUsageTargetLevel 自动降级，编辑器懒初始化，安装包仅 ~5MB。
 - **HTML 导出** — 完整主题跟随导出，所见即所得。
-- **格式保真** — parser ↔ serializer round-trip 测试 56 项全覆盖，粘贴 Markdown 自动转换，Ctrl+C 同时写入源码到剪贴板。
+- **格式保真** — 977 项 round-trip 测试 + 652 条 CommonMark spec 稳定性验证（618 通过 / 34 设计约束），粘贴 Markdown 自动转换，Ctrl+C 同时写入源码到剪贴板。
 
 ## 技术架构
 
@@ -58,6 +58,10 @@ bun run test         # 运行测试
 ```
 
 需要 Rust 1.96+ 和 MSVC Build Tools。项目提供 `launch-dev.bat` 一键启动开发模式。
+
+## 联系方式
+
+- 微信：fzz198479
 
 ## License
 
