@@ -66,7 +66,6 @@ async function registerFont(family: string, data: ArrayBuffer, mime: string): Pr
 
 async function downloadWithProgress(
   url: string,
-  mime: string,
   family: string,
 ): Promise<ArrayBuffer> {
   const res = await fetch(url);
@@ -121,7 +120,7 @@ async function downloadAndCache(family: string, fileName: string): Promise<boole
 
   let buf: ArrayBuffer;
   try {
-    buf = await downloadWithProgress(remoteUrl, mime, family);
+    buf = await downloadWithProgress(remoteUrl, family);
   } catch {
     const rawBytes: number[] = await fetchFontData(remoteUrl);
     buf = new Uint8Array(rawBytes).buffer;
