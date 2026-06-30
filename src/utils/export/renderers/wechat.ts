@@ -53,10 +53,10 @@ function renderBlock(block: ExportBlock, theme: ExportThemeTokens, fontSize: num
     case 'taskList':
       return `<ul style="margin:0 0 1.2em;padding-left:0;list-style:none;">${block.items.map((item) => renderListItem(item, true, theme, fontSize)).join('')}</ul>`;
     case 'codeBlock': {
-      const label = block.language
-        ? `<div style="margin-bottom:8px;font-size:12px;color:${theme.textMuted};letter-spacing:0.06em;text-transform:uppercase;">${escapeHtml(block.language)}</div>`
+      const langAttr = block.language
+        ? ` data-lang="${escapeAttribute(block.language)}"`
         : '';
-      return `<div style="margin:1.4em 0;padding:14px 16px;border-radius:12px;background:${theme.preBackground};border:1px solid ${theme.border};">${label}<pre style="margin:0;color:${theme.preForeground};font-size:14px;line-height:1.65;overflow-x:auto;white-space:pre-wrap;"><code>${escapeHtml(block.code)}</code></pre></div>`;
+      return `<pre style="margin:1.4em 0;padding:14px 16px;border-radius:12px;background:${theme.preBackground};color:${theme.preForeground};font-size:14px;line-height:1.65;white-space:pre;overflow-x:auto;"${langAttr}><code>${escapeHtml(block.code)}</code></pre>`;
     }
     case 'table':
       return `<table style="width:100%;border-collapse:collapse;margin:1.4em 0;">${block.rows

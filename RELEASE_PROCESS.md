@@ -48,6 +48,7 @@
 - 测试覆盖：`bun run test` 全量通过（当前 978 tests）
 - 类型检查：`vue-tsc --noEmit` 无错误
 - 前端构建：`bun run build` 通过
+- **构建检查**：每次代码变更后、commit **前**，必须先跑 `bun run build` 通过（`vue-tsc --noEmit` 会捕获未使用变量、类型错误等低级问题，防止流入 CI）
 
 ### 2.2 类型兼容性检查（🚨 重要）
 
@@ -281,8 +282,9 @@ gh release view v1.x.x
 
 CI 失败时 **不要重新打 tag**。先排查原因，修完代码后再重新打 tag：
 1. 删除远程 tag：`git push origin --delete v1.x.x`
-2. 本地修代码 → 提交 → push
-3. 重新 tag：`git tag v1.x.x && git push origin v1.x.x`
+2. 删除本地 tag：`git tag -d v1.x.x`
+3. 本地修代码 → `bun run build` 确认通过 → 提交 → push（版本号不变）
+4. 重新 tag：`git tag v1.x.x && git push origin v1.x.x`
 
 ### 8.2 Release 已发布但发现 Bug
 
@@ -373,6 +375,20 @@ git push origin --delete v1.x.x
 git tag -d v1.x.x
 git tag v1.x.x && git push origin v1.x.x
 ```
+
+### 9.7 🔴 `vue-tsc --noEmit` 报未使用变量或类型错误
+
+**现象**：
+```
+error: 'xxx' is declared but its value is never read.
+error: Type 'X' is not assignable to type 'Y'.
+```
+
+**原因**：Tauri 构建（`bun run build`）第一步就是 `vue-tsc --noEmit`。任何 TS 类型错误或未使用变量都会直接终止构建，不会进入 vite 和 cargo 阶段。
+
+**根因**：代码变更后没有在本地跑 `vue-tsc --noEmit` 或 `bun run build`，直接 push 了。
+
+**预防**：**代码变更后、commit 前必须跑 `bun run build`**（见 Phase 0 构建检查）。
 
 ---
 
