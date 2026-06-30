@@ -106,7 +106,7 @@ export const slashCommandItems: SlashCommandItem[] = [
     category: '块',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range)
-        .insertContent({ type: 'callout', content: [{ type: 'paragraph' }] })
+        .wrapIn('callout')
         .run();
     },
   },
