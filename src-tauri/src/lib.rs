@@ -313,7 +313,7 @@ pub fn run() {
             consume_startup_open_request,
             new_editor_window,
             fetch_font_data,
-            get_cached_font_path,
+            get_cached_font_data,
             save_font_cache,
             notify_frontend_ready,
             refresh_native_menu_shortcuts,

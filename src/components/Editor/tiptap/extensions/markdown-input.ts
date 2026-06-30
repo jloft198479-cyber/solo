@@ -257,9 +257,10 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
         if (revert) return revert;
       }
 
-      // 2. pending heading → 真正 heading：仅在 settle 之后（forceCheck）转换，
-      //    避免连续输入时频繁转换、以及空 heading 上的 IME 错位。
-      if (pluginState?.forceCheck) {
+      // 2. pending heading → 真正 heading：
+      //    批量文档变更（docChanged）时立即转换，避免打开文件后卡在 pending 状态。
+      //    forceCheck 覆盖输入稳定后的兜底，以及 compositionend 后的收尾扫描。
+      if (docChanged || pluginState?.forceCheck) {
         const heading = convertPendingHeading(
           newState.tr,
           newState.doc,

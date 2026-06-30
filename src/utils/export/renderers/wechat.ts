@@ -36,23 +36,28 @@ function renderBlock(block: ExportBlock, theme: ExportThemeTokens, fontSize: num
     case 'paragraph':
       return `<p style="margin:0 0 1.2em;line-height:1.8;color:${theme.text};font-size:${fontSize}px;">${renderInlines(block.inlines, theme)}</p>`;
     case 'heading': {
-      const size = Math.max(18, 30 - block.level * 2);
+      const headingSizes: Record<number, number> = { 1: 20, 2: 18, 3: 17, 4: 16, 5: 15, 6: 14 };
+      const size = headingSizes[block.level] ?? 16;
       const border =
         block.level <= 2
           ? `border-${block.level === 1 ? 'bottom' : 'left'}:${block.level === 1 ? '3px solid' : '4px solid'} ${theme.accent};padding-${block.level === 1 ? 'bottom' : 'left'}:${block.level === 1 ? '8px' : '12px'};`
           : '';
-      return `<h${block.level} style="margin:1.6em 0 0.8em;color:${theme.accentStrong};font-size:${size}px;line-height:1.35;${border}">${renderInlines(block.inlines, theme)}</h${block.level}>`;
+      return `<h${block.level} style="margin:1.6em 0 0.8em;color:${theme.accentStrong};font-size:${size}px;line-height:1.5;${border}">${renderInlines(block.inlines, theme)}</h${block.level}>`;
     }
     case 'blockquote':
-      return `<blockquote style="margin:1.4em 0;padding:12px 16px;border-left:4px solid ${theme.accent};background:${theme.surfaceMuted};color:${theme.textMuted};">${block.blocks.map((child) => renderBlock(child, theme, fontSize)).join('')}</blockquote>`;
+      return `<blockquote style="margin:1.4em 0;padding:16px 16px 12px;border-left:4px solid ${theme.accent};background:${theme.surfaceMuted};color:${theme.textMuted};">${block.blocks.map((child) => renderBlock(child, theme, fontSize)).join('')}</blockquote>`;
     case 'bulletList':
       return `<ul style="margin:0 0 1.2em;padding-left:1.4em;">${block.items.map((item) => renderListItem(item, false, theme, fontSize)).join('')}</ul>`;
     case 'orderedList':
       return `<ol style="margin:0 0 1.2em;padding-left:1.4em;">${block.items.map((item) => renderListItem(item, false, theme, fontSize)).join('')}</ol>`;
     case 'taskList':
       return `<ul style="margin:0 0 1.2em;padding-left:0;list-style:none;">${block.items.map((item) => renderListItem(item, true, theme, fontSize)).join('')}</ul>`;
-    case 'codeBlock':
-      return `<pre style="margin:1.4em 0;padding:14px 16px;border-radius:12px;background:${theme.preBackground};color:${theme.preForeground};font-size:14px;line-height:1.65;overflow-x:auto;"><code>${escapeHtml(block.code)}</code></pre>`;
+    case 'codeBlock': {
+      const label = block.language
+        ? `<div style="margin-bottom:8px;font-size:12px;color:${theme.textMuted};letter-spacing:0.06em;text-transform:uppercase;">${escapeHtml(block.language)}</div>`
+        : '';
+      return `<div style="margin:1.4em 0;padding:14px 16px;border-radius:12px;background:${theme.preBackground};border:1px solid ${theme.border};">${label}<pre style="margin:0;color:${theme.preForeground};font-size:14px;line-height:1.65;overflow-x:auto;white-space:pre-wrap;"><code>${escapeHtml(block.code)}</code></pre></div>`;
+    }
     case 'table':
       return `<table style="width:100%;border-collapse:collapse;margin:1.4em 0;">${block.rows
         .map(
