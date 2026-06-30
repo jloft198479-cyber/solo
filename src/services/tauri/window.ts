@@ -21,12 +21,8 @@ export async function destroyCurrentWindow() {
   await getCurrentWindow().destroy();
 }
 
-export async function consumeStartupOpenRequest(): Promise<AppOpenPathsPayload | null> {
-  return invokeCommand<AppOpenPathsPayload | null>(TAURI_COMMANDS.consumeStartupOpenRequest);
-}
-
-export async function notifyFrontendReady(): Promise<AppOpenPathsPayload | null> {
-  return invokeCommand<AppOpenPathsPayload | null>(TAURI_COMMANDS.notifyFrontendReady);
+export async function startupReady(): Promise<AppOpenPathsPayload | null> {
+  return invokeCommand<AppOpenPathsPayload | null>(TAURI_COMMANDS.startupReady);
 }
 
 export async function refreshNativeMenuShortcuts(shortcuts: Record<string, string>) {

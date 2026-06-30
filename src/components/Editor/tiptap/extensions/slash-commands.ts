@@ -164,6 +164,13 @@ export const slashCommandItems: SlashCommandItem[] = [
   },
 ];
 
+const _slashLowerIndex: { titleLower: string; descLower: string; catLower: string }[] =
+  slashCommandItems.map(item => ({
+    titleLower: item.title.toLowerCase(),
+    descLower: item.description.toLowerCase(),
+    catLower: item.category.toLowerCase(),
+  }));
+
 export const SlashCommands = Extension.create<SlashCommandsOptions>({
   name: 'slashCommands',
 
@@ -175,10 +182,10 @@ export const SlashCommands = Extension.create<SlashCommandsOptions>({
         items: ({ query }: { query: string }) => {
           const q = query.toLowerCase();
           return slashCommandItems.filter(
-            (item) =>
-              item.title.toLowerCase().includes(q) ||
-              item.description.toLowerCase().includes(q) ||
-              item.category.toLowerCase().includes(q),
+            (_, i) =>
+              _slashLowerIndex[i].titleLower.includes(q) ||
+              _slashLowerIndex[i].descLower.includes(q) ||
+              _slashLowerIndex[i].catLower.includes(q),
           );
         },
         command: ({ editor, range, props }) => {

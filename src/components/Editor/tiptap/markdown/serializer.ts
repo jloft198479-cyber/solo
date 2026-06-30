@@ -61,16 +61,17 @@ export class MarkdownSerializerState {
 
   /** 序列化 inline 内容 */
   renderInline(parent: PMNode) {
+    const codeDelims = this._precomputeCodeDelims(parent);
     parent.forEach((child, _offset, index) => {
       if (child.isText) {
-        this.renderMarks(child, parent, index, true);
+        this.renderMarks(child, parent, index, true, codeDelims);
         const hasCodeMark = child.marks.some((mark) => mark.type.name === 'code');
         this.write(hasCodeMark ? (child.text ?? '') : this.escapeInline(child.text ?? ''));
-        this.renderMarks(child, parent, index, false);
+        this.renderMarks(child, parent, index, false, codeDelims);
       } else {
-        this.renderMarks(child, parent, index, true);
+        this.renderMarks(child, parent, index, true, codeDelims);
         this.renderNode(child);
-        this.renderMarks(child, parent, index, false);
+        this.renderMarks(child, parent, index, false, codeDelims);
       }
     });
   }
@@ -78,14 +79,14 @@ export class MarkdownSerializerState {
   private activeMarks: readonly Mark[] = [];
 
   /** 开启/关闭 marks */
-  private renderMarks(node: PMNode, parent: PMNode, index: number, opening: boolean) {
+  private renderMarks(node: PMNode, parent: PMNode, index: number, opening: boolean, codeDelims?: Map<number, { open: string; close: string }>) {
     const marks = node.marks;
     if (opening) {
       for (const mark of marks) {
         if (!mark.isInSet(this.activeMarks)) {
           this.activeMarks = mark.addToSet(this.activeMarks);
           if (mark.type.name === 'code') {
-            this.write(this._codeSpanDelims(node, parent, index).open);
+            this.write(codeDelims?.get(index)?.open ?? this._codeSpanDelims(node, parent, index).open);
           } else {
             this.write(this.markDelimiter(mark, true));
           }
@@ -98,13 +99,52 @@ export class MarkdownSerializerState {
         if (!next || !mark.isInSet(next.marks)) {
           this.activeMarks = mark.removeFromSet(this.activeMarks);
           if (mark.type.name === 'code') {
-            this.write(this._codeSpanDelims(node, parent, index).close);
+            this.write(codeDelims?.get(index)?.close ?? this._codeSpanDelims(node, parent, index).close);
           } else {
             this.write(this.markDelimiter(mark, false));
           }
         }
       }
     }
+  }
+
+  /** 预计算 code span 分隔符组，O(N) 一次扫描替代 _codeSpanDelims 的 O(N²) 扫描 */
+  private _precomputeCodeDelims(parent: PMNode): Map<number, { open: string; close: string }> {
+    const cache = new Map<number, { open: string; close: string }>();
+    let i = 0;
+    const count = parent.childCount;
+    while (i < count) {
+      const child = parent.child(i);
+      if (child.isText && child.marks.some(m => m.type.name === 'code')) {
+        let start = i;
+        while (start > 0) {
+          const prev = parent.child(start - 1);
+          if (!prev.isText || !prev.marks.some(m => m.type.name === 'code') || !this._hasSameCodeMarkSet(prev, child)) break;
+          start--;
+        }
+        let end = i;
+        while (end < count - 1) {
+          const next = parent.child(end + 1);
+          if (!next.isText || !next.marks.some(m => m.type.name === 'code') || !this._hasSameCodeMarkSet(next, child)) break;
+          end++;
+        }
+        let content = '';
+        for (let j = start; j <= end; j++) content += parent.child(j).text ?? '';
+        let maxRun = 0, cur = 0;
+        for (const ch of content) {
+          if (ch === '`') { cur++; maxRun = Math.max(maxRun, cur); } else { cur = 0; }
+        }
+        const delim = '`'.repeat(maxRun + 1);
+        const delims = content.startsWith('`') || content.endsWith('`')
+          ? { open: delim + ' ', close: ' ' + delim }
+          : { open: delim, close: delim };
+        for (let j = start; j <= end; j++) cache.set(j, delims);
+        i = end + 1;
+      } else {
+        i++;
+      }
+    }
+    return cache;
   }
 
   /** 计算 code span 的开/关分隔符（处理内容含反引号、首尾空白等边界） */

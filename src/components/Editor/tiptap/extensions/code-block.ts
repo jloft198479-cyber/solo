@@ -9,9 +9,44 @@
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
-import { common, createLowlight } from 'lowlight';
+import { createLowlight } from 'lowlight';
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import python from 'highlight.js/lib/languages/python';
+import bash from 'highlight.js/lib/languages/bash';
+import json from 'highlight.js/lib/languages/json';
+import markdown from 'highlight.js/lib/languages/markdown';
+import xml from 'highlight.js/lib/languages/xml';
+import yaml from 'highlight.js/lib/languages/yaml';
+import sql from 'highlight.js/lib/languages/sql';
+import css from 'highlight.js/lib/languages/css';
+import rust from 'highlight.js/lib/languages/rust';
+import go from 'highlight.js/lib/languages/go';
+import java from 'highlight.js/lib/languages/java';
+import cpp from 'highlight.js/lib/languages/cpp';
+import php from 'highlight.js/lib/languages/php';
+import ruby from 'highlight.js/lib/languages/ruby';
+import diff from 'highlight.js/lib/languages/diff';
 
-const lowlight = createLowlight(common);
+const lowlight = createLowlight({
+  javascript,
+  typescript,
+  python,
+  bash,
+  json,
+  markdown,
+  xml,
+  yaml,
+  sql,
+  css,
+  rust,
+  go,
+  java,
+  cpp,
+  php,
+  ruby,
+  diff,
+});
 
 export function normalizeCodeBlockLanguage(language: string | null | undefined): string | null {
   const normalized = language?.trim().toLowerCase() ?? '';

@@ -6,15 +6,15 @@
     :style="{ top: position.top + 'px', left: position.left + 'px' }"
   >
     <div class="mk-slash-menu-scroll">
-      <template v-for="(group, gIdx) in groupedItems" :key="gIdx">
+      <template v-for="group in groupedItems" :key="group.category">
         <div class="mk-slash-menu-group">{{ group.category }}</div>
         <div
-          v-for="(item, idx) in group.items"
+          v-for="item in group.items"
           :key="item.title"
           class="mk-slash-menu-item"
-          :class="{ 'mk-slash-menu-item--active': flatIndex(gIdx, idx) === selectedIndex }"
-          @mouseenter="selectedIndex = flatIndex(gIdx, idx)"
-          @click="selectItem(flatIndex(gIdx, idx))"
+          :class="{ 'mk-slash-menu-item--active': flatIndexMap.get(item.title) === selectedIndex }"
+          @mouseenter="selectedIndex = flatIndexMap.get(item.title)!"
+          @click="selectItem(flatIndexMap.get(item.title)!)"
         >
           <span class="mk-slash-menu-icon">{{ item.icon }}</span>
           <div class="mk-slash-menu-text">
@@ -53,13 +53,17 @@ const groupedItems = computed(() => {
   return groups;
 });
 
-function flatIndex(groupIdx: number, itemIdx: number): number {
-  let count = 0;
-  for (let i = 0; i < groupIdx; i++) {
-    count += groupedItems.value[i].items.length;
+
+const flatIndexMap = computed(() => {
+  const map = new Map<string, number>();
+  let idx = 0;
+  for (const group of groupedItems.value) {
+    for (const item of group.items) {
+      map.set(item.title, idx++);
+    }
   }
-  return count + itemIdx;
-}
+  return map;
+});
 
 const flatItems = computed(() => {
   const result: SlashCommandItem[] = [];

@@ -67,11 +67,15 @@ async function handleRename(name: string) {
 const { autoSaveStatus, externalFileWarning } = documentSession;
 
 const focusModeNotice = ref<{ message: string; timestamp: number } | null>(null);
+const _focusNoticeTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+onUnmounted(() => { if (_focusNoticeTimer.value) clearTimeout(_focusNoticeTimer.value); });
 watch(() => settingsStore.isFocusMode, (active) => {
+  if (_focusNoticeTimer.value) clearTimeout(_focusNoticeTimer.value);
   if (!active) {
     const msg = { message: '已退出焦点模式', timestamp: Date.now() };
     focusModeNotice.value = msg;
-    setTimeout(() => {
+    _focusNoticeTimer.value = setTimeout(() => {
+      _focusNoticeTimer.value = null;
       if (focusModeNotice.value?.timestamp === msg.timestamp) {
         focusModeNotice.value = null;
       }
@@ -318,7 +322,9 @@ onUnmounted(() => {
     </div>
 
     <ErrorBoundary>
-      <SettingsModal />
+      <KeepAlive>
+        <SettingsModal v-if="settingsStore.isModalOpen" />
+      </KeepAlive>
     </ErrorBoundary>
 
     <ImageFullscreenOverlay

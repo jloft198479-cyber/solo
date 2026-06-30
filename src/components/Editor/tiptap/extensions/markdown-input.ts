@@ -132,6 +132,9 @@ export { markdownInputPlugin, markdownInputPluginKey };
 export type { MarkdownInputState };
 
 function markdownInputPlugin(): Plugin<MarkdownInputState> {
+  let _cachedDoc: PMNode | null = null;
+  let _cachedDecorations: DecorationSet | null = null;
+
   return new Plugin<MarkdownInputState>({
     key: markdownInputPluginKey,
 
@@ -239,7 +242,12 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
       },
 
       decorations(state) {
-        return buildPendingHeadingDecorations(state.doc);
+        if (state.doc === _cachedDoc && _cachedDecorations) {
+          return _cachedDecorations;
+        }
+        _cachedDoc = state.doc;
+        _cachedDecorations = buildPendingHeadingDecorations(state.doc);
+        return _cachedDecorations;
       },
     },
 
@@ -251,20 +259,35 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
       const docChanged = transactions.some((tr) => tr.docChanged);
       if (!docChanged && !pluginState?.forceCheck) return null;
 
+      // 单次遍历同时查找空 heading 和 pending heading，共享扫描结果
+      const { emptyHeading, pendingHeading } =
+        docChanged || pluginState?.forceCheck
+          ? scanHeadings(newState.doc)
+          : { emptyHeading: null, pendingHeading: null };
+
       // 1. 空 heading 被删空 → 退回 pending heading（恢复 `# ` 前缀）。
-      if (docChanged) {
-        const revert = revertEmptyHeading(newState.tr, newState.doc);
-        if (revert) return revert;
+      if (docChanged && emptyHeading) {
+        const level = emptyHeading.level;
+        const prefix = '#'.repeat(level) + ' ';
+        const paragraphType = newState.schema.nodes.paragraph;
+        if (paragraphType) {
+          const node = newState.doc.nodeAt(emptyHeading.pos);
+          if (node) {
+            const tr = newState.tr;
+            tr.setBlockType(emptyHeading.pos, emptyHeading.pos + node.nodeSize, paragraphType);
+            tr.insertText(prefix, emptyHeading.pos + 1);
+            if (tr.docChanged) return tr;
+          }
+        }
       }
 
-      // 2. pending heading → 真正 heading：
-      //    批量文档变更（docChanged）时立即转换，避免打开文件后卡在 pending 状态。
-      //    forceCheck 覆盖输入稳定后的兜底，以及 compositionend 后的收尾扫描。
-      if (docChanged || pluginState?.forceCheck) {
+      // 2. pending heading → 真正 heading
+      if (pendingHeading) {
         const heading = convertPendingHeading(
           newState.tr,
           newState.doc,
           newState.schema.nodes.heading,
+          pendingHeading,
         );
         if (heading) return heading;
       }
@@ -425,25 +448,48 @@ export function convertPendingLink(tr: Transaction, state: EditorState): Transac
 
 // ── 标题（pending heading）转换 ────────────────────────────────
 
-function findPendingHeading(doc: PMNode): PendingHeading | null {
-  let pending: PendingHeading | null = null;
+/**
+ * 单次遍历同时查找：
+ * - 空 heading（需退回 pending paragraph）
+ * - pending heading（# 前缀的 paragraph，需转成真正 heading）
+ *
+ * 合并原 findPendingHeading + revertEmptyHeading 的两次全量 descendants 遍历。
+ * 优先级：空 heading 优先（先恢复再转换，避免互踩）。
+ */
+function scanHeadings(doc: PMNode): {
+  emptyHeading: { pos: number; level: number } | null;
+  pendingHeading: PendingHeading | null;
+} {
+  let emptyHeading: { pos: number; level: number } | null = null;
+  let pendingHeading: PendingHeading | null = null;
 
   doc.descendants((node, pos) => {
-    if (pending || node.type.name !== 'paragraph') return false;
+    // 找到其一即可停止深层遍历
+    if (emptyHeading || pendingHeading) return false;
 
-    const match = /^(#{1,6})\s\S/.exec(node.textContent);
-    if (!match) return false;
+    if (node.type.name === 'heading') {
+      if (node.content.size > 0) return true;
+      const level = node.attrs.level as number;
+      if (!HEADING_LEVELS.includes(level as (typeof HEADING_LEVELS)[number])) return true;
+      emptyHeading = { pos, level };
+      return false;
+    }
 
-    pending = {
-      level: match[1].length,
-      paragraphPos: pos,
-      prefixLength: match[1].length + 1,
-    };
+    if (node.type.name === 'paragraph') {
+      const match = /^(#{1,6})\s\S/.exec(node.textContent);
+      if (!match) return false;
+      pendingHeading = {
+        level: match[1].length,
+        paragraphPos: pos,
+        prefixLength: match[1].length + 1,
+      };
+      return false;
+    }
 
-    return false;
+    return true;
   });
 
-  return pending;
+  return { emptyHeading, pendingHeading };
 }
 
 /**
@@ -451,38 +497,37 @@ function findPendingHeading(doc: PMNode): PendingHeading | null {
  * 规避空 heading 上的 IME composition 错位。
  */
 export function revertEmptyHeading(tr: Transaction, doc: PMNode): Transaction | null {
-  let result: Transaction | null = null;
+  const { emptyHeading } = scanHeadings(doc);
+  if (!emptyHeading) return null;
 
-  doc.descendants((node, pos) => {
-    if (result) return false;
-    if (node.type.name !== 'heading') return true;
-    if (node.content.size > 0) return true;
+  const { pos, level } = emptyHeading;
+  const prefix = '#'.repeat(level) + ' ';
+  const paragraphType = doc.type.schema.nodes.paragraph;
+  if (!paragraphType) return null;
 
-    const level = node.attrs.level as number;
-    if (!HEADING_LEVELS.includes(level as (typeof HEADING_LEVELS)[number])) return true;
+  const node = doc.nodeAt(pos);
+  if (!node) return null;
+  tr.setBlockType(pos, pos + node.nodeSize, paragraphType);
+  tr.insertText(prefix, pos + 1);
 
-    const prefix = '#'.repeat(level) + ' ';
-    const paragraphType = doc.type.schema.nodes.paragraph;
-    if (!paragraphType) return true;
+  return tr.docChanged ? tr : null;
+}
 
-    tr.setBlockType(pos, pos + node.nodeSize, paragraphType);
-    tr.insertText(prefix, pos + 1);
-
-    result = tr.docChanged ? tr : null;
-    return false;
-  });
-
-  return result;
+function findPendingHeading(doc: PMNode): PendingHeading | null {
+  return scanHeadings(doc).pendingHeading;
 }
 
 export function convertPendingHeading(
   tr: Transaction,
   doc: PMNode,
   headingType: NodeType | undefined,
+  pending?: PendingHeading | null,
 ): Transaction | null {
   if (!headingType) return null;
 
-  const pending = findPendingHeading(doc);
+  if (pending === undefined) {
+    pending = findPendingHeading(doc);
+  }
   if (
     !pending ||
     !HEADING_LEVELS.includes(pending.level as (typeof HEADING_LEVELS)[number])

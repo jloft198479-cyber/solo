@@ -11,18 +11,6 @@ const REMOTE_FONTS: Readonly<Record<string, string>> = {
   'Huiwen-mincho': 'Huiwen-mincho-Regular.otf',
 };
 
-const FONT_MIME: Record<string, string> = {
-  otf: 'font/otf',
-  ttf: 'font/ttf',
-  woff: 'font/woff',
-  woff2: 'font/woff2',
-};
-
-function mimeFromFileName(name: string): string {
-  const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  return FONT_MIME[ext] || 'font/otf';
-}
-
 const SYSTEM_FONTS = new Set(['system-ui', 'Microsoft YaHei UI']);
 
 const loadedFonts = new Set<string>();
@@ -74,6 +62,8 @@ async function downloadWithProgress(
 
   const chunks: Uint8Array[] = [];
   let received = 0;
+  let lastNotifyTime = 0;
+  const THROTTLE_MS = 200;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -81,8 +71,16 @@ async function downloadWithProgress(
     chunks.push(value);
     received += value.length;
     if (len > 0) {
-      notifyProgress(family, Math.round((received / len) * 100));
+      const now = Date.now();
+      if (now - lastNotifyTime >= THROTTLE_MS) {
+        lastNotifyTime = now;
+        notifyProgress(family, Math.round((received / len) * 100));
+      }
     }
+  }
+
+  if (len > 0) {
+    notifyProgress(family, Math.round((received / len) * 100));
   }
 
   return new Blob(chunks as BlobPart[]);
@@ -106,7 +104,6 @@ async function readCache(family: string): Promise<boolean> {
 
 async function downloadAndCache(family: string, fileName: string): Promise<boolean> {
   const remoteUrl = `${DOWNLOAD_BASE}/${fileName}`;
-  const mime = mimeFromFileName(fileName);
 
   notifyProgress(family, 0);
 
@@ -114,11 +111,17 @@ async function downloadAndCache(family: string, fileName: string): Promise<boole
   try {
     blob = await downloadWithProgress(remoteUrl, family);
   } catch {
-    const rawBytes: number[] = await fetchFontData(remoteUrl);
-    blob = new Blob([new Uint8Array(rawBytes)], { type: mime });
-    notifyProgress(family, 100);
+    // fallback：Rust 下载并直接落盘，返回缓存路径。
+    // 避免二进制走 IPC JSON number[] 往返（与 get_cached_font_path 路径统一）。
+    const cachedPath = await fetchFontData(remoteUrl, family);
+    const assetUrl = convertFileSrc(cachedPath);
+    const ok = await registerFont(family, assetUrl);
+    if (ok) loadedFonts.add(family);
+    notifyProgress(family, -1);
+    return ok;
   }
 
+  // 主路径成功后保存缓存（Rust 已落盘的 fallback 路径无需再保存）
   saveCachedFont(family, [...new Uint8Array(await blob.arrayBuffer())]).catch(() => {});
 
   const blobUrl = URL.createObjectURL(blob);

@@ -121,7 +121,8 @@ describe('useExportActions', () => {
 
     expect(mocks.writeHtmlMock).toHaveBeenCalledTimes(1);
     expect(mocks.writeHtmlMock.mock.calls[0][0]).not.toContain('<!doctype html>');
-    expect(mocks.writeHtmlMock.mock.calls[0][0]).toContain('data-wikilink="Wiki"');
+    // 微信渲染器不输出 data-* 属性，wikilink 渲染为 span
+    expect(mocks.writeHtmlMock.mock.calls[0][0]).toContain('>Wiki<');
     expect(mocks.messageMock).toHaveBeenCalledWith('已转换并复制到剪贴板', {
       title: '完成',
       kind: 'info',

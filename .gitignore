@@ -52,3 +52,9 @@ coverage/
 
 # Tauri updater signing key (keep private!)
 src-tauri/.tauri/
+
+# Editor/IDE internal files
+.workbuddy/
+
+# Performance audit temp docs
+performance-*.md

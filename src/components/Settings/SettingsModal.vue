@@ -147,7 +147,7 @@ function onKeyDown(e: KeyboardEvent) {
 
                 <!-- 外观设置 -->
                 <AppearanceSettingsPanel
-                  v-show="activeTab === 'appearance'"
+                  v-if="activeTab === 'appearance'"
                   v-model:font-size="settingsStore.settings.fontSize"
                   v-model:font-family="settingsStore.settings.fontFamily"
                   v-model:line-height="settingsStore.settings.lineHeight"
@@ -156,14 +156,14 @@ function onKeyDown(e: KeyboardEvent) {
 
                 <!-- 编辑器设置 -->
                 <EditorSettingsPanel
-                  v-show="activeTab === 'editor'"
+                  v-else-if="activeTab === 'editor'"
                   v-model:spell-check="settingsStore.settings.spellCheck"
                   v-model:titlebar-auto-hide="settingsStore.settings.titlebarAutoHide"
                 />
 
                 <!-- 快捷键设置 -->
                 <ShortcutSettingsPanel
-                  v-show="activeTab === 'shortcuts'"
+                  v-else-if="activeTab === 'shortcuts'"
                   :conflict-warning="conflictWarning"
                   :editing-id="editingId"
                   :editing-key="editingKey"
@@ -181,7 +181,7 @@ function onKeyDown(e: KeyboardEvent) {
 
                 <!-- 保存设置 -->
                 <SaveSettingsPanel
-                  v-show="activeTab === 'save'"
+                  v-else-if="activeTab === 'save'"
                   v-model:auto-save="settingsStore.settings.autoSave"
                   v-model:auto-save-interval="settingsStore.settings.autoSaveInterval"
                   v-model:image-storage-path="settingsStore.settings.imageStoragePath"
@@ -190,7 +190,7 @@ function onKeyDown(e: KeyboardEvent) {
 
                 <!-- 关于 -->
                 <AboutSettingsPanel
-                  v-show="activeTab === 'about'"
+                  v-else-if="activeTab === 'about'"
                   v-model:enable-auto-update-check="settingsStore.settings.enableAutoUpdateCheck"
                 />
               </div>

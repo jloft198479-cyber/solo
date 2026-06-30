@@ -22,6 +22,7 @@ import {
   getPluginTokenHandlers,
   getPluginTokenInterceptors,
 } from './plugins';
+import type { Preprocessor, TokenInterceptor } from './plugins';
 
 // ── markdown-it 实例 ───────────────────────────────────────────
 
@@ -133,7 +134,14 @@ export type TokenHandler = (
   index: number,
 ) => void;
 
+const handlersCache = new WeakMap<Schema, Record<string, TokenHandler>>();
+const preprocessorsCache = new WeakMap<Schema, Preprocessor[]>();
+const interceptorsCache = new WeakMap<Schema, TokenInterceptor[]>();
+
 export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
+  const cached = handlersCache.get(schema);
+  if (cached) return cached;
+
   const handlers: Record<string, TokenHandler> = {};
   const fenceHandlers = getPluginFenceHandlers(schema);
 
@@ -406,6 +414,7 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
 
   Object.assign(handlers, getPluginTokenHandlers(schema));
 
+  handlersCache.set(schema, handlers);
   return handlers;
 }
 
@@ -421,7 +430,11 @@ export function parseMarkdown(schema: Schema, content: string): PMNode {
   const pluginData: Record<string, unknown> = {};
   const state = new MarkdownParseState(schema, pluginData);
 
-  const preprocessors = getPluginPreprocessors(schema);
+  let preprocessors = preprocessorsCache.get(schema);
+  if (!preprocessors) {
+    preprocessors = getPluginPreprocessors(schema);
+    preprocessorsCache.set(schema, preprocessors);
+  }
   const preprocessResults = preprocessors.map((preprocessor) => {
     const result = preprocessor.preprocess({ content });
     content = result.content;
@@ -440,6 +453,8 @@ export function parseMarkdown(schema: Schema, content: string): PMNode {
   // 顺序很重要：必须先关后开，避免互踩。
   // 关闭方向：punct**word → punct\u200C**word（如 」**吗 → right_flanking=false）
   // 排除 ASCII 标点（!-/:;?@[-`{-~），它们是 markdown 语法字符而非内容标点。
+  // 注意：不能按"是否含 CJK 字符"短路，因为 ™(U+2122) 等 Unicode 符号(\p{S})
+  // 同样需要 flanking 处理，而它们不在 CJK 范围内。
   content = content.replace(
     /(?<!\*)(?<=[\p{P}\p{S}])(\*+)(?=[^\s\p{P}\p{S}])/gu,
     (_match, delim: string, offset: number) => {
@@ -465,7 +480,11 @@ export function parseMarkdown(schema: Schema, content: string): PMNode {
   // 2. 用 markdown-it 解析主体内容
   const tokens = md.parse(content, {});
   const handlers = getTokenHandlers(schema);
-  const tokenInterceptors = getPluginTokenInterceptors(schema);
+  let tokenInterceptors = interceptorsCache.get(schema);
+  if (!tokenInterceptors) {
+    tokenInterceptors = getPluginTokenInterceptors(schema);
+    interceptorsCache.set(schema, tokenInterceptors);
+  }
 
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];

@@ -68,7 +68,9 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
       // 大文档提示（此时 loading=false，不会阻塞确认对话框）
       // 排除 base64 图片数据：图片渲染为独立节点，不影响编辑打字性能
-      const textContent = document.content.replace(/!\[.*?\]\(data:image\/[^;]+;base64,[^)]+\)/g, '');
+      const textContent = document.content.indexOf('data:image') >= 0
+        ? document.content.replace(/!\[.*?\]\(data:image\/[^;]+;base64,[^)]+\)/g, '')
+        : document.content;
       if (textContent.length > LARGE_DOC_THRESHOLD) {
         const sizeKB = Math.round(textContent.length / 1024);
         const proceed = await confirm(
@@ -155,15 +157,12 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     return saveDocument(path, fileStore.currentFile.content, expectedLastModifiedMs, force);
   }
 
+  let _saveInProgress: Promise<void> | null = null;
+  let _resolveSaveInProgress: (() => void) | null = null;
+
   async function saveCurrentDocument(force = false): Promise<boolean> {
-    // 保存互斥锁：正在保存时等待，避免自动保存与手动保存并发冲突
     if (isSaving) {
-      // 等正在执行的保存完成（最多 1 秒）
-      for (let i = 0; i < 20; i++) {
-        await new Promise(r => setTimeout(r, 50));
-        if (!isSaving) break;
-      }
-      if (isSaving) return false;
+      await _saveInProgress;
     }
 
     const currentFile = fileStore.currentFile;
@@ -177,6 +176,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     }
 
     isSaving = true;
+    _saveInProgress = new Promise<void>(resolve => { _resolveSaveInProgress = resolve; });
     try {
       const result = await persistDocument(currentFile.path, force, currentFile.lastModifiedTime);
       fileStore.markSaved(result.lastModifiedMs);
@@ -196,6 +196,8 @@ export function useDocumentSession(options: DocumentSessionOptions) {
         }
         // 递归调用前释放锁，避免死锁
         isSaving = false;
+        _resolveSaveInProgress?.();
+        _resolveSaveInProgress = null;
         return saveCurrentDocument(true);
       }
 
@@ -204,6 +206,9 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       return false;
     } finally {
       isSaving = false;
+      _resolveSaveInProgress?.();
+      _resolveSaveInProgress = null;
+      _saveInProgress = null;
     }
   }
 

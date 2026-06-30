@@ -1,4 +1,5 @@
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
+import type { EditorState } from '@tiptap/pm/state';
 
 export interface EditorOutlineItem {
   level: number;
@@ -16,17 +17,17 @@ export function getEditorWordCount(editor: TiptapEditor): number {
   return text.replace(/\s+/g, '').length;
 }
 
-// ── 大纲缓存：文档大小不变时复用上次结果，避免每次 onUpdate 全量遍历 ──
-let outlineCache: { docSize: number; outline: EditorOutlineItem[] } | null = null;
+// ── 大纲缓存 keyed by EditorState 引用 ──
+// PM 每次事务创建新 state，引用变化即内容变化，无 docSize 的滞后 bug
+const _outlineCache = new WeakMap<EditorState, EditorOutlineItem[]>();
 
 export function extractEditorOutline(editor: TiptapEditor): EditorOutlineItem[] {
-  const docSize = editor.state.doc.content.size;
-  if (outlineCache && outlineCache.docSize === docSize) {
-    return outlineCache.outline;
-  }
+  const state = editor.state;
+  const cached = _outlineCache.get(state);
+  if (cached) return cached;
 
   const outline: EditorOutlineItem[] = [];
-  editor.state.doc.descendants((node, pos) => {
+  state.doc.descendants((node, pos) => {
     if (node.type.name === 'heading') {
       outline.push({
         level: node.attrs.level,
@@ -36,7 +37,7 @@ export function extractEditorOutline(editor: TiptapEditor): EditorOutlineItem[] 
     }
   });
 
-  outlineCache = { docSize, outline };
+  _outlineCache.set(state, outline);
   return outline;
 }
 

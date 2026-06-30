@@ -13,23 +13,16 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_window_state::StateFlags;
 
 static WINDOW_COUNTER: AtomicU64 = AtomicU64::new(0);
+static STARTUP_LOG_BUF: Mutex<Option<Vec<String>>> = Mutex::new(Some(Vec::new()));
 
 #[tauri::command]
-fn consume_startup_open_request(
-    state: tauri::State<'_, StartupOpenRequests>,
-) -> Result<Option<AppOpenPathsPayload>, error::AppError> {
-    let payload = state.take()?;
-    append_startup_log(None, format!("consume_startup_open_request: {:?}", payload));
-    Ok(payload)
-}
-
-#[tauri::command]
-fn notify_frontend_ready(
+fn startup_ready(
     loaded_windows: tauri::State<'_, LoadedWindows>,
     pending_paths: tauri::State<'_, PendingWindowPaths>,
     startup_requests: tauri::State<'_, StartupOpenRequests>,
@@ -37,28 +30,19 @@ fn notify_frontend_ready(
 ) -> Result<Option<AppOpenPathsPayload>, error::AppError> {
     loaded_windows.mark_loaded(window.label().to_string())?;
 
-    // 新窗口：先查自己的待打开路径
     let label = window.label().to_string();
     if let Some(payload) = pending_paths.take(&label)? {
         append_startup_log(
             Some(&window.app_handle()),
-            format!(
-                "notify_frontend_ready: label={}, from pending_paths, payload={:?}",
-                label, payload
-            ),
+            format!("startup_ready: label={}, from pending_paths, payload={:?}", label, payload),
         );
         return Ok(Some(payload));
     }
 
-    // 主窗口：回退到全局启动请求
     let payload = startup_requests.take()?;
     append_startup_log(
         Some(&window.app_handle()),
-        format!(
-            "notify_frontend_ready: label={}, payload={:?}",
-            window.label(),
-            payload
-        ),
+        format!("startup_ready: label={}, payload={:?}", window.label(), payload),
     );
     Ok(payload)
 }
@@ -132,6 +116,7 @@ fn reveal_startup_open_log(app: tauri::AppHandle) -> Result<String, error::AppEr
     use tauri_plugin_opener::OpenerExt;
 
     append_startup_log(Some(&app), "reveal_startup_open_log");
+    flush_startup_log(&app);
     let path = startup_log_path(Some(&app));
     let path = path.to_string_lossy().to_string();
     app.opener()
@@ -156,19 +141,48 @@ fn startup_log_path(app: Option<&tauri::AppHandle>) -> PathBuf {
         .join("startup-open.log")
 }
 
-fn append_startup_log(app: Option<&tauri::AppHandle>, message: impl AsRef<str>) {
-    let path = startup_log_path(app);
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+fn flush_startup_log(app: &tauri::AppHandle) {
+    let path = startup_log_path(Some(app));
+    let lines = STARTUP_LOG_BUF.lock().ok().and_then(|mut guard| guard.take());
+    if let Some(lines) = lines {
+        if lines.is_empty() {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            return;
+        }
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
+            for line in &lines {
+                let _ = writeln!(file, "{}", line);
+            }
+        }
     }
+}
 
+fn append_startup_log(app: Option<&tauri::AppHandle>, message: impl AsRef<str>) {
     let timestamp_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis())
         .unwrap_or_default();
 
-    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) {
-        let _ = writeln!(file, "[{}] {}", timestamp_ms, message.as_ref());
+    let line = format!("[{}] {}", timestamp_ms, message.as_ref());
+
+    if let Ok(mut guard) = STARTUP_LOG_BUF.lock() {
+        if let Some(buf) = guard.as_mut() {
+            buf.push(line);
+            return;
+        }
+    }
+
+    let path = startup_log_path(app);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(file, "{}", line);
     }
 }
 
@@ -300,6 +314,7 @@ pub fn run() {
                 main_window.show().map_err(error::AppError::from)?;
             }
 
+            flush_startup_log(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -310,12 +325,11 @@ pub fn run() {
             resolve_document_image_path,
             authorize_image_asset,
             fetch_remote_image,
-            consume_startup_open_request,
+            startup_ready,
             new_editor_window,
             fetch_font_data,
             get_cached_font_path,
             save_font_cache,
-            notify_frontend_ready,
             refresh_native_menu_shortcuts,
             reveal_startup_open_log,
             print_document,

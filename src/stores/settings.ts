@@ -65,6 +65,12 @@ const CURRENT_CONFIG_VERSION = 11;
 /** 自动保存间隔下限（秒），防止配置异常导致过于频繁的保存 */
 const MIN_AUTOSAVE_INTERVAL_SECONDS = 5;
 
+// 非响应式内部状态（不参与渲染，避免写入 reactive 触发无谓通知）
+let _saveTimeout: ReturnType<typeof setTimeout> | null = null;
+let _stopSettingsWatcher: WatchStopHandle | null = null;
+let _stopActiveThemeIdWatcher: WatchStopHandle | null = null;
+let _stopFocusModeWatcher: WatchStopHandle | null = null;
+
 export function normalizeSettings(storedSettings?: Partial<Settings> | null): Settings {
   const merged = { ...DEFAULT_SETTINGS, ...storedSettings };
   return {
@@ -83,12 +89,6 @@ interface SettingsStoreState {
   allThemes: AppTheme[];
   currentTheme: AppTheme | null;
   pendingTab: string;
-  // 以下为非响应式内部状态（仅用于防抖/生命周期管理，不参与渲染）
-  _saveTimeout: ReturnType<typeof setTimeout> | null;
-  _stopSettingsWatcher: WatchStopHandle | null;
-  _stopThemeWatcher: WatchStopHandle | null;
-  _stopActiveThemeIdWatcher: WatchStopHandle | null;
-  _stopFocusModeWatcher: WatchStopHandle | null;
 }
 
 export const useSettingsStore = defineStore('settings', {
@@ -101,11 +101,6 @@ export const useSettingsStore = defineStore('settings', {
     allThemes: [],
     currentTheme: null,
     pendingTab: '',
-    _saveTimeout: null,
-    _stopSettingsWatcher: null,
-    _stopThemeWatcher: null,
-    _stopActiveThemeIdWatcher: null,
-    _stopFocusModeWatcher: null,
   }),
 
   actions: {
@@ -114,11 +109,11 @@ export const useSettingsStore = defineStore('settings', {
         return;
       }
 
-      if (this._saveTimeout) {
-        clearTimeout(this._saveTimeout);
+      if (_saveTimeout) {
+        clearTimeout(_saveTimeout);
       }
 
-      this._saveTimeout = setTimeout(async () => {
+      _saveTimeout = setTimeout(async () => {
         try {
           await writeStoredSettings({
             ...newSettings,
@@ -223,6 +218,7 @@ export const useSettingsStore = defineStore('settings', {
       };
       this.settings.customThemes.push(nextTheme);
       this.updateAllThemes();
+      void this.saveSettingsToStore(this.settings);
     },
 
     removeCustomTheme(themeId: ThemeId) {
@@ -233,6 +229,7 @@ export const useSettingsStore = defineStore('settings', {
 
       this.settings.customThemes.splice(index, 1);
       this.updateAllThemes();
+      void this.saveSettingsToStore(this.settings);
 
       if (this.settings.activeThemeId === themeId) {
         this.setColorTheme(DEFAULT_SETTINGS.activeThemeId);
@@ -240,31 +237,35 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     startWatchers() {
-      if (!this._stopSettingsWatcher) {
-        // 浅层 watch 所有顶层字段（不包括嵌套的 customThemes 数组），触发时持久化
-        this._stopSettingsWatcher = watch(
-          () => ({ ...this.settings }),
+      if (!_stopSettingsWatcher) {
+        // 精确 watch 需持久化的顶层字段（不 watch customThemes，由 action 触发持久化）
+        _stopSettingsWatcher = watch(
+          [
+            () => this.settings.activeThemeId,
+            () => this.settings.fontSize,
+            () => this.settings.fontFamily,
+            () => this.settings.lineHeight,
+            () => this.settings.autoSave,
+            () => this.settings.autoSaveInterval,
+            () => this.settings.spellCheck,
+            () => this.settings.titlebarAutoHide,
+            () => this.settings.customShortcuts,
+            () => this.settings.alwaysOnTop,
+            () => this.settings.imageStoragePath,
+            () => this.settings.shellIntegration,
+            () => this.settings.enableAutoUpdateCheck,
+          ],
           () => {
             void this.saveSettingsToStore(this.settings);
           },
         );
       }
 
-      // customThemes 变化时重建主题数组并持久化
-      if (!this._stopThemeWatcher) {
-        this._stopThemeWatcher = watch(
-          () => this.settings.customThemes,
-          () => {
-            this.updateAllThemes();
-            void this.saveSettingsToStore(this.settings);
-          },
-          { deep: true },
-        );
-      }
+      // customThemes 由 addCustomTheme / removeCustomTheme action 触发持久化，无需 watcher
 
       // 主题切换单独监听，仅 activeThemeId 变化时才重注入 CSS 变量
-      if (!this._stopActiveThemeIdWatcher) {
-        this._stopActiveThemeIdWatcher = watch(
+      if (!_stopActiveThemeIdWatcher) {
+        _stopActiveThemeIdWatcher = watch(
           () => this.settings.activeThemeId,
           (themeId) => {
             this.applyCurrentTheme(themeId);
@@ -272,8 +273,8 @@ export const useSettingsStore = defineStore('settings', {
         );
       }
 
-      if (!this._stopFocusModeWatcher) {
-        this._stopFocusModeWatcher = watch(
+      if (!_stopFocusModeWatcher) {
+        _stopFocusModeWatcher = watch(
           () => this.isFocusMode,
           (value) => {
             if (this.isLoaded) {

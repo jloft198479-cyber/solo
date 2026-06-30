@@ -93,8 +93,7 @@ describe('tauri window service', () => {
 
   it('routes native window commands through the command wrapper', async () => {
     const {
-      consumeStartupOpenRequest,
-      notifyFrontendReady,
+      startupReady,
       printDocument,
       refreshNativeMenuShortcuts,
       revealStartupOpenLog,
@@ -105,8 +104,7 @@ describe('tauri window service', () => {
     await printDocument();
     await refreshNativeMenuShortcuts({ 'file.save': 'CmdOrCtrl+S' });
     await revealStartupOpenLog();
-    await consumeStartupOpenRequest();
-    await notifyFrontendReady();
+    await startupReady();
 
     expect(mocks.invokeCommand).toHaveBeenNthCalledWith(
       1,
@@ -120,11 +118,7 @@ describe('tauri window service', () => {
       { shortcuts: { 'file.save': 'CmdOrCtrl+S' } },
     );
     expect(mocks.invokeCommand).toHaveBeenNthCalledWith(4, TAURI_COMMANDS.revealStartupOpenLog);
-    expect(mocks.invokeCommand).toHaveBeenNthCalledWith(
-      5,
-      TAURI_COMMANDS.consumeStartupOpenRequest,
-    );
-    expect(mocks.invokeCommand).toHaveBeenNthCalledWith(6, TAURI_COMMANDS.notifyFrontendReady);
+    expect(mocks.invokeCommand).toHaveBeenNthCalledWith(5, TAURI_COMMANDS.startupReady);
   });
 });
 

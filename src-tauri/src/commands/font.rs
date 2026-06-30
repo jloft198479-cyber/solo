@@ -1,14 +1,48 @@
 use crate::error::AppError;
 use std::fs;
+use std::sync::OnceLock;
 use tauri::{AppHandle, Manager};
 
-/// 通过 Rust 的 reqwest 下载字体文件并返回原始字节。
+static FONT_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn font_client() -> Result<reqwest::Client, AppError> {
+    if let Some(client) = FONT_CLIENT.get() {
+        return Ok(client.clone());
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|error| AppError::Network(format!("创建客户端失败: {}", error)))?;
+
+    let _ = FONT_CLIENT.set(client);
+    FONT_CLIENT.get().cloned().ok_or_else(|| AppError::Network("Client init failed".into()))
+}
+
+/// 通过 Rust 的 reqwest 下载字体文件并直接写入 font-cache 目录，返回缓存路径。
 /// 绕过前端 CSP/CORS 限制。
+/// 返回路径供前端用 convertFileSrc + fetch 读取，避免 IPC 传输二进制数据。
 #[tauri::command]
-pub async fn fetch_font_data(url: String) -> Result<Vec<u8>, AppError> {
-    let response = reqwest::get(&url).await?;
+pub async fn fetch_font_data(
+    url: String,
+    family: String,
+    app: AppHandle,
+) -> Result<String, AppError> {
+    let response = font_client()?.get(&url).send().await?;
     let bytes = response.bytes().await?;
-    Ok(bytes.to_vec())
+
+    let cache_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| AppError::Native(e.to_string()))?
+        .join("font-cache");
+    fs::create_dir_all(&cache_dir)?;
+    let cached = cache_dir.join(&family);
+    let tmp = cache_dir.join(format!("{}.tmp", &family));
+    fs::write(&tmp, &bytes)?;
+    fs::rename(&tmp, &cached)?;
+
+    Ok(cached.to_string_lossy().to_string())
 }
 
 /// 检查本地字体缓存，存在则返回路径，否则返回 None。
