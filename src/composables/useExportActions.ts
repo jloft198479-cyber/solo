@@ -2,13 +2,15 @@ import type { Ref } from 'vue';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { writeHtml } from '../services/tauri/clipboard';
 import { message, save } from '../services/tauri/dialog';
-import { saveDocument } from '../services/tauri/document';
+import { saveDocument, resolveDocumentImagePath } from '../services/tauri/document';
 import { printDocument } from '../services/tauri/window';
+import { toAssetUrl } from '../services/tauri/asset';
 import {
   renderEditorDocToHtmlDocument,
   renderEditorDocToWechatFragment,
 } from '../utils/export-renderer';
 import { getExportThemeTokensFromAppTheme } from '../utils/export/theme';
+import { escapeAttribute } from '../utils/export/utils';
 
 type EditorRefValue = {
   getContent?: () => string;
@@ -31,6 +33,45 @@ type SettingsStoreLike = {
     fontSize: number;
   };
 };
+
+function isLocalPath(src: string): boolean {
+  return !/^(https?:\/\/|data:|blob:|asset:\/\/)/i.test(src);
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function findImageSrcs(doc: PMNode): string[] {
+  const srcs: string[] = [];
+  doc.descendants((node) => {
+    if (node.type.name === 'image') srcs.push(node.attrs.src as string);
+  });
+  return srcs;
+}
+
+async function localImageToBase64(src: string, docPath: string | null): Promise<string | null> {
+  try {
+    let absolutePath = src;
+    if (!/^file:/i.test(src) && !/^[A-Z]:\\/i.test(src) && docPath) {
+      const resolved = await resolveDocumentImagePath(docPath, src);
+      absolutePath = resolved.absolutePath;
+    }
+    const assetUrl = toAssetUrl(absolutePath);
+    const resp = await fetch(assetUrl);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    const b64 = await blobToBase64(blob);
+    return `data:${blob.type};base64,${b64}`;
+  } catch {
+    return null;
+  }
+}
 
 export function useExportActions(options: {
   editorRef: EditorRef;
@@ -97,13 +138,37 @@ export function useExportActions(options: {
     const doc = getEditorDoc();
     if (!doc) return;
 
+    const docPath = fileStore.currentFile.path;
+
+    // 扫描本地图片 → 转 base64
+    const localSrcs = findImageSrcs(doc).filter(isLocalPath);
+    const urlMap = new Map<string, string>();
+    if (localSrcs.length > 0) {
+      const results = await Promise.allSettled(
+        localSrcs.map((src) => localImageToBase64(src, docPath).then((b64) => ({ src, b64 }))),
+      );
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value.b64) {
+          urlMap.set(r.value.src, r.value.b64);
+        }
+      }
+    }
+
     const result = renderEditorDocToWechatFragment(doc, {
       tokens: getExportThemeTokensFromAppTheme(settingsStore.settings.activeThemeId),
       fontFamily: settingsStore.settings.fontFamily,
       fontSize: settingsStore.settings.fontSize,
     });
+
+    let html = result.html;
+    if (urlMap.size > 0) {
+      for (const [oldSrc, newSrc] of urlMap) {
+        html = html.replaceAll(`src="${escapeAttribute(oldSrc)}"`, `src="${newSrc}"`);
+      }
+    }
+
     try {
-      await writeHtml(result.html, result.text || getMarkdown());
+      await writeHtml(html, result.text || getMarkdown());
       await message('已转换并复制到剪贴板', { title: '完成', kind: 'info' });
     } catch {
       await message('复制失败', { title: '错误', kind: 'error' });
