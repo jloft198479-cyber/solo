@@ -1,11 +1,5 @@
-/**
- * 字体加载器
- *
- * 支持本地已安装字体、远程下载两种来源。
- * 下载进度通过 onProgress 回调通知 UI 组件。
- */
-
-import { fetchFontData } from '../services/tauri/document';
+import { convertFileSrc } from '@tauri-apps/api/core';
+import { fetchFontData, getCachedFontPath, saveCachedFont } from './tauri/document';
 
 const DOWNLOAD_BASE = 'https://github.com/jloft198479-cyber/solo/releases/download/v1.1.6';
 
@@ -56,53 +50,6 @@ export function getDownloadProgress(family: string): number {
   return downloadProgress.get(family) ?? -1;
 }
 
-/** IndexedDB 缓存 */
-const DB_NAME = 'solo-font-cache';
-const DB_VERSION = 1;
-const STORE_NAME = 'fonts';
-
-let dbPromise: Promise<IDBDatabase> | null = null;
-
-function openDB(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-  return dbPromise;
-}
-
-async function getCachedBlob(family: string): Promise<Blob | null> {
-  try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const req = tx.objectStore(STORE_NAME).get(family);
-    return new Promise((resolve) => {
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => resolve(null);
-    });
-  } catch { return null; }
-}
-
-async function saveBlobCache(family: string, blob: Blob): Promise<void> {
-  try {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    tx.objectStore(STORE_NAME).put(blob, family);
-    return new Promise((resolve, reject) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-  } catch { /* 静默 */ }
-}
-
 async function registerFont(family: string, url: string): Promise<boolean> {
   try {
     const fontFace = new FontFace(family, `url('${url}')`);
@@ -115,10 +62,6 @@ async function registerFont(family: string, url: string): Promise<boolean> {
   }
 }
 
-/**
- * 通过前端 fetch API 下载，支持进度回调。
- * CSP 已配置 font-src: blob: https:，此路径应当正常工作。
- */
 async function downloadWithProgress(
   url: string,
   mime: string,
@@ -146,6 +89,54 @@ async function downloadWithProgress(
   return new Blob(chunks as BlobPart[], { type: mime });
 }
 
+async function readCache(family: string): Promise<boolean> {
+  try {
+    const cachedPath = await getCachedFontPath(family);
+    if (!cachedPath) return false;
+
+    const assetUrl = convertFileSrc(cachedPath);
+    const res = await fetch(assetUrl);
+    if (!res.ok) return false;
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const ok = await registerFont(family, url);
+    URL.revokeObjectURL(url);
+    if (ok) loadedFonts.add(family);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+async function downloadAndCache(family: string, fileName: string): Promise<boolean> {
+  const remoteUrl = `${DOWNLOAD_BASE}/${fileName}`;
+  const mime = mimeFromFileName(fileName);
+
+  notifyProgress(family, 0);
+
+  let blob: Blob;
+  try {
+    blob = await downloadWithProgress(remoteUrl, mime, family);
+  } catch {
+    // 兜底：走 Rust reqwest（无进度）
+    const rawBytes: number[] = await fetchFontData(remoteUrl);
+    blob = new Blob([new Uint8Array(rawBytes)], { type: mime });
+    notifyProgress(family, 100);
+  }
+
+  // 写入共享缓存（异步，不阻塞字体渲染）
+  saveCachedFont(family, [...new Uint8Array(await blob.arrayBuffer())]).catch(() => {});
+
+  const blobUrl = URL.createObjectURL(blob);
+  const ok = await registerFont(family, blobUrl);
+  URL.revokeObjectURL(blobUrl);
+  if (ok) loadedFonts.add(family);
+
+  notifyProgress(family, -1);
+  return ok;
+}
+
 export async function ensureFontLoaded(family: string): Promise<boolean> {
   if (SYSTEM_FONTS.has(family)) return true;
   if (loadedFonts.has(family)) return true;
@@ -159,41 +150,11 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
       const fileName = REMOTE_FONTS[family];
       if (!fileName) { loadedFonts.add(family); return true; }
 
-      // 查 IDB 缓存
-      const cached = await getCachedBlob(family);
-      if (cached) {
-        const url = URL.createObjectURL(cached);
-        const ok = await registerFont(family, url);
-        URL.revokeObjectURL(url);
-        if (ok) loadedFonts.add(family);
-        return ok;
-      }
+      // 先尝试共享缓存（所有进程共享，避免重复下载）
+      if (await readCache(family)) return true;
 
-      // 下载（优先前端 fetch 以支持进度；后端 Rust 兜底）
-      const remoteUrl = `${DOWNLOAD_BASE}/${fileName}`;
-      const mime = mimeFromFileName(fileName);
-
-      notifyProgress(family, 0);
-
-      let blob: Blob;
-      try {
-        blob = await downloadWithProgress(remoteUrl, mime, family);
-      } catch {
-        // 兜底：走 Rust reqwest（无进度）
-        const rawBytes: number[] = await fetchFontData(remoteUrl);
-        blob = new Blob([new Uint8Array(rawBytes)], { type: mime });
-        notifyProgress(family, 100);
-      }
-
-      saveBlobCache(family, blob);
-
-      const blobUrl = URL.createObjectURL(blob);
-      const ok = await registerFont(family, blobUrl);
-      URL.revokeObjectURL(blobUrl);
-      if (ok) loadedFonts.add(family);
-
-      notifyProgress(family, -1);
-      return ok;
+      // 缓存未命中 → 下载并缓存
+      return await downloadAndCache(family, fileName);
     } catch (e) {
       console.warn(`[fontLoader] Failed to load font: ${family}`, e);
       downloadFailures.add(family);
@@ -211,8 +172,8 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
 export async function isFontAvailable(family: string): Promise<boolean> {
   if (SYSTEM_FONTS.has(family)) return true;
   if (loadedFonts.has(family)) return true;
-  const cached = await getCachedBlob(family);
-  return cached !== null;
+  const cachedPath = await getCachedFontPath(family);
+  return cachedPath !== null;
 }
 
 export function isFontFailed(family: string): boolean {

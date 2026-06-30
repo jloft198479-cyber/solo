@@ -67,8 +67,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       fileStore.setLoading(false);
 
       // 大文档提示（此时 loading=false，不会阻塞确认对话框）
-      if (document.content.length > LARGE_DOC_THRESHOLD) {
-        const sizeKB = Math.round(document.content.length / 1024);
+      // 排除 base64 图片数据：图片渲染为独立节点，不影响编辑打字性能
+      const textContent = document.content.replace(/!\[.*?\]\(data:image\/[^;]+;base64,[^)]+\)/g, '');
+      if (textContent.length > LARGE_DOC_THRESHOLD) {
+        const sizeKB = Math.round(textContent.length / 1024);
         const proceed = await confirm(
           `该文件较大（约 ${sizeKB} KB），编辑器可能会变慢。是否继续打开？`,
           { title: '大文件提示', kind: 'warning', okLabel: '继续打开', cancelLabel: '取消' },

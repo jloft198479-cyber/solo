@@ -58,6 +58,7 @@ set PATH=M:\rust\.cargo\bin;%PATH%
 | Rust 菜单 | `src-tauri/src/menu.rs` |
 | Rust 注册表关联 | `src-tauri/src/commands/desktop.rs` |
 | NSIS 安装钩子 | `src-tauri/nsis-hooks.nsh` |
+| 正式发布流程 | `RELEASE_PROCESS.md` |
 | 前端入口 | `src/main.ts` |
 | 编辑器组件 | `src/components/Editor/MarkdownEditor.vue` |
 | 文档生命周期 | `src/composables/useDocumentSession.ts` |
@@ -168,6 +169,8 @@ set PATH=M:\rust\.cargo\bin;%PATH%
 
 ### Roundtrip 修复 — `!` `?` 过度转义 + CJK 标点加粗边界（2026-06-29）
 
+**详细分析、实现正则、测试用例、方案对比见 `docs/cjk-boundary.md`**。
+
 **背景**：v1.2.5 后 roundtrip 测试（parse→serialize→parse→serialize）共 75 项，3 项失败：
 1. `**hello!**` → roundtrip 后 `\*…\*`（`!` 被 seq2 误转义）
 2. `**hello?**` → 同上（`?`）
@@ -254,12 +257,14 @@ set PATH=M:\rust\.cargo\bin;%PATH%
 
 ## 编译须知
 
-### 版本号同步修改
+### 版本号同步修改（见 `RELEASE_PROCESS.md §Phase 1`）
 
 改版本时需同步 3 处：
 - `src-tauri/Cargo.toml` — `[package] version`
 - `src-tauri/tauri.conf.json` — `version`
 - `package.json` — `version`
+
+**完整发布流程（含 version bump → tag → CI → 发布 → 验证）详见 `RELEASE_PROCESS.md`。**
 
 ### 自动化脚本
 
@@ -372,7 +377,10 @@ inline:
 
 | 版本 | 主要变更 |
 |------|----------|
-| 1.2.6 | **CommonMark spec roundtrip 6项修复**：code span delimiter、list item blank line、ATX heading # escape、code fence adaptive delimiter、URL parenthesis escaping、consecutive HR blank line suppression。CommonMark skip table 45→34、977 tests all green。 |
+| 1.2.9 | **微信导出本地图片 base64 嵌入 + 卡片式布局 + 字体下载失败 badge**。CI: 修复 NSIS 路径 target triple 前缀 + 新增「版本号先升后打 tag」约束。发布流程文档化 → `RELEASE_PROCESS.md`。 |
+| 1.2.8 | **ClipboardTextSerializer 拆除 + Tauri 自动更新器**。粘贴不再泄漏 `**你好**` 源码；新增设置/关于面板检测更新；Airbnb/San Francisco/S 字体支持。 |
+| 1.2.7 | **字体系统重构**：远程字体按需下载+缓存+OS 独立超时+自动切换备选；JSON schema 重构移除 deprecated；设置面板通用组件化；CI: replaceAll → split+join(ES2020 兼容) |
+| 1.2.6 | **CommonMark spec roundtrip 6项修复**：code span delimiter、list item blank line、ATX heading # escape、code fence adaptive delimiter、URL parenthesis escaping、consecutive HR blank line suppression。CommonMark skip table 45→34、977 tests all green。CJK 边界专题文档移到 `docs/cjk-boundary.md`。 |
 | 1.2.5 | **拆除 `tauri-plugin-single-instance`，改为多进程独立架构**：每个 .md 双击启动独立 solo.exe，独立 WebView2 数据目录（`%TEMP%\com.solomarkdown\EBWebView-{PID}-{ms}`），消除 LevelDB 锁竞争导致的全进程卡死。启动时自动清理 24h 前过期目录。 |
 | 1.2.4 | callout 去圆角+加重底色，7主题预设 calloutNoteBg 同步；发布 solo_1.2.4_x64-setup.exe |
 | 1.2.3 | 文件关联移入 NSIS installerHooks；word count 切换文件修复；highlight mark 主题化；markdown 导出多余转义修复；roundtrip 测试框架 |

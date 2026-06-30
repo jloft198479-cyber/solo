@@ -67,7 +67,21 @@
     "models.rs: AppOpenSource 删除 Startup / SingleInstance 变体",
     "RunEvent::Opened 改为直接 create_editor_window",
     "修复 macOS 闭包参数名不匹配的潜伏编译 bug",
-    "版本 1.2.5 发布：solo_1.2.5_x64-setup.exe（编译通过）"
+    "版本 1.2.5 发布：solo_1.2.5_x64-setup.exe（编译通过）",
+
+    // ── v1.2.8: 剪贴板修复 + 自动更新器 ──
+    "ClipboardTextSerializer 拆除 — 粘贴不再泄漏 **你好** 源码（ProseMirror 默认 text/plain+text/html 正确）",
+    "Tauri 自动更新器完整配置：tauri.conf.json + capabilities + lib.rs + Cargo.toml",
+    "enableAutoUpdateCheck 设置 + AboutSettingsPanel + sidebar/modal + App.vue 启动检查",
+    "GitHub CI release.yml: tag push → 手动构建+签名+上传+latest.json",
+    "版本 1.2.8 发布（3 assets: .exe + .sig + latest.json）",
+
+    // ── v1.2.9: 微信导出优化 + 版本号 CI 修复 ──
+    "WeChat export 卡片式沉浸布局：padding + border-radius + box-shadow 圆角卡片",
+    "WeChat export 本地图片 → base64 嵌入：resolveDocumentImagePath→toAssetUrl→fetch→base64",
+    "字体下载失败红色 Badge：downloadFailures Set + isFontFailed + FontPopover 点击重试",
+    "版本 1.2.9 发布（CI 三坑修复：replaceAll→split+join / NSIS 路径 target triple / 先升版本号后打 tag）",
+    "发布流程文档化：RELEASE_PROCESS.md（含完整核对表 + 故障排查 + 回滚流程）"
   ],
 
   "keyDecisions": {
