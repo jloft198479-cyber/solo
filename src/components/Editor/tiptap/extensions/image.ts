@@ -292,6 +292,8 @@ export const CustomImage = Image.extend({
         image.title = attrs.title ?? '';
 
         if (isRemoteImageSrc(attrs.src)) {
+          if (image.dataset.prevRemoteSrc === attrs.src) return;
+          image.dataset.prevRemoteSrc = attrs.src;
           const requestId = ++displayRequestId;
           void getRemoteImageDisplaySrc(attrs.src).then((displaySrc) => {
             if (requestId === displayRequestId) {

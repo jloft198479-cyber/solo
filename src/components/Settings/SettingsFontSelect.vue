@@ -10,8 +10,9 @@ const fontStatus = ref<Record<string, boolean | 'loading'>>({});
 const progressPct = ref<Record<string, number>>({});
 
 onMounted(async () => {
-  for (const opt of fontOptions) {
-    fontStatus.value[opt.value] = await isFontAvailable(opt.value);
+  const results = await Promise.all(fontOptions.map(opt => isFontAvailable(opt.value)));
+  for (let i = 0; i < fontOptions.length; i++) {
+    fontStatus.value[fontOptions[i].value] = results[i];
   }
 });
 
@@ -20,9 +21,7 @@ const unsub = onProgress((family, pct) => {
     progressPct.value[family] = pct;
     fontStatus.value[family] = 'loading';
   } else {
-    const rest = { ...progressPct.value };
-    delete rest[family];
-    progressPct.value = rest;
+    delete progressPct.value[family];
     isFontAvailable(family).then((ok) => { fontStatus.value[family] = ok; });
   }
 });

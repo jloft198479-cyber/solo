@@ -1,12 +1,10 @@
 export const TAURI_COMMANDS = {
   authorizeImageAsset: 'authorize_image_asset',
-  consumeStartupOpenRequest: 'consume_startup_open_request',
   fetchFontData: 'fetch_font_data',
   fetchRemoteImage: 'fetch_remote_image',
   getCachedFontPath: 'get_cached_font_path',
   importDocumentImage: 'import_document_image',
   newEditorWindow: 'new_editor_window',
-  notifyFrontendReady: 'notify_frontend_ready',
   openDocument: 'open_document',
   printDocument: 'print_document',
   refreshNativeMenuShortcuts: 'refresh_native_menu_shortcuts',
@@ -19,6 +17,7 @@ export const TAURI_COMMANDS = {
   saveCachedFont: 'save_font_cache',
   saveDocument: 'save_document',
   setWindowBackgroundColor: 'set_window_background_color',
+  startupReady: 'startup_ready',
   unregisterShellNew: 'unregister_shell_new',
 } as const;
 

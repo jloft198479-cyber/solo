@@ -23,28 +23,6 @@ function invalidateCache() {
 export const ParagraphFocus = Extension.create({
   name: 'paragraphFocus',
 
-  onCreate() {
-    // 监听 <html> class 变化（focus-mode 开关），自动刷新 decorations
-    const editor = this.editor;
-    const observer = new MutationObserver(() => {
-      if (editor.isDestroyed || !editor.view) return;
-      // class 变化（如 focus-mode 切换）使缓存失效，强制重算
-      invalidateCache();
-      editor.view.dispatch(editor.state.tr);
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
-    (this as unknown as Record<string, unknown>)._focusObserver = observer;
-  },
-
-  onDestroy() {
-    const obs = (this as unknown as Record<string, unknown>)._focusObserver;
-    if (obs instanceof MutationObserver) obs.disconnect();
-    invalidateCache();
-  },
-
   addProseMirrorPlugins() {
     return [
       new Plugin({

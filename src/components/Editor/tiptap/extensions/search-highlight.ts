@@ -4,6 +4,9 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
 const key = new PluginKey('searchHighlight');
 
+let _cachedKey = '';
+let _cachedDecoSet: DecorationSet | null = null;
+
 export interface SearchHighlightOptions {
   getMatches: () => Array<{ from: number; to: number }>;
   getActiveIndex: () => number;
@@ -27,15 +30,27 @@ export const SearchHighlight = Extension.create<SearchHighlightOptions>({
         props: {
           decorations(state) {
             const matches = getMatches();
-            if (!matches.length) return DecorationSet.empty;
+            if (!matches.length) {
+              _cachedKey = '';
+              _cachedDecoSet = null;
+              return DecorationSet.empty;
+            }
+
+            const activeIndex = getActiveIndex();
+
+            const cacheKey = JSON.stringify(matches) + '|' + activeIndex;
+            if (cacheKey === _cachedKey && _cachedDecoSet) return _cachedDecoSet;
 
             const decorations = matches.map((m, i) =>
               Decoration.inline(m.from, m.to, {
-                class: i === getActiveIndex() ? 'search-match search-match-active' : 'search-match',
+                class: i === activeIndex ? 'search-match search-match-active' : 'search-match',
               }),
             );
 
-            return DecorationSet.create(state.doc, decorations);
+            const decoSet = DecorationSet.create(state.doc, decorations);
+            _cachedKey = cacheKey;
+            _cachedDecoSet = decoSet;
+            return decoSet;
           },
         },
       }),

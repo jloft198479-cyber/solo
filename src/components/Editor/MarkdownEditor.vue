@@ -106,7 +106,6 @@ import BubbleMenuComponent from './views/BubbleMenu.vue';
 import SlashMenu from './views/SlashMenu.vue';
 import EmojiMenu from './views/EmojiMenu.vue';
 import './tiptap/editor.css';
-import 'highlight.js/styles/github.css';
 
 type EditorUpdatePayload = {
   wordCount?: number;
@@ -148,11 +147,11 @@ const slashMenuCommand = ref<(item: SlashCommandItem) => void>(() => {});
 const emojiMenuRef = ref<EmojiMenuController | null>(null);
 const emojiMenuItems = ref<EmojiItem[]>([]);
 const emojiMenuCommand = ref<(item: EmojiItem) => void>(() => {});
-useEditorAppearance();
+const editor = shallowRef<TiptapEditor | null>(null);
+useEditorAppearance(editor);
 
 // ── 创建 TipTap Editor ────────────────────────────────────────
 
-const editor = shallowRef<TiptapEditor | null>(null);
 const {
   isSearchVisible,
   searchMatchCount,
@@ -230,7 +229,7 @@ function createEditor(content: string) {
       debouncedSerialize(t);
     },
     onSelectionUpdate: ({ editor: ed }) => {
-      updateBubbleMenu(ed as unknown as TiptapEditor);
+      rafUpdateBubbleMenu(ed as unknown as TiptapEditor);
       debouncedEmitCursorInfo(ed as unknown as TiptapEditor);
     },
   });
@@ -308,9 +307,8 @@ watch(
     const doc = parseMarkdown(editor.value.schema, content);
     // emitUpdate: false 避免触发 onUpdate 导致误判 dirty
     editor.value.commands.setContent(doc.toJSON(), { emitUpdate: false });
-    // 重置基线，避免 parser/serializer round-trip 差异导致误判
-    const baseline = serializeMarkdown(editor.value.state.doc);
-    fileStore.setContent(baseline);
+    // 重置基线：直接用目标内容，避免一次序列化
+    fileStore.setContent(targetMarkdown);
     // setContent({ emitUpdate:false }) 不触发 onUpdate → 手动补发字数和大纲
     const wc = getEditorWordCount(editor.value);
     const ol = extractEditorOutline(editor.value);
@@ -320,6 +318,20 @@ watch(
 );
 
 // ── BubbleMenu ────────────────────────────────────────────────
+
+let _bubbleMenuRafId: number | null = null;
+let _bubbleMenuPendingEd: TiptapEditor | null = null;
+
+function rafUpdateBubbleMenu(ed: TiptapEditor) {
+  _bubbleMenuPendingEd = ed;
+  if (_bubbleMenuRafId != null) return;
+  _bubbleMenuRafId = requestAnimationFrame(() => {
+    _bubbleMenuRafId = null;
+    const e = _bubbleMenuPendingEd;
+    _bubbleMenuPendingEd = null;
+    if (e && !e.isDestroyed) updateBubbleMenu(e);
+  });
+}
 
 function updateBubbleMenu(ed: TiptapEditor) {
   const { from, to, empty } = ed.state.selection;

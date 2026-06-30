@@ -24,6 +24,7 @@ function tokensFromAppTheme(theme: NonNullable<ReturnType<typeof getAppTheme>>):
     codeForeground: c.primaryColor,
     preBackground: c.bgSecondary,
     preForeground: c.textColor,
+    highlightBg: c.markBg || '#fef08a',
   };
 }
 
@@ -41,5 +42,6 @@ function fallbackTokens(): ExportThemeTokens {
     codeForeground: '#8b7355',
     preBackground: '#f5f1eb',
     preForeground: '#2c2416',
+    highlightBg: '#fef08a',
   };
 }

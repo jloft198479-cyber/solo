@@ -117,6 +117,10 @@ export const emojiItems: EmojiItem[] = [
   { emoji: '🆓', name: 'free', keywords: ['免费', 'free'] },
 ];
 
+const _emojiLowerIndex: { nameLower: string; keywordsLower: string[] }[] = emojiItems.map(
+  item => ({ nameLower: item.name.toLowerCase(), keywordsLower: item.keywords.map(kw => kw.toLowerCase()) }),
+);
+
 export const EmojiSuggest = Extension.create<EmojiSuggestOptions>({
   name: 'emojiSuggest',
 
@@ -131,9 +135,9 @@ export const EmojiSuggest = Extension.create<EmojiSuggestOptions>({
             return emojiItems.slice(0, 20);
           }
           return emojiItems.filter(
-            (item) =>
-              item.name.toLowerCase().includes(q) ||
-              item.keywords.some((kw) => kw.toLowerCase().includes(q)),
+            (_, i) =>
+              _emojiLowerIndex[i].nameLower.includes(q) ||
+              _emojiLowerIndex[i].keywordsLower.some(kw => kw.includes(q)),
           );
         },
         command: ({ editor, range, props }) => {

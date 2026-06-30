@@ -120,3 +120,29 @@ export function wrapMarks(
   }
   return result;
 }
+
+// ── Callout 标题中文映射（HTML/微信渲染器共享）──────────────
+const CALLOUT_TITLE_MAP: Record<string, string> = {
+  note: '注意',
+  tip: '提示',
+  warning: '警告',
+  danger: '危险',
+  success: '成功',
+  quote: '引用',
+  info: '信息',
+  bug: 'Bug',
+  example: '示例',
+  abstract: '摘要',
+  todo: '待办',
+  question: '问题',
+  failure: '失败',
+};
+
+export function resolveCalloutTitle(calloutType: string, customTitle: string): string {
+  if (customTitle) return customTitle;
+  return CALLOUT_TITLE_MAP[calloutType] || capitalize(calloutType);
+}
+
+export function capitalize(value: string): string {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : 'Note';
+}

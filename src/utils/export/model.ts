@@ -163,6 +163,7 @@ export interface ExportThemeTokens {
   codeForeground: string;
   preBackground: string;
   preForeground: string;
+  highlightBg: string;
 }
 
 export interface ExportRenderOptions {
@@ -174,6 +175,9 @@ export interface ExportRenderOptions {
   fontFamily?: string;
   /** 用户选择的正文字号 (px)，用于导出时同步字号 */
   fontSize?: number;
+  /** 本地图片 src → base64 data URL 的映射表。
+   *  在 IR 渲染阶段直接替换 img.src，避免 HTML 字符串后替换的子串匹配风险。 */
+  imageMap?: Map<string, string>;
 }
 
 export interface WechatRenderResult {

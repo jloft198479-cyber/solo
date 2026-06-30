@@ -1,26 +1,27 @@
-import { onBeforeUnmount, onMounted, watch } from 'vue';
+import { onBeforeUnmount, onMounted, type Ref, watch } from 'vue';
 
 import { useSettingsStore } from '../../../stores/settings';
 import { buildFontStack } from '../../../utils/fontStack';
 import { ensureFontLoaded } from '../../../services/fontLoader';
 import { reinitializeMermaidTheme } from './extensions/mermaid-block';
+import { refreshParagraphFocus } from './extensions/paragraph-focus';
+import type { Editor as TiptapEditor } from '@tiptap/vue-3';
+import type { EditorView } from '@tiptap/pm/view';
 
-const hljsDarkCssId = 'hljs-dark-theme';
+const hljsCssId = 'hljs-theme';
+const hljsLightUrl = new URL('highlight.js/styles/github.css', import.meta.url).href;
+const hljsDarkUrl = new URL('highlight.js/styles/github-dark.css', import.meta.url).href;
 
 function syncHljsTheme() {
   const isDark = document.documentElement.classList.contains('dark');
-  let el = document.getElementById(hljsDarkCssId) as HTMLLinkElement | null;
-  if (isDark) {
-    if (!el) {
-      el = document.createElement('link');
-      el.id = hljsDarkCssId;
-      el.rel = 'stylesheet';
-      el.href = new URL('highlight.js/styles/github-dark.css', import.meta.url).href;
-      document.head.appendChild(el);
-    }
-  } else {
-    el?.remove();
+  let el = document.getElementById(hljsCssId) as HTMLLinkElement | null;
+  if (!el) {
+    el = document.createElement('link');
+    el.id = hljsCssId;
+    el.rel = 'stylesheet';
+    document.head.appendChild(el);
   }
+  el.href = isDark ? hljsDarkUrl : hljsLightUrl;
 
   // 同步 Mermaid 主题
   reinitializeMermaidTheme().catch(() => {});
@@ -33,9 +34,13 @@ function applyFontFamily(fontFamily: string) {
   ensureFontLoaded(fontFamily);
 }
 
-export function useEditorAppearance() {
+export function useEditorAppearance(editorRef?: Ref<TiptapEditor | null>) {
   const settingsStore = useSettingsStore();
-  const themeObserver = new MutationObserver(syncHljsTheme);
+  const themeObserver = new MutationObserver(() => {
+    syncHljsTheme();
+    const view: EditorView | undefined = editorRef?.value?.view;
+    if (view) refreshParagraphFocus(view);
+  });
 
   watch(() => settingsStore.settings.fontFamily, applyFontFamily, { immediate: true });
 

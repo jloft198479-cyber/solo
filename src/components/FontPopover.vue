@@ -18,9 +18,10 @@ const fontStatus = ref<Record<string, boolean>>({});
 const fontFailed = ref<Record<string, boolean>>({});
 
 async function refreshStatus() {
-  for (const opt of fontOptions) {
-    fontStatus.value[opt.value] = await isFontAvailable(opt.value);
-    fontFailed.value[opt.value] = isFontFailed(opt.value);
+  const results = await Promise.all(fontOptions.map(opt => isFontAvailable(opt.value)));
+  for (let i = 0; i < fontOptions.length; i++) {
+    fontStatus.value[fontOptions[i].value] = results[i];
+    fontFailed.value[fontOptions[i].value] = isFontFailed(fontOptions[i].value);
   }
 }
 
@@ -30,23 +31,19 @@ const progressing = ref<Record<string, number>>({});
 
 const unsub = onProgress((family, pct) => {
   if (pct >= 0) {
-    progressing.value = { ...progressing.value, [family]: pct };
+    progressing.value[family] = pct;
   } else {
-    progressing.value = { ...progressing.value, [family]: 100 };
+    progressing.value[family] = 100;
     isFontAvailable(family).then((ok) => {
       fontStatus.value[family] = ok;
       fontFailed.value[family] = !ok && isFontFailed(family);
       if (currentFont.value === family) {
         setTimeout(() => {
-          const rest = { ...progressing.value };
-          delete rest[family];
-          progressing.value = rest;
+          delete progressing.value[family];
           emit('select');
         }, 600);
       } else {
-        const rest = { ...progressing.value };
-        delete rest[family];
-        progressing.value = rest;
+        delete progressing.value[family];
       }
     });
   }

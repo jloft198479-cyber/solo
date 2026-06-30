@@ -4,13 +4,12 @@ import type { AppOpenPathsPayload } from '../services/tauri/events';
 import { listenWindowCloseRequested } from '../services/tauri/events';
 import { subscribeDragDrop } from '../services/tauri/webview';
 import {
-  consumeStartupOpenRequest,
   destroyCurrentWindow,
   isCurrentWindowFullscreen,
-  notifyFrontendReady,
   registerShellNew,
   setCurrentWindowFullscreen,
   setCurrentWindowTitle,
+  startupReady,
 } from '../services/tauri/window';
 import { saveAllWindowState } from '../services/tauri/window-state';
 
@@ -178,9 +177,8 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
       await handleCloseRequest();
     });
 
-    await handleOpenPayload(await consumeStartupOpenRequest());
+    await handleOpenPayload(await startupReady());
     await setupDragDrop();
-    await handleOpenPayload(await notifyFrontendReady());
 
     // 仅在用户启用 Shell 集成时注册 Windows 右键"新建 Markdown 文档"
     if (options.shellIntegration()) {

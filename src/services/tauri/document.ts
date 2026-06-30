@@ -74,8 +74,8 @@ export async function fetchRemoteImageData(url: string) {
   return invokeCommand<string>(TAURI_COMMANDS.fetchRemoteImage, { url });
 }
 
-export async function fetchFontData(url: string) {
-  return invokeCommand<number[]>(TAURI_COMMANDS.fetchFontData, { url });
+export async function fetchFontData(url: string, family: string) {
+  return invokeCommand<string>(TAURI_COMMANDS.fetchFontData, { url, family });
 }
 
 export async function getCachedFontPath(family: string) {

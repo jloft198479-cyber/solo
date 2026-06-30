@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   writeHtml: vi.fn(),
   openUrl: vi.fn(),
-  platform: vi.fn(),
   convertFileSrc: vi.fn(),
   onDragDropEvent: vi.fn(),
 }));
@@ -25,10 +24,6 @@ vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({
 
 vi.mock('@tauri-apps/plugin-opener', () => ({
   openUrl: mocks.openUrl,
-}));
-
-vi.mock('@tauri-apps/plugin-os', () => ({
-  platform: mocks.platform,
 }));
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -84,15 +79,6 @@ describe('tauri plugin service wrappers', () => {
     await openUrl('https://example.com');
 
     expect(mocks.openUrl).toHaveBeenCalledWith('https://example.com');
-  });
-
-  it('routes platform detection through the os plugin', async () => {
-    mocks.platform.mockReturnValueOnce('macos');
-
-    const { platform } = await import('../os');
-
-    expect(platform()).toBe('macos');
-    expect(mocks.platform).toHaveBeenCalledWith();
   });
 
   it('converts file paths through the asset helper', async () => {

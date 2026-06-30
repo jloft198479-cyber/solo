@@ -1,21 +1,11 @@
-/**
- * 跨平台适配工具类
- */
-
-import { platform as tauriPlatform } from '../services/tauri/os';
-
 type OsPlatform = 'macos' | 'windows' | 'linux' | 'ios' | 'android' | 'freebsd' | 'dragonfly' | 'netbsd' | 'openbsd' | 'solaris' | 'unknown';
 
 function resolvePlatform(): OsPlatform {
-  try {
-    return tauriPlatform() as OsPlatform;
-  } catch {
-    const nav = typeof navigator !== 'undefined' ? navigator.platform.toUpperCase() : '';
-    if (nav.includes('MAC')) return 'macos';
-    if (nav.includes('WIN')) return 'windows';
-    if (nav.includes('LINUX')) return 'linux';
-    return 'unknown';
-  }
+  const ua = navigator.userAgent;
+  if (ua.includes('Mac')) return 'macos';
+  if (ua.includes('Windows')) return 'windows';
+  if (ua.includes('Linux')) return 'linux';
+  return 'unknown';
 }
 
 const currentPlatform = resolvePlatform();
