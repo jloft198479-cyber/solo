@@ -78,8 +78,8 @@ export async function fetchFontData(url: string) {
   return invokeCommand<number[]>(TAURI_COMMANDS.fetchFontData, { url });
 }
 
-export async function getCachedFontData(family: string) {
-  return invokeCommand<number[] | null>(TAURI_COMMANDS.getCachedFontData, { family });
+export async function getCachedFontPath(family: string) {
+  return invokeCommand<string | null>(TAURI_COMMANDS.getCachedFontPath, { family });
 }
 
 export async function saveCachedFont(family: string, data: number[]) {

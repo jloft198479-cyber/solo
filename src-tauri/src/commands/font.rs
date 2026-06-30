@@ -11,13 +11,13 @@ pub async fn fetch_font_data(url: String) -> Result<Vec<u8>, AppError> {
     Ok(bytes.to_vec())
 }
 
-/// 从本地缓存读取字体数据。
-/// 已缓存则返回字节数组，否则返回 None。
+/// 检查本地字体缓存，存在则返回路径，否则返回 None。
+/// 前端通过 convertFileSrc + fetch 流式加载，避免 IPC 传输二进制数据。
 #[tauri::command]
-pub async fn get_cached_font_data(
+pub async fn get_cached_font_path(
     family: String,
     app: AppHandle,
-) -> Result<Option<Vec<u8>>, AppError> {
+) -> Result<Option<String>, AppError> {
     let cache_dir = app
         .path()
         .app_local_data_dir()
@@ -25,8 +25,7 @@ pub async fn get_cached_font_data(
         .join("font-cache");
     let cached = cache_dir.join(&family);
     if cached.exists() {
-        let bytes = fs::read(&cached)?;
-        Ok(Some(bytes))
+        Ok(Some(cached.to_string_lossy().to_string()))
     } else {
         Ok(None)
     }
