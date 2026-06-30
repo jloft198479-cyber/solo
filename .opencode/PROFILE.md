@@ -377,6 +377,7 @@ inline:
 
 | 版本 | 主要变更 |
 |------|----------|
+| 1.2.10 | **字体缓存 IndexedDB→文件系统共享**：多进程不再重复下载。大文件提示排除 base64 图片误报。下载进度脉冲动画。文档重构（AGENTS.md→工作手册，CJK 专题→`docs/cjk-boundary.md`）。 |
 | 1.2.9 | **微信导出本地图片 base64 嵌入 + 卡片式布局 + 字体下载失败 badge**。CI: 修复 NSIS 路径 target triple 前缀 + 新增「版本号先升后打 tag」约束。发布流程文档化 → `RELEASE_PROCESS.md`。 |
 | 1.2.8 | **ClipboardTextSerializer 拆除 + Tauri 自动更新器**。粘贴不再泄漏 `**你好**` 源码；新增设置/关于面板检测更新；Airbnb/San Francisco/S 字体支持。 |
 | 1.2.7 | **字体系统重构**：远程字体按需下载+缓存+OS 独立超时+自动切换备选；JSON schema 重构移除 deprecated；设置面板通用组件化；CI: replaceAll → split+join(ES2020 兼容) |
@@ -390,7 +391,9 @@ inline:
 ## 待办
 
 - P3: 崩溃 `.tmp` 残留清理（搁置）
-- TBD: 修改 parser/serializer 前先读 fixture 文件确认预期行为
+- 大文件编辑性能优化（20M+ 纯文本时 ProseMirror DOM 渲染瓶颈）
+- 编辑器内大图懒加载（自动缩略图）
+- 设置面板增加缓存管理（清除字体缓存等）
 
 ## 参考资源
 
@@ -405,4 +408,12 @@ inline:
 - `vue-tsc --noEmit` + `vite build` + `cargo build --release` 逐级验证
 - 改了后端（Rust）必须验证前端（`window.ts` / composables 调用方），反之亦然
 - 改了 parser/serializer 必须 `bun run test`，全部 roundtrip 通过才算完成
-- 每次版本发布先清 `node_modules` + `cargo clean` 再全量构建
+- 多进程架构下：字体缓存走文件系统（`app_local_data_dir/font-cache/`），不走 IndexedDB
+- 发版前先升版本号再打 tag，确保 Cargo.toml/package.json/tauri.conf.json 三处一致
+
+## 字体缓存架构（v1.2.10）
+
+多进程共享 `%APPDATA%\com.solomarkdown\data\font-cache\` 目录，每个字体文件以 family 名命名。
+写入策略：临时文件 → rename，防并发脏读。读取策略：Rust 命令检查文件存在 → `convertFileSrc` → `fetch` → Blob → FontFace。
+
+相关文件：`fontLoader.ts` / `commands/font.rs` / `document.ts`

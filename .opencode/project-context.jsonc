@@ -81,7 +81,14 @@
     "WeChat export 本地图片 → base64 嵌入：resolveDocumentImagePath→toAssetUrl→fetch→base64",
     "字体下载失败红色 Badge：downloadFailures Set + isFontFailed + FontPopover 点击重试",
     "版本 1.2.9 发布（CI 三坑修复：replaceAll→split+join / NSIS 路径 target triple / 先升版本号后打 tag）",
-    "发布流程文档化：RELEASE_PROCESS.md（含完整核对表 + 故障排查 + 回滚流程）"
+    "发布流程文档化：RELEASE_PROCESS.md（含完整核对表 + 故障排查 + 回滚流程）",
+
+    // ── v1.2.10: 字体缓存文件系统共享 + 大文件体验修复 + 文档重构 ──
+    "字体缓存：IndexedDB → 共享文件系统 app_local_data_dir/font-cache/，多进程无需重复下载",
+    "大文件提示：排除 base64 图片 data URI，纯文本才参与大小计算",
+    "下载进度：去除百分比数字 → '下载中' + 脉冲脉动动画过渡连接空白期",
+    "文档重构：AGENTS.md 重写为工作手册 / CJK 专题移入 docs/cjk-boundary.md / 去硬编码版本号",
+    "版本 1.2.10 发布（流程正确：先升版本号→提交→打 tag→CI→发布）"
   ],
 
   "keyDecisions": {
@@ -101,6 +108,9 @@
     "nestedListIndentDepth": "每级嵌套 3 空格缩进（CommonMark 标准）。serializer.ts listDepth 计数",
     "taskListDetection": "parser bullet_list_open 前看 token 检测 task-list-item class → 开 taskList 代替 bulletList；checked 状态从 html_inline <input checked=\"\"> 提取，不从 class 属性（markdown-it-task-lists 仅 token 阶段不加 checked class）",
     "cjkBoldBoundaryZWNJ": "CJK 标点后 **/* 边界问题同根因：CommonMark scanDelims 以 Unicode 类别判定 right_flanking。Po/S 类使 canClose=false。serializer 为 bold 和 italic 插入 ZWNJ (Cf 类) 使 parser 正确识别关闭符，零副作用。纯 markdown roundtrip（不经编辑）退化为转义，这是规范限制。见 PROFILE.md §CJK 标点加粗边界",
+
+    // ── v1.2.10: 字体缓存 ──
+    "fontCacheFileSystemNotIndexedDB": "多进程架构下，IndexedDB 绑定在 WebView2 数据目录（每进程独立），跨进程不共享。改用 app_local_data_dir/font-cache/ 文件目录，所有进程读写同一路径。写时 temp file + rename 防并发脏读。见 PROFILE.md §字体缓存架构",
   },
 
   "testInfrastructure": {
@@ -143,8 +153,9 @@
 
   "pendingItems": {
     "P3": "崩溃 .tmp 残留清理 — 搁置",
-    "P4": "多进程内存优化 — 下次版本评估。候选：MemoryUsageTargetLevel=Low / TrySuspendAsync 窗口失焦挂起"
+    "P4": "多进程内存优化 — 下次版本评估。候选：MemoryUsageTargetLevel=Low / TrySuspendAsync 窗口失焦挂起",
+    "大文件性能": "20M+ 纯文本编辑瓶颈（ProseMirror DOM 渲染），非紧急"
   },
 
-    "latestSession": "2026-06-29 roundtrip 修复：serializer escapeInline 移除 !?（2 个失败归零）；CJK 边界 ZWNJ 覆盖 bold + italic（+3 失败归零 + reopen 场景）；79 roundtrip tests 全绿，357 total tests 全绿，vue-tsc + vite build 无错误"
+  "latestSession": "2026-06-30 v1.2.10: 字体缓存 IndexedDB→文件系统共享 / 大文件提示排除 base64 / 下载进度脉冲动画 / AGENTS.md 重写 + CJK 专题移入 docs/ / RELEASE_PROCESS.md 发布流程文档 / 978 tests all green"
 }
