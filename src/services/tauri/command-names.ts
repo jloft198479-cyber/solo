@@ -3,7 +3,7 @@ export const TAURI_COMMANDS = {
   consumeStartupOpenRequest: 'consume_startup_open_request',
   fetchFontData: 'fetch_font_data',
   fetchRemoteImage: 'fetch_remote_image',
-  getCachedFontPath: 'get_cached_font_path',
+  getCachedFontData: 'get_cached_font_data',
   importDocumentImage: 'import_document_image',
   newEditorWindow: 'new_editor_window',
   notifyFrontendReady: 'notify_frontend_ready',

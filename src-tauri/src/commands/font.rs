@@ -11,14 +11,13 @@ pub async fn fetch_font_data(url: String) -> Result<Vec<u8>, AppError> {
     Ok(bytes.to_vec())
 }
 
-/// 检查字体文件是否已缓存到共享路径。
-/// 返回本地文件路径（若已缓存），否则返回 None。
-/// 多个进程共享同一个 app_local_data_dir，避免重复下载。
+/// 从本地缓存读取字体数据。
+/// 已缓存则返回字节数组，否则返回 None。
 #[tauri::command]
-pub async fn get_cached_font_path(
+pub async fn get_cached_font_data(
     family: String,
     app: AppHandle,
-) -> Result<Option<String>, AppError> {
+) -> Result<Option<Vec<u8>>, AppError> {
     let cache_dir = app
         .path()
         .app_local_data_dir()
@@ -26,20 +25,21 @@ pub async fn get_cached_font_path(
         .join("font-cache");
     let cached = cache_dir.join(&family);
     if cached.exists() {
-        Ok(Some(cached.to_string_lossy().to_string()))
+        let bytes = fs::read(&cached)?;
+        Ok(Some(bytes))
     } else {
         Ok(None)
     }
 }
 
-/// 将字体字节写入共享缓存路径，返回本地文件路径。
-/// 幂等：同一 family 的多次写入覆盖同一文件，内容不变（同一 URL 下载结果一致）。
+/// 将字体字节写入本地缓存。
+/// 同一个 family 覆盖写入。
 #[tauri::command]
 pub async fn save_font_cache(
     family: String,
     data: Vec<u8>,
     app: AppHandle,
-) -> Result<String, AppError> {
+) -> Result<(), AppError> {
     let cache_dir = app
         .path()
         .app_local_data_dir()
@@ -47,9 +47,8 @@ pub async fn save_font_cache(
         .join("font-cache");
     fs::create_dir_all(&cache_dir)?;
     let cached = cache_dir.join(&family);
-    // 先写临时文件，再 rename，防止半写状态被其他进程读到
     let tmp = cache_dir.join(format!("{}.tmp", &family));
     fs::write(&tmp, &data)?;
     fs::rename(&tmp, &cached)?;
-    Ok(cached.to_string_lossy().to_string())
+    Ok(())
 }

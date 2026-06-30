@@ -188,19 +188,12 @@ describe('状态机层：composition 编排不变量', () => {
     expect(para.textContent).toBe('## ');
   });
 
-  it('(d) 非 IME `# x`：settle 前不转，forceCheck 后转 heading', () => {
+  it('(d) 非 IME `# x`：docChanged 时立即转 heading', () => {
     let state = stateWith(docOf(paragraph()), 1);
 
     // 非 IME 直接输入 `# x`（无 composition）。
     state = dispatch(state, (tr) => tr.insertText('# x', 1));
-    // settle 未到（仅 docChanged，forceCheck 未触发）→ 保持 pending paragraph。
-    expect(state.doc.firstChild!.type.name).toBe('paragraph');
-    expect(state.doc.firstChild!.textContent).toBe('# x');
-
-    // 300ms 定时器到点 → forceCheck。
-    vi.advanceTimersByTime(300);
-    state = dispatch(state, (tr) => metaForceCheck(tr));
-
+    // docChanged → 立即转换，不再等待 forceCheck。
     expect(state.doc.firstChild!.type.name).toBe('heading');
     expect(state.doc.firstChild!.textContent).toBe('x');
   });
@@ -234,15 +227,11 @@ describe('真定时器层：真实 EditorView 执行 window.setTimeout', () => {
     return view;
   }
 
-  it('(d-timer) 非 IME `# x`：view.update 调度的 300ms 定时器到点后转 heading', () => {
+  it('(d-timer) 非 IME `# x`：dispatch 后立即转 heading', () => {
     const v = mountView(docOf(paragraph()), 1);
 
     v.dispatch(v.state.tr.insertText('# x', 1));
-    // 定时器尚未到点 → 仍是 pending paragraph。
-    expect(v.state.doc.firstChild!.type.name).toBe('paragraph');
-
-    vi.advanceTimersByTime(300);
-    // 真实定时器回调已 dispatch forceCheck → 转换完成。
+    // docChanged → appendTransaction 立即转换。
     expect(v.state.doc.firstChild!.type.name).toBe('heading');
     expect(v.state.doc.firstChild!.textContent).toBe('x');
   });
@@ -252,12 +241,7 @@ describe('真定时器层：真实 EditorView 执行 window.setTimeout', () => {
 
     // 模拟 IME 文本上屏。
     v.dispatch(v.state.tr.insertText('你好', 3));
-    expect(v.state.doc.firstChild!.type.name).toBe('paragraph');
-
-    // 真实 compositionend DOM 事件 → 插件安排 50ms forceCheck 定时器。
-    v.dom.dispatchEvent(new Event('compositionend'));
-    vi.advanceTimersByTime(50);
-
+    // docChanged → appendTransaction 立即转换。
     expect(v.state.doc.firstChild!.type.name).toBe('heading');
     expect(v.state.doc.firstChild!.textContent).toBe('你好');
   });

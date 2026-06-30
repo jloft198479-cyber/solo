@@ -1,5 +1,4 @@
-import { convertFileSrc } from '@tauri-apps/api/core';
-import { fetchFontData, getCachedFontPath, saveCachedFont } from './tauri/document';
+import { fetchFontData, getCachedFontData, saveCachedFont } from './tauri/document';
 
 const DOWNLOAD_BASE = 'https://github.com/jloft198479-cyber/solo/releases/download/v1.1.6';
 
@@ -50,11 +49,14 @@ export function getDownloadProgress(family: string): number {
   return downloadProgress.get(family) ?? -1;
 }
 
-async function registerFont(family: string, url: string): Promise<boolean> {
+async function registerFont(family: string, data: ArrayBuffer, mime: string): Promise<boolean> {
   try {
+    const blob = new Blob([data], { type: mime });
+    const url = URL.createObjectURL(blob);
     const fontFace = new FontFace(family, `url('${url}')`);
     await fontFace.load();
     document.fonts.add(fontFace);
+    URL.revokeObjectURL(url);
     return true;
   } catch (e) {
     console.warn(`[fontLoader] FontFace.register failed: ${family}`, e);
@@ -66,7 +68,7 @@ async function downloadWithProgress(
   url: string,
   mime: string,
   family: string,
-): Promise<Blob> {
+): Promise<ArrayBuffer> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -86,25 +88,27 @@ async function downloadWithProgress(
     }
   }
 
-  return new Blob(chunks as BlobPart[], { type: mime });
+  const totalLen = chunks.reduce((acc, c) => acc + c.length, 0);
+  const merged = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const c of chunks) {
+    merged.set(c, offset);
+    offset += c.length;
+  }
+  return merged.buffer as ArrayBuffer;
 }
 
-async function readCache(family: string): Promise<boolean> {
+async function readCache(family: string, mime: string): Promise<boolean> {
   try {
-    const cachedPath = await getCachedFontPath(family);
-    if (!cachedPath) return false;
+    const rawBytes = await getCachedFontData(family);
+    if (!rawBytes) return false;
 
-    const assetUrl = convertFileSrc(cachedPath);
-    const res = await fetch(assetUrl);
-    if (!res.ok) return false;
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const ok = await registerFont(family, url);
-    URL.revokeObjectURL(url);
+    const buf = new Uint8Array(rawBytes).buffer;
+    const ok = await registerFont(family, buf, mime);
     if (ok) loadedFonts.add(family);
     return ok;
-  } catch {
+  } catch (e) {
+    console.warn(`[fontLoader] readCache failed: ${family}`, e);
     return false;
   }
 }
@@ -115,23 +119,24 @@ async function downloadAndCache(family: string, fileName: string): Promise<boole
 
   notifyProgress(family, 0);
 
-  let blob: Blob;
+  let buf: ArrayBuffer;
   try {
-    blob = await downloadWithProgress(remoteUrl, mime, family);
+    buf = await downloadWithProgress(remoteUrl, mime, family);
   } catch {
-    // 兜底：走 Rust reqwest（无进度）
     const rawBytes: number[] = await fetchFontData(remoteUrl);
-    blob = new Blob([new Uint8Array(rawBytes)], { type: mime });
+    buf = new Uint8Array(rawBytes).buffer;
     notifyProgress(family, 100);
   }
 
-  // 写入共享缓存（异步，不阻塞字体渲染）
-  saveCachedFont(family, [...new Uint8Array(await blob.arrayBuffer())]).catch(() => {});
-
-  const blobUrl = URL.createObjectURL(blob);
-  const ok = await registerFont(family, blobUrl);
-  URL.revokeObjectURL(blobUrl);
-  if (ok) loadedFonts.add(family);
+  const ok = await registerFont(family, buf, mime);
+  if (ok) {
+    loadedFonts.add(family);
+    try {
+      await saveCachedFont(family, [...new Uint8Array(buf)]);
+    } catch (e) {
+      console.warn(`[fontLoader] saveCache failed: ${family}`, e);
+    }
+  }
 
   notifyProgress(family, -1);
   return ok;
@@ -149,11 +154,10 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
       downloadFailures.delete(family);
       const fileName = REMOTE_FONTS[family];
       if (!fileName) { loadedFonts.add(family); return true; }
+      const mime = mimeFromFileName(fileName);
 
-      // 先尝试共享缓存（所有进程共享，避免重复下载）
-      if (await readCache(family)) return true;
+      if (await readCache(family, mime)) return true;
 
-      // 缓存未命中 → 下载并缓存
       return await downloadAndCache(family, fileName);
     } catch (e) {
       console.warn(`[fontLoader] Failed to load font: ${family}`, e);
@@ -172,8 +176,8 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
 export async function isFontAvailable(family: string): Promise<boolean> {
   if (SYSTEM_FONTS.has(family)) return true;
   if (loadedFonts.has(family)) return true;
-  const cachedPath = await getCachedFontPath(family);
-  return cachedPath !== null;
+  const rawBytes = await getCachedFontData(family);
+  return rawBytes !== null;
 }
 
 export function isFontFailed(family: string): boolean {
