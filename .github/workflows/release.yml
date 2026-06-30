@@ -62,7 +62,7 @@ jobs:
           $changelog | Set-Content changelog.txt
 
           # Find installer
-          $exe = Get-Item "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
+          $exe = Get-Item "src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe" | Select-Object -First 1
           if (-not $exe) { throw "No installer found" }
           $version = "${{ github.ref_name }}" -replace "^v", ""
           $repo = "${{ github.repository }}"
