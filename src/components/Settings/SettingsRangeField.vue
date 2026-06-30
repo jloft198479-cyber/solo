@@ -48,7 +48,7 @@ const model = defineModel<number>({ required: true });
   width: 100%;
   height: 8px;
   margin-top: 8px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   appearance: none;
   background-color: var(--border-color);
   accent-color: var(--primary-color);

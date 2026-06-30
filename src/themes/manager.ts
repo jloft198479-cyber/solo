@@ -48,7 +48,10 @@ function injectColors(colors: ThemeColors) {
 
   for (const [key, cssVar] of Object.entries(CSS_VAR_MAP)) {
     const colorKey = key as keyof ThemeColors;
-    style.setProperty(cssVar, colors[colorKey]);
+    const value = colors[colorKey];
+    if (value) {
+      style.setProperty(cssVar, value);
+    }
   }
 }
 
@@ -84,6 +87,20 @@ const TYPOGRAPHY_VAR_MAP: Record<keyof ThemeTypography, string> = {
   heading4Size: '--mk-heading4-size',
   heading5Size: '--mk-heading5-size',
   heading6Size: '--mk-heading6-size',
+  heading1LineHeight: '--mk-heading1-line-height',
+  heading2LineHeight: '--mk-heading2-line-height',
+  heading3LineHeight: '--mk-heading3-line-height',
+  heading4LineHeight: '--mk-heading4-line-height',
+  heading5LineHeight: '--mk-heading5-line-height',
+  heading6LineHeight: '--mk-heading6-line-height',
+  heading1Margin: '--mk-heading1-margin',
+  heading2Margin: '--mk-heading2-margin',
+  heading3Margin: '--mk-heading3-margin',
+  heading4Margin: '--mk-heading4-margin',
+  heading5Margin: '--mk-heading5-margin',
+  heading6Margin: '--mk-heading6-margin',
+  heading1LetterSpacing: '--mk-heading1-letter-spacing',
+  heading2LetterSpacing: '--mk-heading2-letter-spacing',
   quoteBorderWidth: '--mk-quote-border-width',
   markBorderRadius: '--mk-mark-radius',
 };

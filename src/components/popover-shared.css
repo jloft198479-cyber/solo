@@ -5,7 +5,7 @@
   position: relative;
 }
 
-/* ── 图标按钮：32×32 命中区，8px 圆角，克制透明度 ── */
+/* ── 图标按钮：32×32 命中区，克制透明度 ── */
 .icon-btn {
   display: flex;
   align-items: center;
@@ -17,7 +17,7 @@
   color: var(--text-secondary);
   cursor: pointer;
   opacity: 0.6;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   transition: opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
@@ -31,19 +31,17 @@
   background-color: color-mix(in srgb, var(--hover-bg) 70%, transparent);
 }
 
-/* ── 弹出菜单：14px 圆角，柔和阴影，充足内边距 ── */
+/* ── 弹出菜单：柔和阴影，充足内边距 ── */
 .quick-popover {
   position: absolute;
   bottom: calc(100% + 10px);
   right: 0;
   min-width: 200px;
   padding: 8px;
-  border-radius: 14px;
-  background: var(--bg-color);
-  border: 1px solid var(--border-color);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.12),
-    0 2px 8px rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-xl);
+  background: var(--popover-bg);
+  border: 1px solid var(--popover-border);
+  box-shadow: var(--popover-shadow);
   z-index: 300;
 }
 
@@ -73,10 +71,10 @@
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   text-align: left;
   width: 100%;
-  transition: background-color 0.12s ease;
+  transition: background-color 0.15s ease;
 }
 
 .quick-popover-option:hover {
@@ -92,6 +90,8 @@
 }
 
 .check-icon {
+  width: 14px;
+  height: 14px;
   color: var(--primary-color);
   flex-shrink: 0;
 }
@@ -99,7 +99,7 @@
 /* ── 过渡动画 ──────────────────────────────────────────── */
 .quick-popover-enter-active,
 .quick-popover-leave-active {
-  transition: opacity 0.14s ease, transform 0.14s ease;
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .quick-popover-enter-from,

@@ -46,19 +46,19 @@ function retry() {
 
 .error-boundary-icon {
   font-size: 40px;
-  opacity: 0.3;
+  color: var(--muted-color);
   margin-bottom: 16px;
 }
 
 .error-boundary-text {
   font-size: 14px;
-  opacity: 0.7;
+  color: var(--text-secondary);
   margin: 0 0 8px;
 }
 
 .error-boundary-detail {
   font-size: 12px;
-  opacity: 0.5;
+  color: var(--muted-color);
   max-width: 448px;
   margin: 0 0 16px;
   word-break: break-word;
@@ -67,16 +67,16 @@ function retry() {
 .error-boundary-retry {
   padding: 6px 16px;
   font-size: 14px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   background: transparent;
-  color: var(--text-color);
-  opacity: 0.7;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .error-boundary-retry:hover {
-  opacity: 1;
+  background: var(--hover-bg);
+  color: var(--text-color);
 }
 </style>

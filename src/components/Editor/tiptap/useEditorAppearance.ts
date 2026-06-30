@@ -36,28 +36,44 @@ function applyFontFamily(fontFamily: string) {
 
 export function useEditorAppearance(editorRef?: Ref<TiptapEditor | null>) {
   const settingsStore = useSettingsStore();
+
+  // 主题切换时 applyTheme 会依次触发多次 class 变化（theme-transitioning / dark），
+  // 用 RAF 合流到一帧，避免重复执行 syncHljsTheme + refreshParagraphFocus
+  let _themeRafId: number | null = null;
   const themeObserver = new MutationObserver(() => {
-    syncHljsTheme();
-    const view: EditorView | undefined = editorRef?.value?.view;
-    if (view) refreshParagraphFocus(view);
+    if (_themeRafId != null) return;
+    _themeRafId = requestAnimationFrame(() => {
+      _themeRafId = null;
+      syncHljsTheme();
+      const view: EditorView | undefined = editorRef?.value?.view;
+      if (view) refreshParagraphFocus(view);
+    });
   });
 
   watch(() => settingsStore.settings.fontFamily, applyFontFamily, { immediate: true });
 
-  // 字号：用户手动调整时覆盖主题默认值
+  // 字号：null 表示使用主题默认值，不覆盖 CSS 变量
   watch(
     () => settingsStore.settings.fontSize,
     (fontSize) => {
-      document.documentElement.style.setProperty('--mk-font-size', `${fontSize}px`);
+      if (fontSize != null) {
+        document.documentElement.style.setProperty('--mk-font-size', `${fontSize}px`);
+      } else {
+        document.documentElement.style.removeProperty('--mk-font-size');
+      }
     },
     { immediate: true },
   );
 
-  // 行高：用户手动调整时覆盖主题默认值
+  // 行高：null 表示使用主题默认值，不覆盖 CSS 变量
   watch(
     () => settingsStore.settings.lineHeight,
     (lineHeight) => {
-      document.documentElement.style.setProperty('--mk-line-height', String(lineHeight));
+      if (lineHeight != null) {
+        document.documentElement.style.setProperty('--mk-line-height', String(lineHeight));
+      } else {
+        document.documentElement.style.removeProperty('--mk-line-height');
+      }
     },
     { immediate: true },
   );
@@ -72,5 +88,9 @@ export function useEditorAppearance(editorRef?: Ref<TiptapEditor | null>) {
 
   onBeforeUnmount(() => {
     themeObserver.disconnect();
+    if (_themeRafId != null) {
+      cancelAnimationFrame(_themeRafId);
+      _themeRafId = null;
+    }
   });
 }

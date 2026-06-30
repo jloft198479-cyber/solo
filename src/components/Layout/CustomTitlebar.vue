@@ -43,7 +43,7 @@
         :title="props.focusMode ? '退出焦点模式' : '焦点模式'"
         @click="emit('toggleFocusMode')"
       >
-        <svg class="focus-eye-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="focus-eye-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
           <path class="eye-outline" d="M1 7.5s3-5 6.5-5 6.5 5 6.5 5-3 5-6.5 5S1 7.5 1 7.5z" />
           <circle class="eye-pupil" cx="7.5" cy="7.5" r="2" />
         </svg>
@@ -54,7 +54,7 @@
         :title="props.alwaysOnTop ? '取消置顶' : '置顶'"
         @click="emit('toggleAlwaysOnTop')"
       >
-        <svg class="titlebar-pin-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="titlebar-pin-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
           <path class="pin-shape" d="M7.5 11v3M5.7 7a1.2 1.2 0 0 1-.67 1.08l-1.07.54A1.2 1.2 0 0 0 3.3 9.6v.4a.5.5 0 0 0 .5.5h7.4a.5.5 0 0 0 .5-.5v-.4a1.2 1.2 0 0 0-.67-1.08l-1.07-.54A1.2 1.2 0 0 1 9.3 7V4.5a.5.5 0 0 1 .5-.5 1.2 1.2 0 0 0 0-2.4H5.2a1.2 1.2 0 0 0 0 2.4.5.5 0 0 1 .5.5z" />
         </svg>
       </button>
@@ -62,7 +62,7 @@
         <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor" /></svg>
       </button>
       <button class="titlebar-btn" title="最大化" @click="emit('maximize')">
-        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1" /></svg>
+        <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.2" /></svg>
       </button>
       <button class="titlebar-btn titlebar-btn--close" title="关闭" @click="emit('close')">
         <svg width="10" height="10" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2" /><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2" /></svg>
@@ -228,11 +228,12 @@ onUnmounted(() => {
 
 .titlebar-btn:hover {
   background-color: var(--hover-bg);
+  color: var(--text-color);
 }
 
 .titlebar-btn--close:hover {
   background-color: var(--error-color);
-  color: #ffffff;
+  color: var(--btn-primary-text);
 }
 
 .titlebar-pin-btn {

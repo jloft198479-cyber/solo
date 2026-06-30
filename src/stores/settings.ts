@@ -15,8 +15,8 @@ export interface Settings {
   activeThemeId: ThemeId;
   /** Custom themes */
   customThemes: AppTheme[];
-  /** Font size (px) */
-  fontSize: number;
+  /** Font size (px). null = use current theme's typography default. */
+  fontSize: number | null;
   /** Font family */
   fontFamily: string;
   /** Auto save */
@@ -27,8 +27,8 @@ export interface Settings {
   spellCheck: boolean;
   /** Titlebar auto-hide (false = always visible) */
   titlebarAutoHide: boolean;
-  /** Editor line height */
-  lineHeight: number;
+  /** Editor line height. null = use current theme's typography default. */
+  lineHeight: number | null;
   /** Custom shortcuts */
   customShortcuts: Record<string, string>;
   /** Window always on top */
@@ -45,22 +45,26 @@ export interface Settings {
 const DEFAULT_SETTINGS: Settings = {
   activeThemeId: 'scholar-light',
   customThemes: [],
-  fontSize: 16,
+  fontSize: null,
   fontFamily: 'Microsoft YaHei UI',
   autoSave: false,
   autoSaveInterval: 30,
   spellCheck: true,
   titlebarAutoHide: false,
-  lineHeight: 1.6,
+  lineHeight: null,
   customShortcuts: {},
   alwaysOnTop: false,
   imageStoragePath: '',
   shellIntegration: false,
   enableAutoUpdateCheck: true,
-  configVersion: 11,
+  configVersion: 12,
 };
 
-const CURRENT_CONFIG_VERSION = 11;
+const CURRENT_CONFIG_VERSION = 12;
+
+/** v11 之前的排版默认值，迁移时用于判断用户是否主动修改过 */
+const LEGACY_FONT_SIZE = 16;
+const LEGACY_LINE_HEIGHT = 1.6;
 
 /** 自动保存间隔下限（秒），防止配置异常导致过于频繁的保存 */
 const MIN_AUTOSAVE_INTERVAL_SECONDS = 5;
@@ -73,6 +77,18 @@ let _stopFocusModeWatcher: WatchStopHandle | null = null;
 
 export function normalizeSettings(storedSettings?: Partial<Settings> | null): Settings {
   const merged = { ...DEFAULT_SETTINGS, ...storedSettings };
+
+  // v12 迁移：排版默认值从硬编码数字改为 null（使用主题默认值）
+  const storedVersion = storedSettings?.configVersion ?? 0;
+  if (storedVersion < 12) {
+    if (merged.fontSize === LEGACY_FONT_SIZE) {
+      merged.fontSize = null;
+    }
+    if (merged.lineHeight === LEGACY_LINE_HEIGHT) {
+      merged.lineHeight = null;
+    }
+  }
+
   return {
     ...merged,
     autoSaveInterval: Math.max(merged.autoSaveInterval, MIN_AUTOSAVE_INTERVAL_SECONDS),
@@ -203,6 +219,15 @@ export const useSettingsStore = defineStore('settings', {
 
       this.currentTheme = theme;
       applyTheme(theme);
+
+      // 主题排版注入后，重新应用用户自定义的字号/行高（覆盖主题默认值）
+      const style = document.documentElement.style;
+      if (this.settings.fontSize != null) {
+        style.setProperty('--mk-font-size', `${this.settings.fontSize}px`);
+      }
+      if (this.settings.lineHeight != null) {
+        style.setProperty('--mk-line-height', String(this.settings.lineHeight));
+      }
     },
 
     setColorTheme(themeId: ThemeId) {

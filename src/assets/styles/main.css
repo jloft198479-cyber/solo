@@ -47,6 +47,7 @@
   --quote-bg: rgba(139, 115, 85, 0.04);
   --tag-bg: rgba(139, 115, 85, 0.1);
   --tag-color: #8b7355;
+  --mark-bg: #fef08a;
 
   /* 状态颜色 */
   --success-color: #6b8e5a;
@@ -57,6 +58,7 @@
   --error-bg: rgba(192, 80, 80, 0.1);
   --info-color: #5a7e9e;
   --info-bg: rgba(90, 126, 158, 0.1);
+  --dirty-color: #c08a5a;
 
   /* 阴影 */
   --shadow-sm: 0 1px 2px rgba(44, 36, 22, 0.04);
@@ -163,6 +165,7 @@ html.dark {
   --quote-bg: rgba(176, 160, 128, 0.06);
   --tag-bg: rgba(176, 160, 128, 0.14);
   --tag-color: #b0a080;
+  --mark-bg: #854d0e;
 
   /* 状态颜色 */
   --success-color: #8fb87a;
@@ -173,6 +176,7 @@ html.dark {
   --error-bg: rgba(208, 104, 104, 0.15);
   --info-color: #7ea0be;
   --info-bg: rgba(126, 160, 190, 0.15);
+  --dirty-color: #d4a888;
 
   /* 阴影 */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -252,7 +256,7 @@ body,
 }
 
 body {
-  font-family: 'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'STHeiti', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font-text);
   background-color: transparent;
   color: var(--text-color);
   transition:
@@ -299,27 +303,7 @@ body {
   background: var(--muted-color);
 }
 
-/* ── 焦点写作模式：段落聚焦 ───────────────────────────────── */
-html.focus-mode .paragraph-dimmed {
-  opacity: 0.22;
-  transition: opacity 0.35s ease;
-}
-
-html.focus-mode .paragraph-active {
-  opacity: 1;
-  transition: opacity 0.35s ease;
-}
-
-html.focus-mode [class*="mk-editor"] h1::before,
-html.focus-mode [class*="mk-editor"] h2::before,
-html.focus-mode [class*="mk-editor"] h3::before,
-html.focus-mode [class*="mk-editor"] h4::before,
-html.focus-mode [class*="mk-editor"] h5::before,
-html.focus-mode [class*="mk-editor"] h6::before,
-html.focus-mode [class*="mk-editor"] .mk-pending-heading::before {
-  opacity: 0.2;
-}
-
+/* ── 焦点写作模式：UI 壳行为 ─────────────────────────────── */
 html.focus-mode .custom-titlebar {
   position: fixed;
   top: 0;

@@ -14,7 +14,8 @@
     <EmojiMenu ref="emojiMenuRef" :items="emojiMenuItems" :command="emojiMenuCommand" />
 
     <!-- 搜索替换面板 -->
-    <div v-if="isSearchVisible" class="search-panel" @keydown.escape.stop="handleSearchEscape">
+    <Transition name="search-panel" :appear="true">
+    <div v-show="isSearchVisible" class="search-panel" @keydown.escape.stop="handleSearchEscape">
       <div class="search-row">
         <svg class="search-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="6" cy="6" r="4.5" />
@@ -71,6 +72,7 @@
         </div>
       </div>
     </div>
+    </Transition>
   </div>
 </template>
 
@@ -554,14 +556,19 @@ defineExpose({
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border-color);
   border-top: none;
-  border-radius: 0 0 10px 10px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  box-shadow: var(--popover-shadow);
   overflow: hidden;
-  transition: opacity 0.2s ease;
 }
 
-html.dark .search-panel {
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+/* search-panel 进出场动画：仅用 opacity，避免覆盖 translateX(-50%) 居中 */
+.search-panel-enter-active,
+.search-panel-leave-active {
+  transition: opacity 0.15s ease;
+}
+.search-panel-enter-from,
+.search-panel-leave-to {
+  opacity: 0;
 }
 
 .search-row {
@@ -621,11 +628,11 @@ html.dark .search-panel {
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.12s, color 0.12s;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .search-btn-meta:hover {
-  background: var(--hover-bg, rgba(139, 115, 85, 0.08));
+  background: var(--hover-bg);
   color: var(--text-color);
 }
 
@@ -654,11 +661,11 @@ html.dark .search-panel {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color 0.12s, color 0.12s;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .search-btn-nav:hover {
-  background: var(--hover-bg, rgba(139, 115, 85, 0.08));
+  background: var(--hover-bg);
   color: var(--text-color);
 }
 
@@ -673,11 +680,11 @@ html.dark .search-panel {
   background: transparent;
   color: var(--muted-color);
   cursor: pointer;
-  transition: background-color 0.12s, color 0.12s;
+  transition: background-color 0.15s, color 0.15s;
 }
 
 .search-btn-close:hover {
-  background: var(--hover-bg, rgba(139, 115, 85, 0.08));
+  background: var(--hover-bg);
   color: var(--text-color);
 }
 
@@ -696,12 +703,12 @@ html.dark .search-panel {
   color: var(--text-secondary);
   font-size: 12px;
   cursor: pointer;
-  transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
   white-space: nowrap;
 }
 
 .search-action-btn:hover:not(:disabled) {
-  background: var(--hover-bg, rgba(139, 115, 85, 0.08));
+  background: var(--hover-bg);
   border-color: var(--primary-color);
   color: var(--text-color);
 }

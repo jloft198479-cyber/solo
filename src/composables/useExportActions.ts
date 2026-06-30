@@ -29,7 +29,7 @@ type SettingsStoreLike = {
   settings: {
     activeThemeId: string;
     fontFamily: string;
-    fontSize: number;
+    fontSize: number | null;
   };
 };
 
@@ -141,7 +141,7 @@ export function useExportActions(options: {
     const html = await renderEditorDocToHtmlDocument(doc, {
       themeId: settingsStore.settings.activeThemeId,
       fontFamily: settingsStore.settings.fontFamily,
-      fontSize: settingsStore.settings.fontSize,
+      fontSize: settingsStore.settings.fontSize ?? undefined,
       fileName:
         fileStore.currentFile.path?.split(/[/\\]/).pop()?.replace(/\.md$/i, '') ?? 'document',
       imageMap,
@@ -173,7 +173,7 @@ export function useExportActions(options: {
     const html = await renderEditorDocToHtmlDocument(doc, {
       themeId: settingsStore.settings.activeThemeId,
       fontFamily: settingsStore.settings.fontFamily,
-      fontSize: settingsStore.settings.fontSize,
+      fontSize: settingsStore.settings.fontSize ?? undefined,
       fileName:
         fileStore.currentFile.path?.split(/[/\\]/).pop()?.replace(/\.md$/i, '') ?? 'document',
       imageMap,
@@ -203,7 +203,7 @@ export function useExportActions(options: {
     const result = renderEditorDocToWechatFragment(doc, {
       tokens: getExportThemeTokensFromAppTheme(settingsStore.settings.activeThemeId),
       fontFamily: settingsStore.settings.fontFamily,
-      fontSize: settingsStore.settings.fontSize,
+      fontSize: settingsStore.settings.fontSize ?? undefined,
       imageMap,
     });
 

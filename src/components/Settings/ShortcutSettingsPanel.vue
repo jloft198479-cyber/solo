@@ -135,7 +135,7 @@ defineEmits<{
   justify-content: space-between;
   gap: 12px;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background-color: var(--sidebar-bg);
   cursor: pointer;
   transition:
@@ -186,7 +186,7 @@ defineEmits<{
   align-items: center;
   justify-content: center;
   font-size: 13px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font-mono);
   background: var(--bg-color);
   border: 1px solid var(--border-color);
   border-radius: 6px;

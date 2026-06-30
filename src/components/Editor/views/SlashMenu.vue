@@ -1,11 +1,12 @@
 <template>
-  <div
-    v-show="visible"
-    ref="menuRef"
-    class="mk-slash-menu"
-    :style="{ top: position.top + 'px', left: position.left + 'px' }"
-  >
-    <div class="mk-slash-menu-scroll">
+  <Transition name="mk-menu" :appear="true">
+    <div
+      v-show="visible"
+      ref="menuRef"
+      class="mk-slash-menu"
+      :style="{ top: position.top + 'px', left: position.left + 'px' }"
+    >
+      <div class="mk-slash-menu-scroll">
       <template v-for="group in groupedItems" :key="group.category">
         <div class="mk-slash-menu-group">{{ group.category }}</div>
         <div
@@ -26,6 +27,7 @@
       <div v-if="items.length === 0" class="mk-slash-menu-empty">没有匹配的命令</div>
     </div>
   </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">

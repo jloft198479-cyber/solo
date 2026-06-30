@@ -99,6 +99,18 @@ export interface ThemeColors {
   calloutSuccessBg: string;
   calloutQuote: string;
   calloutQuoteBg: string;
+  calloutAbstract: string;
+  calloutAbstractBg: string;
+  calloutInfo: string;
+  calloutInfoBg: string;
+  calloutQuestion: string;
+  calloutQuestionBg: string;
+  calloutFailure: string;
+  calloutFailureBg: string;
+  calloutBug: string;
+  calloutBugBg: string;
+  calloutExample: string;
+  calloutExampleBg: string;
   /** 高亮标记背景色 */
   markBg: string;
 }
@@ -125,6 +137,34 @@ export interface ThemeTypography {
   heading5Size?: string;
   /** H6 字号，默认 0.9em */
   heading6Size?: string;
+  /** H1 行高，默认 1.35 */
+  heading1LineHeight?: string;
+  /** H2 行高，默认 1.4 */
+  heading2LineHeight?: string;
+  /** H3 行高，默认 1.45 */
+  heading3LineHeight?: string;
+  /** H4 行高，默认 1.5 */
+  heading4LineHeight?: string;
+  /** H5 行高，默认 1.5 */
+  heading5LineHeight?: string;
+  /** H6 行高，默认 1.5 */
+  heading6LineHeight?: string;
+  /** H1 上下 margin，默认 1.4em 0 0.6em */
+  heading1Margin?: string;
+  /** H2 上下 margin，默认 1.2em 0 0.5em */
+  heading2Margin?: string;
+  /** H3 上下 margin，默认 1em 0 0.4em */
+  heading3Margin?: string;
+  /** H4 上下 margin，默认 0.8em 0 0.3em */
+  heading4Margin?: string;
+  /** H5 上下 margin，默认 0.6em 0 0.3em */
+  heading5Margin?: string;
+  /** H6 上下 margin，默认 0.6em 0 0.3em */
+  heading6Margin?: string;
+  /** H1 字间距，默认 0.04em */
+  heading1LetterSpacing?: string;
+  /** H2 字间距，默认 0.03em */
+  heading2LetterSpacing?: string;
   /** 引用块边框宽度，默认 2px */
   quoteBorderWidth?: string;
   /** 高亮标记圆角，默认 0.25em */
@@ -217,6 +257,18 @@ export const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
   calloutSuccessBg: '--callout-success-bg',
   calloutQuote: '--callout-quote',
   calloutQuoteBg: '--callout-quote-bg',
+  calloutAbstract: '--callout-abstract',
+  calloutAbstractBg: '--callout-abstract-bg',
+  calloutInfo: '--callout-info',
+  calloutInfoBg: '--callout-info-bg',
+  calloutQuestion: '--callout-question',
+  calloutQuestionBg: '--callout-question-bg',
+  calloutFailure: '--callout-failure',
+  calloutFailureBg: '--callout-failure-bg',
+  calloutBug: '--callout-bug',
+  calloutBugBg: '--callout-bug-bg',
+  calloutExample: '--callout-example',
+  calloutExampleBg: '--callout-example-bg',
   markBg: '--mark-bg',
 };
 

@@ -69,7 +69,29 @@
   },
   "typography": {
     "lineHeight": "1.8",
+    "letterSpacing": "0",
     "paragraphSpacing": "0.75em",
-    "quoteBorderWidth": "2px"
+    "quoteBorderWidth": "2px",
+    "heading1Size": "1.7em",
+    "heading2Size": "1.4em",
+    "heading3Size": "1.2em",
+    "heading4Size": "1.08em",
+    "heading5Size": "0.95em",
+    "heading6Size": "0.85em",
+    "heading1LineHeight": "1.3",
+    "heading2LineHeight": "1.35",
+    "heading3LineHeight": "1.4",
+    "heading4LineHeight": "1.45",
+    "heading5LineHeight": "1.5",
+    "heading6LineHeight": "1.5",
+    "heading1Margin": "1.5em 0 0.5em",
+    "heading2Margin": "1.2em 0 0.4em",
+    "heading3Margin": "1em 0 0.3em",
+    "heading4Margin": "0.8em 0 0.3em",
+    "heading5Margin": "0.6em 0 0.3em",
+    "heading6Margin": "0.6em 0 0.3em",
+    "heading1LetterSpacing": "-0.02em",
+    "heading2LetterSpacing": "-0.01em",
+    "markBorderRadius": "3px"
   }
 }

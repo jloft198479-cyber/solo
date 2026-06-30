@@ -1,12 +1,13 @@
 <template>
-  <div
-    v-show="visible"
-    ref="menuRef"
-    class="bubble-menu"
-    :style="{ left: `${pos.left}px`, top: `${pos.top}px`, transform: 'translate(8px, -130%)' }"
-    @mousedown.prevent
-    @click.stop
-  >
+  <Transition name="mk-menu" :appear="true">
+    <div
+      v-show="visible"
+      ref="menuRef"
+      class="bubble-menu"
+      :style="{ left: `${pos.left}px`, top: `${pos.top}px`, transform: 'translate(8px, -130%)' }"
+      @mousedown.prevent
+      @click.stop
+    >
     <!-- 主工具栏 -->
     <div class="bubble-menu-toolbar">
       <button :class="btnClass(activeMarks.bold)" title="加粗" @click="exec('bold')">
@@ -19,7 +20,7 @@
         <span class="font-mono text-sm">&lt;/&gt;</span>
       </button>
       <button :class="btnClass(activeMarks.link)" title="链接" @click="toggleLinkInput">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M6.5 9.5a2.5 2.5 0 0 0 3.54 0l2.12-2.12a2.5 2.5 0 0 0-3.54-3.54l-1.06 1.06" />
           <path d="M9.5 6.5a2.5 2.5 0 0 0-3.54 0L3.84 8.62a2.5 2.5 0 0 0 3.54 3.54l1.06-1.06" />
         </svg>
@@ -40,7 +41,7 @@
       <button class="bubble-menu-heading-btn" @click="exec('h2')">H2</button>
       <div class="bubble-menu-divider"></div>
       <button class="bubble-menu-clear-btn" title="清除格式" @click="exec('clearFormat')">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 4l8 8" />
           <path d="M3 12h3l1.5-5" />
           <path d="M7 3h6l-1.5 3" />
@@ -67,6 +68,7 @@
       </button>
     </div>
   </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -177,7 +179,7 @@ defineExpose({
   border: 1px solid var(--popover-border);
   border-radius: var(--radius-md);
   box-shadow: var(--popover-shadow);
-  transition: all 0.2s;
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .bubble-menu-toolbar {
