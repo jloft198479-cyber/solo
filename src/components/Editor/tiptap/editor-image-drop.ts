@@ -59,13 +59,16 @@ export async function setupEditorImageDrop({
           const ed = editor.value;
           if (!ed || ed.isDestroyed) continue;
 
-          // 授权 → asset:// URL（自定义路径直接授权，assets/ 路径需 resolve）
-          const imgAbsolutePath = savedImage.absolutePath;
-          const authorized = await authorizeImageAsset(imgAbsolutePath);
-          const assetUrl = toAssetUrl(authorized.path);
+          // 授权 asset 协议作用域
+          const authorized = await authorizeImageAsset(savedImage.absolutePath);
+
+          // 有自定义路径时用 asset:// URL，否则用相对路径（便携）
+          const imgSrc = storagePath
+            ? toAssetUrl(authorized.path)
+            : savedImage.relativePath;
 
           // 用 ProseMirror API 插入图片（包在自己的段落里，作为独立 Block）
-          const imgNode = ed.schema.nodes.image?.create({ src: assetUrl, alt: '' });
+          const imgNode = ed.schema.nodes.image?.create({ src: imgSrc, alt: '' });
           if (!imgNode) continue;
 
           const paragraph = ed.schema.nodes.paragraph.create(null, imgNode);

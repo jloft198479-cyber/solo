@@ -15,6 +15,7 @@ export const TAURI_COMMANDS = {
   exitApp: 'exit_app',
   revealStartupOpenLog: 'reveal_startup_open_log',
   saveCachedFont: 'save_font_cache',
+  saveClipboardImage: 'save_clipboard_image',
   saveDocument: 'save_document',
   setWindowBackgroundColor: 'set_window_background_color',
   startupReady: 'startup_ready',

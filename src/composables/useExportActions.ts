@@ -34,7 +34,8 @@ type SettingsStoreLike = {
 };
 
 function isLocalPath(src: string): boolean {
-  return !/^(https?:\/\/|data:|blob:|asset:\/\/)/i.test(src);
+  // asset:// 也是本地图片，需要转 base64（否则导出后不可用）
+  return !/^(https?:\/\/|data:|blob:)/i.test(src);
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -56,6 +57,14 @@ function findImageSrcs(doc: PMNode): string[] {
 
 async function localImageToBase64(src: string, docPath: string | null): Promise<string | null> {
   try {
+    // asset:// 协议可直接 fetch，无需路径解析
+    if (src.startsWith('asset://')) {
+      const resp = await fetch(src);
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      return `data:${blob.type};base64,${await blobToBase64(blob)}`;
+    }
+
     let absolutePath = src;
     if (!/^file:/i.test(src) && !/^[A-Z]:\\/i.test(src) && docPath) {
       const resolved = await resolveDocumentImagePath(docPath, src);

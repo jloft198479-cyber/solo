@@ -14,6 +14,48 @@ import { Slice } from '@tiptap/pm/model';
 import type { Schema } from '@tiptap/pm/model';
 
 import { parseMarkdown } from '../markdown/parser';
+import { authorizeImageAsset, saveClipboardImage } from '../../../../services/tauri/document';
+import { toAssetUrl } from '../../../../services/tauri/asset';
+import { confirm } from '../../../../services/tauri/dialog';
+
+/** 检测剪贴板中是否包含图片文件 */
+function hasClipboardImage(clipboard: DataTransfer): boolean {
+  if (!clipboard.files) return false;
+  // 检查 clipboardData.files 中是否有图片
+  for (let i = 0; i < clipboard.files.length; i++) {
+    if (clipboard.files[i]?.type.startsWith('image/')) return true;
+  }
+  return false;
+}
+
+/** 从剪贴板读取第一张图片为 data URL */
+function readClipboardImageAsDataUrl(clipboard: DataTransfer): Promise<string | null> {
+  return new Promise((resolve) => {
+    if (!clipboard.files) { resolve(null); return; }
+    for (let i = 0; i < clipboard.files.length; i++) {
+      const file = clipboard.files[i];
+      if (!file || !file.type.startsWith('image/')) continue;
+
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+      return;
+    }
+    resolve(null);
+  });
+}
+
+/** 在编辑器中插入图片节点（相对路径），包在段落里作为独立 Block */
+function insertImageNode(editorView: any, src: string, alt: string) {
+  const schema = editorView.state.schema;
+  const imgNode = schema.nodes.image?.create({ src, alt });
+  if (!imgNode) return;
+
+  const paragraph = schema.nodes.paragraph.create(null, imgNode);
+  const tr = editorView.state.tr.replaceSelectionWith(paragraph);
+  editorView.dispatch(tr);
+}
 
 /**
  * 粗判一段文本是否为 GFM 表格：第一行是表头（含 `|`），第二行是分隔行
@@ -112,13 +154,58 @@ export function parseGeneralMarkdownPaste(schema: Schema, text: string): Slice |
 
 const markdownPastePluginKey = new PluginKey('markdownPaste');
 
-export function markdownPastePlugin(): Plugin {
+export function markdownPastePlugin(opts?: {
+  getDocumentPath?: () => string | null;
+  getStoragePath?: () => string | null;
+}): Plugin {
   return new Plugin({
     key: markdownPastePluginKey,
     props: {
       handlePaste(view, event) {
         const clipboard = event.clipboardData;
         if (!clipboard) return false;
+
+        // ── 0. 剪贴板图片 ─────────────────────────────────────────
+        // 用户粘贴截图或复制的图片 → 保存到 assets/ 并插入相对路径
+        if (hasClipboardImage(clipboard)) {
+          const docPath = opts?.getDocumentPath?.() ?? null;
+          const storagePath = opts?.getStoragePath?.() ?? null;
+
+          if (!storagePath && !docPath) {
+            void confirm(
+              '请先保存文档，或设置图片存储位置，才能粘贴图片。',
+              { title: '粘贴图片', kind: 'warning', okLabel: '我知道了' },
+            );
+            return true;
+          }
+
+          void readClipboardImageAsDataUrl(clipboard).then(async (dataUrl) => {
+            if (!dataUrl || !view || view.isDestroyed) return;
+
+            try {
+              const saved = await saveClipboardImage(
+                dataUrl,
+                docPath ?? undefined,
+                storagePath ?? undefined,
+              );
+              if (!view || view.isDestroyed) return;
+
+              // 授权 asset 协议作用域
+              await authorizeImageAsset(saved.absolutePath);
+
+              // 有自定义路径时用 asset:// URL，否则用相对路径（便携）
+              const imgSrc = storagePath
+                ? toAssetUrl(saved.absolutePath)
+                : saved.relativePath;
+
+              insertImageNode(view, imgSrc, '');
+            } catch (err) {
+              console.error('Failed to handle pasted image:', err);
+            }
+          });
+
+          return true;
+        }
 
         const text = clipboard.getData('text/plain');
         if (!text || !text.trim()) return false;
@@ -160,10 +247,20 @@ export function markdownPastePlugin(): Plugin {
   });
 }
 
-export const MarkdownPaste = Extension.create({
+export const MarkdownPaste = Extension.create<{
+  getDocumentPath?: () => string | null;
+  getStoragePath?: () => string | null;
+}>({
   name: 'markdownPaste',
 
+  addOptions() {
+    return {
+      getDocumentPath: undefined,
+      getStoragePath: undefined,
+    };
+  },
+
   addProseMirrorPlugins() {
-    return [markdownPastePlugin()];
+    return [markdownPastePlugin(this.options)];
   },
 });
