@@ -3,21 +3,19 @@
  * 勾选图标（checkmark）
  *
  * 统一项目中所有"已选中"状态的勾选图标。
- * 默认 14×14，可通过外部 class 覆盖尺寸。
+ * 尺寸通过外部 CSS class 控制（.check-icon 默认 14×14）。
  */
 </script>
 
 <template>
   <svg
-    width="14"
-    height="14"
-    viewBox="0 0 16 16"
+    viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    stroke-width="1.8"
+    stroke-width="1.5"
     stroke-linecap="round"
     stroke-linejoin="round"
   >
-    <path d="M3 8.5l3.5 3.5L13 5" />
+    <path d="M5 13l4 4L19 7" />
   </svg>
 </template>

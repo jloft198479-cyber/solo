@@ -55,6 +55,7 @@ src-tauri/.tauri/
 
 # Editor/IDE internal files
 .workbuddy/
+.trae/
 
 # Performance audit temp docs
 performance-*.md

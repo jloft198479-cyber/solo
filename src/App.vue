@@ -312,7 +312,7 @@ onUnmounted(() => {
             title="设置 (Ctrl+,)"
             @click="settingsStore.openModal()"
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="8" cy="8" r="2.2" />
               <path d="M13.1 10a1.2 1.2 0 0 0 .24 1.32l.04.04a1.45 1.45 0 1 1-2.06 2.06l-.04-.04a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.73 1.1v.11a1.45 1.45 0 1 1-2.9 0v-.06a1.2 1.2 0 0 0-.79-1.1 1.2 1.2 0 0 0-1.32.24l-.04.04a1.45 1.45 0 1 1-2.06-2.06l.04-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.73h-.11a1.45 1.45 0 1 1 0-2.9h.06a1.2 1.2 0 0 0 1.1-.79 1.2 1.2 0 0 0-.24-1.32l-.04-.04a1.45 1.45 0 1 1 2.06-2.06l.04.04a1.2 1.2 0 0 0 1.32.24h.06a1.2 1.2 0 0 0 .73-1.1v-.11a1.45 1.45 0 1 1 2.9 0v.06a1.2 1.2 0 0 0 .73 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.04a1.45 1.45 0 1 1 2.06 2.06l-.04.04a1.2 1.2 0 0 0-.24 1.32v.06a1.2 1.2 0 0 0 1.1.73h.11a1.45 1.45 0 1 1 0 2.9h-.06a1.2 1.2 0 0 0-1.1.73z" />
             </svg>
@@ -442,7 +442,7 @@ onUnmounted(() => {
 }
 
 .statusbar-save-btn.is-dirty {
-  color: #c08a5a;
+  color: var(--dirty-color);
 }
 
 .statusbar-save-btn.is-clean {
@@ -468,7 +468,7 @@ onUnmounted(() => {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   transition: background-color 0.15s, color 0.15s, opacity 0.15s;
   opacity: 0.6;
 }
@@ -573,12 +573,5 @@ onUnmounted(() => {
 .about-leave-to .about-dialog {
   transform: scale(0.95);
   opacity: 0;
-}
-</style>
-
-<style>
-/* 暗色主题下的未保存色调整：保持柔和，避免刺眼 */
-html.dark .statusbar-save-btn.is-dirty {
-  color: #d4a888;
 }
 </style>

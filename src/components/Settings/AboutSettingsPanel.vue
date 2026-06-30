@@ -100,13 +100,13 @@ async function checkForUpdate() {
 .update-check-btn {
   padding: 8px 18px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: transparent;
   color: var(--text-color);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.12s, border-color 0.12s;
+  transition: background-color 0.15s, border-color 0.15s;
 }
 
 .update-check-btn:hover:not(:disabled) {
@@ -130,7 +130,7 @@ async function checkForUpdate() {
 }
 
 .update-status-text--error {
-  color: var(--warn-color, #e74c3c);
+  color: var(--error-color);
 }
 
 .update-status-text--info {

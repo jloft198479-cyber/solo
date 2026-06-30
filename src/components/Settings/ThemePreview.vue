@@ -100,7 +100,7 @@ defineProps<{
   flex-direction: column;
   min-height: 122px;
   border: 1px solid;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   overflow: hidden;
 }
 

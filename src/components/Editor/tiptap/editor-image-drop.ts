@@ -2,7 +2,7 @@ import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
 import { authorizeImageAsset, importDocumentImage } from '../../../services/tauri/document';
 import { toAssetUrl } from '../../../services/tauri/asset';
-import { confirm } from '../../../services/tauri/dialog';
+import { confirm, message } from '../../../services/tauri/dialog';
 import {
   subscribeDragDrop,
   type UnlistenFn,
@@ -76,6 +76,10 @@ export async function setupEditorImageDrop({
           ed.view.dispatch(tr);
         } catch (err) {
           console.error('Failed to handle dropped image:', err);
+          await message(
+            `无法导入图片：${imagePath}\n原因：${err instanceof Error ? err.message : String(err)}`,
+            { title: '拖入图片失败', kind: 'error' },
+          );
         }
       }
     });

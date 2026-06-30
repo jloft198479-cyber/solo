@@ -52,8 +52,8 @@ const model = defineModel<boolean>({ required: true });
   height: 20px;
   border-radius: 999px;
   background: var(--input-bg);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.16);
-  transition: transform 0.18s ease;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease;
 }
 
 .settings-switch__thumb--on {

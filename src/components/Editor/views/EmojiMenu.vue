@@ -1,10 +1,11 @@
 <template>
-  <div
-    v-show="visible"
-    ref="menuRef"
-    class="mk-slash-menu mk-emoji-menu"
-    :style="{ top: position.top + 'px', left: position.left + 'px' }"
-  >
+  <Transition name="mk-menu" :appear="true">
+    <div
+      v-show="visible"
+      ref="menuRef"
+      class="mk-slash-menu mk-emoji-menu"
+      :style="{ top: position.top + 'px', left: position.left + 'px' }"
+    >
     <div class="mk-slash-menu-scroll">
       <div
         v-for="(item, idx) in items"
@@ -20,6 +21,7 @@
       <div v-if="items.length === 0" class="mk-slash-menu-empty">没有匹配的表情</div>
     </div>
   </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">

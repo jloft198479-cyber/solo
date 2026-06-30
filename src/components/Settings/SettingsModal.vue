@@ -148,9 +148,7 @@ function onKeyDown(e: KeyboardEvent) {
                 <!-- 外观设置 -->
                 <AppearanceSettingsPanel
                   v-if="activeTab === 'appearance'"
-                  v-model:font-size="settingsStore.settings.fontSize"
                   v-model:font-family="settingsStore.settings.fontFamily"
-                  v-model:line-height="settingsStore.settings.lineHeight"
                   :current-theme-name="currentThemeName"
                 />
 
@@ -272,7 +270,7 @@ function onKeyDown(e: KeyboardEvent) {
 
 .settings-close-btn {
   padding: 4px;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   color: var(--muted-color);
   transition:
     background-color 0.15s,
@@ -332,7 +330,6 @@ function onKeyDown(e: KeyboardEvent) {
   padding: 16px 28px;
   border-top: 1px solid var(--border-color);
   background-color: var(--sidebar-bg);
-  box-shadow: 0 -1px 0 rgba(15, 23, 42, 0.02);
 }
 
 .settings-footer-reset {
@@ -344,7 +341,7 @@ function onKeyDown(e: KeyboardEvent) {
 
 .settings-footer-done {
   padding: 8px 24px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--btn-primary-bg);
   color: var(--btn-primary-text);
   font-size: 14px;

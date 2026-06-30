@@ -81,7 +81,7 @@ async function handleImportTheme(event: Event) {
 
       <label class="theme-import-card">
         <div class="theme-import-body">
-          <svg class="theme-import-plus" width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+          <svg class="theme-import-plus" width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
             <path d="M14 6v16M6 14h16" />
           </svg>
           <span class="theme-import-text">导入主题</span>

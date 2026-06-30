@@ -72,6 +72,18 @@ function createColors(overrides: Partial<ThemeColors> = {}): ThemeColors {
     calloutSuccessBg: '#dcfce7',
     calloutQuote: '#6b7280',
     calloutQuoteBg: '#f3f4f6',
+    calloutAbstract: '#0891b2',
+    calloutAbstractBg: 'rgba(8, 145, 178, 0.08)',
+    calloutInfo: '#2563eb',
+    calloutInfoBg: 'rgba(37, 99, 235, 0.08)',
+    calloutQuestion: '#7c3aed',
+    calloutQuestionBg: 'rgba(124, 58, 237, 0.08)',
+    calloutFailure: '#dc2626',
+    calloutFailureBg: 'rgba(220, 38, 38, 0.08)',
+    calloutBug: '#dc2626',
+    calloutBugBg: 'rgba(220, 38, 38, 0.08)',
+    calloutExample: '#7c3aed',
+    calloutExampleBg: 'rgba(124, 58, 237, 0.08)',
     markBg: '#fef08a',
     ...overrides,
   };
@@ -83,7 +95,7 @@ describe('normalizeSettings', () => {
 
     expect(normalized.activeThemeId).toBe('scholar-light');
     expect(normalized.autoSave).toBe(false);
-    expect(normalized.configVersion).toBe(11);
+    expect(normalized.configVersion).toBe(12);
   });
 
   it('preserves current-format stored themes and updates config version', () => {
@@ -106,6 +118,6 @@ describe('normalizeSettings', () => {
       id: 'custom-42',
       appearance: 'dark',
     });
-    expect(normalized.configVersion).toBe(11);
+    expect(normalized.configVersion).toBe(12);
   });
 });

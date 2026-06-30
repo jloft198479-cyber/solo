@@ -80,7 +80,7 @@ async function onSelect(value: string) {
   width: 100%;
   padding: 8px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background-color: var(--bg-color);
   color: var(--text-color);
   font-size: 14px;

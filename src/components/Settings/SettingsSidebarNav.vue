@@ -50,7 +50,7 @@ const tabs: Array<{ key: SettingsTabKey; label: string }> = [
   width: 100%;
   margin-bottom: 4px;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   font-weight: 600;
   text-align: left;
   color: var(--text-color);

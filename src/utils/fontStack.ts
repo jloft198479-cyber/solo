@@ -14,7 +14,7 @@ const SANS_FALLBACK =
   "'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'STHeiti', system-ui, -apple-system, 'Segoe UI', sans-serif";
 
 /** 仿宋 fallback */
-const FANGSONG_FALLBACK = "'FangSong', 'STFangsong', serif";
+const FANGSONG_FALLBACK = "'FangSong', 'STFangsong', 'Source Han Serif SC', Georgia, serif";
 
 /** 明朝 fallback */
 const MINCHO_FALLBACK =
