@@ -59,6 +59,14 @@ export async function importDocumentImage(sourcePath: string, documentPath: stri
   });
 }
 
+export async function saveClipboardImage(dataUrl: string, documentPath?: string, storageDir?: string) {
+  return invokeCommand<DocumentImageImportResult>(TAURI_COMMANDS.saveClipboardImage, {
+    dataUrl,
+    documentPath: documentPath ?? null,
+    storageDir: storageDir ?? null,
+  });
+}
+
 export async function resolveDocumentImagePath(documentPath: string, relativePath: string) {
   return invokeCommand<DocumentImageResolveResult>(TAURI_COMMANDS.resolveDocumentImagePath, {
     documentPath,

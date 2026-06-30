@@ -99,8 +99,14 @@ import {
   type EditorOutlineItem,
 } from './tiptap/editor-metadata';
 import { setupEditorImageDrop } from './tiptap/editor-image-drop';
+import { resetLocalSrcResolver, setLocalSrcResolver } from './tiptap/extensions/image';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch } from './tiptap/useEditorSearch';
+import {
+  resolveDocumentImagePath,
+  authorizeImageAsset,
+} from '../../services/tauri/document';
+import { toAssetUrl } from '../../services/tauri/asset';
 import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
 import BubbleMenuComponent from './views/BubbleMenu.vue';
 import SlashMenu from './views/SlashMenu.vue';
@@ -215,6 +221,8 @@ function createEditor(content: string) {
         getMatches: () => currentMatches.value,
         getActiveIndex: () => searchCurrentIndex.value - 1,
       },
+      getDocumentPath: () => fileStore.currentFile.path,
+      getStoragePath: () => settingsStore.settings.imageStoragePath || null,
     }),
     editorProps: {
       attributes: {
@@ -430,6 +438,19 @@ onMounted(async () => {
 
   // 图片双击 → 全屏预览（从 CustomImage NodeView 冒泡上来的自定义事件）
   editorWrapRef.value?.addEventListener('editor:image-dblclick', handleImageDblClick);
+
+  // 设置本地图片路径解析器（相对路径 → asset:// URL）
+  setLocalSrcResolver(async (src: string) => {
+    const docPath = fileStore.currentFile.path;
+    if (!docPath) return null;
+    try {
+      const resolved = await resolveDocumentImagePath(docPath, src);
+      const authorized = await authorizeImageAsset(resolved.absolutePath);
+      return toAssetUrl(authorized.path);
+    } catch {
+      return null;
+    }
+  });
 });
 
 onBeforeUnmount(() => {
@@ -437,7 +458,10 @@ onBeforeUnmount(() => {
   unlistenFocus?.();
   unlistenFocus = null;
 
-  // 2. 取消所有防抖操作，防止回调中操作已销毁的 editor
+  // 2. 清理图片路径解析器
+  resetLocalSrcResolver();
+
+  // 3. 取消所有防抖操作，防止回调中操作已销毁的 editor
   debouncedWordCount.cancel();
   debouncedOutline.cancel();
   debouncedSerialize.cancel();

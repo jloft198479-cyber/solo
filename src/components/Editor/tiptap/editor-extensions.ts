@@ -61,6 +61,10 @@ interface EditorExtensionOptions {
   emojiMenuItems: Ref<EmojiItem[]>;
   emojiMenuCommand: Ref<(item: EmojiItem) => void>;
   searchHighlightOptions: SearchHighlightOptions;
+  /** 返回当前文档路径，用于粘贴图片时落盘 */
+  getDocumentPath?: () => string | null;
+  /** 返回自定义图片存储路径 */
+  getStoragePath?: () => string | null;
 }
 
 export function createEditorExtensions(options: EditorExtensionOptions) {
@@ -101,7 +105,10 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     MathInline,
     MermaidBlock,
     MarkdownInput,
-    MarkdownPaste,
+    MarkdownPaste.configure({
+      getDocumentPath: options.getDocumentPath,
+      getStoragePath: options.getStoragePath,
+    }),
     Superscript,
     Subscript,
     Wikilink,

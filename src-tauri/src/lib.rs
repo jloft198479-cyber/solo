@@ -322,6 +322,7 @@ pub fn run() {
             save_document,
             rename_file,
             import_document_image,
+            save_clipboard_image,
             resolve_document_image_path,
             authorize_image_asset,
             fetch_remote_image,

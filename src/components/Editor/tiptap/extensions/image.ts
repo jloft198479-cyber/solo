@@ -248,6 +248,24 @@ export function __resetRemoteImageCacheForTests() {
   remoteImageFetcher = null;
 }
 
+/** 判断是否为本地相对路径（非 http/data/blob/asset/绝对路径） */
+function isLocalRelativePath(src: string): boolean {
+  if (/^(https?:\/\/|data:|blob:|asset:\/\/)/i.test(src)) return false;
+  if (/^[A-Z]:\\/i.test(src)) return false; // Windows 绝对路径
+  return true;
+}
+
+/** 本地图片路径解析器：相对路径 → 显示用 URL */
+let _localSrcResolver: ((src: string) => Promise<string | null>) | null = null;
+
+export function setLocalSrcResolver(fn: (src: string) => Promise<string | null>) {
+  _localSrcResolver = fn;
+}
+
+export function resetLocalSrcResolver() {
+  _localSrcResolver = null;
+}
+
 export const CustomImage = Image.extend({
   addNodeView() {
     return ({ node, getPos, editor }) => {
@@ -300,6 +318,19 @@ export const CustomImage = Image.extend({
               if (image.src !== displaySrc) {
                 image.src = displaySrc;
               }
+            }
+          });
+        }
+
+        // 本地相对路径 → 解析为 asset:// URL 显示
+        if (isLocalRelativePath(attrs.src) && _localSrcResolver) {
+          if (image.dataset.prevLocalSrc === attrs.src) return;
+          image.dataset.prevLocalSrc = attrs.src;
+          const requestId = ++displayRequestId;
+          void _localSrcResolver(attrs.src).then((displaySrc) => {
+            if (!displaySrc || requestId !== displayRequestId) return;
+            if (image.src !== displaySrc) {
+              image.src = displaySrc;
             }
           });
         }

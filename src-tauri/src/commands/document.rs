@@ -3,6 +3,7 @@ use crate::models::{
     DocumentImageImportResult, DocumentImageResolveResult, DocumentOpenResult, DocumentRenameResult,
     DocumentSaveResult, ImageAssetAuthorizationResult,
 };
+use base64::{engine::general_purpose, Engine as _};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -143,10 +144,118 @@ pub fn import_document_image(
         .ok_or_else(|| AppError::validation("无法解析图片路径"))?
         .to_string();
 
+    // 有自定义路径时只用文件名（前端用 asset://），否则用 assets/ 相对路径
+    let relative_path = if storage_dir.is_some() {
+        target_filename.clone()
+    } else {
+        format!("assets/{}", target_filename)
+    };
+
     Ok(DocumentImageImportResult {
-        relative_path: format!("assets/{}", target_filename),
+        relative_path,
         absolute_path,
     })
+}
+
+/// MIME 类型 → 文件扩展名映射
+fn mime_to_extension(mime: &str) -> &'static str {
+    match mime {
+        "image/png" => "png",
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/svg+xml" => "svg",
+        "image/bmp" => "bmp",
+        "image/x-icon" | "image/vnd.microsoft.icon" => "ico",
+        _ => "png", // 默认 fallback
+    }
+}
+
+/// 从 data URL 解码图片并保存到 assets 目录
+#[tauri::command]
+pub fn save_clipboard_image(
+    data_url: String,
+    document_path: Option<String>,
+    storage_dir: Option<String>,
+) -> Result<DocumentImageImportResult, AppError> {
+    // 解析 data URL: data:image/png;base64,iVBOR...
+    let (mime_type, base64_data) = parse_data_url(&data_url)?;
+
+    let ext = mime_to_extension(&mime_type);
+
+    let target_dir = if let Some(ref dir) = storage_dir {
+        Path::new(dir).to_path_buf()
+    } else if let Some(ref doc_path) = document_path {
+        let document_dir = Path::new(doc_path)
+            .parent()
+            .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
+        document_dir.join("assets")
+    } else {
+        return Err(AppError::validation("请先保存文档，或设置图片存储位置"));
+    };
+
+    if !target_dir.exists() {
+        fs::create_dir_all(&target_dir)?;
+    }
+
+    // 生成唯一文件名：Pasted image YYYYMMDD_HHMMSS.ext
+    let timestamp_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let base_name = format!("Pasted image {}", timestamp_ms);
+    let filename = format!("{}.{}", base_name, ext);
+
+    let (target_path, target_filename) = unique_asset_target(&target_dir, &filename);
+
+    let decoded = general_purpose::STANDARD
+        .decode(base64_data.as_bytes())
+        .map_err(|_| AppError::validation("图片数据解码失败"))?;
+
+    fs::write(&target_path, decoded)?;
+
+    let absolute_path = target_path
+        .to_str()
+        .ok_or_else(|| AppError::validation("无法解析图片路径"))?
+        .to_string();
+
+    // 有自定义路径时只用文件名（前端用 asset://），否则用 assets/ 相对路径
+    let relative_path = if storage_dir.is_some() {
+        target_filename.clone()
+    } else {
+        format!("assets/{}", target_filename)
+    };
+
+    Ok(DocumentImageImportResult {
+        relative_path,
+        absolute_path,
+    })
+}
+
+/// 解析 data URL，返回 (MIME 类型, base64 数据)
+fn parse_data_url(data_url: &str) -> Result<(String, String), AppError> {
+    // data:[<mediatype>][;base64],<data>
+    let rest = data_url
+        .strip_prefix("data:")
+        .ok_or_else(|| AppError::validation("无效的 data URL 格式"))?;
+
+    let (mime_and_encoding, _data) = rest
+        .split_once(',')
+        .ok_or_else(|| AppError::validation("无效的 data URL 格式"))?;
+
+    let parts: Vec<&str> = mime_and_encoding.split(';').collect();
+    let mime_type = if parts.is_empty() || parts[0].is_empty() {
+        "image/png".to_string()
+    } else {
+        parts[0].to_string()
+    };
+
+    let is_base64 = parts.iter().any(|p| p.trim() == "base64");
+    if !is_base64 {
+        return Err(AppError::validation("仅支持 base64 编码的图片数据"));
+    }
+
+    Ok((mime_type, _data.to_string()))
 }
 
 #[tauri::command]
