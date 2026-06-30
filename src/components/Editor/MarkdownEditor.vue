@@ -243,6 +243,9 @@ function createEditor(content: string) {
 
   editor.value = e;
 
+  // 自动聚集，打开即写（注意：需在 editor.value 赋值之后调用，否则 isFocused 为 false）
+  e.commands.focus('start');
+
   // 同步基线 — 直接用原始内容建立，避免无意义的解析→序列化轮转
   fileStore.setContent(content || '');
 
