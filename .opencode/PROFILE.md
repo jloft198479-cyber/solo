@@ -377,7 +377,10 @@ inline:
 
 | 版本 | 主要变更 |
 |------|----------|
-| 1.2.10 | **字体缓存 IndexedDB→文件系统共享**：多进程不再重复下载。大文件提示排除 base64 图片误报。下载进度脉冲动画。文档重构（AGENTS.md→工作手册，CJK 专题→`docs/cjk-boundary.md`）。 |
+| 1.2.14 | **性能优化全面复审 35 项**：编辑器核心 13 项（decorations 缓存、appendTransaction 合并遍历、parser WeakMap、serializer O(N) 预计算、search-highlight 缓存、rAF 合帧等），Vue 前端 10 项（KeepAlive 修复、fontLoader 节流、watcher 精确化），Rust 12 项（LTO/strip、hljs 动态加载、字体 IPC 路径化、启动日志缓冲、IPC 命令合并、autoprefixer 移除等）。988 tests all green。 |
+| 1.2.13 | **字体缓存资产作用域修复**：`convertFileSrc` 回退方案，删除未使用的 mime 参数。 |
+| 1.2.12 | **字体缓存 IPC 重构**：pending heading 在文档加载时自动转换。 |
+| 1.2.11 | **callout 斜杠命令修复**：callout 不再插入空块；自动聚焦编辑器。 |
 | 1.2.9 | **微信导出本地图片 base64 嵌入 + 卡片式布局 + 字体下载失败 badge**。CI: 修复 NSIS 路径 target triple 前缀 + 新增「版本号先升后打 tag」约束。发布流程文档化 → `RELEASE_PROCESS.md`。 |
 | 1.2.8 | **ClipboardTextSerializer 拆除 + Tauri 自动更新器**。粘贴不再泄漏 `**你好**` 源码；新增设置/关于面板检测更新；Airbnb/San Francisco/S 字体支持。 |
 | 1.2.7 | **字体系统重构**：远程字体按需下载+缓存+OS 独立超时+自动切换备选；JSON schema 重构移除 deprecated；设置面板通用组件化；CI: replaceAll → split+join(ES2020 兼容) |
