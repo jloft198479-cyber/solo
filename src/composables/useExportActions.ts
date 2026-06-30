@@ -163,7 +163,7 @@ export function useExportActions(options: {
     let html = result.html;
     if (urlMap.size > 0) {
       for (const [oldSrc, newSrc] of urlMap) {
-        html = html.replaceAll(`src="${escapeAttribute(oldSrc)}"`, `src="${newSrc}"`);
+        html = html.split(`src="${escapeAttribute(oldSrc)}"`).join(`src="${newSrc}"`);
       }
     }
 
