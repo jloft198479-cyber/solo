@@ -169,7 +169,16 @@ function renderMark(
 }
 
 function rootStyle(text: string, fontFamily: string, fontSize: number, background: string): string {
-  return `font-family:${fontFamily};color:${text};font-size:${fontSize}px;background:${background};`;
+  return [
+    `font-family:${fontFamily}`,
+    `color:${text}`,
+    `font-size:${fontSize}px`,
+    `background:${background}`,
+    `padding:28px 24px`,
+    `border-radius:16px`,
+    `box-shadow:0 4px 20px rgba(0,0,0,0.06)`,
+    `box-sizing:border-box`,
+  ].join(';');
 }
 
 function capitalize(value: string): string {
