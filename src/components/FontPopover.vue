@@ -86,7 +86,7 @@ function selectFont(value: string) {
             <span class="quick-popover-label">
               {{ opt.label }}
               <template v-if="progressing[opt.value] !== undefined">
-                <span class="font-dl-badge font-dl-badge--active">下载 {{ progressing[opt.value] }}%</span>
+                <span class="font-dl-badge font-dl-badge--active">下载中</span>
               </template>
               <template v-else-if="fontFailed[opt.value]">
                 <span class="font-dl-badge font-dl-badge--fail">下载失败</span>
@@ -103,8 +103,10 @@ function selectFont(value: string) {
             v-show="progressing[opt.value] !== undefined && progressing[opt.value] >= 0"
             :key="'bar-' + opt.value"
             class="font-progress-track"
+            :class="{ 'is-indeterminate': progressing[opt.value] === 0 }"
           >
             <div
+              v-if="progressing[opt.value] > 0"
               class="font-progress-bar"
               :style="{ width: progressing[opt.value] + '%' }"
             />
@@ -152,5 +154,23 @@ function selectFont(value: string) {
   background: var(--primary-color);
   border-radius: 1px;
   transition: width 0.3s ease;
+}
+
+.font-progress-track.is-indeterminate {
+  position: relative;
+  overflow: hidden;
+}
+
+.font-progress-track.is-indeterminate::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 30%, var(--primary-color) 50%, transparent 70%);
+  animation: font-indeterminate 1.2s infinite ease-in-out;
+}
+
+@keyframes font-indeterminate {
+  0% { transform: translateX(-33%); }
+  100% { transform: translateX(100%); }
 }
 </style>

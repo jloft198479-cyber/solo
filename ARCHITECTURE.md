@@ -35,7 +35,7 @@ IPC 服务层 (src/services/tauri/)  ──契约封装，前端不直接碰 inv
 Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 11 个 composables + 2 个 Pinia store + TipTap 编辑器
 ```
 
-> ⚠️ 仓库内同时存在 `AGENTS.md`、`README.md` 及 `.trae/documents/` 下的早期文档，它们描述了**文件树、workspace watcher、`fs.rs`/`watch.rs`/`config.rs`** 等结构——**这些在当前代码中已不存在**。请一律以**本文档 + 实际代码**为准（差异清单见附录 C）。
+> ⚠️ 仓库内同时存在 `README.md` 及 `.trae/documents/` 下的早期文档，它们描述了**文件树、workspace watcher、`fs.rs`/`watch.rs`/`config.rs`** 等结构——**这些在当前代码中已不存在**。请一律以**本文档 + 实际代码**为准（差异清单见附录 C）。新入手的 AI 开发者先读 `AGENTS.md`（工作手册）+ `.opencode/PROFILE.md`（技术档案）。
 
 ---
 
@@ -215,9 +215,11 @@ md-editor/
 │   └── Cargo.toml
 │
 ├── _docs/                        # 项目文档（版本规划、审查报告等）
-├── architecture.md               # ← 本文档（代码真相，权威）
-├── AGENTS.md                     #   早期文档，部分已过时（见附录 C）
-└── package.json                  #   name=marklight (历史残留), version=1.2.8
+├── AGENTS.md                      # 工作手册（AI 快速入门 + 纪律约束）
+├── ARCHITECTURE.md                # ← 本文档（代码真相，权威）
+├── RELEASE_PROCESS.md             # 正式发布流程
+├── BUILD_GUIDE.md                 # 编译手册
+├── TROUBLESHOOTING.md             # 故障排查
 ```
 
 ---
@@ -543,7 +545,7 @@ ProseMirror Doc
 
 ## 附录 C：文档与代码差异（防止被旧文档误导）
 
-下列内容在 `AGENTS.md` / `.trae/documents/` 中被描述为存在/未解决，但**当前代码实际状态**如下：
+下列内容在 `.trae/documents/` 中被描述为存在/未解决，但**当前代码实际状态**如下：
 
 | 旧文档说法 | 实际现状 |
 |---|---|

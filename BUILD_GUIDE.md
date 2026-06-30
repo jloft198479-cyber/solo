@@ -127,7 +127,7 @@ src/ (Vue + TS)  ──vue-tsc──▶ 类型检查
                              ──vite build──▶ dist/ (前端产物)
 
 src-tauri/src/ (Rust)  ──cargo build --release──▶ solo.exe
-                                                  ──makensis──▶ solo_1.2.8_x64-setup.exe
+                                                  ──makensis──▶ solo_{version}_x64-setup.exe
 ```
 
 `solo.exe` → 绿色可执行文件
@@ -270,7 +270,9 @@ echo ===== Done =====
 | 文件 | 路径 | 说明 |
 |---|---|---|
 | `solo.exe` | `src-tauri\target\release\solo.exe` | 绿色可执行文件（约 15MB） |
-| `solo_1.2.8_x64-setup.exe` | `src-tauri\target\release\bundle\nsis\solo_1.2.8_x64-setup.exe` | NSIS 安装包 |
+| `solo_{version}_x64-setup.exe` | `src-tauri\target\release\bundle\nsis\` | NSIS 安装包（版本号取自 Cargo.toml） |
+
+> **注意**：若指定了自定义 target triple（如 `x86_64-pc-windows-msvc`），产物路径变为 `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\`。
 
 ---
 
@@ -539,6 +541,7 @@ pinia: ^3.0.4
 | Vite 配置 | `vite.config.ts` |
 | 架构文档 | `ARCHITECTURE.md` |
 | 运行故障排查 | `TROUBLESHOOTING.md` |
+| **正式发布流程** | **`RELEASE_PROCESS.md`** |
 
 ### 8.5 常用命令速查
 
@@ -554,7 +557,8 @@ bun run build:tauri             # Tauri 全量构建（含 Rust + 打包）
 M:\temp\build_solo_full.bat     # 前端 + Rust 编译
 M:\temp\build_solo_tauri.bat    # 完整打包（含安装包）
 
-# 检查
+# 发布（新增 — 详见 RELEASE_PROCESS.md）
+git tag v1.x.x && git push origin v1.x.x   # 触发 CI 发布
 bun run test                    # 运行 Vitest 测试
 bun run lint                    # ESLint 检查
 bun run format                  # Prettier 格式化
