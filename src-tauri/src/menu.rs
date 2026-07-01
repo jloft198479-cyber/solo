@@ -27,10 +27,6 @@ fn build_menu(
     let open_accel = accelerator(shortcuts, "file.open", Some("CmdOrCtrl+O"));
     let save_accel = accelerator(shortcuts, "file.save", Some("CmdOrCtrl+S"));
     let save_as_accel = accelerator(shortcuts, "file.saveAs", Some("CmdOrCtrl+Shift+S"));
-    let export_html_accel = accelerator(shortcuts, "export.html", None);
-    let export_pdf_accel = accelerator(shortcuts, "export.pdf", Some("CmdOrCtrl+Shift+P"));
-    let export_wechat_accel = accelerator(shortcuts, "export.wechat", Some("CmdOrCtrl+E"));
-
     let undo_accel = accelerator(shortcuts, "editor.undo", Some("CmdOrCtrl+Z"));
     let redo_accel = accelerator(shortcuts, "editor.redo", Some("CmdOrCtrl+Shift+Z"));
     let find_accel = accelerator(shortcuts, "edit.find", Some("CmdOrCtrl+G"));
@@ -97,28 +93,6 @@ fn build_menu(
                 "另存为...",
                 true,
                 save_as_accel.as_deref(),
-            )?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(
-                app,
-                "export.html",
-                "导出为 HTML",
-                true,
-                export_html_accel.as_deref(),
-            )?,
-            &MenuItem::with_id(
-                app,
-                "export.pdf",
-                "导出为 PDF...",
-                true,
-                export_pdf_accel.as_deref(),
-            )?,
-            &MenuItem::with_id(
-                app,
-                "export.wechat",
-                "微信导出",
-                true,
-                export_wechat_accel.as_deref(),
             )?,
         ],
     )?;

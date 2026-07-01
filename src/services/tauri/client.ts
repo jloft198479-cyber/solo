@@ -65,7 +65,4 @@ export async function invokeCommand<T>(
   }
 }
 
-export function isTauriErrorCode(error: unknown, code: string): error is TauriAppError {
-  const normalized = normalizeTauriError(error);
-  return normalized.code === code;
-}
+

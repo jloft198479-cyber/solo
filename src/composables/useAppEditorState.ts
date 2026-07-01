@@ -27,24 +27,15 @@ export function useAppEditorState() {
     cursor: { line: 1, col: 1 },
     selectionText: '',
   });
-  const outlineItems = ref<EditorOutlineItem[]>([]);
-
   function handleEditorUpdate(data: AppEditorUpdatePayload) {
     if (data.wordCount !== undefined) stats.wordCount = data.wordCount;
     if (data.cursor) stats.cursor = data.cursor;
     if (data.selectionText !== undefined) stats.selectionText = data.selectionText;
-    if (data.outline) outlineItems.value = data.outline;
-  }
-
-  function scrollToHeading(pos: number) {
-    editorRef.value?.scrollToPos(pos);
   }
 
   return {
     editorRef,
     stats,
-    outlineItems,
     handleEditorUpdate,
-    scrollToHeading,
   };
 }

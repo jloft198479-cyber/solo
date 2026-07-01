@@ -104,11 +104,7 @@ import { setupEditorImageDrop } from './tiptap/editor-image-drop';
 import { resetLocalSrcResolver, setLocalSrcResolver } from './tiptap/extensions/image';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch } from './tiptap/useEditorSearch';
-import {
-  resolveDocumentImagePath,
-  resolveStorageImagePath,
-  authorizeImageAsset,
-} from '../../services/tauri/document';
+import { authorizeImageAsset } from '../../services/tauri/document';
 import { toAssetUrl } from '../../services/tauri/asset';
 import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
 import BubbleMenuComponent from './views/BubbleMenu.vue';
@@ -430,16 +426,12 @@ onMounted(async () => {
     const storagePath = settingsStore.settings.imageStoragePath;
     const docPath = fileStore.currentFile.path;
     try {
-      // StorageDir 图片：src 是裸文件名（无 assets/ 前缀）
       if (storagePath && !src.startsWith('assets/')) {
-        const resolved = await resolveStorageImagePath(storagePath, src);
-        const authorized = await authorizeImageAsset(resolved.absolutePath);
+        const authorized = await authorizeImageAsset(storagePath.replace(/\\/g, '/') + '/' + src);
         return toAssetUrl(authorized.path);
       }
-      // 文档所在目录的相对路径（兼容原有 assets/xxx）
       if (!docPath) return null;
-      const resolved = await resolveDocumentImagePath(docPath, src);
-      const authorized = await authorizeImageAsset(resolved.absolutePath);
+      const authorized = await authorizeImageAsset(src, docPath);
       return toAssetUrl(authorized.path);
     } catch {
       return null;

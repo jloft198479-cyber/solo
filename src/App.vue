@@ -6,7 +6,6 @@ import { useCommandDispatcher } from './composables/useCommandDispatcher';
 import { useAppDomEvents } from './composables/useAppDomEvents';
 import { useAppEditorState } from './composables/useAppEditorState';
 import { useDocumentSession } from './composables/useDocumentSession';
-import { useExportActions } from './composables/useExportActions';
 import { useImagePreview } from './composables/useImagePreview';
 import { useMenuEvents } from './composables/useMenuEvents';
 import { useMenuShortcutsSync } from './composables/useMenuShortcutsSync';
@@ -103,13 +102,6 @@ watch(
   },
 );
 
-const { exportHtml, exportPdf, copyToWechat } = useExportActions({
-  editorRef,
-  activeViewMode,
-  fileStore,
-  settingsStore,
-});
-
 const { syncMenuShortcuts, stopWatching: stopWatchingMenuShortcuts } = useMenuShortcutsSync({
   customShortcuts: computed(() => settings.value.customShortcuts),
   isLoaded,
@@ -153,9 +145,6 @@ const { executeCommand } = useCommandDispatcher({
   handleOpen: documentSession.handleOpenDocument,
   handleSave: documentSession.saveCurrentDocument,
   handleSaveAs: documentSession.saveCurrentDocumentAs,
-  exportHtml,
-  exportPdf,
-  copyToWechat,
   openSettings: () => settingsStore.openModal(),
   toggleFocusMode: () => settingsStore.toggleFocusMode(),
   showAbout,
@@ -300,12 +289,8 @@ onUnmounted(() => {
             {{ fileStore.currentFile.isDirty ? '未保存' : '已保存' }}
           </button>
 
-          <!-- 快捷入口：主题/字体/导出 直达弹出菜单 -->
-          <StatusbarQuickActions
-            :export-html="exportHtml"
-            :export-pdf="exportPdf"
-            :copy-to-wechat="copyToWechat"
-          />
+          <!-- 快捷入口：主题/字体 直达弹出菜单 -->
+          <StatusbarQuickActions />
 
           <button
             class="statusbar-settings-btn"

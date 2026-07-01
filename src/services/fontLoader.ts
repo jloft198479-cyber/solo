@@ -1,15 +1,13 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { fetchFontData, getCachedFontPath, saveCachedFont } from './tauri/document';
+import { FONT_OPTIONS } from '../constants/fonts';
+import pkg from '../../package.json';
 
-const DOWNLOAD_BASE = 'https://github.com/jloft198479-cyber/solo/releases/download/v1.1.6';
+const DOWNLOAD_BASE = `https://github.com/jloft198479-cyber/solo/releases/download/v${pkg.version}`;
 
-const REMOTE_FONTS: Readonly<Record<string, string>> = {
-  'Noto Serif SC': 'NotoSerifSC-Regular.otf',
-  'Zhuque Fangsong': 'ZhuqueFangsong-Regular.ttf',
-  'Xiaolai SC': 'XiaolaiSC-Regular.ttf',
-  'LXGW WenKai': 'LXGWWenKai-Regular.ttf',
-  'Huiwen-mincho': 'Huiwen-mincho-Regular.otf',
-};
+const REMOTE_FONTS: Readonly<Record<string, string>> = Object.fromEntries(
+  FONT_OPTIONS.filter((opt) => opt.fileName).map((opt) => [opt.value, opt.fileName!]),
+);
 
 const SYSTEM_FONTS = new Set(['system-ui', 'Microsoft YaHei UI']);
 

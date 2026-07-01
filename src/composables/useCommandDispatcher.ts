@@ -18,9 +18,6 @@ export interface CommandDispatcherOptions {
   handleOpen: () => void | Promise<void>;
   handleSave: () => void | Promise<void> | Promise<boolean> | boolean;
   handleSaveAs: () => void | Promise<void> | Promise<boolean> | boolean;
-  exportHtml: () => void | Promise<void>;
-  exportPdf: () => void | Promise<void>;
-  copyToWechat: () => void | Promise<void>;
   openSettings: () => void;
   toggleFocusMode: () => void | Promise<void>;
   showAbout: () => void | Promise<void>;
@@ -66,15 +63,6 @@ export function useCommandDispatcher(options: CommandDispatcherOptions) {
         return true;
       case 'file.saveAs':
         await options.handleSaveAs();
-        return true;
-      case 'export.html':
-        await options.exportHtml();
-        return true;
-      case 'export.pdf':
-        await options.exportPdf();
-        return true;
-      case 'export.wechat':
-        await options.copyToWechat();
         return true;
       case 'edit.find':
         if (activeViewMode.value === 'editor') {

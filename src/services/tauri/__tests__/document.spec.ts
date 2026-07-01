@@ -60,13 +60,12 @@ describe('tauri document service', () => {
   });
 
   it('routes document image operations through their native commands', async () => {
-    const { authorizeImageAsset, importDocumentImage, resolveDocumentImagePath } = await import(
+    const { authorizeImageAsset, importDocumentImage } = await import(
       '../document'
     );
 
     await importDocumentImage('/tmp/image.png', '/tmp/demo.md');
-    await resolveDocumentImagePath('/tmp/demo.md', './image.png');
-    await authorizeImageAsset('/tmp/image.png');
+    await authorizeImageAsset('/tmp/image.png', '/tmp/demo.md');
 
     expect(invokeCommandMock).toHaveBeenNthCalledWith(
       1,
@@ -79,17 +78,10 @@ describe('tauri document service', () => {
     );
     expect(invokeCommandMock).toHaveBeenNthCalledWith(
       2,
-      TAURI_COMMANDS.resolveDocumentImagePath,
-      {
-        documentPath: '/tmp/demo.md',
-        relativePath: './image.png',
-      },
-    );
-    expect(invokeCommandMock).toHaveBeenNthCalledWith(
-      3,
       TAURI_COMMANDS.authorizeImageAsset,
       {
         path: '/tmp/image.png',
+        documentPath: '/tmp/demo.md',
       },
     );
   });

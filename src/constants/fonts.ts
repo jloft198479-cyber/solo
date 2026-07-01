@@ -4,10 +4,8 @@
  * 统一维护编辑器可选字体清单，供 FontPopover 与 SettingsFontSelect 共享，
  * 避免清单分散导致新增/删除字体时出现多处修改遗漏。
  *
- * 下载型字体（有 downloadUrl）首次使用时从远端加载并缓存到本地，
+ * 下载型字体（有 fileName）首次使用时从远端加载并缓存到本地，
  * 系统字体（微软雅黑 UI、system-ui）无需加载。
- *
- * 实际下载地址见 services/fontLoader.ts REMOTE_FONTS + DOWNLOAD_BASE。
  */
 
 export interface FontOption {

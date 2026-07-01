@@ -15,9 +15,6 @@ function createDispatcher() {
   const handleOpen = vi.fn();
   const handleSave = vi.fn();
   const handleSaveAs = vi.fn();
-  const exportHtml = vi.fn();
-  const exportPdf = vi.fn();
-  const copyToWechat = vi.fn();
   const openSettings = vi.fn();
   const toggleFocusMode = vi.fn();
   const showAbout = vi.fn();
@@ -37,9 +34,6 @@ function createDispatcher() {
     handleOpen,
     handleSave,
     handleSaveAs,
-    exportHtml,
-    exportPdf,
-    copyToWechat,
     openSettings,
     toggleFocusMode,
     showAbout,
@@ -57,9 +51,6 @@ function createDispatcher() {
       handleOpen,
       handleSave,
       handleSaveAs,
-      exportHtml,
-      exportPdf,
-      copyToWechat,
       openSettings,
       toggleFocusMode,
       showAbout,
@@ -117,9 +108,6 @@ describe('useCommandDispatcher', () => {
     expect(spies.handleOpen).toHaveBeenCalled();
     expect(spies.handleSave).toHaveBeenCalled();
     expect(spies.handleSaveAs).toHaveBeenCalled();
-    expect(spies.exportHtml).toHaveBeenCalled();
-    expect(spies.exportPdf).toHaveBeenCalled();
-    expect(spies.copyToWechat).toHaveBeenCalled();
     expect(spies.openSearch).toHaveBeenCalledWith(false);
     expect(spies.openSearch).toHaveBeenCalledWith(true);
     expect(spies.toggleFocusMode).toHaveBeenCalled();

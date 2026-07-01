@@ -272,15 +272,4 @@ export const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
   markBg: '--mark-bg',
 };
 
-/** Preset theme IDs */
-export const PRESET_THEME_IDS = [
-  'scholar-light',
-  'scholar-dark',
-  'elegant-light',
-  'cinnabar-light',
-  'cinnabar-dark',
-  'default-light',
-  'gray-domain',
-] as const;
 
-export type PresetThemeId = (typeof PRESET_THEME_IDS)[number];

@@ -21,10 +21,6 @@ export interface DocumentImageImportResult {
   absolutePath: string;
 }
 
-export interface DocumentImageResolveResult {
-  absolutePath: string;
-}
-
 export interface ImageAssetAuthorizationResult {
   path: string;
 }
@@ -67,21 +63,10 @@ export async function saveClipboardImage(dataUrl: string, documentPath?: string,
   });
 }
 
-export async function resolveDocumentImagePath(documentPath: string, relativePath: string) {
-  return invokeCommand<DocumentImageResolveResult>(TAURI_COMMANDS.resolveDocumentImagePath, {
-    documentPath,
-    relativePath,
-  });
-}
-
-export async function authorizeImageAsset(path: string) {
-  return invokeCommand<ImageAssetAuthorizationResult>(TAURI_COMMANDS.authorizeImageAsset, { path });
-}
-
-export async function resolveStorageImagePath(storageDir: string, filename: string) {
-  return invokeCommand<DocumentImageResolveResult>(TAURI_COMMANDS.resolveStorageImagePath, {
-    storageDir,
-    filename,
+export async function authorizeImageAsset(path: string, documentPath?: string) {
+  return invokeCommand<ImageAssetAuthorizationResult>(TAURI_COMMANDS.authorizeImageAsset, {
+    path,
+    documentPath: documentPath ?? null,
   });
 }
 

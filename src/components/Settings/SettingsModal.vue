@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { useSettingsStore } from '../../stores/settings';
 import { confirm } from '../../services/tauri/dialog';
 import AppearanceSettingsPanel from './AppearanceSettingsPanel.vue';
@@ -16,13 +16,6 @@ const settingsStore = useSettingsStore();
 // 当前选中的设置分组
 const activeTab = ref<SettingsTabKey>('appearance');
 
-// 监听 pendingTab，支持从外部直接打开指定分组
-watch(() => settingsStore.isModalOpen, (isOpen) => {
-  if (isOpen && settingsStore.pendingTab) {
-    activeTab.value = settingsStore.pendingTab as SettingsTabKey;
-    settingsStore.pendingTab = '';
-  }
-});
 const {
   conflictWarning,
   editingId,

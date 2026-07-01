@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use crate::models::{
-    DocumentImageImportResult, DocumentImageResolveResult, DocumentOpenResult, DocumentRenameResult,
+    DocumentImageImportResult, DocumentOpenResult, DocumentRenameResult,
     DocumentSaveResult, ImageAssetAuthorizationResult,
 };
 use base64::{engine::general_purpose, Engine as _};
@@ -259,50 +259,20 @@ fn parse_data_url(data_url: &str) -> Result<(String, String), AppError> {
 }
 
 #[tauri::command]
-pub fn resolve_document_image_path(
-    document_path: String,
-    relative_path: String,
-) -> Result<DocumentImageResolveResult, AppError> {
-    // 防止路径遍历：拒绝绝对路径和含 .. 的相对路径
-    if relative_path.starts_with('/') || relative_path.contains("..") {
-        return Err(AppError::validation("图片路径无效"));
-    }
-
-    let document_dir = Path::new(&document_path)
-        .parent()
-        .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
-    let absolute_path = document_dir.join(&relative_path);
-    let absolute_path = absolute_path
-        .to_str()
-        .ok_or_else(|| AppError::validation("无法解析图片路径"))?;
-
-    Ok(DocumentImageResolveResult {
-        absolute_path: absolute_path.to_string(),
-    })
-}
-
-#[tauri::command]
-pub fn resolve_storage_image_path(
-    storage_dir: String,
-    filename: String,
-) -> Result<DocumentImageResolveResult, AppError> {
-    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
-        return Err(AppError::validation("图片文件名无效"));
-    }
-    let full_path = Path::new(&storage_dir).join(&filename);
-    let absolute_path = full_path
-        .to_str()
-        .ok_or_else(|| AppError::validation("路径编码无效"))?
-        .to_string();
-    Ok(DocumentImageResolveResult { absolute_path })
-}
-
-#[tauri::command]
 pub fn authorize_image_asset(
     app: AppHandle,
     path: String,
+    document_path: Option<String>,
 ) -> Result<ImageAssetAuthorizationResult, AppError> {
-    let canonical_path = validate_image_asset_path(Path::new(&path))?;
+    let resolved = if let Some(doc_path) = document_path {
+        let doc_dir = Path::new(&doc_path)
+            .parent()
+            .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
+        doc_dir.join(&path)
+    } else {
+        PathBuf::from(&path)
+    };
+    let canonical_path = validate_image_asset_path(&resolved)?;
     app.asset_protocol_scope().allow_file(&canonical_path)?;
 
     Ok(ImageAssetAuthorizationResult {
@@ -661,40 +631,6 @@ mod tests {
         assert!(!old.exists());
         assert!(expected.exists());
         assert_eq!(fs::read_to_string(&expected).unwrap(), "hello");
-
-        let _ = fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    fn resolve_document_image_path_rejects_absolute() {
-        let err = super::resolve_document_image_path("/abs/path.md".into(), "/evil/passwd".into())
-            .unwrap_err();
-        match err {
-            AppError::Validation(msg) => assert_eq!(msg, "图片路径无效"),
-            _ => panic!("expected validation error"),
-        }
-    }
-
-    #[test]
-    fn resolve_document_image_path_rejects_path_traversal() {
-        let err =
-            super::resolve_document_image_path("/abs/path.md".into(), "../../etc/passwd".into())
-                .unwrap_err();
-        match err {
-            AppError::Validation(msg) => assert_eq!(msg, "图片路径无效"),
-            _ => panic!("expected validation error"),
-        }
-    }
-
-    #[test]
-    fn resolve_document_image_path_resolves_relative_path() {
-        let dir = test_dir();
-        let doc_path = dir.join("doc.md");
-        let result =
-            super::resolve_document_image_path(doc_path.to_string_lossy().to_string(), "images/x.png".into())
-                .unwrap();
-        let expected = dir.join("images/x.png");
-        assert_eq!(result.absolute_path, expected.to_string_lossy());
 
         let _ = fs::remove_dir_all(dir);
     }

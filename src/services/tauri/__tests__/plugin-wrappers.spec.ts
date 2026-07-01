@@ -5,10 +5,7 @@ const mocks = vi.hoisted(() => ({
   message: vi.fn(),
   open: vi.fn(),
   save: vi.fn(),
-  writeHtml: vi.fn(),
-  openUrl: vi.fn(),
   convertFileSrc: vi.fn(),
-  onDragDropEvent: vi.fn(),
 }));
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({
@@ -18,27 +15,8 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   save: mocks.save,
 }));
 
-vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({
-  writeHtml: mocks.writeHtml,
-}));
-
-vi.mock('@tauri-apps/plugin-opener', () => ({
-  openUrl: mocks.openUrl,
-}));
-
 vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: mocks.convertFileSrc,
-}));
-
-vi.mock('@tauri-apps/api/window', () => ({
-  getCurrentWindow: () => ({
-    onDragDropEvent: mocks.onDragDropEvent,
-    setTitle: vi.fn(),
-    destroy: vi.fn(),
-    isFullscreen: vi.fn(),
-    setFullscreen: vi.fn(),
-    setTheme: vi.fn(),
-  }),
 }));
 
 describe('tauri plugin service wrappers', () => {
@@ -65,22 +43,6 @@ describe('tauri plugin service wrappers', () => {
     expect(mocks.save).toHaveBeenCalledWith({ defaultPath: 'export.html' });
   });
 
-  it('routes clipboard html writes through the clipboard plugin', async () => {
-    const { writeHtml } = await import('../clipboard');
-
-    await writeHtml('<strong>Demo</strong>', 'Demo');
-
-    expect(mocks.writeHtml).toHaveBeenCalledWith('<strong>Demo</strong>', 'Demo');
-  });
-
-  it('routes URL opening through the opener plugin', async () => {
-    const { openUrl } = await import('../opener');
-
-    await openUrl('https://example.com');
-
-    expect(mocks.openUrl).toHaveBeenCalledWith('https://example.com');
-  });
-
   it('converts file paths through the asset helper', async () => {
     mocks.convertFileSrc.mockReturnValueOnce('asset://localhost/demo.png');
 
@@ -88,17 +50,5 @@ describe('tauri plugin service wrappers', () => {
 
     expect(toAssetUrl('/tmp/demo.png')).toBe('asset://localhost/demo.png');
     expect(mocks.convertFileSrc).toHaveBeenCalledWith('/tmp/demo.png');
-  });
-
-  it('subscribes to current webview drag-drop events', async () => {
-    const unlisten = vi.fn();
-    const handler = vi.fn();
-    mocks.onDragDropEvent.mockResolvedValueOnce(unlisten);
-
-    const { listenCurrentWebviewDragDrop } = await import('../webview');
-
-    const result = await listenCurrentWebviewDragDrop(handler);
-    expect(result).toBeDefined();
-    expect(mocks.onDragDropEvent).toHaveBeenCalled();
   });
 });
