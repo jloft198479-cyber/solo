@@ -18,6 +18,7 @@ import StatusbarQuickActions from './components/StatusbarQuickActions.vue';
 import WindowResizeHandles from './components/Layout/WindowResizeHandles.vue';
 import { useFileStore } from './stores/file';
 import { useSettingsStore } from './stores/settings';
+import { invoke } from '@tauri-apps/api/core';
 import { message } from './services/tauri/dialog';
 import { destroyCurrentWindow, newEditorWindow } from './services/tauri/window';
 import { findCommandByShortcut } from './commands/registry';
@@ -214,6 +215,8 @@ onMounted(async () => {
 async function autoCheckForUpdate() {
   if (!settings.value.enableAutoUpdateCheck) return;
   try {
+    // 先尝试检测代理
+    await invoke<string>('detect_proxy_for_update').catch(() => {});
     const { check } = await import('@tauri-apps/plugin-updater');
     await check();
   } catch {
