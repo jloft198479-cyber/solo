@@ -1,7 +1,7 @@
 use crate::events::emit_menu_event;
 use crate::state::FocusedWindow;
 use std::collections::HashMap;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu};
 use tauri::{Emitter, Manager};
 
 fn accelerator(
@@ -194,4 +194,30 @@ pub fn attach_menu_events(app: &tauri::AppHandle) {
             }
         }
     });
+}
+
+/// 只更新已有菜单项的快捷键，不重建菜单。O(n) 遍历，比 setup_menu 快。
+pub fn update_menu_shortcuts<R: tauri::Runtime>(app: &tauri::AppHandle<R>, shortcuts: &HashMap<String, String>) -> Result<(), tauri::Error> {
+    if let Some(menu) = app.menu() {
+        update_shortcuts_in_items(&menu.items()?, shortcuts)?;
+    }
+    Ok(())
+}
+
+fn update_shortcuts_in_items<R: tauri::Runtime>(items: &[MenuItemKind<R>], shortcuts: &HashMap<String, String>) -> Result<(), tauri::Error> {
+    for item in items {
+        match item {
+            MenuItemKind::MenuItem(mi) => {
+                let id = mi.id().as_ref();
+                if let Some(accel) = shortcuts.get(id) {
+                    mi.set_accelerator(Some(accel))?;
+                }
+            }
+            MenuItemKind::Submenu(sub) => {
+                update_shortcuts_in_items(&sub.items()?, shortcuts)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }

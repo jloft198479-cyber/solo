@@ -111,7 +111,7 @@ fn refresh_native_menu_shortcuts(
     app: tauri::AppHandle,
     shortcuts: HashMap<String, String>,
 ) -> Result<(), error::AppError> {
-    menu::setup_menu(&app, &shortcuts).map_err(error::AppError::from)
+    menu::update_menu_shortcuts(&app, &shortcuts).map_err(error::AppError::from)
 }
 
 #[tauri::command]

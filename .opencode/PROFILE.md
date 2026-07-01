@@ -377,6 +377,11 @@ inline:
 
 | 版本 | 主要变更 |
 |------|----------|
+| 1.2.19 | **P0 保存竞态修复 + P2 脏态即时更新**：保存时从编辑器实时取内容绕过防抖延迟；`markUserEdit()` 拆出防抖即时标脏。菜单增量更新（只改快捷键不重建）；配置分两级加载（主题先行，窗口弹完再读全部）；拖拽事件全局单次注册；自动更新默认关闭。|
+| 1.2.18 | **减法重构**：净删 3380 行。删除导出系统（HTML/PDF/微信，~2500行）、删除代理探测模块（proxy.rs）、删除死命令/死字段/透传层；图片 IPC 合并（resolve 命令并入 authorizeImageAsset）；Copy 按钮替代导出。964 tests all green。|
+| 1.2.17 | **asset:// 图片重开后裂图修复 + 启动黑闪修复**：OpenCode 修复 asset:// URL 重开无授权、粘贴路径未用 authorized.path、prevLocalSrc 缓存无重试、main_window.show() 延迟到前端 startup_ready IPC 后调用。新增 CI test.yml + RELEASE-CHECKLIST.md。|
+| 1.2.16 | **图片粘贴保存为文件非 base64 内嵌**：新图片存 assets/ 目录，文档只写相对路径。修复 proxy 编译（移除不存在的 `.proxy()` 方法）。|
+| 1.2.15 | **自动更新代理检测 4 优先级兜底**：env/Git/注册表/端口探测，跨平台注入 updater builder。|
 | 1.2.14 | **性能优化全面复审 35 项**：编辑器核心 13 项（decorations 缓存、appendTransaction 合并遍历、parser WeakMap、serializer O(N) 预计算、search-highlight 缓存、rAF 合帧等），Vue 前端 10 项（KeepAlive 修复、fontLoader 节流、watcher 精确化），Rust 12 项（LTO/strip、hljs 动态加载、字体 IPC 路径化、启动日志缓冲、IPC 命令合并、autoprefixer 移除等）。988 tests all green。 |
 | 1.2.13 | **字体缓存资产作用域修复**：`convertFileSrc` 回退方案，删除未使用的 mime 参数。 |
 | 1.2.12 | **字体缓存 IPC 重构**：pending heading 在文档加载时自动转换。 |

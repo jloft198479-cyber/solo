@@ -13,6 +13,8 @@ export interface AutoSaveStatus {
 
 interface DocumentSessionOptions {
   resetViewMode: () => void;
+  /** 从编辑器实时获取最新内容（绕过 store 防抖延迟）。编辑器不可用时返回 null。 */
+  getContent?: () => string | null;
 }
 
 export function useDocumentSession(options: DocumentSessionOptions) {
@@ -154,7 +156,11 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     force: boolean,
     expectedLastModifiedMs?: number | null,
   ) {
-    return saveDocument(path, fileStore.currentFile.content, expectedLastModifiedMs, force);
+    // 优先从编辑器实时取内容，避免防抖延迟导致保存旧内容
+    const content = options.getContent?.() ?? fileStore.currentFile.content;
+    // 同步 store 基线：保存后 markSaved 清脏，防抖回调不会再因内容差异重新标脏
+    fileStore.currentFile.content = content;
+    return saveDocument(path, content, expectedLastModifiedMs, force);
   }
 
   let _savePromise: Promise<boolean> | null = null;
