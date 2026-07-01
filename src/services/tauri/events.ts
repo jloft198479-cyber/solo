@@ -21,31 +21,31 @@ interface DragDropPayload {
 type DragDropHandler = (payload: DragDropPayload) => void | Promise<void>;
 
 let sharedUnlisten: Promise<UnlistenFn> | null = null;
-const subscribers = new Set<DragDropHandler>();
+let activeDragDropHandler: DragDropHandler | null = null;
 
-async function ensureSharedDragDropListener(): Promise<UnlistenFn> {
+/**
+ * 全局只注册一次原生拖拽监听。
+ * 同时只保留一个活跃 handler（当前聚焦窗口的编辑器）。
+ * 返回 unlisten 函数，调用后清除当前 handler（不影响原生监听）。
+ */
+export async function subscribeDragDrop(handler: DragDropHandler): Promise<UnlistenFn> {
   if (!sharedUnlisten) {
     sharedUnlisten = getCurrentWindow().onDragDropEvent((event) => {
-      if (event.payload.type === 'drop') {
+      if (event.payload.type === 'drop' && activeDragDropHandler) {
         const payload: DragDropPayload = {
           type: 'drop',
           paths: event.payload.paths,
           position: event.payload.position,
         };
-        for (const handler of subscribers) {
-          handler(payload);
-        }
+        activeDragDropHandler(payload);
       }
     });
   }
-  return sharedUnlisten;
-}
-
-export async function subscribeDragDrop(handler: DragDropHandler): Promise<UnlistenFn> {
-  await ensureSharedDragDropListener();
-  subscribers.add(handler);
+  activeDragDropHandler = handler;
   return () => {
-    subscribers.delete(handler);
+    if (activeDragDropHandler === handler) {
+      activeDragDropHandler = null;
+    }
   };
 }
 

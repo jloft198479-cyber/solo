@@ -231,6 +231,8 @@ function createEditor(content: string) {
     },
     onUpdate: ({ editor: ed }) => {
       const t = ed as unknown as TiptapEditor;
+      // 即时标脏：用户打字后状态栏立刻显示"未保存"，不等防抖
+      fileStore.markUserEdit();
       debouncedWordCount(t);
       debouncedOutline(t);
       debouncedSerialize(t);
@@ -285,7 +287,6 @@ const debouncedSerialize = debounce((ed: TiptapEditor) => {
   const normalizedStored = fileStore.currentFile.content.replace(/\n+$/, '');
   const normalizedNew = markdown.replace(/\n+$/, '');
   if (normalizedNew !== normalizedStored) {
-    fileStore.markUserEdit();
     fileStore.setContent(markdown);
   }
 }, SERIALIZE_DEBOUNCE_MS);
@@ -521,7 +522,7 @@ defineExpose({
     }
   },
   getContent: () => {
-    if (!editor.value) return '';
+    if (!editor.value) return null;
     return serializeMarkdown(editor.value.state.doc);
   },
   getDoc: () => editor.value?.state.doc ?? null,

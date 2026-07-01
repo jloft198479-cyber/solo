@@ -45,6 +45,7 @@ const {
 
 const documentSession = useDocumentSession({
   resetViewMode: resetToEditor,
+  getContent: () => editorRef.value?.getContent?.() ?? null,
 });
 
 async function handleOpenFile(path: string) {
@@ -196,9 +197,12 @@ async function handleClose() {
 
 onMounted(async () => {
   try {
+    // 阶段3：只加载主题和背景色，立即启动窗口会话（触发 startupReady 显示窗口）
+    await settingsStore.initThemeOnly();
+    await windowSession.setup();
+    // 阶段4：窗口已可见，后台加载完整配置并同步菜单快捷键
     await Promise.all([
-      settingsStore.init(),
-      windowSession.setup(),
+      settingsStore.initFull(),
       syncMenuShortcuts(),
     ]);
     autoCheckForUpdate();

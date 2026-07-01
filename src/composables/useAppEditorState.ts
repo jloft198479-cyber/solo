@@ -6,7 +6,7 @@ import type { EditorOutlineItem } from '../components/Editor/tiptap/editor-metad
 export type AppEditorExpose = {
   scrollToPos: (pos: number) => void;
   openSearch: (showReplace?: boolean) => void;
-  getContent?: () => string;
+  getContent?: () => string | null;
   getDoc?: () => PMNode | null;
   getEditorView: () => EditorView | null;
   hasFocus?: () => boolean;

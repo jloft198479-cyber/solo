@@ -1,7 +1,7 @@
 {
   "name": "solo",
   "private": true,
-  "version": "1.2.18",
+  "version": "1.2.19",
   "packageManager": "bun@1.3.14",
   "license": "Apache-2.0",
   "type": "module",

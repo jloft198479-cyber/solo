@@ -56,7 +56,7 @@ const DEFAULT_SETTINGS: Settings = {
   alwaysOnTop: false,
   imageStoragePath: '',
   shellIntegration: false,
-  enableAutoUpdateCheck: true,
+  enableAutoUpdateCheck: false,
   configVersion: 12,
 };
 
@@ -139,7 +139,29 @@ export const useSettingsStore = defineStore('settings', {
       }, 300);
     },
 
-    async loadSettingsFromStore(): Promise<void> {
+    /**
+     * 仅加载主题和背景色（启动阶段3用）。
+     * 不读取完整配置，不触发 watcher，不等 writeStoredSettings。
+     * 返回 false 表示需要后续补全完整加载。
+     */
+    async initThemeOnly(): Promise<boolean> {
+      try {
+        const stored = await readStoredSettings<Partial<Settings>>();
+        if (stored?.activeThemeId) {
+          this.settings.activeThemeId = stored.activeThemeId;
+        }
+        this.applyCurrentTheme(this.settings.activeThemeId);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+
+    /**
+     * 补全完整配置加载（窗口可见后调用）。
+     * 如果 initThemeOnly 没跑过，会完整执行 init()。
+     */
+    async initFull(): Promise<void> {
       let shouldPersistNormalizedState: boolean;
 
       try {
@@ -362,7 +384,7 @@ export const useSettingsStore = defineStore('settings', {
     },
 
     async init() {
-      await this.loadSettingsFromStore();
+      await this.initFull();
       this.startWatchers();
       this.initTheme();
       this.initFocusMode();
