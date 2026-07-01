@@ -229,10 +229,7 @@ pub fn run() {
         }
     }
 
-    let updater = proxy::get_proxy()
-        .and_then(|proxy_url| reqwest::Proxy::https(proxy_url).ok())
-        .map(|proxy| tauri_plugin_updater::Builder::new().proxy(proxy))
-        .unwrap_or_else(|| tauri_plugin_updater::Builder::new());
+    let updater = tauri_plugin_updater::Builder::new();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
