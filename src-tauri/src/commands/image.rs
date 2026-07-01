@@ -10,9 +10,17 @@ fn image_client() -> Result<reqwest::Client, AppError> {
         return Ok(client.clone());
     }
 
-    let client = reqwest::Client::builder()
+    let mut builder = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-        .timeout(std::time::Duration::from_secs(30))
+        .timeout(std::time::Duration::from_secs(30));
+
+    if let Some(proxy_url) = crate::proxy::get_proxy() {
+        if let Ok(proxy) = reqwest::Proxy::https(proxy_url) {
+            builder = builder.proxy(proxy);
+        }
+    }
+
+    let client = builder
         .build()
         .map_err(|error| AppError::Network(format!("创建客户端失败: {}", error)))?;
 
