@@ -7,7 +7,8 @@ pub mod window;
 pub use desktop::{register_shell_new, unregister_shell_new};
 pub use document::{
     authorize_image_asset, import_document_image, open_document, rename_file,
-    resolve_document_image_path, save_clipboard_image, save_document,
+    resolve_document_image_path, resolve_storage_image_path, save_clipboard_image,
+    save_document,
 };
 pub use font::{fetch_font_data, get_cached_font_path, save_font_cache};
 pub use image::fetch_remote_image;
