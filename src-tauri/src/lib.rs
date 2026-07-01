@@ -3,6 +3,7 @@ mod error;
 mod events;
 mod menu;
 mod models;
+mod proxy;
 mod state;
 
 use commands::*;
@@ -217,13 +218,29 @@ where
 }
 
 pub fn run() {
+    // Auto-detect proxy (env var > Git config > WinReg > port probe) and set HTTPS_PROXY.
+    let resolved_proxy = proxy::resolve_proxy().map(|p| {
+        if std::env::var("HTTPS_PROXY").is_err() && std::env::var("https_proxy").is_err() {
+            std::env::set_var("HTTPS_PROXY", p);
+        }
+        p.to_string()
+    });
+
+    // Build updater with detected proxy so reqwest on Windows also uses it.
+    let mut updater = tauri_plugin_updater::Builder::new();
+    if let Some(ref proxy_url) = resolved_proxy {
+        if let Ok(url) = url::Url::parse(proxy_url) {
+            updater = updater.proxy(url);
+        }
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_store::Builder::default().build())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(updater.build())
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(

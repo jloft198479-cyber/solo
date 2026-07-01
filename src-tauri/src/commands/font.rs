@@ -10,8 +10,16 @@ fn font_client() -> Result<reqwest::Client, AppError> {
         return Ok(client.clone());
     }
 
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
+    let mut builder = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30));
+
+    if let Some(proxy_url) = crate::proxy::get_proxy() {
+        if let Ok(proxy) = reqwest::Proxy::https(proxy_url) {
+            builder = builder.proxy(proxy);
+        }
+    }
+
+    let client = builder
         .build()
         .map_err(|error| AppError::Network(format!("创建客户端失败: {}", error)))?;
 
