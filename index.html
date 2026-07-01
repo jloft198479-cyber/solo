@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
+    <!-- 内联 CSS var + 内联脚本：Vue 挂载前 WebView 背景色即匹配主题，消除黑闪 -->
+    <style>html { background-color: var(--bg-color, #faf8f5); }</style>
     <script>
       try {
         var _t = JSON.parse(localStorage.getItem('solo-theme-paint'));

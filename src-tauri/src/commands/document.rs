@@ -282,6 +282,22 @@ pub fn resolve_document_image_path(
 }
 
 #[tauri::command]
+pub fn resolve_storage_image_path(
+    storage_dir: String,
+    filename: String,
+) -> Result<DocumentImageResolveResult, AppError> {
+    if filename.contains("..") || filename.contains('/') || filename.contains('\\') {
+        return Err(AppError::validation("图片文件名无效"));
+    }
+    let full_path = Path::new(&storage_dir).join(&filename);
+    let absolute_path = full_path
+        .to_str()
+        .ok_or_else(|| AppError::validation("路径编码无效"))?
+        .to_string();
+    Ok(DocumentImageResolveResult { absolute_path })
+}
+
+#[tauri::command]
 pub fn authorize_image_asset(
     app: AppHandle,
     path: String,

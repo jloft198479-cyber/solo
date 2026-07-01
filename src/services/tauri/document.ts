@@ -78,6 +78,13 @@ export async function authorizeImageAsset(path: string) {
   return invokeCommand<ImageAssetAuthorizationResult>(TAURI_COMMANDS.authorizeImageAsset, { path });
 }
 
+export async function resolveStorageImagePath(storageDir: string, filename: string) {
+  return invokeCommand<DocumentImageResolveResult>(TAURI_COMMANDS.resolveStorageImagePath, {
+    storageDir,
+    filename,
+  });
+}
+
 export async function fetchRemoteImageData(url: string) {
   return invokeCommand<string>(TAURI_COMMANDS.fetchRemoteImage, { url });
 }

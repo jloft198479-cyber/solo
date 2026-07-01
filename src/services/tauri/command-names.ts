@@ -11,6 +11,7 @@ export const TAURI_COMMANDS = {
   renameFile: 'rename_file',
   registerShellNew: 'register_shell_new',
   resolveDocumentImagePath: 'resolve_document_image_path',
+  resolveStorageImagePath: 'resolve_storage_image_path',
   revealInFinder: 'reveal_in_finder',
   exitApp: 'exit_app',
   revealStartupOpenLog: 'reveal_startup_open_log',
