@@ -219,20 +219,14 @@ where
 
 pub fn run() {
     // Auto-detect proxy (env var > Git config > WinReg > port probe) and set HTTPS_PROXY.
-    let resolved_proxy = proxy::resolve_proxy().map(|p| {
+    // reqwest (used by the updater plugin) reads HTTPS_PROXY at runtime.
+    if let Some(proxy_url) = proxy::resolve_proxy() {
         if std::env::var("HTTPS_PROXY").is_err() && std::env::var("https_proxy").is_err() {
-            std::env::set_var("HTTPS_PROXY", p);
-        }
-        p.to_string()
-    });
-
-    // Build updater with detected proxy so reqwest on Windows also uses it.
-    let mut updater = tauri_plugin_updater::Builder::new();
-    if let Some(ref proxy_url) = resolved_proxy {
-        if let Ok(url) = url::Url::parse(proxy_url) {
-            updater = updater.proxy(url);
+            std::env::set_var("HTTPS_PROXY", proxy_url);
         }
     }
+
+    let updater = tauri_plugin_updater::Builder::new();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
