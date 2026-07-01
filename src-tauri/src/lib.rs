@@ -3,7 +3,6 @@ mod error;
 mod events;
 mod menu;
 mod models;
-mod proxy;
 mod state;
 
 use commands::*;
@@ -221,14 +220,6 @@ where
 }
 
 pub fn run() {
-    // Auto-detect proxy (env var > Git config > WinReg > port probe) and set HTTPS_PROXY.
-    // reqwest (used by the updater plugin) reads HTTPS_PROXY at runtime.
-    if let Some(proxy_url) = proxy::resolve_proxy() {
-        if std::env::var("HTTPS_PROXY").is_err() && std::env::var("https_proxy").is_err() {
-            std::env::set_var("HTTPS_PROXY", proxy_url);
-        }
-    }
-
     let updater = tauri_plugin_updater::Builder::new();
 
     tauri::Builder::default()
@@ -334,8 +325,6 @@ pub fn run() {
             rename_file,
             import_document_image,
             save_clipboard_image,
-            resolve_document_image_path,
-            resolve_storage_image_path,
             authorize_image_asset,
             fetch_remote_image,
             startup_ready,
@@ -345,8 +334,6 @@ pub fn run() {
             save_font_cache,
             refresh_native_menu_shortcuts,
             reveal_startup_open_log,
-            print_document,
-            reveal_in_finder,
             exit_app,
             set_window_background_color,
             register_shell_new,

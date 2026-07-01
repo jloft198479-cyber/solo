@@ -168,10 +168,6 @@ export function getTheme(id: string, customThemes: Theme[]): Theme | undefined {
   return presetThemeMap.get(id) ?? customThemes.find((theme) => theme.id === id);
 }
 
-export function exportTheme(theme: Theme): string {
-  return JSON.stringify(theme, null, 2);
-}
-
 function isThemeColors(value: unknown): value is ThemeColors {
   return typeof value === 'object' && value !== null && 'bgColor' in value && 'textColor' in value;
 }
@@ -231,22 +227,4 @@ export function generateThemeId(): string {
   return `custom-${crypto.randomUUID()}`;
 }
 
-export function cloneTheme(theme: Theme): Theme {
-  return JSON.parse(JSON.stringify(theme));
-}
 
-export function getIsDarkMode(): boolean {
-  return isDarkMode;
-}
-
-export const ThemeManager = {
-  applyTheme,
-  getPresetTheme,
-  getAllPresetThemes,
-  getTheme,
-  exportTheme,
-  importTheme,
-  generateThemeId,
-  cloneTheme,
-  getIsDarkMode,
-};

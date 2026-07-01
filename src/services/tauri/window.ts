@@ -33,10 +33,6 @@ export async function revealStartupOpenLog() {
   return invokeCommand<string>(TAURI_COMMANDS.revealStartupOpenLog);
 }
 
-export async function printDocument() {
-  await invokeCommand<void>(TAURI_COMMANDS.printDocument);
-}
-
 export async function setCurrentWindowTheme(theme: NativeWindowTheme) {
   if (theme === 'system') {
     return;
@@ -58,10 +54,6 @@ export async function unregisterShellNew() {
 
 export async function setCurrentWindowAlwaysOnTop(onTop: boolean) {
   await getCurrentWindow().setAlwaysOnTop(onTop);
-}
-
-export async function revealInFinder(path: string) {
-  await invokeCommand<void>(TAURI_COMMANDS.revealInFinder, { path });
 }
 
 /** 创建一个新的编辑器窗口，可选关联文件路径 */

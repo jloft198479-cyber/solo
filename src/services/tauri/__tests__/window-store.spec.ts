@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => {
     window,
     getCurrentWindow: vi.fn(() => window),
     invokeCommand: vi.fn(),
-    saveWindowState: vi.fn(),
     storeGet: vi.fn(),
     storeSet: vi.fn(),
     storeSave: vi.fn(),
@@ -24,16 +23,6 @@ const mocks = vi.hoisted(() => {
 
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: mocks.getCurrentWindow,
-}));
-
-vi.mock('@tauri-apps/plugin-window-state', () => ({
-  saveWindowState: mocks.saveWindowState,
-  StateFlags: {
-    SIZE: 1,
-    POSITION: 2,
-    MAXIMIZED: 4,
-    FULLSCREEN: 8,
-  },
 }));
 
 vi.mock('@tauri-apps/plugin-store', () => ({
@@ -94,14 +83,12 @@ describe('tauri window service', () => {
   it('routes native window commands through the command wrapper', async () => {
     const {
       startupReady,
-      printDocument,
       refreshNativeMenuShortcuts,
       revealStartupOpenLog,
       setCurrentWindowBackgroundColor,
     } = await import('../window');
 
     await setCurrentWindowBackgroundColor('#ffffff');
-    await printDocument();
     await refreshNativeMenuShortcuts({ 'file.save': 'CmdOrCtrl+S' });
     await revealStartupOpenLog();
     await startupReady();
@@ -111,14 +98,13 @@ describe('tauri window service', () => {
       TAURI_COMMANDS.setWindowBackgroundColor,
       { color: '#ffffff' },
     );
-    expect(mocks.invokeCommand).toHaveBeenNthCalledWith(2, TAURI_COMMANDS.printDocument);
     expect(mocks.invokeCommand).toHaveBeenNthCalledWith(
-      3,
+      2,
       TAURI_COMMANDS.refreshNativeMenuShortcuts,
       { shortcuts: { 'file.save': 'CmdOrCtrl+S' } },
     );
-    expect(mocks.invokeCommand).toHaveBeenNthCalledWith(4, TAURI_COMMANDS.revealStartupOpenLog);
-    expect(mocks.invokeCommand).toHaveBeenNthCalledWith(5, TAURI_COMMANDS.startupReady);
+    expect(mocks.invokeCommand).toHaveBeenNthCalledWith(3, TAURI_COMMANDS.revealStartupOpenLog);
+    expect(mocks.invokeCommand).toHaveBeenNthCalledWith(4, TAURI_COMMANDS.startupReady);
   });
 });
 
@@ -167,16 +153,4 @@ describe('tauri store service', () => {
   });
 });
 
-describe('tauri window state service', () => {
-  beforeEach(() => {
-    mocks.saveWindowState.mockReset();
-  });
 
-  it('saves all current window state flags', async () => {
-    const { saveAllWindowState } = await import('../window-state');
-
-    await saveAllWindowState();
-
-    expect(mocks.saveWindowState).toHaveBeenCalledWith(15);
-  });
-});

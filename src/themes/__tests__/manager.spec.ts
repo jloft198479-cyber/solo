@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyTheme, getIsDarkMode, getPresetTheme, importTheme } from '../manager';
+import { applyTheme, getPresetTheme, importTheme } from '../manager';
 
 const mocks = vi.hoisted(() => ({
   toggleMock: vi.fn(),
@@ -51,7 +51,6 @@ describe('theme manager', () => {
 
     expect(mocks.toggleMock).toHaveBeenCalledWith('dark', true);
     expect(mocks.setPropertyMock).toHaveBeenCalledWith('--bg-color', theme!.colors.bgColor);
-    expect(getIsDarkMode()).toBe(true);
   });
 
   it('applies light themes without the dark class', () => {
@@ -61,7 +60,6 @@ describe('theme manager', () => {
     applyTheme(theme!);
 
     expect(mocks.toggleMock).toHaveBeenCalledWith('dark', false);
-    expect(getIsDarkMode()).toBe(false);
   });
 
   it('imports legacy theme files as a single appearance theme', () => {

@@ -104,7 +104,6 @@ interface SettingsStoreState {
   presetThemes: AppTheme[];
   allThemes: AppTheme[];
   currentTheme: AppTheme | null;
-  pendingTab: string;
 }
 
 export const useSettingsStore = defineStore('settings', {
@@ -116,7 +115,6 @@ export const useSettingsStore = defineStore('settings', {
     presetThemes: getAllPresetThemes(),
     allThemes: [],
     currentTheme: null,
-    pendingTab: '',
   }),
 
   actions: {
@@ -346,10 +344,9 @@ export const useSettingsStore = defineStore('settings', {
       this.settings = normalizeSettings();
     },
 
-    openModal(tab?: string) {
-      this.pendingTab = tab || '';
-      this.isModalOpen = true;
-    },
+  openModal() {
+    this.isModalOpen = true;
+  },
 
     closeModal() {
       this.isModalOpen = false;

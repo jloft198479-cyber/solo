@@ -5,7 +5,7 @@ import { confirm, message } from '../../../services/tauri/dialog';
 import {
   subscribeDragDrop,
   type UnlistenFn,
-} from '../../../services/tauri/webview';
+} from '../../../services/tauri/events';
 
 interface EditorRef {
   value: TiptapEditor | null;

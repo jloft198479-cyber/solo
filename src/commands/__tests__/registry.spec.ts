@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   COMMANDS,
-  checkKeyConflicts,
   formatShortcutDisplay,
   getMenuShortcuts,
   getShortcut,
@@ -25,14 +24,6 @@ describe('command registry', () => {
     const groups = getShortcutGroups();
     expect(groups.some((group) => group.group === 'format')).toBe(true);
     expect(groups.some((group) => group.group === 'file')).toBe(true);
-  });
-
-  it('detects shortcut conflicts across app and editor commands', () => {
-    const conflicts = checkKeyConflicts({
-      'file.save': 'Mod-s',
-      'editor.bold': 'Mod-s',
-    });
-    expect(conflicts.map((command) => command.id)).toContain('editor.bold');
   });
 
   it('builds tauri menu accelerators from effective shortcuts', () => {

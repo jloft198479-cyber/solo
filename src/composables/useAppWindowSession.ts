@@ -1,8 +1,8 @@
 import type { Ref } from 'vue';
 import { onUnmounted, watch } from 'vue';
 import type { AppOpenPathsPayload } from '../services/tauri/events';
-import { listenWindowCloseRequested } from '../services/tauri/events';
-import { subscribeDragDrop } from '../services/tauri/webview';
+import { listenWindowCloseRequested, subscribeDragDrop } from '../services/tauri/events';
+import { saveWindowState, StateFlags } from '@tauri-apps/plugin-window-state';
 import {
   destroyCurrentWindow,
   isCurrentWindowFullscreen,
@@ -11,7 +11,6 @@ import {
   setCurrentWindowTitle,
   startupReady,
 } from '../services/tauri/window';
-import { saveAllWindowState } from '../services/tauri/window-state';
 
 interface AppWindowSessionOptions {
   openDocument: (path: string) => void | Promise<void>;
@@ -128,7 +127,7 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
 
     // 先保存窗口状态，再销毁窗口，避免窗口关闭后状态丢失
     try {
-      await saveAllWindowState();
+      await saveWindowState(StateFlags.SIZE | StateFlags.POSITION | StateFlags.MAXIMIZED);
     } catch {
       // 窗口状态保存失败不影响关闭流程
     }

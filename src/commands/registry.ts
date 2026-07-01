@@ -11,7 +11,6 @@ export type CommandGroup =
   | 'block'
   | 'history'
   | 'view'
-  | 'export'
   | 'help';
 export type MenuSection = 'app' | 'file' | 'edit' | 'view' | 'help';
 
@@ -40,7 +39,6 @@ const GROUP_LABELS: Record<CommandGroup, string> = {
   block: '块级元素',
   history: '历史',
   view: '视图',
-  export: '导出',
   help: '帮助',
 };
 
@@ -82,35 +80,6 @@ export const COMMANDS: CommandDefinition[] = [
     scope: 'app',
     group: 'file',
     defaultShortcut: 'Mod-Shift-s',
-    menuSection: 'file',
-    palette: true,
-  },
-  {
-    id: 'export.html',
-    title: '导出为 HTML',
-    description: '导出当前文档为 HTML 文件',
-    scope: 'app',
-    group: 'export',
-    menuSection: 'file',
-    palette: true,
-  },
-  {
-    id: 'export.pdf',
-    title: '打印',
-    description: '通过系统打印对话框打印或另存为 PDF',
-    scope: 'app',
-    group: 'export',
-    defaultShortcut: 'Mod-Shift-p',
-    menuSection: 'file',
-    palette: true,
-  },
-  {
-    id: 'export.wechat',
-    title: '微信导出',
-    description: '复制为适合微信的 HTML 内容',
-    scope: 'app',
-    group: 'export',
-    defaultShortcut: 'Mod-e',
     menuSection: 'file',
     palette: true,
   },
@@ -404,21 +373,6 @@ export function getShortcutGroups(customShortcuts: Record<string, string> = {}) 
     name: GROUP_LABELS[group],
     items,
   }));
-}
-
-export function checkKeyConflicts(customShortcuts: Record<string, string> = {}): ShortcutCommand[] {
-  const keyCount = new Map<string, number>();
-  const conflicts: ShortcutCommand[] = [];
-
-  for (const command of getShortcutCommands(customShortcuts)) {
-    const count = keyCount.get(command.shortcut) ?? 0;
-    if (count > 0) {
-      conflicts.push(command);
-    }
-    keyCount.set(command.shortcut, count + 1);
-  }
-
-  return conflicts;
 }
 
 export function eventToKeyString(event: KeyboardEvent): string {

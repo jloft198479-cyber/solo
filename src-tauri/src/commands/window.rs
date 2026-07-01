@@ -160,40 +160,9 @@ pub fn set_window_background_color(window: WebviewWindow, color: String) -> Resu
 }
 
 #[tauri::command]
-pub fn print_document(window: WebviewWindow) -> Result<(), AppError> {
-    window
-        .print()
-        .map_err(|error| AppError::Native(error.to_string()))
-}
-
-#[tauri::command]
 pub fn exit_app(app: tauri::AppHandle) -> Result<(), AppError> {
     app.exit(0);
     Ok(())
-}
-
-#[tauri::command]
-pub async fn reveal_in_finder(app: tauri::AppHandle, path: String) -> Result<(), AppError> {
-    use tauri_plugin_opener::OpenerExt;
-    #[cfg(target_os = "linux")]
-    {
-        use std::path::Path;
-        let path_buf = Path::new(&path);
-        let dir = if path_buf.is_dir() {
-            path_buf
-        } else {
-            path_buf.parent().unwrap_or(Path::new("/"))
-        };
-        app.opener()
-            .open_path(dir.to_string_lossy().to_string(), None::<String>)
-            .map_err(|error| AppError::Native(error.to_string()))
-    }
-    #[cfg(not(target_os = "linux"))]
-    {
-        app.opener()
-            .reveal_item_in_dir(path)
-            .map_err(|error| AppError::Native(error.to_string()))
-    }
 }
 
 #[cfg(test)]

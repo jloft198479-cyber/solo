@@ -157,12 +157,11 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     return saveDocument(path, fileStore.currentFile.content, expectedLastModifiedMs, force);
   }
 
-  let _saveInProgress: Promise<void> | null = null;
-  let _resolveSaveInProgress: (() => void) | null = null;
+  let _savePromise: Promise<boolean> | null = null;
 
   async function saveCurrentDocument(force = false): Promise<boolean> {
-    if (isSaving) {
-      await _saveInProgress;
+    if (_savePromise) {
+      await _savePromise;
     }
 
     const currentFile = fileStore.currentFile;
@@ -170,46 +169,45 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       return saveCurrentDocumentAs();
     }
 
-    // 标题栏重命名后保存：走另存为流程，用新名字保存到新路径
     if (currentFile.displayName !== currentFile.originalBaseName) {
       return saveRenamedDocument();
     }
 
     isSaving = true;
-    _saveInProgress = new Promise<void>(resolve => { _resolveSaveInProgress = resolve; });
-    try {
-      const result = await persistDocument(currentFile.path, force, currentFile.lastModifiedTime);
-      fileStore.markSaved(result.lastModifiedMs);
-      autoSavePaused = false;
-      return true;
-    } catch (error) {
-      const appError = normalizeTauriError(error);
-      if (appError.code === 'document_conflict' && !force) {
-        const confirmed = await confirm('文件已被外部修改，是否强制覆盖？', {
-          title: '检测到冲突',
-          kind: 'warning',
-          okLabel: '强制覆盖',
-          cancelLabel: '取消',
-        });
-        if (!confirmed) {
-          return false;
+    const savePath = currentFile.path;
+    const saveLastModified = currentFile.lastModifiedTime;
+    _savePromise = (async () => {
+      try {
+        const result = await persistDocument(savePath, force, saveLastModified);
+        fileStore.markSaved(result.lastModifiedMs);
+        autoSavePaused = false;
+        return true;
+      } catch (error) {
+        const appError = normalizeTauriError(error);
+        if (appError.code === 'document_conflict' && !force) {
+          const confirmed = await confirm('文件已被外部修改，是否强制覆盖？', {
+            title: '检测到冲突',
+            kind: 'warning',
+            okLabel: '强制覆盖',
+            cancelLabel: '取消',
+          });
+          if (!confirmed) {
+            return false;
+          }
+          _savePromise = null;
+          return saveCurrentDocument(true);
         }
-        // 递归调用前释放锁，避免死锁
-        isSaving = false;
-        _resolveSaveInProgress?.();
-        _resolveSaveInProgress = null;
-        return saveCurrentDocument(true);
-      }
 
-      console.error('Failed to save document:', appError.message);
-      await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
-      return false;
-    } finally {
-      isSaving = false;
-      _resolveSaveInProgress?.();
-      _resolveSaveInProgress = null;
-      _saveInProgress = null;
-    }
+        console.error('Failed to save document:', appError.message);
+        await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
+        return false;
+      }
+    })();
+
+    const result = await _savePromise;
+    isSaving = false;
+    _savePromise = null;
+    return result;
   }
 
   async function saveCurrentDocumentAs(): Promise<boolean> {

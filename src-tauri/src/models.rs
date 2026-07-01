@@ -22,12 +22,6 @@ pub struct DocumentImageImportResult {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct DocumentImageResolveResult {
-    pub absolute_path: String,
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub struct ImageAssetAuthorizationResult {
     pub path: String,
 }
@@ -90,15 +84,6 @@ mod tests {
         .unwrap();
         assert_eq!(v["relativePath"], "assets/x.png");
         assert_eq!(v["absolutePath"], "/abs/x.png");
-    }
-
-    #[test]
-    fn document_image_resolve_result_is_camel_cased() {
-        let v = serde_json::to_value(DocumentImageResolveResult {
-            absolute_path: "/abs/y.png".into(),
-        })
-        .unwrap();
-        assert_eq!(v["absolutePath"], "/abs/y.png");
     }
 
     #[test]
