@@ -29,6 +29,9 @@ fn startup_ready(
     startup_requests: tauri::State<'_, StartupOpenRequests>,
     window: tauri::WebviewWindow,
 ) -> Result<Option<AppOpenPathsPayload>, error::AppError> {
+    // 此时 WebView 已完成渲染、Vue 已挂载、主题已应用，再显示窗口避免黑闪
+    window.show()?;
+
     loaded_windows.mark_loaded(window.label().to_string())?;
 
     let label = window.label().to_string();
@@ -88,7 +91,7 @@ fn create_editor_window(
         window.open_devtools();
     }
 
-    window.show().map_err(|e| error::AppError::Native(e.to_string()))?;
+    // window.show() 由前端 startup_ready IPC 触发，避免黑闪
     // 显式请求前台焦点，绕过 Windows 前台锁限制
     let _ = window.set_focus();
 
@@ -226,7 +229,10 @@ pub fn run() {
         }
     }
 
-    let updater = tauri_plugin_updater::Builder::new();
+    let updater = proxy::get_proxy()
+        .and_then(|proxy_url| reqwest::Proxy::https(proxy_url).ok())
+        .map(|proxy| tauri_plugin_updater::Builder::new().proxy(proxy))
+        .unwrap_or_else(|| tauri_plugin_updater::Builder::new());
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -320,9 +326,6 @@ pub fn run() {
                 }
 
                 attach_window_events(&main_window, app.handle());
-
-                // 窗口启动时先隐藏，状态恢复后再显示，避免闪烁
-                main_window.show().map_err(error::AppError::from)?;
             }
 
             flush_startup_log(app.handle());
@@ -335,6 +338,7 @@ pub fn run() {
             import_document_image,
             save_clipboard_image,
             resolve_document_image_path,
+            resolve_storage_image_path,
             authorize_image_asset,
             fetch_remote_image,
             startup_ready,

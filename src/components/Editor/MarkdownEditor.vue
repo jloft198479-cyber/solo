@@ -106,6 +106,7 @@ import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch } from './tiptap/useEditorSearch';
 import {
   resolveDocumentImagePath,
+  resolveStorageImagePath,
   authorizeImageAsset,
 } from '../../services/tauri/document';
 import { toAssetUrl } from '../../services/tauri/asset';
@@ -424,6 +425,27 @@ onMounted(async () => {
   setupDragDrop();
   await setupWindowFocusHandlers();
 
+  // 先设图片路径解析器，再建编辑器——确保 Node View 初始化时能用上
+  setLocalSrcResolver(async (src: string) => {
+    const storagePath = settingsStore.settings.imageStoragePath;
+    const docPath = fileStore.currentFile.path;
+    try {
+      // StorageDir 图片：src 是裸文件名（无 assets/ 前缀）
+      if (storagePath && !src.startsWith('assets/')) {
+        const resolved = await resolveStorageImagePath(storagePath, src);
+        const authorized = await authorizeImageAsset(resolved.absolutePath);
+        return toAssetUrl(authorized.path);
+      }
+      // 文档所在目录的相对路径（兼容原有 assets/xxx）
+      if (!docPath) return null;
+      const resolved = await resolveDocumentImagePath(docPath, src);
+      const authorized = await authorizeImageAsset(resolved.absolutePath);
+      return toAssetUrl(authorized.path);
+    } catch {
+      return null;
+    }
+  });
+
   // 编辑器懒初始化
   if (document.hasFocus()) {
     // 快速路径：窗口已有焦点，直接创建
@@ -440,19 +462,6 @@ onMounted(async () => {
 
   // 图片双击 → 全屏预览（从 CustomImage NodeView 冒泡上来的自定义事件）
   editorWrapRef.value?.addEventListener('editor:image-dblclick', handleImageDblClick);
-
-  // 设置本地图片路径解析器（相对路径 → asset:// URL）
-  setLocalSrcResolver(async (src: string) => {
-    const docPath = fileStore.currentFile.path;
-    if (!docPath) return null;
-    try {
-      const resolved = await resolveDocumentImagePath(docPath, src);
-      const authorized = await authorizeImageAsset(resolved.absolutePath);
-      return toAssetUrl(authorized.path);
-    } catch {
-      return null;
-    }
-  });
 });
 
 onBeforeUnmount(() => {

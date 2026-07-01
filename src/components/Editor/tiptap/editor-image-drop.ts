@@ -1,7 +1,6 @@
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
 import { authorizeImageAsset, importDocumentImage } from '../../../services/tauri/document';
-import { toAssetUrl } from '../../../services/tauri/asset';
 import { confirm, message } from '../../../services/tauri/dialog';
 import {
   subscribeDragDrop,
@@ -60,12 +59,10 @@ export async function setupEditorImageDrop({
           if (!ed || ed.isDestroyed) continue;
 
           // 授权 asset 协议作用域
-          const authorized = await authorizeImageAsset(savedImage.absolutePath);
+          await authorizeImageAsset(savedImage.absolutePath);
 
-          // 有自定义路径时用 asset:// URL，否则用相对路径（便携）
-          const imgSrc = storagePath
-            ? toAssetUrl(authorized.path)
-            : savedImage.relativePath;
+          // 始终存相对路径（便携 + 跨 session 有效）
+          const imgSrc = savedImage.relativePath;
 
           // 用 ProseMirror API 插入图片（包在自己的段落里，作为独立 Block）
           const imgNode = ed.schema.nodes.image?.create({ src: imgSrc, alt: '' });

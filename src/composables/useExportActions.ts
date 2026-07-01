@@ -2,7 +2,7 @@ import type { Ref } from 'vue';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { writeHtml } from '../services/tauri/clipboard';
 import { message, save } from '../services/tauri/dialog';
-import { saveDocument, resolveDocumentImagePath } from '../services/tauri/document';
+import { saveDocument, resolveDocumentImagePath, resolveStorageImagePath } from '../services/tauri/document';
 import { printDocument } from '../services/tauri/window';
 import { toAssetUrl } from '../services/tauri/asset';
 import {
@@ -30,6 +30,7 @@ type SettingsStoreLike = {
     activeThemeId: string;
     fontFamily: string;
     fontSize: number | null;
+    imageStoragePath: string;
   };
 };
 
@@ -55,9 +56,9 @@ function findImageSrcs(doc: PMNode): string[] {
   return srcs;
 }
 
-async function localImageToBase64(src: string, docPath: string | null): Promise<string | null> {
+async function localImageToBase64(src: string, docPath: string | null, storageDir?: string): Promise<string | null> {
   try {
-    // asset:// 协议可直接 fetch，无需路径解析
+    // asset:// 协议可直接 fetch（兼容旧文档）
     if (src.startsWith('asset://')) {
       const resp = await fetch(src);
       if (!resp.ok) return null;
@@ -65,6 +66,17 @@ async function localImageToBase64(src: string, docPath: string | null): Promise<
       return `data:${blob.type};base64,${await blobToBase64(blob)}`;
     }
 
+    // StorageDir 图片：裸文件名，无 assets/ 前缀
+    if (storageDir && !src.startsWith('assets/')) {
+      const resolved = await resolveStorageImagePath(storageDir, src);
+      const assetUrl = toAssetUrl(resolved.absolutePath);
+      const resp = await fetch(assetUrl);
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      return `data:${blob.type};base64,${await blobToBase64(blob)}`;
+    }
+
+    // 文档所在目录的相对路径（兼容原有 assets/xxx）
     let absolutePath = src;
     if (!/^file:/i.test(src) && !/^[A-Z]:\\/i.test(src) && docPath) {
       const resolved = await resolveDocumentImagePath(docPath, src);
@@ -90,13 +102,14 @@ async function localImageToBase64(src: string, docPath: string | null): Promise<
 async function resolveLocalImages(
   doc: PMNode,
   docPath: string | null,
+  storageDir?: string,
 ): Promise<Map<string, string>> {
   const localSrcs = findImageSrcs(doc).filter(isLocalPath);
   if (localSrcs.length === 0) return new Map();
 
   const urlMap = new Map<string, string>();
   const results = await Promise.allSettled(
-    localSrcs.map((src) => localImageToBase64(src, docPath).then((b64) => ({ src, b64 }))),
+    localSrcs.map((src) => localImageToBase64(src, docPath, storageDir).then((b64) => ({ src, b64 }))),
   );
   for (const r of results) {
     if (r.status === 'fulfilled' && r.value.b64) {
@@ -136,7 +149,8 @@ export function useExportActions(options: {
     if (!doc) return;
 
     const docPath = fileStore.currentFile.path;
-    const imageMap = await resolveLocalImages(doc, docPath);
+    const storageDir = settingsStore.settings.imageStoragePath;
+    const imageMap = await resolveLocalImages(doc, docPath, storageDir);
 
     const html = await renderEditorDocToHtmlDocument(doc, {
       themeId: settingsStore.settings.activeThemeId,
@@ -168,7 +182,8 @@ export function useExportActions(options: {
     if (!doc) return;
 
     const docPath = fileStore.currentFile.path;
-    const imageMap = await resolveLocalImages(doc, docPath);
+    const storageDir = settingsStore.settings.imageStoragePath;
+    const imageMap = await resolveLocalImages(doc, docPath, storageDir);
 
     const html = await renderEditorDocToHtmlDocument(doc, {
       themeId: settingsStore.settings.activeThemeId,
@@ -198,7 +213,8 @@ export function useExportActions(options: {
     if (!doc) return;
 
     const docPath = fileStore.currentFile.path;
-    const imageMap = await resolveLocalImages(doc, docPath);
+    const storageDir = settingsStore.settings.imageStoragePath;
+    const imageMap = await resolveLocalImages(doc, docPath, storageDir);
 
     const result = renderEditorDocToWechatFragment(doc, {
       tokens: getExportThemeTokensFromAppTheme(settingsStore.settings.activeThemeId),

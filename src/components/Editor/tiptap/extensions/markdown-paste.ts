@@ -15,7 +15,6 @@ import type { Schema } from '@tiptap/pm/model';
 
 import { parseMarkdown } from '../markdown/parser';
 import { authorizeImageAsset, saveClipboardImage } from '../../../../services/tauri/document';
-import { toAssetUrl } from '../../../../services/tauri/asset';
 import { confirm } from '../../../../services/tauri/dialog';
 
 /** 检测剪贴板中是否包含图片文件 */
@@ -193,12 +192,8 @@ export function markdownPastePlugin(opts?: {
               // 授权 asset 协议作用域
               await authorizeImageAsset(saved.absolutePath);
 
-              // 有自定义路径时用 asset:// URL，否则用相对路径（便携）
-              const imgSrc = storagePath
-                ? toAssetUrl(saved.absolutePath)
-                : saved.relativePath;
-
-              insertImageNode(view, imgSrc, '');
+              // 始终存相对路径（便携 + 跨 session 有效）
+              insertImageNode(view, saved.relativePath, '');
             } catch (err) {
               console.error('Failed to handle pasted image:', err);
             }

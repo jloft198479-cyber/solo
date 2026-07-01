@@ -248,6 +248,17 @@ export function __resetRemoteImageCacheForTests() {
   remoteImageFetcher = null;
 }
 
+/** 从 Tauri asset:// URL 中反解文件路径 */
+function extractPathFromAssetUrl(assetUrl: string): string | null {
+  try {
+    const url = new URL(assetUrl);
+    if (url.hostname !== 'asset.localhost') return null;
+    let path = decodeURIComponent(url.pathname);
+    if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1);
+    return path || null;
+  } catch { return null; }
+}
+
 /** 判断是否为本地相对路径（非 http/data/blob/asset/绝对路径） */
 function isLocalRelativePath(src: string): boolean {
   if (/^(https?:\/\/|data:|blob:|asset:\/\/)/i.test(src)) return false;
@@ -322,13 +333,31 @@ export const CustomImage = Image.extend({
           });
         }
 
+        // 旧版 asset:// URL 迁移：重新授权文件路径
+        if (attrs.src.startsWith('https://asset.localhost/') && !image.dataset.prevAssetSrc) {
+          image.dataset.prevAssetSrc = attrs.src;
+          const filePath = extractPathFromAssetUrl(attrs.src);
+          if (filePath) {
+            void import('../../../../services/tauri/document').then(({ authorizeImageAsset }) => {
+              authorizeImageAsset(filePath).catch(() => {});
+            });
+          }
+        }
+
         // 本地相对路径 → 解析为 asset:// URL 显示
         if (isLocalRelativePath(attrs.src) && _localSrcResolver) {
           if (image.dataset.prevLocalSrc === attrs.src) return;
-          image.dataset.prevLocalSrc = attrs.src;
           const requestId = ++displayRequestId;
           void _localSrcResolver(attrs.src).then((displaySrc) => {
-            if (!displaySrc || requestId !== displayRequestId) return;
+            if (requestId !== displayRequestId) return;
+            if (!displaySrc) {
+              // 解析失败 → 清标记，下次 syncView 可重试
+              if (image.dataset.prevLocalSrc === attrs.src) {
+                delete image.dataset.prevLocalSrc;
+              }
+              return;
+            }
+            image.dataset.prevLocalSrc = attrs.src;
             if (image.src !== displaySrc) {
               image.src = displaySrc;
             }
