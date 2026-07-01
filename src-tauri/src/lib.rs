@@ -4,6 +4,7 @@ mod events;
 mod menu;
 mod models;
 mod state;
+mod updater;
 
 use commands::*;
 use models::{AppOpenPathsPayload, AppOpenSource};
@@ -112,6 +113,22 @@ fn refresh_native_menu_shortcuts(
     shortcuts: HashMap<String, String>,
 ) -> Result<(), error::AppError> {
     menu::update_menu_shortcuts(&app, &shortcuts).map_err(error::AppError::from)
+}
+
+/// 手动检查更新时触发的代理检测。检测到代理时设 HTTPS_PROXY，否则清空。
+/// 前端调用此命令后再调 @tauri-apps/plugin-updater 的 check()。
+#[tauri::command]
+async fn detect_proxy_for_update() -> Result<String, String> {
+    match updater::detect_github_proxy().await {
+        Some(proxy) => {
+            std::env::set_var("HTTPS_PROXY", &proxy);
+            Ok(proxy)
+        }
+        None => {
+            std::env::remove_var("HTTPS_PROXY");
+            Err("未检测到可用代理，将使用直连。若直连不上请检查网络配置。".into())
+        }
+    }
 }
 
 #[tauri::command]
@@ -337,7 +354,8 @@ pub fn run() {
             exit_app,
             set_window_background_color,
             register_shell_new,
-            unregister_shell_new
+            unregister_shell_new,
+            detect_proxy_for_update
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

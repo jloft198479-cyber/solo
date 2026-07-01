@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import { check } from '@tauri-apps/plugin-updater';
 import SettingsSwitch from './SettingsSwitch.vue';
 import './settings-shared.css';
@@ -14,6 +15,8 @@ async function checkForUpdate() {
   updateStatus.value = 'checking';
   statusMessage.value = '';
   try {
+    // 先检测网络代理（设置 HTTPS_PROXY 环境变量供 updater 使用）
+    await invoke<string>('detect_proxy_for_update').catch(() => {});
     const update = await check();
     if (update) {
       updateStatus.value = 'available';
