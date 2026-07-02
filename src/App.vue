@@ -201,9 +201,9 @@ onMounted(async () => {
     // 阶段3：只加载主题和背景色，立即启动窗口会话（触发 startupReady 显示窗口）
     await settingsStore.initThemeOnly();
     await windowSession.setup();
-    // 阶段4：窗口已可见，后台加载完整配置并同步菜单快捷键
+    // 阶段4：窗口已可见，后台加载完整配置、初始化主题列表、启动 watcher
     await Promise.all([
-      settingsStore.initFull(),
+      settingsStore.init(),
       syncMenuShortcuts(),
     ]);
     autoCheckForUpdate();
