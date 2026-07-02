@@ -8,19 +8,41 @@ import pkg from '../../../package.json';
 
 const enableAutoUpdateCheck = defineModel<boolean>('enableAutoUpdateCheck', { required: true });
 const appVersion = pkg.version;
-const updateStatus = ref<'idle' | 'checking' | 'uptodate' | 'available' | 'error'>('idle');
+const updateStatus = ref<'idle' | 'checking' | 'uptodate' | 'available' | 'downloading' | 'installing' | 'error'>('idle');
 const statusMessage = ref('');
+const downloadProgress = ref(0);
+
+const isBusy = ref(false);
 
 async function checkForUpdate() {
+  if (isBusy.value) return;
+  isBusy.value = true;
   updateStatus.value = 'checking';
   statusMessage.value = '';
+  downloadProgress.value = 0;
   try {
-    // 先检测网络代理（设置 HTTPS_PROXY 环境变量供 updater 使用）
     await invoke<string>('detect_proxy_for_update').catch(() => {});
     const update = await check();
     if (update) {
-      updateStatus.value = 'available';
-      await update.downloadAndInstall();
+      updateStatus.value = 'downloading';
+      statusMessage.value = '正在下载 0%';
+      let totalSize = 0;
+      let downloaded = 0;
+      await update.download((event) => {
+        if (event.event === 'Started') {
+          totalSize = event.data.contentLength ?? 0;
+        } else if (event.event === 'Progress') {
+          downloaded += event.data.chunkLength;
+          if (totalSize > 0) {
+            const pct = Math.round((downloaded / totalSize) * 100);
+            downloadProgress.value = pct;
+            statusMessage.value = `正在下载 ${pct}%`;
+          }
+        }
+      });
+      updateStatus.value = 'installing';
+      statusMessage.value = '正在安装，即将重启';
+      await update.install();
     } else {
       updateStatus.value = 'uptodate';
       statusMessage.value = '当前已是最新版本';
@@ -28,6 +50,8 @@ async function checkForUpdate() {
   } catch (e) {
     updateStatus.value = 'error';
     statusMessage.value = '检查更新失败，请检查网络后重试';
+  } finally {
+    isBusy.value = false;
   }
 }
 </script>
@@ -65,10 +89,10 @@ async function checkForUpdate() {
         <div class="update-check-row">
           <button
             class="update-check-btn"
-            :disabled="updateStatus === 'checking'"
+            :disabled="isBusy"
             @click="checkForUpdate"
           >
-            {{ updateStatus === 'checking' ? '检查中…' : '检查更新' }}
+            {{ updateStatus === 'checking' ? '检查中…' : updateStatus === 'downloading' ? '下载中…' : updateStatus === 'installing' ? '安装中…' : '检查更新' }}
           </button>
           <span
             v-if="statusMessage"
@@ -76,11 +100,14 @@ async function checkForUpdate() {
             :class="{
               'update-status-text--success': updateStatus === 'uptodate',
               'update-status-text--error': updateStatus === 'error',
-              'update-status-text--info': updateStatus === 'available',
+              'update-status-text--info': updateStatus === 'downloading' || updateStatus === 'installing',
             }"
           >
             {{ statusMessage }}
           </span>
+        </div>
+        <div v-if="updateStatus === 'downloading'" class="update-progress-bar">
+          <div class="update-progress-fill" :style="{ width: downloadProgress + '%' }" />
         </div>
       </div>
     </section>
@@ -138,5 +165,21 @@ async function checkForUpdate() {
 
 .update-status-text--info {
   color: var(--primary-color);
+}
+
+.update-progress-bar {
+  width: 100%;
+  height: 3px;
+  background: var(--border-color);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.update-progress-fill {
+  height: 100%;
+  background: var(--primary-color);
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 </style>
