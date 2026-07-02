@@ -1,13 +1,14 @@
 /**
- * Markdown 粘贴识别
+ * Markdown 及 HTML 粘贴识别
  *
- * 从别的 Markdown 工具/源码里拷贝文本粘进来时，默认只会变成纯文本。
- * 这个扩展挂一个 handlePaste，分两阶段识别：
- * 1. GFM 表格（精确匹配，已有）
- * 2. 通用 Markdown 块结构（标题/列表/引用/围栏等），用统一 parseMarkdown 转换
+ * 处理三种粘贴场景：
+ * 1. Markdown 表格文本 → parseMarkdown
+ * 2. 通用 Markdown 块结构 → parseMarkdown
+ * 3. HTML 富文本 → turndown 转 Markdown → parseMarkdown
  *
- * 非结构化纯文本一律放行给默认粘贴，避免误伤普通文本。
+ * 非结构化纯文本放行给默认粘贴，避免误伤。
  */
+import TurndownService from 'turndown';
 import { Extension } from '@tiptap/vue-3';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Slice } from '@tiptap/pm/model';
@@ -97,6 +98,10 @@ export function looksLikeMarkdownSource(text: string): boolean {
     if (/^#{1,6}\s/.test(t)) return true;
     if (/^>\s/.test(t)) return true;
     if (/^```/.test(t)) return true;
+    // frontmatter 定界符 —— 单独成行时才触发，避免误伤正文中的 ---
+    if (/^---$/.test(t) && text.trim().startsWith('---')) return true;
+    // 数学块标记
+    if (/^\$\$$/.test(t)) return true;
     if (/^\s*[-*+]\s/.test(t) || /^\s*\d+\.\s/.test(t) || /^\s*\[[ x]\]\s/.test(t)) {
       listCount++;
       if (listCount >= 2) return true;
@@ -151,6 +156,52 @@ export function parseGeneralMarkdownPaste(schema: Schema, text: string): Slice |
   return new Slice(doc.content, 0, 0);
 }
 
+// ── HTML → Markdown 转换 ────────────────────────────────────
+// 用 turndown 将 text/html 剪贴板内容转为 Markdown，再走 parseMarkdown。
+// 单例，避免重复创建。
+
+let _turndown: TurndownService | null = null;
+
+function getTurndown(): TurndownService {
+  if (!_turndown) {
+    _turndown = new TurndownService({
+      headingStyle: 'atx',
+      codeBlockStyle: 'fenced',
+      bulletListMarker: '-',
+    });
+    // 排除 <script> 和 <style>，避免可执行代码和样式表污染输出
+    _turndown.remove('script');
+    _turndown.remove('style');
+  }
+  return _turndown;
+}
+
+/**
+ * 将 HTML 内容转为 Markdown 并解析为可插入的 Slice。
+ * HTML 为空或转换后无内容时返回 null。
+ */
+function parseHtmlPaste(schema: Schema, html: string): Slice | null {
+  if (!html.trim()) return null;
+
+  let markdown: string;
+  try {
+    markdown = getTurndown().turndown(html);
+  } catch {
+    return null;
+  }
+  if (!markdown.trim()) return null;
+
+  let doc;
+  try {
+    doc = parseMarkdown(schema, markdown);
+  } catch {
+    return null;
+  }
+  if (!doc || doc.childCount === 0) return null;
+
+  return new Slice(doc.content, 0, 0);
+}
+
 const markdownPastePluginKey = new PluginKey('markdownPaste');
 
 export function markdownPastePlugin(opts?: {
@@ -164,48 +215,50 @@ export function markdownPastePlugin(opts?: {
         const clipboard = event.clipboardData;
         if (!clipboard) return false;
 
-        // ── 0. 剪贴板图片 ─────────────────────────────────────────
-        // 用户粘贴截图或复制的图片 → 保存到 assets/ 并插入相对路径
-        if (hasClipboardImage(clipboard)) {
+        // ── 0. 代码块内粘贴 ───────────────────────────────────────
+        // 光标在 codeBlock 中时放行给 ProseMirror 默认粘贴（只插纯文本），
+        // 避免结构化 markdown 解析把块级节点注入到只允许 text* 的节点中。
+        const { selection } = view.state;
+        if (selection.$from.parent.type.spec.code) return false;
+
+        // ── 1. 剪贴板图片 ─────────────────────────────────────────
+        // 异步保存，不阻塞文字处理。图片和文字可以同时粘贴。
+        const hasImage = hasClipboardImage(clipboard);
+        if (hasImage) {
           const docPath = opts?.getDocumentPath?.() ?? null;
           const storagePath = opts?.getStoragePath?.() ?? null;
 
-          if (!storagePath && !docPath) {
+          if (storagePath || docPath) {
+            void readClipboardImageAsDataUrl(clipboard).then(async (dataUrl) => {
+              if (!dataUrl || !view || view.isDestroyed) return;
+
+              try {
+                const saved = await saveClipboardImage(
+                  dataUrl,
+                  docPath ?? undefined,
+                  storagePath ?? undefined,
+                );
+                if (!view || view.isDestroyed) return;
+
+                await authorizeImageAsset(saved.absolutePath);
+                insertImageNode(view, saved.relativePath, '');
+              } catch (err) {
+                console.error('Failed to handle pasted image:', err);
+              }
+            });
+          } else {
             void confirm(
               '请先保存文档，或设置图片存储位置，才能粘贴图片。',
               { title: '粘贴图片', kind: 'warning', okLabel: '我知道了' },
             );
-            return true;
           }
-
-          void readClipboardImageAsDataUrl(clipboard).then(async (dataUrl) => {
-            if (!dataUrl || !view || view.isDestroyed) return;
-
-            try {
-              const saved = await saveClipboardImage(
-                dataUrl,
-                docPath ?? undefined,
-                storagePath ?? undefined,
-              );
-              if (!view || view.isDestroyed) return;
-
-              // 授权 asset 协议作用域
-              await authorizeImageAsset(saved.absolutePath);
-
-              // 始终存相对路径（便携 + 跨 session 有效）
-              insertImageNode(view, saved.relativePath, '');
-            } catch (err) {
-              console.error('Failed to handle pasted image:', err);
-            }
-          });
-
-          return true;
+          // 不 return——继续处理文字，防止文字被吞
         }
 
         const text = clipboard.getData('text/plain');
-        if (!text || !text.trim()) return false;
+        if (!text || !text.trim()) return hasImage;
 
-        // ── 1. GFM 表格 ──────────────────────────────────────────
+        // ── 2. GFM 表格 ──────────────────────────────────────────
         // 剪贴板带有富文本 `<table>`（从网页/Excel 拷）时，交给默认 HTML 粘贴
         if (looksLikeMarkdownTable(text)) {
           const html = clipboard.getData('text/html');
@@ -222,7 +275,7 @@ export function markdownPastePlugin(opts?: {
           }
         }
 
-        // ── 2. 通用 Markdown ─────────────────────────────────────
+        // ── 3. 通用 Markdown ─────────────────────────────────────
         // 非表格的结构化 markdown（标题/列表/引用/围栏等）
         if (looksLikeMarkdownSource(text)) {
           const slice = parseGeneralMarkdownPaste(view.state.schema, text);
@@ -234,6 +287,38 @@ export function markdownPastePlugin(opts?: {
             view.dispatch(tr);
             return true;
           }
+        }
+
+        // ── 4. HTML → Markdown 转换 ──────────────────────────────
+        // text/plain 不像结构化 markdown，但 text/html 存在（从网页/编辑器复制），
+        // 用 turndown 转成 Markdown 后通过 parseMarkdown 插入。
+        // 富文本 <table> 已在步骤 2 中放行给默认 HTML 粘贴，这里不拦截。
+        if (!hasImage) {
+          const html = clipboard.getData('text/html');
+          if (html && html.trim()) {
+            const isHtmlTable = !!(text && looksLikeMarkdownTable(text) && /<table[\s>]/i.test(html));
+            if (!isHtmlTable) {
+              const slice = parseHtmlPaste(view.state.schema, html);
+              if (slice) {
+                const tr = view.state.tr
+                  .replaceSelection(slice)
+                  .scrollIntoView()
+                  .setMeta(markdownPastePluginKey, { pasted: true });
+                view.dispatch(tr);
+                return true;
+              }
+            }
+          }
+        }
+
+        // ── 5. 纯文本兜底（仅当有图片时） ──────────────────────────
+        // 上面没命中 markdown 解析，但图片正在异步保存中。
+        // 消费事件+兜底插文字，避免默认粘贴通过 HTML 路径再插一次图片。
+        if (hasImage) {
+          if (text && text.trim()) {
+            view.dispatch(view.state.tr.insertText(text).scrollIntoView());
+          }
+          return true;
         }
 
         return false;
