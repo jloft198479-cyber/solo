@@ -14,11 +14,15 @@ const VALID_TYPES = [
 
 export type CalloutType = (typeof VALID_TYPES)[number];
 
-export function normalizeCalloutType(type: string | null | undefined): CalloutType {
+/**
+ * 归一化 callout 类型。
+ * 已知类型 → 标准小写；未知类型 → 原样保留（避免数据静默丢失）。
+ */
+export function normalizeCalloutType(type: string | null | undefined): string {
   if (!type) return 'note';
-  const lower = type.toLowerCase().trim() as CalloutType;
-  if (VALID_TYPES.includes(lower)) return lower;
-  return 'note';
+  const lower = type.toLowerCase().trim();
+  if ((VALID_TYPES as readonly string[]).includes(lower)) return lower;
+  return lower; // 保留未知类型，不降级
 }
 
 export const Callout = Node.create({
