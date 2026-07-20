@@ -343,6 +343,7 @@ pub fn run() {
             import_document_image,
             save_clipboard_image,
             authorize_image_asset,
+            resolve_image_display,
             fetch_remote_image,
             startup_ready,
             new_editor_window,

@@ -16,7 +16,7 @@ function getMermaid() {
       mod.default.initialize({
         startOnLoad: false,
         theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
-        securityLevel: 'strict',
+        securityLevel: 'loose',
       });
       return mod;
     });
@@ -32,7 +32,7 @@ export async function reinitializeMermaidTheme() {
   mod.default.initialize({
     startOnLoad: false,
     theme: isDark ? 'dark' : 'default',
-    securityLevel: 'strict',
+    securityLevel: 'loose',
   });
 }
 
@@ -41,6 +41,26 @@ let mermaidCounter = 0;
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+// CJK 统一表意文字 + 全角标点/符号
+function hasCjkOrFullwidth(text: string): boolean {
+  return /[一-鿿　-〿＀-￯]/.test(text);
+}
+
+/**
+ * 生成对中文用户友好的 Mermaid 错误提示。
+ * 当源码含中文/全角字符且错误疑似标签解析失败时，追加引号提示——
+ * mermaid 11 要求中文/特殊字符标签必须加引号，如 A["文本"]。
+ */
+export function buildMermaidErrorMessage(source: string, error: unknown): string {
+  const msg = getErrorMessage(error);
+  let text = `图表语法错误: ${msg}`;
+  const looksLikeParseError = /parse error|syntax error|label|unexpected|expect/i.test(msg);
+  if (looksLikeParseError && hasCjkOrFullwidth(source)) {
+    text += '  💡 提示：含中文/特殊字符的标签建议加引号，如 A["文本"]';
+  }
+  return text;
 }
 
 export const MermaidBlock = Node.create({
@@ -125,7 +145,7 @@ export const MermaidBlock = Node.create({
           }
           const error = document.createElement('span');
           error.className = 'mk-mermaid-error';
-          error.textContent = `图表语法错误: ${getErrorMessage(err)}`;
+          error.textContent = buildMermaidErrorMessage(source, err);
           renderDiv.appendChild(error);
         }
       }
