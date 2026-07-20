@@ -155,14 +155,14 @@ hello **「world」**                    → bold
 - [x] `(?<!\*)` 放首位而非末尾（JS lookbehind 位置陷阱）
 - [x] serializer.ts：删除 `_delimiterBoundaryUnsafe` ZWNJ 插入逻辑，改由预处理统一接管
 - [x] serializer.ts：`escapeInline` 中 strip ZWNJ，保证输出干净
-- [x] `editor.css`：添加 `ime-mode: active` 缓解微软拼音浮动候选框
+- [x] `editor.css`：添加 `ime-mode: active` 缓解微软拼音浮动候选框 ⚠️ **后于 2026-07-20 移除**：该属性在 Win11+WebView2 下反而导致候选栏变箭头，见 `editor.css` 注释
 - [x] 更新 roundtrip 测试期望值（CJK 边界从转义恢复到正确解析）
 - [x] 前端构建通过（`bun run build`）
 - [ ] Tauri 打包未完成（缺 Rust 工具链）
 
-**测试结果**：978 全过（27 个测试文件），markdown 相关 829 全过（6 个文件）
+**测试结果**（截至 2026-06-29 修复时）：978 全过（27 个测试文件，0 失败），markdown 解析相关测试全部通过
 **经验沉淀**：本文件 + `parser.ts` 注释索引
 
 **未完成任务**（留给下次）：
 1. 在用户环境执行 `bun run build && bun run tauri build` 打包
-2. 验证 `ime-mode: active` 对微软拼音浮动框的实际缓解效果；如效果不佳，考虑在 Tauri Rust 层加 WebView2 TSF 标志
+2. ~~验证 `ime-mode: active` 对微软拼音浮动框的实际缓解效果~~（已作废：2026-07-20 移除该属性，候选栏箭头由删除 `ime-mode` 解决）

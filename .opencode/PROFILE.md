@@ -65,7 +65,7 @@ set PATH=M:\rust\.cargo\bin;%PATH%
 | 窗口会话 | `src/composables/useAppWindowSession.ts` |
 | IPC 服务层 | `src/services/tauri/window.ts` |
 | 粘贴检测 | `src/components/Editor/tiptap/extensions/markdown-paste.ts` |
-| 导出弹窗 | `src/components/ExportPopover.vue` |
+| 复制为 HTML | `src/components/StatusbarQuickActions.vue`（状态栏 Copy 按钮，复制富文本 HTML 到剪贴板；v1.2.18 删除导出系统后以此替代） |
 | 命令注册 | `src/commands/registry.ts` |
 | **Parser** | `src/components/Editor/tiptap/markdown/parser.ts` |
 | **Serializer** | `src/components/Editor/tiptap/markdown/serializer.ts` |
@@ -377,6 +377,10 @@ inline:
 
 | 版本 | 主要变更 |
 |------|----------|
+| 1.2.23 | **粘贴来源自动嗅探 + 更新进度可视化 + hasImage+HTML 防重复**。 |
+| 1.2.22 | **格式兼容性修复** — turndown HTML 粘贴 + 代码块保护 + CRLF frontmatter + callout 保留 + 图片不吞文字 + 粘贴门槛拓宽 + 复制按钮增强。 |
+| 1.2.21 | 版本号同步（无功能变更）。 |
+| 1.2.20 | 版本号同步（无功能变更）。 |
 | 1.2.19 | **P0 保存竞态修复 + P2 脏态即时更新**：保存时从编辑器实时取内容绕过防抖延迟；`markUserEdit()` 拆出防抖即时标脏。菜单增量更新（只改快捷键不重建）；配置分两级加载（主题先行，窗口弹完再读全部）；拖拽事件全局单次注册；自动更新默认关闭。|
 | 1.2.18 | **减法重构**：净删 3380 行。删除导出系统（HTML/PDF/微信，~2500行）、删除代理探测模块（proxy.rs）、删除死命令/死字段/透传层；图片 IPC 合并（resolve 命令并入 authorizeImageAsset）；Copy 按钮替代导出。964 tests all green。|
 | 1.2.17 | **asset:// 图片重开后裂图修复 + 启动黑闪修复**：OpenCode 修复 asset:// URL 重开无授权、粘贴路径未用 authorized.path、prevLocalSrc 缓存无重试、main_window.show() 延迟到前端 startup_ready IPC 后调用。新增 CI test.yml + RELEASE-CHECKLIST.md。|

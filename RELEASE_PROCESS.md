@@ -25,7 +25,7 @@
 
 ```text
 [ ] 1. 确认所有功能开发完成、测试通过
-[ ] 2. 确认三个版本号一致升高（package.json / Cargo.toml / tauri.conf.json）
+[ ] 2. 确认版本号四源一致并升高（package.json / Cargo.toml / tauri.conf.json / Cargo.lock）
 [ ] 3. 确认没有 replaceAll / replaceAllAsync（TS target ES2020）
 [ ] 4. 提交版本号变更 → git push
 [ ] 5. 本地全量测试：bun run test ✅
@@ -45,7 +45,7 @@
 ### 2.1 完成所有功能
 
 - 所有 feature 代码已合并到 `master`
-- 测试覆盖：`bun run test` 全量通过（当前 978 tests）
+- 测试覆盖：`bun run test` 全量通过（测试数量以命令实际输出为准，必须 0 失败）
 - 类型检查：`vue-tsc --noEmit` 无错误
 - 前端构建：`bun run build` 通过
 - **构建检查**：每次代码变更后、commit **前**，必须先跑 `bun run build` 通过（`vue-tsc --noEmit` 会捕获未使用变量、类型错误等低级问题，防止流入 CI）
@@ -91,7 +91,7 @@ rg "replaceAll|replaceAllAsync" src/
 Select-String -Path package.json,src-tauri\Cargo.toml,src-tauri\tauri.conf.json -Pattern '"version"|version = "'
 ```
 
-输出中三个文件的版本号必须一致。
+输出中三个文件的版本号必须一致（**这是防止版本乱标的强制关卡**：任一不一致都不得打 tag）。`Cargo.lock` 中 solo 条目版本由 `cargo` 在构建时同步，也须与三处相同。
 
 ### 3.4 提交版本变更
 
@@ -111,7 +111,7 @@ git push origin master
 bun run test
 ```
 
-预期：`ALL TESTS PASS`（当前 978 tests）。
+预期：`ALL TESTS PASS`（测试数量以 `bun run test` 实际输出为准，必须 0 失败）。
 
 ### 4.2 前端构建
 

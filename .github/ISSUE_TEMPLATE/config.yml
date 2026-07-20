@@ -1,0 +1,9 @@
+# 控制 Issue 模板行为
+blank_issues_enabled: false   # 不允许空白 Issue，强制用模板
+contact_links:
+  - name: 🔒 安全漏洞报告
+    url: https://github.com/jloft198479-cyber/solo/security/advisories/new
+    about: 安全相关问题请私下报告，不要在公开 Issue 披露（见 SECURITY.md）
+  - name: 💬 功能建议 / 讨论
+    url: https://github.com/jloft198479-cyber/solo/discussions
+    about: 新功能点子、使用疑问、经验分享
