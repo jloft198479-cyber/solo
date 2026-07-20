@@ -130,7 +130,8 @@
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.08em;
-  opacity: 0.45;
+  opacity: 0;
+  transition: opacity 0.15s ease;
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
@@ -161,6 +162,17 @@
   content: 'H6';
 }
 
+/* 悬停当前标题行时，左侧 H1–H6 结构标记淡入（默认隐藏，保持书写区洁净） */
+.tiptap-editor h1:hover::before,
+.tiptap-editor h2:hover::before,
+.tiptap-editor h3:hover::before,
+.tiptap-editor h4:hover::before,
+.tiptap-editor h5:hover::before,
+.tiptap-editor h6:hover::before,
+.tiptap-editor .mk-pending-heading:hover::before {
+  opacity: 0.45;
+}
+
 /* ── Pending heading（输入 `# 文字` 时尚未转成真正 heading 的段落）── */
 .tiptap-editor .mk-pending-heading {
   position: relative;
@@ -180,7 +192,8 @@
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.08em;
-  opacity: 0.45;
+  opacity: 0;
+  transition: opacity 0.15s ease;
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
@@ -416,7 +429,7 @@
 }
 
 .tiptap-editor a:hover {
-  border-bottom-color: var(--primary-color);
+  border-bottom-color: var(--accent-color);
 }
 
 /* ── 水平线 ────────────────────────────────────────────────── */
@@ -739,15 +752,56 @@
   overflow: hidden;
 }
 
-.tiptap-editor .mk-mermaid-badge {
-  font-size: 11px;
-  color: var(--muted-color);
-  padding: 5px 12px;
+.tiptap-editor .mk-mermaid-header,
+.tiptap-editor .mk-math-header {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 6px 0 12px;
   border-bottom: 1px solid var(--border-color);
   background-color: var(--code-bg);
+}
+
+.tiptap-editor .mk-mermaid-badge,
+.tiptap-editor .mk-math-badge {
+  font-size: 11px;
+  color: var(--muted-color);
   font-family: var(--font-mono);
   text-transform: lowercase;
   cursor: pointer;
+}
+
+.tiptap-editor .mk-mermaid-badge:hover,
+.tiptap-editor .mk-math-badge:hover {
+  color: var(--text-color);
+}
+
+/* 块删除按钮：mermaid / math 共用，hover 整块时显示 */
+.tiptap-editor .mk-block-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted-color);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background-color 0.15s;
+}
+
+.tiptap-editor .mk-mermaid-block:hover .mk-block-delete-button,
+.tiptap-editor .mk-math-block:hover .mk-block-delete-button {
+  opacity: 1;
+}
+
+.tiptap-editor .mk-block-delete-button:hover {
+  color: var(--error-color, #d33);
+  background-color: var(--hover-bg);
 }
 
 .tiptap-editor .mk-mermaid-render {
@@ -1179,11 +1233,35 @@ html.focus-mode [class*="mk-editor"] .mk-pending-heading::before {
 /* ── 浮动菜单进出场动画（SlashMenu / EmojiMenu / BubbleMenu 共用）── */
 .mk-menu-enter-active,
 .mk-menu-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out);
 }
 
 .mk-menu-enter-from,
 .mk-menu-leave-to {
   opacity: 0;
   transform: translateY(6px) scale(0.98);
+}
+
+/* ── 搜索命中 / 跳转标题的高亮脉冲 ──
+   UX 研究结论：跳转到目标后给一次明确的视觉反馈，比静默滚动更能让用户「知道到这儿了」。
+   300ms 背景色淡入淡出，不抢注意力。 */
+@keyframes mk-jump-pulse {
+  0%   { background-color: var(--primary-light); }
+  100% { background-color: transparent; }
+}
+.mk-jump-target {
+  animation: mk-jump-pulse 0.3s var(--ease-out);
+  border-radius: 3px;
+}
+
+/* ── 主题 / 字体切换时编辑区内容 crossfade ──
+   切换瞬间内容会随 CSS 变量重绘而「闪一下」。
+   给 .mk-editor 加 200ms 透明度淡入，保留视觉上下文（不是完全消失），灭闪烁感。
+   opacity 从 0.6 起而非 0：避免用户失去位置感（Notion / Linear 的做法）。 */
+@keyframes mk-content-crossfade {
+  from { opacity: 0.6; }
+  to   { opacity: 1; }
+}
+.mk-content-crossfade {
+  animation: mk-content-crossfade var(--motion-base) var(--ease-out);
 }

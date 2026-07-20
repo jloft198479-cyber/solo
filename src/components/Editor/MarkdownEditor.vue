@@ -103,7 +103,7 @@ import {
 import { setupEditorImageDrop } from './tiptap/editor-image-drop';
 import { resetLocalSrcResolver, setLocalSrcResolver } from './tiptap/extensions/image';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
-import { useEditorSearch } from './tiptap/useEditorSearch';
+import { useEditorSearch, pulseJumpTarget } from './tiptap/useEditorSearch';
 import { resolveImageDisplay } from '../../services/tauri/document';
 import { toAssetUrl } from '../../services/tauri/asset';
 import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
@@ -510,11 +510,10 @@ defineExpose({
     editor.value.commands.focus(target);
     // 滚动到视图
     const dom = editor.value.view.domAtPos(target);
-    if (dom.node instanceof HTMLElement) {
-      dom.node.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else if (dom.node.parentElement) {
-      dom.node.parentElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    const el = dom.node instanceof HTMLElement ? dom.node : dom.node.parentElement;
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // 大纲跳转也给一次命中脉冲，体感和搜索「下一个」一致
+    pulseJumpTarget(el);
   },
   getContent: () => {
     if (!editor.value) return null;

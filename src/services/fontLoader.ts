@@ -38,7 +38,9 @@ export function getDownloadProgress(family: string): number {
 
 async function registerFont(family: string, url: string): Promise<boolean> {
   try {
-    const fontFace = new FontFace(family, `url('${url}')`);
+    // display:'swap'：字体加载期间用系统同族字体先顶上，到位无感替换。
+    // 对应 Web Vitals 的「消灭 FOUT（字体切换闪烁）」目标。
+    const fontFace = new FontFace(family, `url('${url}')`, { display: 'swap' });
     await fontFace.load();
     document.fonts.add(fontFace);
     return true;

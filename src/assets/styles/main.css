@@ -8,6 +8,33 @@
     'Segoe UI', Roboto, Helvetica, Arial,
     'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC',
     'Hiragino Sans GB', 'STHeiti', system-ui, sans-serif;
+
+  /* ── 统一动效语言（Linear / Raycast 风格：一致 > 多） ──
+     参考 web.dev / RAIL：120ms 人觉瞬时，200ms 跟手不拖沓；
+     ease-out 缓出曲线让动作「停在终点」，比 ease 更跟手。 */
+  --motion-fast: 120ms;  /* 菜单 / 按钮 / 小切换 */
+  --motion-base: 200ms;  /* 面板 / 视图 / crossfade */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* 通用入场动效工具类：scale + opacity 轻量跟手，所有面板/菜单共用，
+   保证「这儿弹那儿滑」的不一致感消失。 */
+.smooth-enter {
+  animation: smooth-enter var(--motion-fast) var(--ease-out);
+}
+@keyframes smooth-enter {
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* ── 无障碍底线：尊重用户系统偏好，关掉所有动画 ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ── 浅色主题（书卷气） ────────────────────────────────────── */
@@ -32,7 +59,10 @@
   --border-light: #ede8df;
 
   /* 弱化文字 */
-  --muted-color: #9a8e7e;
+  --muted-color: #7a6e5e;
+
+  /* 信号色 — 赭红：链接悬停 / 焦点环 / 活动指示（可随主题 accentColor 覆盖） */
+  --accent-color: #b5503a;
 
   /* 代码 */
   --code-bg: #f3efe8;
@@ -150,7 +180,10 @@ html.dark {
   --border-light: #2a2620;
 
   /* 弱化文字 */
-  --muted-color: #6b6258;
+  --muted-color: #94887a;
+
+  /* 信号色 — 深色下提亮赭红 */
+  --accent-color: #cf6a4f;
 
   /* 代码 */
   --code-bg: #1e1b17;
@@ -335,7 +368,7 @@ html.theme-transitioning,
 html.theme-transitioning *,
 html.theme-transitioning *::before,
 html.theme-transitioning *::after {
-  transition: background-color 0.25s ease, color 0.25s ease !important;
+  transition: background-color var(--motion-base) var(--ease-out), color var(--motion-base) var(--ease-out) !important;
 }
 
 /* ── 深色模式下 highlight.js 代码高亮 ─────────────────────── */

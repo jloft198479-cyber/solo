@@ -49,6 +49,17 @@
         </svg>
       </button>
       <button
+        class="titlebar-btn titlebar-outline-btn"
+        :class="{ 'titlebar-outline-btn--active': props.outlineOpen }"
+        title="大纲 (Ctrl+/)"
+        @click="emit('toggleOutline')"
+      >
+        <svg class="outline-list-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2.5 4h10M2.5 7.5h10M2.5 11h10" />
+          <path d="M5 4v0M5 7.5v0M5 11v0" stroke-width="2.4" />
+        </svg>
+      </button>
+      <button
         class="titlebar-btn titlebar-pin-btn"
         :class="{ 'titlebar-pin-btn--active': props.alwaysOnTop }"
         :title="props.alwaysOnTop ? '取消置顶' : '置顶'"
@@ -58,6 +69,7 @@
           <path class="pin-shape" d="M7.5 11v3M5.7 7a1.2 1.2 0 0 1-.67 1.08l-1.07.54A1.2 1.2 0 0 0 3.3 9.6v.4a.5.5 0 0 0 .5.5h7.4a.5.5 0 0 0 .5-.5v-.4a1.2 1.2 0 0 0-.67-1.08l-1.07-.54A1.2 1.2 0 0 1 9.3 7V4.5a.5.5 0 0 1 .5-.5 1.2 1.2 0 0 0 0-2.4H5.2a1.2 1.2 0 0 0 0 2.4.5.5 0 0 1 .5.5z" />
         </svg>
       </button>
+      <span class="titlebar-group-sep" />
       <button class="titlebar-btn" title="最小化" @click="emit('minimize')">
         <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor" /></svg>
       </button>
@@ -81,6 +93,7 @@ const props = defineProps<{
   autoHide: boolean;
   alwaysOnTop: boolean;
   focusMode: boolean;
+  outlineOpen: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -90,6 +103,7 @@ const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'toggleAlwaysOnTop'): void;
   (e: 'toggleFocusMode'): void;
+  (e: 'toggleOutline'): void;
 }>();
 
 const titlebarHovered = ref(false);
@@ -295,6 +309,30 @@ onUnmounted(() => {
 
 .titlebar-focus-btn--active .eye-pupil {
   fill: currentColor;
+}
+
+/* ── 大纲按钮 ─────────────────────────────────────── */
+.titlebar-outline-btn {
+  position: relative;
+  color: var(--text-secondary);
+  transition: color 0.15s ease;
+}
+
+.titlebar-outline-btn:hover {
+  color: var(--text-color);
+}
+
+.titlebar-outline-btn--active {
+  color: var(--primary-color);
+}
+
+/* ── 视图切换组 / 窗口控制组 分隔线 ───────────────── */
+.titlebar-group-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background-color: var(--border-color);
+  flex-shrink: 0;
 }
 
 .titlebar-trigger {

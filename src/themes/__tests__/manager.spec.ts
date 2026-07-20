@@ -30,6 +30,8 @@ beforeEach(() => {
       },
       getBoundingClientRect: vi.fn(),
     },
+    // triggerContentCrossfade 在测试无 .mk-editor 时安全跳过
+    querySelector: vi.fn(() => null),
   });
   vi.stubGlobal('localStorage', {
     getItem: vi.fn(),

@@ -30,7 +30,7 @@ export interface ShortcutCommand extends CommandDefinition {
   shortcut: string;
 }
 
-const GROUP_LABELS: Record<CommandGroup, string> = {
+export const GROUP_LABELS: Record<CommandGroup, string> = {
   file: '文件',
   edit: '编辑',
   format: '格式化',

@@ -10,7 +10,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased] — 代码审查修复
+## [1.2.24] — 2026-07-20
+
+### Added
+- **统一动效语言 token**：`main.css :root` 新增 `--motion-fast: 120ms` / `--motion-base: 200ms`
+  / `--ease-out: cubic-bezier(.2,.8,.2,1)` 三个变量 + `.smooth-enter` 工具类。
+  把现有 `mk-menu` 入场、`theme-transitioning` 过渡、SettingsModal 入场动效的
+  `ease` 曲线统一替换为 `var(--ease-out)`，时长统一为 token 值。Linear / Raycast
+  丝滑的核心不是动效多，而是「一致」——同一时长、同一曲线贯穿全局。
+- **`prefers-reduced-motion` 全局关动画**：尊重用户系统偏好（WCAG 无障碍底线），
+  所有 `*` / `*::before` / `*::after` 的动画与过渡时长降到 0.01ms，scroll-behavior 改 auto。
+- **搜索命中 / 大纲跳转的 300ms 高亮脉冲**：跳转后给目标元素加 `.mk-jump-target`
+  类触发 `mk-jump-pulse` 动画（背景色淡入淡出）。UX 研究结论：跳转后明确的视觉反馈
+  比静默滚动更能让用户「知道到这儿了」。同一元素连续跳转时强制重排让动画可再次触发。
+  Helper `pulseJumpTarget` 从 `useEditorSearch.ts` 导出，`scrollToMatch` 和
+  `MarkdownEditor.scrollToPos` 共用，避免重复实现。
+- **主题 / 字体切换时编辑区内容 crossfade**：CSS 变量重绘会让内容「闪一下」。
+  新增 `triggerContentCrossfade()` helper（在 `themes/manager.ts` 导出），
+  切换瞬间给 `.mk-editor` 加 `mk-content-crossfade` 类，200ms 内 opacity 从 0.6 淡入到 1
+  （不完全消失，保留用户位置感，参考 Notion / Linear）。主题切换 (`applyTheme`) 和
+  字体切换 (`applyFontFamily`) 都调用，连续切换时强制重排让动画可再次触发。
+- **字体加载 `font-display: swap`**：`fontLoader.ts` 的 `new FontFace(family, url)`
+  加第三参数 `{ display: 'swap' }`。字体加载期间用系统同族字体先顶上，到位无感替换，
+  对应 Web Vitals 的「消灭 FOUT（字体切换闪烁）」目标。FontFace JS API 默认行为
+  接近 swap，但显式声明意图更清晰。
+
+### Changed
+- **乐观保存（Ctrl+S 立刻显示「已保存」）**：原实现等 IPC 返回才清脏标，本地写也有
+  几十毫秒延迟，状态栏会有可感知的「未保存→已保存」滞后。改为进入 `saveCurrentDocument`
+  主分支后立即 `fileStore.markSaved()`（不带 mtime 参数，不动 lastModifiedTime），
+  IPC 飞行期间若用户继续编辑 → `hasUserEdit=true` → 成功后保留脏标等下次保存、仅更新 mtime
+  防下次 conflict 误报；失败 / conflict 弹框取消时调 `fileStore.markUserEdit()` 回滚脏标
+  并还原 mtime。业界共识（Notion / Linear / Google Docs）：体感来自「开始」而非「结束」。
+
+### Tests
+- `useDocumentSession.spec.ts` 补全 fileStore mock：新增 `markUserEdit` / `hasUserEdit`
+  / `setContent`，`markSaved` mock 同步重置 `hasUserEdit`（与真实 store 行为一致），
+  `beforeEach` 重置新字段。
+- `manager.spec.ts` 补全 document mock：加 `querySelector: vi.fn(() => null)` 让
+  `triggerContentCrossfade` 在测试环境（无 `.mk-editor`）安全跳过。
+
+---
+
+## 命令面板 + 大纲面板
+
+### Added
+- **命令面板（Command Palette）**：新增 `CommandPalette.vue`，快捷键唤起全局命令面板，集中暴露
+  新建 / 打开 / 保存 / 切换主题 / 跳转设置等常用操作，减少菜单寻路成本；`CustomTitlebar.vue`
+  提供触发入口，`src/commands/registry.ts` 注册可检索命令并按分组展示。
+- **大纲面板（Outline Panel）**：新增 `OutlinePanel.vue` + `composables/useOutline.ts`，基于
+  文档标题结构实时生成大纲，支持 scroll-spy 高亮当前章节，点击跳转对应位置并复用
+  `pulseJumpTarget` 高亮脉冲给出落点反馈；默认收起，沉浸式写作时编辑区保持干净。
+
+---
+
+## 代码审查修复
 
 ### Fixed
 - **`main.rs`：EBWebView 目录启动清理恢复 staleness 守卫（>24h）**。
@@ -25,6 +79,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   相对路径解析后必须落在基目录（文档目录或 storage_dir）之内，
   防止 `../../secret.png` 越权授权文档目录之外的文件。
   绝对路径放行（solo 是本地编辑器，用户有权引用 `D:/photos/cat.png` 等外部图片）。
+- **Slash 命令菜单在中文/英文文字后不触发**。
+  TipTap Suggestion 的 `allowedPrefixes` 默认值是 `[' ']`，即只允许 `/` 出现在
+  空格或行首之后。中文没有词间空格习惯——用户在「你好」或「hello」后直接敲 `/`
+  完全无反应，菜单不弹出。`editor-extensions.ts` 里 `SlashCommands.configure`
+  显式传 `allowedPrefixes: null` 关闭前缀检查，让 `/` 在任意前缀后都能触发。
+  新增 9 个回归测试锁死该契约。
+- **Mermaid / 数学公式块无法删除**。
+  两个块都用 `isolating: true` + `contentDOM: undefined`（为了实现「点击进入
+  textarea 编辑」的交互），副作用是标准 Backspace 在块外不删块、块内 textarea
+  又是原生 DOM——整个块没有删除入口。修复：顶部加一条 header 顶栏，左侧块类型
+  标识（mermaid / math），右侧 × 删除按钮——hover 整块时按钮淡入显示，点击直接
+  删整块。textarea 内同时保留 `Mod+Backspace` 作为键盘删除快捷键。
+- **Slash / Emoji 菜单被视口边缘遮挡**。
+  原定位逻辑只算 `rect.bottom + 4, rect.left`，光标在编辑器下方或右边缘时菜单
+  会超出视口。抽出 `computeMenuPosition(rect, viewport)` 纯函数做边界检测：
+  下方放不下且上方放得下 → 翻转到光标上方；上下都放不下 → 钉视口顶部靠菜单
+  自身 scroll；右侧超出 → 向左收缩；左侧超出 → 钉视口左边。SlashMenu /
+  EmojiMenu 共用同一函数。新增 7 个单测覆盖各边界场景。
 
 ### Changed
 - **`events.ts`：拖拽广播加 try/catch + Set 迭代复制**。

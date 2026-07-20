@@ -93,11 +93,39 @@ export const MermaidBlock = Node.create({
       const dom = document.createElement('div');
       dom.className = 'mk-mermaid-block';
 
-      // 头部标识
+      // 统一管理事件监听器，destroy 时一次性清理（声明在前，下方监听器可立即引用）
+      const eventController = new AbortController();
+
+      // 头部顶栏：左侧 mermaid 标识，右侧删除按钮
+      const header = document.createElement('div');
+      header.className = 'mk-mermaid-header';
+      dom.appendChild(header);
+
       const badge = document.createElement('div');
       badge.className = 'mk-mermaid-badge';
       badge.textContent = 'mermaid';
-      dom.appendChild(badge);
+      header.appendChild(badge);
+
+      // 删除按钮：hover 整块时显示，点击删整块
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'mk-block-delete-button';
+      deleteButton.title = '删除此块';
+      deleteButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      header.appendChild(deleteButton);
+
+      deleteButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof getPos === 'function') {
+          const pos = getPos();
+          if (pos != null) {
+            const tr = editor.view.state.tr.delete(pos, pos + node.nodeSize);
+            editor.view.dispatch(tr);
+            editor.commands.focus();
+          }
+        }
+      }, { signal: eventController.signal });
 
       // 渲染区域
       const renderDiv = document.createElement('div');
@@ -118,8 +146,6 @@ export const MermaidBlock = Node.create({
       let isEditing = false;
       let renderVersion = 0;
       let destroyed = false;
-      // 统一管理事件监听器，destroy 时一次性清理
-      const eventController = new AbortController();
 
       async function renderMermaid(source: string) {
         const version = ++renderVersion;
@@ -155,7 +181,7 @@ export const MermaidBlock = Node.create({
         isEditing = true;
         textarea.value = node.textContent;
         renderDiv.style.display = 'none';
-        badge.style.display = 'none';
+        header.style.display = 'none';
         editDiv.style.display = 'block';
         textarea.focus();
       }
@@ -166,7 +192,7 @@ export const MermaidBlock = Node.create({
         const newSource = textarea.value;
         editDiv.style.display = 'none';
         renderDiv.style.display = 'block';
-        badge.style.display = 'block';
+        header.style.display = 'flex';
 
         if (typeof getPos === 'function') {
           const pos = getPos();
@@ -209,6 +235,22 @@ export const MermaidBlock = Node.create({
           e.preventDefault();
           exitEdit();
           editor.commands.focus();
+          return;
+        }
+        // Mod+Backspace 删除整个 mermaid 块。
+        // 背景：本节点 isolating:true + contentDOM:undefined，标准 Backspace
+        // 在块外不会删块、块内 textarea 又是原生 DOM，没有删除入口——
+        // 用 Mod+Backspace 作为显式删除快捷键。
+        if ((e.metaKey || e.ctrlKey) && e.key === 'Backspace') {
+          e.preventDefault();
+          if (typeof getPos === 'function') {
+            const pos = getPos();
+            if (pos != null) {
+              const tr = editor.view.state.tr.delete(pos, pos + node.nodeSize);
+              editor.view.dispatch(tr);
+              editor.commands.focus();
+            }
+          }
         }
       }, { signal: eventController.signal });
 

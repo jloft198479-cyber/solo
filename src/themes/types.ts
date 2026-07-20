@@ -113,6 +113,8 @@ export interface ThemeColors {
   calloutExampleBg: string;
   /** 高亮标记背景色 */
   markBg: string;
+  /** 信号色 — 用于链接悬停、焦点环、活动指示（可选，缺省回退全局默认） */
+  accentColor?: string;
 }
 
 /** Theme typography (optional, overrides editor defaults) */
@@ -270,6 +272,7 @@ export const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
   calloutExample: '--callout-example',
   calloutExampleBg: '--callout-example-bg',
   markBg: '--mark-bg',
+  accentColor: '--accent-color',
 };
 
 
