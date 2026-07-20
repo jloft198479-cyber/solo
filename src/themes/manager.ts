@@ -131,7 +131,8 @@ function persistThemeColors(colors: ThemeColors, appearance: ThemeAppearance) {
   try {
     const vars: Record<string, string> = {};
     for (const [key, cssVar] of Object.entries(CSS_VAR_MAP)) {
-      vars[cssVar] = colors[key as keyof ThemeColors];
+      const value = colors[key as keyof ThemeColors];
+      if (value) vars[cssVar] = value;
     }
     localStorage.setItem(
       THEME_PAINT_KEY,
@@ -151,9 +152,34 @@ export function applyTheme(theme: Theme) {
   injectTypography(theme.typography);
   void syncNativeWindowTheme(theme.appearance);
   void syncNativeWindowBackground(theme.colors.bgColor);
+  // 编辑区内容 crossfade：灭「内容闪一下」的体感（与 theme-transitioning 协同）
+  triggerContentCrossfade();
   setTimeout(() => {
     document.documentElement.classList.remove('theme-transitioning');
   }, 300);
+}
+
+/**
+ * 给编辑区 .mk-editor 加一次 200ms 透明度淡入。
+ * 主题 / 字体切换时调用：CSS 变量重绘会让内容闪一下，crossfade 抹平这个闪烁感。
+ * 容器不存在时安全跳过。
+ */
+let _crossfadeTimer: ReturnType<typeof setTimeout> | null = null;
+export function triggerContentCrossfade() {
+  const el = document.querySelector('.mk-editor');
+  if (!el) return;
+  if (_crossfadeTimer) {
+    clearTimeout(_crossfadeTimer);
+    _crossfadeTimer = null;
+  }
+  // 强制重排让动画能再次触发（连续切换主题的情况）
+  el.classList.remove('mk-content-crossfade');
+  void (el as HTMLElement).offsetWidth;
+  el.classList.add('mk-content-crossfade');
+  _crossfadeTimer = setTimeout(() => {
+    el.classList.remove('mk-content-crossfade');
+    _crossfadeTimer = null;
+  }, 220);
 }
 
 export function getPresetTheme(id: string): Theme | undefined {

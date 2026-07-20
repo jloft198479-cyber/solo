@@ -53,6 +53,59 @@ export interface EmojiMenuController {
   onKeyDown: (event: KeyboardEvent) => boolean;
 }
 
+// ── 浮动菜单定位 ───────────────────────────────────────────────
+//
+// 菜单定位的边界检测：原先直接用 `rect.bottom + 4, rect.left` 放置菜单，
+// 当光标在编辑器下方或右边缘时，菜单会被视口边缘遮挡。
+// 现在改为：
+//  - 下方放得下就放下方（默认）；放不下且上方放得下 → 翻转到上方
+//  - 上方也放不下（菜单比视口还高）→ 钉在视口顶部，靠 scroll 滚动
+//  - 右侧超出 → 向左收缩；左侧超出 → 钉在视口左边
+//
+// 抽成纯函数便于单测覆盖「下方遮挡 / 上方翻转 / 右侧遮挡 / 极端小视口」等场景。
+//
+// 估算尺寸来源：CSS .mk-slash-menu-scroll { max-height: 320px }，
+// 加 padding + border ≈ 340。EmojiMenu 尺寸略小但用同值偏差可接受。
+const MENU_MAX_HEIGHT = 340;
+const MENU_MIN_WIDTH = 240;
+const VIEWPORT_MARGIN = 8;
+
+export function computeMenuPosition(
+  rect: { top: number; bottom: number; left: number },
+  viewport: { width: number; height: number } = {
+    width: typeof window !== 'undefined' ? window.innerWidth : 1024,
+    height: typeof window !== 'undefined' ? window.innerHeight : 768,
+  },
+): { top: number; left: number } {
+  const { width: vw, height: vh } = viewport;
+  const belowTop = rect.bottom + 4;
+  const aboveTop = rect.top - MENU_MAX_HEIGHT - 4;
+
+  let top: number;
+  const fitsBelow = belowTop + MENU_MAX_HEIGHT <= vh - VIEWPORT_MARGIN;
+  const fitsAbove = aboveTop >= VIEWPORT_MARGIN;
+
+  if (fitsBelow) {
+    top = belowTop;
+  } else if (fitsAbove) {
+    // 下方放不下、上方放得下 → 翻转
+    top = aboveTop;
+  } else {
+    // 上下都放不下（菜单比视口高）→ 钉在视口顶部，靠菜单自身 scroll
+    top = VIEWPORT_MARGIN;
+  }
+
+  let left = rect.left;
+  if (left + MENU_MIN_WIDTH > vw - VIEWPORT_MARGIN) {
+    left = vw - MENU_MIN_WIDTH - VIEWPORT_MARGIN;
+  }
+  if (left < VIEWPORT_MARGIN) {
+    left = VIEWPORT_MARGIN;
+  }
+
+  return { top, left };
+}
+
 interface EditorExtensionOptions {
   slashMenuRef: Ref<SlashMenuController | null>;
   slashMenuItems: Ref<SlashCommandItem[]>;
@@ -99,7 +152,7 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     TaskList,
     TaskItem.configure({ nested: true }),
     Placeholder.configure({
-      placeholder: '开始写作...',
+      placeholder: '开始写作… 输入 / 唤起命令',
     }),
     MathBlock,
     MathInline,
@@ -116,6 +169,10 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
       suggestion: {
         char: '/',
         startOfLine: false,
+        // 允许 / 在任意前缀后触发：中文没有词间空格习惯，用户在「你好/」
+        // 或「hello/」后敲 / 也应唤出菜单。Suggestion 默认 allowedPrefixes=[' ']
+        // 会过滤掉所有「非空格、非行首」的前缀，对中文场景致命。
+        allowedPrefixes: null,
         items: ({ query }: { query: string }) => {
           const q = query.toLowerCase();
           return slashCommandItems.filter(
@@ -128,13 +185,13 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
             slashMenuItems.value = props.items;
             slashMenuCommand.value = props.command;
             const rect = props.clientRect?.();
-            if (rect) slashMenuRef.value?.show({ top: rect.bottom + 4, left: rect.left });
+            if (rect) slashMenuRef.value?.show(computeMenuPosition(rect));
           },
           onUpdate: (props: SlashCommandSuggestionProps) => {
             slashMenuItems.value = props.items;
             slashMenuCommand.value = props.command;
             const rect = props.clientRect?.();
-            if (rect) slashMenuRef.value?.show({ top: rect.bottom + 4, left: rect.left });
+            if (rect) slashMenuRef.value?.show(computeMenuPosition(rect));
           },
           onKeyDown: (props: SuggestionKeyDownProps) => {
             const { event } = props;
@@ -173,13 +230,13 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
             emojiMenuItems.value = props.items;
             emojiMenuCommand.value = props.command;
             const rect = props.clientRect?.();
-            if (rect) emojiMenuRef.value?.show({ top: rect.bottom + 4, left: rect.left });
+            if (rect) emojiMenuRef.value?.show(computeMenuPosition(rect));
           },
           onUpdate: (props: EmojiSuggestSuggestionProps) => {
             emojiMenuItems.value = props.items;
             emojiMenuCommand.value = props.command;
             const rect = props.clientRect?.();
-            if (rect) emojiMenuRef.value?.show({ top: rect.bottom + 4, left: rect.left });
+            if (rect) emojiMenuRef.value?.show(computeMenuPosition(rect));
           },
           onKeyDown: (props: SuggestionKeyDownProps) => {
             const { event } = props;

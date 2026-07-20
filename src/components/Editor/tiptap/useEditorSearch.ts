@@ -7,6 +7,32 @@ interface SearchMatch {
   to: number;
 }
 
+/**
+ * 跳转命中后给目标元素加一次 300ms 高亮脉冲。
+ * 视觉反馈比静默滚动更明确——UX 研究结论。
+ * 元素不存在或已在动画中时安全跳过，不抛错。
+ */
+const PULSE_CLASS = 'mk-jump-target';
+let pulseTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function pulseJumpTarget(el: HTMLElement | null | undefined) {
+  if (!el) return;
+  // 清掉上一次未结束的脉冲（连续跳转时）
+  if (pulseTimer) {
+    clearTimeout(pulseTimer);
+    const prev = document.querySelector('.' + PULSE_CLASS);
+    prev?.classList.remove(PULSE_CLASS);
+  }
+  // 强制重排让动画能再次触发（同一元素连续跳转的情况）
+  el.classList.remove(PULSE_CLASS);
+  void el.offsetWidth;
+  el.classList.add(PULSE_CLASS);
+  pulseTimer = setTimeout(() => {
+    el.classList.remove(PULSE_CLASS);
+    pulseTimer = null;
+  }, 320);
+}
+
 export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
   const isSearchVisible = ref(false);
   const searchMatchCount = ref(0);
@@ -50,6 +76,7 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     const dom = editor.value.view.domAtPos(match.from);
     const el = dom.node instanceof HTMLElement ? dom.node : dom.node.parentElement;
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    pulseJumpTarget(el);
   }
 
   function onSearchQuery(query: string) {

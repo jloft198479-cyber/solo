@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, type Ref, watch } from 'vue';
 import { useSettingsStore } from '../../../stores/settings';
 import { buildFontStack } from '../../../utils/fontStack';
 import { ensureFontLoaded } from '../../../services/fontLoader';
+import { triggerContentCrossfade } from '../../../themes/manager';
 import { reinitializeMermaidTheme } from './extensions/mermaid-block';
 import { refreshParagraphFocus } from './extensions/paragraph-focus';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
@@ -32,6 +33,8 @@ function applyFontFamily(fontFamily: string) {
   document.documentElement.style.setProperty('--font-text', buildFontStack(fontFamily));
   // 按需加载字体（非阻塞，加载完成后浏览器自动重绘）
   ensureFontLoaded(fontFamily);
+  // 字体切换 crossfade：抹平字体到位时的「内容闪一下」
+  triggerContentCrossfade();
 }
 
 export function useEditorAppearance(editorRef?: Ref<TiptapEditor | null>) {

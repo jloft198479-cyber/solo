@@ -15,7 +15,10 @@ import ImageFullscreenOverlay from './components/Editor/ImageFullscreenOverlay.v
 import ImagePreviewView from './components/Editor/ImagePreviewView.vue';
 import SettingsModal from './components/Settings/SettingsModal.vue';
 import StatusbarQuickActions from './components/StatusbarQuickActions.vue';
+import OutlinePanel from './components/Editor/OutlinePanel.vue';
+import CommandPalette from './components/CommandPalette.vue';
 import WindowResizeHandles from './components/Layout/WindowResizeHandles.vue';
+import { useOutline } from './composables/useOutline';
 import { useFileStore } from './stores/file';
 import { useSettingsStore } from './stores/settings';
 import { invoke } from '@tauri-apps/api/core';
@@ -32,6 +35,12 @@ const settingsStore = useSettingsStore();
 const { settings, isLoaded } = storeToRefs(settingsStore);
 const appVersion = pkg.version;
 const { editorRef, stats, handleEditorUpdate } = useAppEditorState();
+const { isOpen: outlineOpen, toggle: toggleOutline, close: closeOutline } = useOutline();
+
+const paletteOpen = ref(false);
+function togglePalette() {
+  paletteOpen.value = !paletteOpen.value;
+}
 
 const showAboutModal = ref(false);
 
@@ -69,10 +78,23 @@ const { autoSaveStatus, externalFileWarning } = documentSession;
 
 const focusModeNotice = ref<{ message: string; timestamp: number } | null>(null);
 const _focusNoticeTimer = ref<ReturnType<typeof setTimeout> | null>(null);
-onUnmounted(() => { if (_focusNoticeTimer.value) clearTimeout(_focusNoticeTimer.value); });
+// 进入焦点模式的引导提示：淡入后 3.5s 自动消失
+const focusEnterNotice = ref(false);
+const _focusEnterTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+onUnmounted(() => {
+  if (_focusNoticeTimer.value) clearTimeout(_focusNoticeTimer.value);
+  if (_focusEnterTimer.value) clearTimeout(_focusEnterTimer.value);
+});
 watch(() => settingsStore.isFocusMode, (active) => {
   if (_focusNoticeTimer.value) clearTimeout(_focusNoticeTimer.value);
-  if (!active) {
+  if (_focusEnterTimer.value) clearTimeout(_focusEnterTimer.value);
+  if (active) {
+    focusEnterNotice.value = true;
+    _focusEnterTimer.value = setTimeout(() => {
+      _focusEnterTimer.value = null;
+      focusEnterNotice.value = false;
+    }, 3500);
+  } else {
     const msg = { message: '已退出焦点模式', timestamp: Date.now() };
     focusModeNotice.value = msg;
     _focusNoticeTimer.value = setTimeout(() => {
@@ -165,6 +187,8 @@ useAppDomEvents({
     isFullscreenPreview.value = false;
   },
   toggleFocusMode: () => settingsStore.toggleFocusMode(),
+  toggleOutline: toggleOutline,
+  toggleCommandPalette: togglePalette,
   showImagePasteWarning: (msg) => message(msg, { title: '粘贴图片', kind: 'warning' }),
   resetViewMode: resetToEditor,
 });
@@ -250,10 +274,17 @@ onUnmounted(() => {
       @close="handleClose"
       @toggle-always-on-top="settingsStore.toggleAlwaysOnTop()"
       @toggle-focus-mode="settingsStore.toggleFocusMode()"
+      @toggle-outline="toggleOutline"
+      :outline-open="outlineOpen"
     />
 
-    <main class="flex-1 relative overflow-hidden select-text">
-      <ErrorBoundary>
+    <main class="flex-1 relative overflow-hidden select-text flex">
+      <!-- 焦点模式进入引导：移动到顶部退出聚焦 -->
+      <Transition name="focus-hint">
+        <div v-if="focusEnterNotice" class="focus-enter-hint">移到顶部退出聚焦</div>
+      </Transition>
+
+      <ErrorBoundary class="editor-area">
         <MarkdownEditor
           v-if="activeViewMode === 'editor'"
           ref="editorRef"
@@ -268,6 +299,13 @@ onUnmounted(() => {
           @open-fullscreen="isFullscreenPreview = true"
         />
       </ErrorBoundary>
+
+      <OutlinePanel
+        :is-open="outlineOpen"
+        :items="stats.outline"
+        :editor-ref="editorRef"
+        @close="closeOutline"
+      />
     </main>
 
     <!-- 极简状态栏 -->
@@ -346,6 +384,14 @@ onUnmounted(() => {
         </div>
       </Transition>
     </Teleport>
+
+    <!-- 命令面板：Ctrl+K 唤起 -->
+    <CommandPalette
+      :open="paletteOpen"
+      :execute-command="(id) => executeCommand(id, 'palette')"
+      :custom-shortcuts="settings.customShortcuts"
+      @close="paletteOpen = false"
+    />
   </div>
 </template>
 
@@ -353,6 +399,46 @@ onUnmounted(() => {
 .app-root {
   background-color: var(--bg-color);
   color: var(--text-color);
+}
+
+/* ── 编辑区：横向 flex 中占满剩余宽度，outline 展开时让位（push） ── */
+.editor-area {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 焦点模式进入引导提示 ──────────────────────────────── */
+.focus-enter-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 400;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--popover-bg);
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.focus-hint-enter-active,
+.focus-hint-leave-active {
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.focus-hint-enter-from,
+.focus-hint-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-6px);
 }
 
 /* ── 极简状态栏 ──────────────────────────────────────────────
@@ -368,13 +454,13 @@ onUnmounted(() => {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
-  opacity: 0.55;
+  opacity: 0.9;
   transition: opacity 0.25s ease;
   user-select: none;
 }
 
 .minimal-statusbar:hover {
-  opacity: 0.78;
+  opacity: 1;
 }
 
 .statusbar-left,

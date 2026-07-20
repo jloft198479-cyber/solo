@@ -88,7 +88,7 @@ function selectFont(value: string) {
               <template v-else-if="fontFailed[opt.value]">
                 <span class="font-dl-badge font-dl-badge--fail">下载失败</span>
               </template>
-              <template v-else-if="opt.downloadUrl && !fontStatus[opt.value]">
+              <template v-else-if="opt.fileName && !fontStatus[opt.value]">
                 <span class="font-dl-badge">需下载</span>
               </template>
             </span>

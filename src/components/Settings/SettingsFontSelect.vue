@@ -41,7 +41,7 @@ async function onSelect(value: string) {
         <option v-for="opt in fontOptions" :key="opt.value" :value="opt.value">
           {{ opt.label }}
           <template v-if="fontStatus[opt.value] === 'loading'">（下载中 {{ progressPct[opt.value] ?? 0 }}%）</template>
-          <template v-else-if="opt.downloadUrl && fontStatus[opt.value] === false">（需下载）</template>
+          <template v-else-if="opt.fileName && fontStatus[opt.value] === false">（需下载）</template>
         </option>
       </select>
       <div

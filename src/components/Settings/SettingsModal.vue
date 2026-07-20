@@ -202,14 +202,14 @@ function onKeyDown(e: KeyboardEvent) {
 <style scoped>
 .modal-enter-active,
 .modal-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--motion-base) var(--ease-out);
 }
 
 .modal-enter-active > div,
 .modal-leave-active > div {
   transition:
-    transform 0.2s ease,
-    opacity 0.2s ease;
+    transform var(--motion-base) var(--ease-out),
+    opacity var(--motion-base) var(--ease-out);
 }
 
 .modal-enter-from,

@@ -1,6 +1,7 @@
 import type { Ref } from 'vue';
 import { onMounted, onUnmounted } from 'vue';
 import type { CommandDefinition } from '../commands/registry';
+import { eventToKeyString } from '../commands/registry';
 
 export interface AppDomEventsOptions {
   activeViewMode: Ref<'editor' | 'image'>;
@@ -14,6 +15,8 @@ export interface AppDomEventsOptions {
   executeCommand: (commandId: string, source: 'shortcut') => Promise<boolean>;
   clearFullscreenPreview: () => void;
   toggleFocusMode: () => void | Promise<void>;
+  toggleOutline: () => void;
+  toggleCommandPalette: () => void;
   showImagePasteWarning: (message: string) => void;
   resetViewMode?: () => void;
 }
@@ -44,6 +47,20 @@ export function useAppDomEvents(options: AppDomEventsOptions) {
   async function handleKeyDown(event: KeyboardEvent) {
     const target = event.target as HTMLElement | null;
     if (target?.closest('[data-shortcut-capture="true"]')) {
+      return;
+    }
+
+    // 大纲开合：Ctrl+/（Mod-/）。独立于命令注册表，固定快捷键。
+    if (eventToKeyString(event) === 'Mod-/') {
+      event.preventDefault();
+      options.toggleOutline();
+      return;
+    }
+
+    // 命令面板唤起：Ctrl+K（Mod-k）。固定快捷键。
+    if (eventToKeyString(event) === 'Mod-k') {
+      event.preventDefault();
+      options.toggleCommandPalette();
       return;
     }
 
