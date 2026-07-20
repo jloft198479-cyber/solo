@@ -377,6 +377,7 @@ inline:
 
 | 版本 | 主要变更 |
 |------|----------|
+| 1.2.24 | **命令面板 + 大纲面板 + 体感丝滑优化 + 代码审查修复**：全局命令面板（CommandPalette）集中暴露新建/打开/保存/切换主题等常用操作；大纲面板（OutlinePanel）基于标题结构实时导航 + scroll-spy 高亮；统一动效 token（`--motion-fast/base` + `--ease-out`）让全局过渡一致；乐观保存 Ctrl+S 即时反馈；搜索/跳转 300ms 高亮脉冲；主题/字体切换 crossfade；`prefers-reduced-motion` 无障碍关动画；font-display swap 抗 FOUT。修复 Slash 中文触发、mermaid/数学块删除入口、菜单视口边界、图片路径 containment 校验、双开 EBWebView 清理守卫。992 tests all green。 |
 | 1.2.23 | **粘贴来源自动嗅探 + 更新进度可视化 + hasImage+HTML 防重复**。 |
 | 1.2.22 | **格式兼容性修复** — turndown HTML 粘贴 + 代码块保护 + CRLF frontmatter + callout 保留 + 图片不吞文字 + 粘贴门槛拓宽 + 复制按钮增强。 |
 | 1.2.21 | 版本号同步（无功能变更）。 |
