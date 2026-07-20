@@ -38,9 +38,16 @@ export async function subscribeDragDrop(handler: DragDropHandler): Promise<Unlis
           paths: event.payload.paths,
           position: event.payload.position,
         };
-        // 广播给所有订阅者，由各自内部判断是否处理
-        for (const h of activeDragDropHandlers) {
-          h(payload);
+        // 复制成数组再遍历：避免某个 handler 在回调里 unsubscribe 另一个 handler，
+        // 导致 Set 迭代过程中跳过元素。
+        // 每个 handler 单独 try/catch：单个订阅者抛错不影响其他订阅者收到事件
+        // （遵循架构原则「一处崩溃不影响全局」）。
+        for (const h of [...activeDragDropHandlers]) {
+          try {
+            h(payload);
+          } catch {
+            // 单个 handler 失败不阻断后续广播；错误由 handler 自身负责处理
+          }
         }
       }
     });

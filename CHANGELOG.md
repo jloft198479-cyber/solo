@@ -10,6 +10,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased] — 代码审查修复
+
+### Fixed
+- **`main.rs`：EBWebView 目录启动清理恢复 staleness 守卫（>24h）**。
+  原实现无条件删除所有 `EBWebView-*` 目录，用户双开 solo（两个独立进程）时
+  新进程会删掉老进程正在使用的 WebView2 数据目录，导致老进程崩溃。
+  改为只删除 24 小时前的残留；拿不到修改时间的目录保守跳过。
+- **`resolve_image_display`：恢复 `assets/` 相对引用走文档目录的守卫**。
+  原实现只要 `storage_dir` 有值就优先 join，导致设了全局 `imageStoragePath` 后
+  `![x](assets/diagram.png)` 被错误解析到 `storagePath/assets/diagram.png`。
+  守卫规则集中在 Rust 侧（前端不重复实现），新增 5 个单元测试覆盖路径判别不变量。
+- **`resolve_image_display`：补 containment 校验**。
+  相对路径解析后必须落在基目录（文档目录或 storage_dir）之内，
+  防止 `../../secret.png` 越权授权文档目录之外的文件。
+  绝对路径放行（solo 是本地编辑器，用户有权引用 `D:/photos/cat.png` 等外部图片）。
+
+### Changed
+- **`events.ts`：拖拽广播加 try/catch + Set 迭代复制**。
+  单个 handler 抛错不再阻断后续 handler 收到事件（遵循「一处崩溃不影响全局」原则）；
+  迭代时复制成数组，规避 handler 在回调里 unsubscribe 其他 handler 导致 Set 跳过元素的边缘情况。
+  新增 2 个测试用例覆盖以上不变量。
+
+---
+
 ## [1.2.23] — 2026-07-19
 
 ### Added
