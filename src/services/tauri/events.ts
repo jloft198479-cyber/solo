@@ -21,31 +21,33 @@ interface DragDropPayload {
 type DragDropHandler = (payload: DragDropPayload) => void | Promise<void>;
 
 let sharedUnlisten: Promise<UnlistenFn> | null = null;
-let activeDragDropHandler: DragDropHandler | null = null;
+const activeDragDropHandlers = new Set<DragDropHandler>();
 
 /**
  * 全局只注册一次原生拖拽监听。
- * 同时只保留一个活跃 handler（当前聚焦窗口的编辑器）。
- * 返回 unlisten 函数，调用后清除当前 handler（不影响原生监听）。
+ * 支持多 handler 同时订阅（如编辑器图片拖入 + 窗口 .md 文件打开），
+ * 事件广播给所有注册的 handler，由各自内部判断是否处理。
+ * 返回 unlisten 函数，调用后从 handler 集合中移除（不影响原生监听）。
  */
 export async function subscribeDragDrop(handler: DragDropHandler): Promise<UnlistenFn> {
   if (!sharedUnlisten) {
     sharedUnlisten = getCurrentWindow().onDragDropEvent((event) => {
-      if (event.payload.type === 'drop' && activeDragDropHandler) {
+      if (event.payload.type === 'drop' && activeDragDropHandlers.size > 0) {
         const payload: DragDropPayload = {
           type: 'drop',
           paths: event.payload.paths,
           position: event.payload.position,
         };
-        activeDragDropHandler(payload);
+        // 广播给所有订阅者，由各自内部判断是否处理
+        for (const h of activeDragDropHandlers) {
+          h(payload);
+        }
       }
     });
   }
-  activeDragDropHandler = handler;
+  activeDragDropHandlers.add(handler);
   return () => {
-    if (activeDragDropHandler === handler) {
-      activeDragDropHandler = null;
-    }
+    activeDragDropHandlers.delete(handler);
   };
 }
 

@@ -62,8 +62,8 @@
   --mk-heading-gutter-width: 1.9rem;
   --mk-heading-gutter-gap: 0.25rem;
 
-  /* Windows 专用：提示 IME 保持内嵌候选模式而非浮动窗口 */
-  ime-mode: active;
+  /* 移除 `ime-mode: active`：该属性为 IE 遗留，在 Win11 + WebView2 下会导致 IME
+     候选窗口(随身栏)渲染成小箭头。现代微软拼音原生处理组字，无需此提示。 */
 
   outline: none;
   font-family: var(--font-text);

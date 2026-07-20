@@ -104,7 +104,7 @@ import { setupEditorImageDrop } from './tiptap/editor-image-drop';
 import { resetLocalSrcResolver, setLocalSrcResolver } from './tiptap/extensions/image';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch } from './tiptap/useEditorSearch';
-import { authorizeImageAsset } from '../../services/tauri/document';
+import { resolveImageDisplay } from '../../services/tauri/document';
 import { toAssetUrl } from '../../services/tauri/asset';
 import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
 import BubbleMenuComponent from './views/BubbleMenu.vue';
@@ -427,13 +427,8 @@ onMounted(async () => {
     const storagePath = settingsStore.settings.imageStoragePath;
     const docPath = fileStore.currentFile.path;
     try {
-      if (storagePath && !src.startsWith('assets/')) {
-        const authorized = await authorizeImageAsset(storagePath.replace(/\\/g, '/') + '/' + src);
-        return toAssetUrl(authorized.path);
-      }
-      if (!docPath) return null;
-      const authorized = await authorizeImageAsset(src, docPath);
-      return toAssetUrl(authorized.path);
+      const resolved = await resolveImageDisplay(src, docPath, storagePath);
+      return toAssetUrl(resolved.path);
     } catch {
       return null;
     }

@@ -70,6 +70,23 @@ export async function authorizeImageAsset(path: string, documentPath?: string) {
   });
 }
 
+/**
+ * 合并版本：传入 src（相对/绝对/storage 下文件名）+ 可选 documentPath / storageDir，
+ * Rust 侧统一判别路径 + authorize，返回 canonical path。
+ * 前端再调 `toAssetUrl()` 转为 `asset://` URL。
+ */
+export async function resolveImageDisplay(
+  src: string,
+  documentPath?: string | null,
+  storageDir?: string | null,
+) {
+  return invokeCommand<ImageAssetAuthorizationResult>(TAURI_COMMANDS.resolveImageDisplay, {
+    src,
+    documentPath: documentPath ?? null,
+    storageDir: storageDir ?? null,
+  });
+}
+
 export async function fetchRemoteImageData(url: string) {
   return invokeCommand<string>(TAURI_COMMANDS.fetchRemoteImage, { url });
 }

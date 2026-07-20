@@ -280,6 +280,38 @@ pub fn authorize_image_asset(
     })
 }
 
+/// 合并路径判别 + authorize + 返回 canonical path。
+/// 与 `authorize_image_asset` 的区别：调用方传 `src`（可能是相对路径/绝对路径/storage 目录下文件名）
+/// 和可选的 `document_path` / `storage_dir`，由 Rust 侧统一判别，简化前端调用。
+#[tauri::command]
+pub fn resolve_image_display(
+    app: AppHandle,
+    src: String,
+    document_path: Option<String>,
+    storage_dir: Option<String>,
+) -> Result<ImageAssetAuthorizationResult, AppError> {
+    let resolved = if let Some(ref dir) = storage_dir {
+        // storage 模式：src 是相对 storage_dir 的文件名
+        Path::new(dir).join(&src)
+    } else if let Some(ref doc_path) = document_path {
+        // 相对文档目录
+        let doc_dir = Path::new(doc_path)
+            .parent()
+            .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
+        doc_dir.join(&src)
+    } else {
+        // 绝对路径
+        PathBuf::from(&src)
+    };
+
+    let canonical_path = validate_image_asset_path(&resolved)?;
+    app.asset_protocol_scope().allow_file(&canonical_path)?;
+
+    Ok(ImageAssetAuthorizationResult {
+        path: canonical_path.to_string_lossy().to_string(),
+    })
+}
+
 /// 如果路径是符号链接，解析到真实路径
 fn resolve_symlink(path: &Path) -> PathBuf {
     match fs::symlink_metadata(path) {
