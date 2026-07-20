@@ -15,7 +15,7 @@
 solo = 本地优先的桌面 Markdown 编辑器（Tauri 2 + Rust 原生核心 + Vue 3 + TipTap/ProseMirror）。
 不是笔记软件、不是知识库、不是平台。面向中文沉浸式写作。
 
-- 当前版本：**v1.2.23**（以 [package.json](./package.json) 为准）
+- 当前版本：**v1.2.24**（以 [package.json](./package.json) 为准）
 - 许可证：Apache-2.0
 - 仓库：`https://github.com/jloft198479-cyber/solo`
 
