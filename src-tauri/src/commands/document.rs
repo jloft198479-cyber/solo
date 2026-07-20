@@ -283,6 +283,16 @@ pub fn authorize_image_asset(
 /// 合并路径判别 + authorize + 返回 canonical path。
 /// 与 `authorize_image_asset` 的区别：调用方传 `src`（可能是相对路径/绝对路径/storage 目录下文件名）
 /// 和可选的 `document_path` / `storage_dir`，由 Rust 侧统一判别，简化前端调用。
+///
+/// 路径解析规则（「真理源」集中在 Rust 侧，前端不重复实现）：
+/// 1. `src` 是绝对路径 → 直接用（用户自己负责），仅做扩展名校验
+/// 2. `src` 以 `assets/` 开头 → 强制走文档目录（即使设了 storage_dir 也不抢）
+///    这是为了兼容「文档自带 assets/ 相对引用」的常见写法，否则设了全局
+///    imageStoragePath 后 `![x](assets/diagram.png)` 会被错误解析到
+///    storagePath/assets/diagram.png——这是真实回归。
+/// 3. 否则若有 storage_dir → join 到 storage_dir
+/// 4. 否则若有 document_path → join 到文档目录
+/// 5. 都没有 → 当作绝对路径
 #[tauri::command]
 pub fn resolve_image_display(
     app: AppHandle,
@@ -290,26 +300,71 @@ pub fn resolve_image_display(
     document_path: Option<String>,
     storage_dir: Option<String>,
 ) -> Result<ImageAssetAuthorizationResult, AppError> {
-    let resolved = if let Some(ref dir) = storage_dir {
-        // storage 模式：src 是相对 storage_dir 的文件名
-        Path::new(dir).join(&src)
-    } else if let Some(ref doc_path) = document_path {
-        // 相对文档目录
-        let doc_dir = Path::new(doc_path)
-            .parent()
-            .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
-        doc_dir.join(&src)
-    } else {
-        // 绝对路径
-        PathBuf::from(&src)
-    };
+    let (resolved, is_absolute, base_dir) =
+        resolve_image_src(&src, document_path.as_deref(), storage_dir.as_deref())?;
 
     let canonical_path = validate_image_asset_path(&resolved)?;
+
+    // 相对路径必须落在基目录之内（防 ../../secret.png 越权）
+    // 绝对路径放行——solo 是本地编辑器，用户有权引用 D:/photos/cat.png 这类外部图片
+    if !is_absolute {
+        if let Some(ref base) = base_dir {
+            let base_canonical = base.canonicalize().ok();
+            if let Some(ref base_canonical) = base_canonical {
+                if !canonical_path.starts_with(base_canonical) {
+                    return Err(AppError::validation("图片路径越权：不允许引用文档目录之外的相对路径"));
+                }
+            }
+        }
+    }
+
     app.asset_protocol_scope().allow_file(&canonical_path)?;
 
     Ok(ImageAssetAuthorizationResult {
         path: canonical_path.to_string_lossy().to_string(),
     })
+}
+
+/// 把 `src`（相对路径 / 绝对路径 / storage 目录下文件名）解析成实际要访问的路径。
+/// 返回 `(resolved_path, is_absolute, base_dir)`，供 `resolve_image_display` 做守卫校验。
+/// 抽成纯函数便于单测覆盖「assets/ 守卫」「storage 优先级」等规则。
+fn resolve_image_src(
+    src: &str,
+    document_path: Option<&str>,
+    storage_dir: Option<&str>,
+) -> Result<(PathBuf, bool, Option<PathBuf>), AppError> {
+    let src_path = Path::new(src);
+    let is_absolute = src_path.is_absolute();
+    let is_assets_relative = !is_absolute
+        && src_path
+            .components()
+            .next()
+            .and_then(|c| c.as_os_str().to_str())
+            .map(|first| first == "assets")
+            .unwrap_or(false);
+
+    // 基目录：assets/ 相对引用强制走文档目录；其他情况按 storage > doc > 无 的优先级
+    let base_dir: Option<PathBuf> = if is_assets_relative {
+        document_path
+            .and_then(|p| Path::new(p).parent().map(Path::to_path_buf))
+    } else if storage_dir.is_some() {
+        storage_dir.map(PathBuf::from)
+    } else {
+        document_path
+            .and_then(|p| Path::new(p).parent().map(Path::to_path_buf))
+    };
+
+    // 相对路径必须有基目录；绝对路径直接用
+    let resolved = if is_absolute {
+        PathBuf::from(src)
+    } else {
+        let base = base_dir
+            .as_ref()
+            .ok_or_else(|| AppError::validation("无法解析图片路径：缺少文档目录"))?;
+        base.join(src)
+    };
+
+    Ok((resolved, is_absolute, base_dir))
 }
 
 /// 如果路径是符号链接，解析到真实路径
@@ -426,8 +481,8 @@ fn unique_asset_target(assets_dir: &Path, filename: &str) -> (PathBuf, String) {
 #[cfg(test)]
 mod tests {
     use super::{
-        atomic_write, import_document_image, open_document, rename_file, save_document,
-        validate_image_asset_path,
+        atomic_write, import_document_image, open_document, rename_file, resolve_image_src,
+        save_document, validate_image_asset_path,
     };
     use crate::error::AppError;
     use std::fs;
@@ -713,5 +768,70 @@ mod tests {
         assert_eq!(n2, "image-1");
 
         let _ = fs::remove_dir_all(dir);
+    }
+
+    // ---- resolve_image_src 规则覆盖（#2 assets/ 守卫 + #3 storage 优先级）----
+
+    #[test]
+    fn resolve_image_src_assets_relative_ignores_storage_dir() {
+        // 用户设了全局 storage_dir，但 src 以 assets/ 开头 → 强制走文档目录
+        // 这是 #2 修复的核心不变量：避免 storage_dir 抢走 assets/ 相对引用
+        let doc_path = PathBuf::from("/home/user/notes/demo.md");
+        let storage_dir = PathBuf::from("/home/user/.solo/images");
+
+        let (resolved, is_absolute, base_dir) =
+            resolve_image_src("assets/diagram.png", Some(doc_path.to_str().unwrap()), Some(storage_dir.to_str().unwrap())).unwrap();
+
+        assert!(!is_absolute);
+        assert_eq!(base_dir, Some(PathBuf::from("/home/user/notes")));
+        assert_eq!(resolved, PathBuf::from("/home/user/notes/assets/diagram.png"));
+    }
+
+    #[test]
+    fn resolve_image_src_storage_dir_used_when_no_assets_prefix() {
+        // 不以 assets/ 开头 + 有 storage_dir → join 到 storage_dir
+        let doc_path = PathBuf::from("/home/user/notes/demo.md");
+        let storage_dir = PathBuf::from("/home/user/.solo/images");
+
+        let (resolved, is_absolute, base_dir) =
+            resolve_image_src("cat.png", Some(doc_path.to_str().unwrap()), Some(storage_dir.to_str().unwrap())).unwrap();
+
+        assert!(!is_absolute);
+        assert_eq!(base_dir, Some(storage_dir.clone()));
+        assert_eq!(resolved, storage_dir.join("cat.png"));
+    }
+
+    #[test]
+    fn resolve_image_src_falls_back_to_document_dir_without_storage() {
+        // 无 storage_dir → 走文档目录
+        let doc_path = PathBuf::from("/home/user/notes/demo.md");
+
+        let (resolved, is_absolute, base_dir) =
+            resolve_image_src("assets/x.png", Some(doc_path.to_str().unwrap()), None).unwrap();
+
+        assert!(!is_absolute);
+        assert_eq!(base_dir, Some(PathBuf::from("/home/user/notes")));
+        assert_eq!(resolved, PathBuf::from("/home/user/notes/assets/x.png"));
+    }
+
+    #[test]
+    fn resolve_image_src_absolute_path_passes_through() {
+        // 绝对路径 → 直接用，不附任何基目录
+        let (resolved, is_absolute, base_dir) =
+            resolve_image_src("D:/photos/cat.png", None, None).unwrap();
+
+        assert!(is_absolute);
+        assert_eq!(base_dir, None);
+        assert_eq!(resolved, PathBuf::from("D:/photos/cat.png"));
+    }
+
+    #[test]
+    fn resolve_image_src_relative_without_base_dir_errors() {
+        // 相对路径但既无 document_path 也无 storage_dir → 报错
+        let err = resolve_image_src("assets/x.png", None, None).unwrap_err();
+        match err {
+            AppError::Validation(msg) => assert!(msg.contains("缺少文档目录")),
+            other => panic!("expected validation error, got {:?}", other),
+        }
     }
 }
