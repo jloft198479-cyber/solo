@@ -35,6 +35,7 @@
     "errorBg": "rgba(192, 122, 122, 0.15)",
     "infoColor": "#8a9bae",
     "infoBg": "rgba(138, 155, 174, 0.15)",
+    "dirtyColor": "#e0a23a",
     "shadowSm": "0 1px 2px rgba(0, 0, 0, 0.3)",
     "shadowMd": "0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.25)",
     "shadowLg": "0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3)",

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyTheme, getPresetTheme, importTheme } from '../manager';
+import type { Theme } from '../types';
 
 const mocks = vi.hoisted(() => ({
   toggleMock: vi.fn(),
@@ -83,5 +84,29 @@ describe('theme manager', () => {
       appearance: 'dark',
       colors: getPresetTheme('scholar-dark')!.colors,
     });
+  });
+
+  it('injects --dirty-color from a preset that defines it', () => {
+    const theme = getPresetTheme('default-light');
+    expect(theme?.colors.dirtyColor).toBeTruthy();
+
+    applyTheme(theme!);
+
+    expect(mocks.setPropertyMock).toHaveBeenCalledWith('--dirty-color', theme!.colors.dirtyColor);
+  });
+
+  it('does not inject --dirty-color when the theme omits it (CSS fallback applies)', () => {
+    const theme: Theme = {
+      id: 'no-dirty',
+      name: 'No Dirty',
+      type: 'custom',
+      appearance: 'light',
+      colors: { ...getPresetTheme('default-light')!.colors, dirtyColor: undefined },
+    };
+
+    applyTheme(theme);
+
+    const dirtyCalls = mocks.setPropertyMock.mock.calls.filter((c) => c[0] === '--dirty-color');
+    expect(dirtyCalls).toHaveLength(0);
   });
 });
