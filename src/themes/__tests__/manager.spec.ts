@@ -109,4 +109,34 @@ describe('theme manager', () => {
     const dirtyCalls = mocks.setPropertyMock.mock.calls.filter((c) => c[0] === '--dirty-color');
     expect(dirtyCalls).toHaveLength(0);
   });
+
+  it('--success-color 随主题注入且跨主题不同（已保存态跟随主题）', () => {
+    const light = getPresetTheme('default-light')!;
+    const dark = getPresetTheme('scholar-dark')!;
+
+    applyTheme(light);
+    const lightSuccess = mocks.setPropertyMock.mock.calls.find((c) => c[0] === '--success-color')?.[1];
+    mocks.setPropertyMock.mockClear();
+    applyTheme(dark);
+    const darkSuccess = mocks.setPropertyMock.mock.calls.find((c) => c[0] === '--success-color')?.[1];
+
+    expect(lightSuccess).toBeTruthy();
+    expect(darkSuccess).toBeTruthy();
+    expect(lightSuccess).not.toEqual(darkSuccess);
+  });
+
+  it('--dirty-color 随主题注入且跨主题不同（未保存态跟随主题）', () => {
+    const light = getPresetTheme('default-light')!;
+    const dark = getPresetTheme('scholar-dark')!;
+
+    applyTheme(light);
+    const lightDirty = mocks.setPropertyMock.mock.calls.find((c) => c[0] === '--dirty-color')?.[1];
+    mocks.setPropertyMock.mockClear();
+    applyTheme(dark);
+    const darkDirty = mocks.setPropertyMock.mock.calls.find((c) => c[0] === '--dirty-color')?.[1];
+
+    expect(lightDirty).toBeTruthy();
+    expect(darkDirty).toBeTruthy();
+    expect(lightDirty).not.toEqual(darkDirty);
+  });
 });
