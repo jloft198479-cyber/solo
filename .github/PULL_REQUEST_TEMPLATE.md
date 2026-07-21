@@ -26,7 +26,7 @@
 - [ ] `bun run build` 通过（vue-tsc --noEmit + vite build）
 - [ ] 改了 Rust：`cargo check` 通过（按 CONTRIBUTING.md §1.2 加载 MSVC 环境）
 - [ ] 无 `replaceAll` / `replaceAllAsync`（TS target ES2020，用 `.split().join()` 替代）
-- [ ] 若触及 defect-hotspots 中的 10 个易错区，已额外说明影响评估
+- [ ] 若触及 ARCHITECTURE.md §11 的敏感区，已额外说明影响评估
 
 ## 相关 Issue
 

@@ -132,7 +132,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [1.2.21] ~ [1.2.18]
 
-版本号同步与小修复（见对应提交 `bump version to 1.2.x`）。无功能性用户可见变更。
+- **v1.2.18 导出系统移除**（用户可见）：删除 HTML/PDF/微信导出（净删约 2500 行代码），改用状态栏「复制为 HTML」按钮把渲染后 HTML 写入剪贴板。详见 [`ARCHITECTURE.md`](./ARCHITECTURE.md) §10.2。
+- 其余为版本号同步与小修复（见对应提交 `bump version to 1.2.x`）。
 
 ---
 

@@ -1,6 +1,8 @@
 # 小白发版教程
 
 > 开发改代码的事 AI 会做。你只需要在改完后，把做好的安装包发布出去。
+>
+> 本文是 [`RELEASE_PROCESS.md`](../RELEASE_PROCESS.md) 的**发版小白实操版**（核心只跑 3 条命令）；完整 Phase 定义、回滚与故障处理以 RELEASE_PROCESS 为真理源。
 
 ---
 
