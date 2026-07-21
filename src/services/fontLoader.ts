@@ -1,9 +1,10 @@
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { fetchFontData, getCachedFontPath, saveCachedFont } from './tauri/document';
 import { FONT_OPTIONS } from '../constants/fonts';
-import pkg from '../../package.json';
 
-const DOWNLOAD_BASE = `https://github.com/jloft198479-cyber/solo/releases/download/v${pkg.version}`;
+// 字体资源固定在独立 tag `fonts-v1` 的 release 下，与 app 版本号解耦：
+// 以后 app 升版无需同步字体链接，且 Rust fallback（fetch_font_data）复用同一地址。
+const DOWNLOAD_BASE = 'https://github.com/jloft198479-cyber/solo/releases/download/fonts-v1';
 
 const REMOTE_FONTS: Readonly<Record<string, string>> = Object.fromEntries(
   FONT_OPTIONS.filter((opt) => opt.fileName).map((opt) => [opt.value, opt.fileName!]),
