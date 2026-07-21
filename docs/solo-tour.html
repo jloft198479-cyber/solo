@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>solo 项目导游 · 小白友好文件地图</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --border: #e6e8ec;
+    --text: #1f2430;
+    --muted: #6b7280;
+    --accent: #4f6ef7;
+    --accent-soft: #eef1fe;
+    --green: #18a957;
+    --yellow: #d98300;
+    --red: #e0413a;
+    --radius: 12px;
+    --shadow: 0 1px 3px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.05);
+    --ease: cubic-bezier(.2,.8,.2,1);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Microsoft YaHei UI", "Hiragino Sans GB", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* Top bar */
+  .topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 22px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex: 0 0 auto;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: .2px; }
+  .brand .sub { font-size: 12px; color: var(--muted); }
+  .spacer { flex: 1; }
+  .search {
+    position: relative; display: flex; align-items: center;
+  }
+  .search input {
+    width: 240px; padding: 8px 12px 8px 32px;
+    border: 1px solid var(--border); border-radius: 9px;
+    background: var(--bg); color: var(--text); font-size: 13px;
+    outline: none; transition: border-color .15s var(--ease), box-shadow .15s var(--ease);
+  }
+  .search input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search svg { position: absolute; left: 10px; color: var(--muted); }
+  .filters { display: flex; gap: 6px; }
+  .filters button {
+    border: 1px solid var(--border); background: var(--panel);
+    color: var(--muted); font-size: 12px; padding: 7px 11px;
+    border-radius: 9px; cursor: pointer; transition: all .15s var(--ease);
+  }
+  .filters button:hover { border-color: var(--accent); color: var(--accent); }
+  .filters button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* Body */
+  .body { display: flex; flex: 1 1 auto; min-height: 0; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 340px; flex: 0 0 340px;
+    background: var(--panel); border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 10px 8px 40px;
+  }
+  .cat { margin: 4px 0; }
+  .cat-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 12px; border-radius: 9px; cursor: pointer;
+    user-select: none; transition: background .15s var(--ease);
+  }
+  .cat-head:hover { background: var(--bg); }
+  .cat-head .arrow { transition: transform .25s var(--ease); color: var(--muted); font-size: 11px; }
+  .cat.collapsed .arrow { transform: rotate(-90deg); }
+  .cat-head .cat-name { font-weight: 600; font-size: 13.5px; }
+  .cat-head .cat-count {
+    margin-left: auto; font-size: 11px; color: var(--muted);
+    background: var(--bg); padding: 1px 8px; border-radius: 20px;
+  }
+  .cat-items {
+    display: grid; grid-template-rows: 1fr;
+    transition: grid-template-rows .28s var(--ease);
+  }
+  .cat.collapsed .cat-items { grid-template-rows: 0fr; }
+  .cat-items > .inner { overflow: hidden; }
+
+  .file-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 7px 12px 7px 26px; margin: 1px 4px;
+    border-radius: 8px; cursor: pointer;
+    transition: background .14s var(--ease), transform .14s var(--ease);
+  }
+  .file-item:hover { background: var(--accent-soft); }
+  .file-item.active { background: var(--accent); color: #fff; }
+  .file-item.active .dot { box-shadow: 0 0 0 2px rgba(255,255,255,.5); }
+  .file-item.active .fname { color: #fff; }
+  .file-item.active .fpath { color: rgba(255,255,255,.75); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+  .dot.green { background: var(--green); }
+  .dot.yellow { background: var(--yellow); }
+  .dot.red { background: var(--red); }
+  .fmeta { min-width: 0; }
+  .fname { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fpath { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Main */
+  .main { flex: 1 1 auto; overflow-y: auto; padding: 30px 40px 60px; }
+  .detail { max-width: 760px; margin: 0 auto; }
+  .detail.enter { animation: fadeUp .32s var(--ease); }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .d-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .d-title { font-size: 22px; font-weight: 700; margin: 0; line-height: 1.3; }
+  .d-path {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: 12.5px; color: var(--muted); background: var(--bg);
+    padding: 3px 9px; border-radius: 7px; margin-top: 6px; display: inline-block;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 20px;
+    flex: 0 0 auto; margin-top: 3px;
+  }
+  .badge.green { background: #e7f7ee; color: var(--green); }
+  .badge.yellow { background: #fdf2e0; color: var(--yellow); }
+  .badge.red { background: #fdeceb; color: var(--red); }
+
+  .d-section { margin-top: 26px; }
+  .d-section h3 {
+    font-size: 13px; text-transform: none; color: var(--accent);
+    margin: 0 0 10px; font-weight: 700; letter-spacing: .3px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .d-section h3::before {
+    content: ""; width: 4px; height: 15px; background: var(--accent); border-radius: 3px;
+  }
+  .d-tldr {
+    background: var(--accent-soft); border-left: 3px solid var(--accent);
+    padding: 12px 16px; border-radius: 0 10px 10px 0; font-size: 14.5px; line-height: 1.6;
+  }
+  .d-what p { margin: 0 0 12px; line-height: 1.75; }
+  .analogy {
+    background: #fffaf0; border: 1px solid #f3e4c4; border-radius: 10px;
+    padding: 12px 16px; font-size: 13.5px; color: #7a5a16;
+  }
+  .analogy b { color: #9a6b10; }
+  .d-list { margin: 0; padding-left: 0; list-style: none; }
+  .d-list li {
+    position: relative; padding-left: 20px; margin-bottom: 8px; line-height: 1.7;
+  }
+  .d-list li::before {
+    content: "•"; position: absolute; left: 4px; color: var(--accent); font-weight: 700;
+  }
+  .related { display: flex; flex-wrap: wrap; gap: 8px; }
+  .related span {
+    font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--muted);
+    padding: 4px 10px; border-radius: 7px;
+  }
+
+  /* Welcome */
+  .welcome { max-width: 760px; margin: 0 auto; }
+  .welcome h2 { font-size: 24px; margin: 0 0 6px; }
+  .welcome .lead { color: var(--muted); font-size: 15px; margin-bottom: 28px; }
+  .route-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 22px 26px; box-shadow: var(--shadow); margin-bottom: 18px;
+  }
+  .route-card h3 { margin: 0 0 14px; font-size: 15px; }
+  .route-step { display: flex; gap: 14px; padding: 10px 0; border-bottom: 1px dashed var(--border); }
+  .route-step:last-child { border-bottom: none; }
+  .route-num {
+    flex: 0 0 28px; height: 28px; border-radius: 50%; background: var(--accent);
+    color: #fff; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center;
+  }
+  .route-step .rs-title { font-weight: 600; }
+  .route-step .rs-desc { color: var(--muted); font-size: 13px; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 6px; }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); }
+
+  .empty { text-align: center; color: var(--muted); margin-top: 80px; font-size: 14px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+  @media (max-width: 720px) {
+    .sidebar { width: 100%; flex-basis: auto; }
+    .body { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <h1>solo 项目导游</h1>
+      <span class="sub">小白友好 · 文件地图 v1.2.24</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="search">
+      <svg width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="9.5" y1="9.5" x2="14" y2="14"/></svg>
+      <input id="search" type="text" placeholder="搜文件名或关键词…" />
+    </div>
+    <div class="filters" id="filters">
+      <button data-level="all" class="active">全部</button>
+      <button data-level="red">必看</button>
+      <button data-level="yellow">偶尔</button>
+      <button data-level="green">可忽略</button>
+    </div>
+  </div>
+
+  <div class="body">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="main" id="main"></main>
+  </div>
+</div>
+
+<script>
+const LEVEL = {
+  green: { label: "可放心忽略", cls: "green" },
+  yellow: { label: "偶尔看看", cls: "yellow" },
+  red: { label: "搞懂项目必看", cls: "red" },
+};
+
+const CATS = [
+  { id: "facade", name: "门面文档" },
+  { id: "arch", name: "架构大脑" },
+  { id: "config", name: "配置中枢" },
+  { id: "release", name: "发版与构建" },
+  { id: "collab", name: "协作与规范" },
+  { id: "core", name: "核心代码入口" },
+  { id: "docs", name: "文档专题" },
+];
+
+const FILES = [
+  // ── 门面文档 ──
+  { cat: "facade", path: "README.md", level: "green",
+    tldr: "solo 对外的产品介绍与安装说明书。",
+    what: "这是项目对外的「第一张脸」。它用大白话告诉外人：solo 是什么（本地优先的 Markdown 编辑器）、能干什么、怎么装、怎么跑。",
+    analogy: "就像手机包装盒上的产品介绍页——你不用拆机，光看它就知道这玩意儿是干嘛的、适不适合自己。",
+    contents: ["产品定位：本地优先、极简、所见即所得的 Markdown 编辑器", "功能清单（多窗口、公式、流程图、主题字体等）", "技术栈一句话 + 安装/开发命令", "许可证与联系方式"],
+    related: ["README.zh-CN.md", "ARCHITECTURE.md", "package.json"] },
+
+  { cat: "facade", path: "README.zh-CN.md", level: "green",
+    tldr: "README 的简体中文版，内容一致。",
+    what: "和 README.md 是同一份东西，只是语言换成中文。面向中文用户。",
+    analogy: "同一份说明书的中译本，看哪个都行。",
+    contents: ["英文 README 的中文翻译", "与 README.md 同步维护"],
+    related: ["README.md", "README.ja-JP.md", "README.ko-KR.md"] },
+
+  { cat: "facade", path: "LICENSE", level: "green",
+    tldr: "开源许可证（Apache-2.0），规定别人怎么用这份代码。",
+    what: "这是法律层面的「使用公约」。solo 用 Apache-2.0，意味着任何人都能免费看、改、分发，但得保留原作者署名、不能拿去当闭源商业机密。",
+    analogy: "像房子的「产权证类型」——告诉你这屋子能租能改，但有几条规矩不能破。",
+    contents: ["Apache License 2.0 全文", "fork 自 MarkLight 的声明"],
+    related: ["README.md"] },
+
+  // ── 架构大脑 ──
+  { cat: "arch", path: "HANDOVER.md", level: "red",
+    tldr: "接手第一站：30 秒定位 + 环境搭建 + 真理源文件表。",
+    what: "这是前任交房时留的「交接清单」。新人或 AI 接手项目，第一眼就该看它：项目到底是啥、本机环境怎么配、改东西前该先读哪些文件。",
+    analogy: "好比你接手一间出租屋，原房东留给你的便利贴：Wi-Fi 密码、电表在哪、哪扇门别乱动。",
+    contents: ["30 秒定位：solo = Tauri2 + Vue3 + Rust 的本地编辑器", "本机真实环境路径（Rust 在 M:\\rust，MSVC 在 M:\\VS，别重装）", "常用命令复制即用", "「真理源文件」对照表：改 X 该读哪个文件", "黄金法则：文档只是代码快照，以代码为准"],
+    related: ["ARCHITECTURE.md", "AGENTS.md", "docs/INDEX.md"] },
+
+  { cat: "arch", path: "AGENTS.md", level: "red",
+    tldr: "项目工作手册：AI/开发者的纪律约束 + 文档地图。",
+    what: "这是团队的「员工手册」。它规定了改代码前的纪律（先读实际行为、确认影响范围）、发版前的检查清单、提交前的红线。同时也充当文档索引。",
+    analogy: "相当于公司入职手册 + 考勤制度——告诉你什么能做、什么碰了要挨骂。",
+    contents: ["改代码前纪律（以代码为准、确认影响范围）", "改 parser/serializer 后必须跑的三道关：测试/类型/构建", "发版前常见踩坑（升版本号、去 replaceAll）", "完整文档地图与关键约束速查"],
+    related: ["HANDOVER.md", "ARCHITECTURE.md", "CONTRIBUTING.md"] },
+
+  { cat: "arch", path: "ARCHITECTURE.md", level: "red",
+    tldr: "权威架构地图：三层结构、命令清单、关键约束、找功能从哪入手。",
+    what: "这是整栋楼的「蓝图」。它把项目拆成三层讲清楚：Rust 核心（地基/发动机）→ IPC 服务层（前台收发室）→ Vue 前端（房间与家具），并列出全部 20 个底层命令、目录结构、以及改代码前必须知道的雷区。",
+    analogy: "就像一栋楼的建筑图纸：哪根是承重墙、水管电闸在哪、想改厨房该找哪张图，全在上面。文档里所有架构说法都以它为准。",
+    contents: ["三层架构总览与「三条铁律」", "决策阶梯（写代码前先过的 YAGNI 检查）", "目录结构逐文件说明", "20 个 Rust 命令清单 + 2 个事件", "11 条关键约束（脏态/冲突/图片安全等）", "附录 B：常见任务起点导航、附录 C：文档与代码差异"],
+    related: ["HANDOVER.md", "src-tauri/src/lib.rs", "src/services/tauri/"] },
+
+  { cat: "arch", path: "CHANGELOG.md", level: "yellow",
+    tldr: "版本变更史，由真实 git log 整理，不是凭空编的。",
+    what: "这是项目的「装修日记」。每个版本加了什么、修了什么 bug，都按时间倒序记着。想了解某功能什么时候来的、为什么改，翻它最快。",
+    analogy: "像车的保养记录本——哪次换了机油、哪次修了异响，一目了然。",
+    contents: ["v1.2.24 动效优化与乐观保存等近期变更", "历史版本功能/修复摘要", "版本号规则速记（主/次/修订怎么升）"],
+    related: ["RELEASE_PROCESS.md", "package.json"] },
+
+  // ── 配置中枢 ──
+  { cat: "config", path: "package.json", level: "red",
+    tldr: "前端的「购物清单 + 说明书」：依赖、脚本、版本号。",
+    what: "这是前端项目的身份证兼采购单。它写着：项目叫 solo、版本 1.2.24、用 bun 管理、需要哪些第三方库（Vue、TipTap、KaTeX…），以及一堆可运行的命令（dev/build/test）。",
+    analogy: "好比餐厅的食材采购单 + 菜谱卡：要买什么、怎么做、叫什么菜，全在这一张。",
+    contents: ["name/version/license 等身份信息", "scripts：dev / build / test / 打包 等命令入口", "dependencies：运行时依赖（Vue3、TipTap、markdown-it…）", "devDependencies：开发期工具（vite、eslint、vitest…）"],
+    related: ["tsconfig.json", "vite.config.ts", "Cargo.toml", "tauri.conf.json"] },
+
+  { cat: "config", path: "tsconfig.json", level: "yellow",
+    tldr: "TypeScript 编译器的「操作规范」。",
+    what: "它告诉 TypeScript 怎么检查代码：目标环境是 ES2020、严格模式打开、不允许没用到的变量。改这里会影响全项目的类型检查行为。",
+    analogy: "像厨房的「食品安全操作规范」——规定刀怎么拿、生熟怎么分，保证出品稳定。",
+    contents: ["target: ES2020（所以不能用 replaceAll 等新版 API）", "strict 严格类型检查", "禁止未使用变量/参数", "排除测试目录"],
+    related: ["package.json", "vite.config.ts"] },
+
+  { cat: "config", path: "vite.config.ts", level: "yellow",
+    tldr: "前端打包配置：开发服务器端口、产物分包策略。",
+    what: "它指挥「出餐窗口怎么摆盘」：开发时浏览器跑在 1420 端口、构建时把庞大的 TipTap/markdown-it/KaTeX 拆成独立文件以便加载更快。",
+    analogy: "相当于出餐线的摆盘规则——哪道菜先上、大盘子怎么切小，让顾客等得短。",
+    contents: ["dev server 端口 1420 + 热更新", "build 目标 esnext + esbuild 压缩", "manualChunks 把大依赖拆包（tiptap/markdown-it/katex/mermaid）"],
+    related: ["package.json", "tsconfig.json"] },
+
+  { cat: "config", path: "src-tauri/Cargo.toml", level: "red",
+    tldr: "Rust 侧的「采购单 + 版本号」，与 package.json 对应。",
+    what: "这是生锈工具间（Rust 那一层）的采购单。它列着 Rust 版本、用哪些 Rust 库（tauri、serde、reqwest…），以及最关键的——项目版本号 1.2.24，必须和前端的版本号保持一致。",
+    analogy: "和 package.json 是「同一栋楼两本账」：前端一本、后端一本，两本上的楼号（版本）必须对上，否则发版会乱。",
+    contents: ["[package] 名称/版本/许可证", "Rust 依赖：tauri 全家桶、serde、reqwest、tokio…", "Windows 专属依赖（winreg/webview2-com）", "release 编译优化档（lto/codegen/strip）", "版本号须与 package.json、tauri.conf.json 三处一致"],
+    related: ["package.json", "src-tauri/tauri.conf.json", "src-tauri/src/lib.rs"] },
+
+  { cat: "config", path: "src-tauri/tauri.conf.json", level: "red",
+    tldr: "Tauri 应用的总规约：窗口、权限、更新、文件关联、安装包。",
+    what: "这是整栋楼的「物业规约」。它规定：窗口多大、启动时隐藏防黑闪、CSP 安全策略多严、自动更新从哪拉、双击 .md 怎么关联到 solo、安装包长什么样。",
+    analogy: "像小区的物业管理公约：大门多宽、谁有权进、外墙怎么装，全由它定。",
+    contents: ["productName=solo，identifier=com.solomarkdown", "窗口默认 1200×800、无边框、启动隐藏", "security.csp 安全策略（收紧外部加载）", "bundle：NSIS 安装器 + .md 文件关联", "plugins.updater 自动更新端点与签名公钥"],
+    related: ["Cargo.toml", "src-tauri/Cargo.toml", "RELEASE_PROCESS.md"] },
+
+  // ── 发版与构建 ──
+  { cat: "release", path: "RELEASE_PROCESS.md", level: "yellow",
+    tldr: "正式发版的标准操作流程（SOP），一步都不能跳。",
+    what: "这是「上架前的核对清单」。从功能做完，到用户收到更新，每一步都写死了：先升三个文件的版本号、跑全量测试、打 tag、等 CI、发 release、验证自动更新。",
+    analogy: "像飞机起飞前的检查单——油量、舱门、通讯，逐项打勾，漏一项都不能飞。",
+    contents: ["快速核对表（12 项一站式）", "Phase 0~5：开发→版本同步→本地验证→CI→发布后验证→正式发布", "版本号四源一致（含 Cargo.lock）", "回滚流程与 7 类常见故障", "CI 工作流与 latest.json 说明"],
+    related: ["BUILD_GUIDE.md", "tauri.conf.json", "CHANGELOG.md"] },
+
+  { cat: "release", path: "BUILD_GUIDE.md", level: "yellow",
+    tldr: "从零编译 solo 的组装说明书，重点在环境变量坑位。",
+    what: "这是「自己动手组装」的指南。它把编译拆成前端编译、Rust 编译、完整打包三步，并反复强调最容易翻车的点：环境变量（CARGO_HOME/RUSTUP_HOME）和 MSVC 工具链必须先加载。",
+    analogy: "像宜家家具的组装图——步骤不难，但少拧一颗螺丝（环境变量）整个就塌。",
+    contents: ["技术栈速览与必需工具链", "环境变量配置（CARGO_HOME 必须全大写、警惕尾随空格）", "三种编译方式 + 自动化 .bat 脚本", "踩坑实录（11 条本机特有坑）", "故障排查速查表"],
+    related: ["RELEASE_PROCESS.md", "Cargo.toml", "HANDOVER.md"] },
+
+  { cat: "release", path: "RELEASE-CHECKLIST.md", level: "green",
+    tldr: "发版手动回归清单，部分章节已失效。",
+    what: "发版前人工过一遍的回归清单。注意：导出相关章节已随 v1.2.18 删除导出功能而失效，看的时候别被旧内容误导。",
+    analogy: "像一份旧的验收单——大框架还能用，但有几栏已经划掉作废了。",
+    contents: ["发版前手动回归项", "导出章节已注记失效（无独立导出功能）"],
+    related: ["RELEASE_PROCESS.md", "PUBLISH_GUIDE.md"] },
+
+  { cat: "release", path: "PUBLISH_GUIDE.md", level: "green",
+    tldr: "发布指南（较简略的发布说明）。",
+    what: "偏发布侧的辅助说明文档，和 RELEASE_PROCESS 互补，细节较少。",
+    analogy: "像上架说明的简略版——大流程看 PROCESS，这里补充些边角。",
+    contents: ["发布相关辅助说明"],
+    related: ["RELEASE_PROCESS.md", "RELEASE-CHECKLIST.md"] },
+
+  { cat: "release", path: "docs/PLAYBOOK.md", level: "yellow",
+    tldr: "发布全生命周期剧本总纲（A–F 六阶段）。",
+    what: "这是发版的「总导演剧本」，把从开发到上线的全过程分成 A–F 六个阶段统筹，RELEASE_PROCESS 是它的 Phase E 细分子文档。",
+    analogy: "像一部戏的总剧本大纲——分幕分场，具体到某一幕怎么演再看子文档。",
+    contents: ["A–F 六阶段总纲", "与 RELEASE_PROCESS（Phase E）的从属关系"],
+    related: ["RELEASE_PROCESS.md", "PUBLISH_GUIDE.md"] },
+
+  // ── 协作与规范 ──
+  { cat: "collab", path: "CONTRIBUTING.md", level: "yellow",
+    tldr: "协作公约：开发环境、分支提交纪律、改代码红线。",
+    what: "这是「团队合作公约」。它告诉想参与的人：先看哪几份文档、用什么工具链、分支怎么切、commit 怎么写、提交前必须跑什么检查。",
+    analogy: "相当于小区业主群规约——想一起搞事情，得先守这几条。",
+    contents: ["先读文档顺序（HANDOVER→ARCHITECTURE→AGENTS→docs）", "本机环境坑位（bun segfault 兜底方案）", "分支策略 + 中文 commit 规范", "改代码四条纪律（以代码为准、确认影响范围、 parser 改动必测、动真理源要小心）"],
+    related: ["AGENTS.md", "HANDOVER.md", "docs/debugging.md"] },
+
+  { cat: "collab", path: "SECURITY.md", level: "green",
+    tldr: "安全披露政策 + 攻击面清单。",
+    what: "这是「安保须知」。它诚实列出了 solo 有哪些潜在攻击面（图片路径穿越、更新投毒、粘贴脚本等）、各自怎么防、发现漏洞该私下找谁报。",
+    analogy: "像大楼的安保说明书——哪里有监控死角、门锁怎么换、出事打哪个电话。",
+    contents: ["项目性质：本地优先、无后端、不联网传文档", "攻击面表（图片穿越/更新供应链/粘贴 XSS…）与现状", "漏洞报告渠道（勿公开 Issue，私信或 [SECURITY]）", "已知安全设计取舍（mermaid loose 等）"],
+    related: ["src-tauri/src/commands/document.rs", "tauri.conf.json"] },
+
+  { cat: "collab", path: "TROUBLESHOOTING.md", level: "yellow",
+    tldr: "用户侧运行时问题排查手册。",
+    what: "这是给「用的人」看的排错指南：软件跑起来后常见的怪现象、对应的解决办法、相关注册表/缓存路径在哪。",
+    analogy: "像家电的「故障自助卡」——灯不亮先看电源、异响了清灰，不用一上来就叫售后。",
+    contents: ["运行时常见问题与对策", "设置/缓存重置路径（%APPDATA%\\solo）", "Windows 文件关联注册表清理"],
+    related: ["docs/debugging.md", "BUILD_GUIDE.md"] },
+
+  // ── 核心代码入口 ──
+  { cat: "core", path: "src/main.ts", level: "yellow",
+    tldr: "前端入口，极简：创建 app + 挂上 Pinia + 挂载。",
+    what: "这是前端程序的「电闸总开关」。它只做三件事：新建 Vue 应用、装上状态管理 Pinia、把根组件挂到页面上。所有真正逻辑都不在这，而在 App.vue 和各模块里。",
+    analogy: "像大楼的总电闸——合上它灯就亮，但灯怎么排布不在这里定。",
+    contents: ["createApp(App)", "app.use(createPinia())", "app.mount('#app')", "引入全局样式 main.css"],
+    related: ["src/App.vue", "src/stores/file.ts", "src/stores/settings.ts"] },
+
+  { cat: "core", path: "src-tauri/src/lib.rs", level: "red",
+    tldr: "Rust 程序总控室：注册插件、命令、菜单、启动开打。",
+    what: "这是生锈工具间（Rust 那层）的「总控室」。程序一启动，它按顺序干活：注册各种插件（对话框、剪贴板、更新…）、搭好原生菜单、把 20 个底层命令登记上岗、处理「双击文件就打开」的竞态。",
+    analogy: "像大楼的总控室——电梯、门禁、监控都在这里接线，想加一个新功能（命令）得先来这儿挂号。",
+    contents: ["run()：插件注册 → setup → invoke_handler(20 命令) → 回调", "startup_ready：前端就绪才显示窗口（防黑闪）", "new_editor_window：原子递增 label 开新窗口", "启动开打竞态三层缓冲（StartupOpenRequests/PendingWindowPaths/LoadedWindows）", "generate_handler! 是命令总数的唯一真相源"],
+    related: ["ARCHITECTURE.md §4", "src-tauri/src/commands/", "src-tauri/src/state.rs"] },
+
+  { cat: "core", path: "src/components/Editor/MarkdownEditor.vue", level: "red",
+    tldr: "编辑器宿主：创建 TipTap 实例、防抖序列化、搜索替换面板。",
+    what: "这是你写作时面对的那张「书桌」。它本身不实现排版逻辑，而是把 TipTap 编辑器接进来，负责：点一下才懒加载编辑器（省内存）、你停下打字 500ms 后才把内容存回、以及顶上的搜索/替换小面板。",
+    analogy: "像一张智能书桌——你往上放稿纸（Markdown），它背后悄悄把稿纸翻译成机器能显示的格式，你专注写就行。",
+    contents: ["shallowRef 持有单个 TipTap 实例，切文件只 setContent 不重建（保快）", "三档防抖：统计 150ms / 大纲 500ms / 序列化 500ms / 光标 100ms", "BubbleMenu / SlashMenu / EmojiMenu 挂载", "搜索替换面板 UI 与交互", "图片拖放、双击预览的接线"],
+    related: ["src/components/Editor/tiptap/markdown/parser.ts", "serializer.ts", "src/stores/file.ts"] },
+
+  { cat: "core", path: "src/components/Editor/tiptap/markdown/parser.ts", level: "red",
+    tldr: "翻译器 A：Markdown 文本 → 编辑器能显示的内部结构。",
+    what: "这是把「人写的中文菜谱」翻译成「厨师能执行的步骤表」的机器。你输入的 # 标题、**加粗** 这些 Markdown 符号，经它解析成编辑器内部的节点树，屏幕才显示出排版。",
+    analogy: "好比把一篇手写菜谱，拆解成「步骤1切菜／步骤2下锅」的结构化清单，厨师（编辑器）才看得懂。",
+    contents: ["基于 markdown-it（commonmark + 表格/删除线/任务列表…）", "frontmatter/callout/$$数学块 在解析前先占位再还原", "texmath 传空壳引擎，KaTeX 可懒加载不进热路径", "CJK 标点加粗边界用 ZWNJ 预处理（见 docs/cjk-boundary.md）", "roundtrip 测试是保真度的安全网"],
+    related: ["serializer.ts", "__tests__/roundtrip.spec.ts", "docs/cjk-boundary.md"] },
+
+  { cat: "core", path: "src/components/Editor/tiptap/markdown/serializer.ts", level: "red",
+    tldr: "翻译器 B：编辑器内部结构 → Markdown 文本（反向）。",
+    what: "这是翻译器 A 的「反向机器」。当你保存或自动存盘时，它把编辑器里那棵节点树，重新写回成干净的 Markdown 文本。它强制文末恰好一个换行，保证来回转换不丢不乱。",
+    analogy: "像把做好的菜，再工工整整抄回菜谱本——步骤不能漏、格式不能歪。",
+    contents: ["自研序列化，精确控制 GFM 表格/任务列表等输出", "强制末尾恰好一个 \\n（规范化）", "剥离解析阶段插入的 ZWNJ，保证输出干净", "clipboard 模式支持复制为 HTML"],
+    related: ["parser.ts", "src/stores/file.ts", "__tests__/roundtrip.spec.ts"] },
+
+  { cat: "core", path: "src/services/tauri/client.ts", level: "yellow",
+    tldr: "IPC 统一收发室：所有前后端通信的唯一入口 + 错误标准化。",
+    what: "这是前端的「前台收发室」。前端任何想跟 Rust 底层说话的请求，都只能从这儿发；回来的错误也被统一翻译成 {code, message} 格式，方便上层处理。",
+    analogy: "像公司的总机接线员——你要联系后台（Rust），先打总机，他帮你转，回话也由他统一口径。",
+    contents: ["invokeCommand<T>() 包裹 Tauri invoke，唯一对外入口", "normalizeTauriError() 把各种错误归一为 {code,message}", "类型约束：命令名只能传登记过的"],
+    related: ["command-names.ts", "src-tauri/src/lib.rs"] },
+
+  { cat: "core", path: "src/services/tauri/command-names.ts", level: "red",
+    tldr: "命令名「内部呼叫代号本」：前端方法名 ↔ Rust 命令名 的唯一登记表。",
+    what: "这是前后端沟通的「代号本」。前端的每个调用在代码里是个好记的名字（如 openDocument），实际发给 Rust 的是另一个字符串（open_document）。所有代号都集中登记在这，新增命令必须来这儿报到。",
+    analogy: "像公司内部的呼叫代号表——「找张工」对应工号 007，改了代号表两边必须对上，否则叫不应。",
+    contents: ["TAURI_COMMANDS 常量对象（键=前端名，值=Rust 命令名）", "TauriCommandName 类型约束，拼错编译期就报错", "当前登记 20 个命令", "真理源之一：改名必须同步 Rust 侧"],
+    related: ["client.ts", "src-tauri/src/lib.rs", "src/commands/registry.ts"] },
+
+  { cat: "core", path: "src/stores/file.ts", level: "red",
+    tldr: "文档状态「账本」：路径/内容/脏标记，尤其脏态分离机制。",
+    what: "这是记录「当前这份文件状态」的账本。它最精妙的一笔是「脏态分离」：程序自动写回内容（setContent）不算你改过，只有你真敲键盘（markUserEdit）才标脏。这样才不会一打开文件就误报「未保存」。",
+    analogy: "像图书馆的借阅账本——系统自己整理书架（程序写回）不算读者涂改，读者真动手画线（用户编辑）才记一笔「待还」。",
+    contents: ["currentFile：path/content/isDirty/displayName…", "setContent vs markUserEdit 分离（防脏态闪烁的基石）", "displayName 改了走另存为逻辑", "hasUserEdit 内部标志"],
+    related: ["MarkdownEditor.vue", "serializer.ts", "src/composables/useDocumentSession.ts"] },
+
+  { cat: "core", path: "src/stores/settings.ts", level: "yellow",
+    tldr: "用户偏好「个人档案」：主题/字体/自动保存等 15 项设置。",
+    what: "这是记着你个人习惯的「偏好档案」。主题用哪套、字号多大、是否自动保存、窗口是否置顶……都存这儿，并带版本迁移（当前 v12）和改动后防抖落盘。",
+    analogy: "像理发店的会员档案——你爱坐哪把椅子、要什么发型，下次来直接调出来。",
+    contents: ["15 个设置字段（activeThemeId/fontFamily/autoSave…）", "configVersion=12 迁移机制（旧设置自动升级）", "300ms 防抖写入（tauri-plugin-store）", "ensureThemeId 主题失效回退"],
+    related: ["themes/manager.ts", "src/services/tauri/store.ts", "src/stores/file.ts"] },
+
+  // ── 文档专题 ──
+  { cat: "docs", path: "docs/INDEX.md", level: "yellow",
+    tldr: "文档的文档：所有文档地图 + 项目黑话术语表。",
+    what: "这是「地图的地图」。它把仓库里每一份文档按受众、用途、状态列成一张总表，还附了一本「项目黑话词典」（脏态、roundtrip、IPC 服务层…），看代码前先查这个词。",
+    analogy: "像图书馆的索引卡柜——不只告诉你书在哪，还解释书里那些让人懵的缩写到底啥意思。",
+    contents: ["全量文档路径 + 受众 + 状态（含已废弃项显式标出）", "术语表：脏态/roundtrip/IPC 服务层/原子写…", "相对路径，仓库移动也不碎"],
+    related: ["HANDOVER.md", "ARCHITECTURE.md", "docs/defect-hotspots.md"] },
+
+  { cat: "docs", path: "docs/defect-hotspots.md", level: "red",
+    tldr: "bug 易发区地图：10 个「雷」，改代码前必看。",
+    what: "这是「哪里容易踩雷」的警示图。它把历史上最容易出 bug 的 10 个地方列出来：每个雷讲清楚「为什么容易错、涉及哪些文件、改前必读哪段」。动相关代码前扫一眼能少掉很多坑。",
+    analogy: "像工地的安全警示牌——「此处基坑未填实，勿重压」，老手也先看牌再动手。",
+    contents: ["脏态机制（最易踩）", "保存冲突检测（Rust 侧）", "序列化尾换行", "图片资产安全（防路径穿越）", "启动开打竞态 / 三档防抖 / 命令名真理源 / 主题注入 / 多窗口 / 构建环境"],
+    related: ["src/stores/file.ts", "src-tauri/src/commands/document.rs", "ARCHITECTURE.md §11"] },
+
+  { cat: "docs", path: "docs/KNOWN-ISSUES.md", level: "yellow",
+    tldr: "已知问题 + 技术债清单，区分「已修/待办/设计取舍」。",
+    what: "这是项目的「病历本」。它把已知问题分了类：已修复（留着溯源）、还没解决、以及「这不算 bug 是故意的」设计取舍，帮你分清眼前的是老坑还是新病。",
+    analogy: "像车的已知故障登记册——哪些修好了、哪些通病还没治、哪些其实是出厂设定别瞎拆。",
+    contents: ["已修复（mermaid 全黑/拖拽覆盖/IME 箭头…）", "未解决（.tmp 崩溃残留/字体缓存文档脱节…）", "设计取舍（导出删除/多进程架构…）", "文档类坑（.trae/documents 已废弃，忽略）"],
+    related: ["docs/defect-hotspots.md", "docs/debugging.md"] },
+
+  { cat: "docs", path: "docs/debugging.md", level: "yellow",
+    tldr: "调试指南：人 + AI 共用的排错手册。",
+    what: "这是「怎么抓虫子」的实战手册。从前端 DevTools 怎么开、Markdown 解析怎么单独验、启动竞态怎么查日志，到 Rust 编译怎么加载环境、验证改动的标准动作，都写了。",
+    analogy: "像维修师傅的工具包清单——扳手放哪、先测哪根线、卡住了翻哪页。",
+    contents: ["前端运行时调试（DevTools / 懒加载空白）", "Markdown 解析草稿脚本 _diag.ts", "启动开打竞态日志 reveal_startup_open_log", "重置设置/缓存路径", "Rust 编译环境 + bun segfault 兜底", "验证改动标准动作 + 快捷键四层拦截"],
+    related: ["BUILD_GUIDE.md", "HANDOVER.md", "TROUBLESHOOTING.md"] },
+
+  { cat: "docs", path: "docs/cjk-boundary.md", level: "green",
+    tldr: "CJK 加粗边界专题：中文标点旁 ** 失效的根因与方案。",
+    what: "这是一段「技术考古笔记」，专讲一个刁钻问题：为什么中文标点（，。「）旁边的 **加粗** 经常失效，以及最终怎么用 ZWNJ 零宽字符修好的。属于历史快照，了解即可。",
+    analogy: "像一份专项调研报告——只针对「中文标点干扰加粗」这一个怪现象，深挖到底。",
+    contents: ["CommonMark 分隔符规则对 CJK 不适用", "方案 A 预处理插 ZWNJ（已采用）", "829 个测试覆盖 CJK 边界用例", "关联 parser.ts / serializer.ts"],
+    related: ["parser.ts", "serializer.ts", "roundtrip.spec.ts"] },
+];
+
+// ── Render ──
+const sidebar = document.getElementById("sidebar");
+const main = document.getElementById("main");
+let activeFilter = "all";
+let activeId = null;
+
+function fileById(id) { return FILES.find(f => f.path === id); }
+function catName(id) { return CATS.find(c => c.id === id).name; }
+
+function buildSidebar() {
+  sidebar.innerHTML = "";
+  CATS.forEach(cat => {
+    const items = FILES.filter(f => f.cat === cat.id);
+    if (!items.length) return;
+    const catEl = document.createElement("div");
+    catEl.className = "cat";
+    catEl.dataset.cat = cat.id;
+
+    const head = document.createElement("div");
+    head.className = "cat-head";
+    head.innerHTML = `<span class="arrow">▾</span><span class="cat-name">${cat.name}</span><span class="cat-count">${items.length}</span>`;
+    head.addEventListener("click", () => catEl.classList.toggle("collapsed"));
+    catEl.appendChild(head);
+
+    const wrap = document.createElement("div");
+    wrap.className = "cat-items";
+    const inner = document.createElement("div");
+    inner.className = "inner";
+
+    items.forEach(f => {
+      const item = document.createElement("div");
+      item.className = "file-item";
+      item.dataset.path = f.path;
+      item.dataset.level = f.level;
+      item.innerHTML = `
+        <span class="dot ${f.level}"></span>
+        <span class="fmeta">
+          <span class="fname">${f.path.split("/").pop()}</span>
+          <span class="fpath">${f.path}</span>
+        </span>`;
+      item.addEventListener("click", () => selectFile(f.path));
+      inner.appendChild(item);
+    });
+
+    wrap.appendChild(inner);
+    catEl.appendChild(wrap);
+    sidebar.appendChild(catEl);
+  });
+}
+
+function selectFile(path) {
+  const f = fileById(path);
+  if (!f) return;
+  activeId = path;
+  document.querySelectorAll(".file-item").forEach(el => {
+    el.classList.toggle("active", el.dataset.path === path);
+  });
+  renderDetail(f);
+}
+
+function renderDetail(f) {
+  const lv = LEVEL[f.level];
+  const relatedHtml = f.related.map(r => `<span>${r}</span>`).join("");
+  main.innerHTML = `
+    <div class="detail enter">
+      <div class="d-head">
+        <div>
+          <h2 class="d-title">${f.path.split("/").pop()}</h2>
+          <div class="d-path">${f.path}</div>
+        </div>
+        <span class="badge ${lv.cls}">● ${lv.label}</span>
+      </div>
+
+      <div class="d-section">
+        <h3>一句话总结</h3>
+        <div class="d-tldr">${f.tldr}</div>
+      </div>
+
+      <div class="d-section d-what">
+        <h3>它是干啥的（人话版）</h3>
+        <p>${f.what}</p>
+        <div class="analogy"><b>打个比方：</b>${f.analogy}</div>
+      </div>
+
+      <div class="d-section">
+        <h3>关键内容</h3>
+        <ul class="d-list">${f.contents.map(c => `<li>${c}</li>`).join("")}</ul>
+      </div>
+
+      <div class="d-section">
+        <h3>相关文件</h3>
+        <div class="related">${relatedHtml}</div>
+      </div>
+    </div>`;
+  main.scrollTop = 0;
+}
+
+function renderWelcome() {
+  main.innerHTML = `
+    <div class="welcome">
+      <h2>欢迎来到 solo 项目导游 👋</h2>
+      <p class="lead">这不是一份冰冷的文件清单，而是一张「带讲解的地图」。左边按功能分了类，点开任意文件，右边会用大白话告诉你它是干啥的、像生活中的什么。</p>
+
+      <div class="route-card">
+        <h3>🧭 推荐阅读路线（别跳，按顺序走）</h3>
+        <div class="route-step"><div class="route-num">1</div><div><div class="rs-title">README.md</div><div class="rs-desc">先知道这项目是啥、能干嘛。</div></div></div>
+        <div class="route-step"><div class="route-num">2</div><div><div class="rs-title">HANDOVER.md → AGENTS.md → ARCHITECTURE.md</div><div class="rs-desc">30 秒定位 → 工作纪律 → 权威架构蓝图。这是搞懂项目的三块基石。</div></div></div>
+        <div class="route-step"><div class="route-num">3</div><div><div class="rs-desc">配置中枢（package.json / Cargo.toml / tauri.conf.json）看一眼，知道版本号和依赖在哪。</div></div></div>
+        <div class="route-step"><div class="route-num">4</div><div><div class="rs-desc">核心代码入口挑着看：main.ts、lib.rs、MarkdownEditor.vue、parser/serializer。</div></div></div>
+        <div class="route-step"><div class="route-num">5</div><div><div class="rs-desc">按需查 docs/：改代码前看 defect-hotspots，排错看 debugging，想发版看 RELEASE_PROCESS。</div></div></div>
+      </div>
+
+      <div class="route-card">
+        <h3>🔖 颜色图例（帮你分配有限的注意力）</h3>
+        <div class="legend">
+          <span><span class="dot red"></span> 搞懂项目必看</span>
+          <span><span class="dot yellow"></span> 偶尔看看</span>
+          <span><span class="dot green"></span> 可放心忽略（小白阶段先别管）</span>
+        </div>
+        <p style="color:var(--muted);font-size:13px;margin:14px 0 0;">顶部还能按「文件名/关键词」搜索，或按颜色筛选。先从红色开始看，绿色的基本可以跳过。</p>
+      </div>
+    </div>`;
+}
+
+function applyFilter() {
+  document.querySelectorAll(".file-item").forEach(el => {
+    const matchLevel = activeFilter === "all" || el.dataset.level === activeFilter;
+    const q = document.getElementById("search").value.trim().toLowerCase();
+    const f = fileById(el.dataset.path);
+    const matchSearch = !q ||
+      f.path.toLowerCase().includes(q) ||
+      f.tldr.toLowerCase().includes(q) ||
+      f.what.toLowerCase().includes(q) ||
+      f.contents.join(" ").toLowerCase().includes(q);
+    el.style.display = (matchLevel && matchSearch) ? "" : "none";
+  });
+  // hide empty categories
+  document.querySelectorAll(".cat").forEach(cat => {
+    const visible = [...cat.querySelectorAll(".file-item")].some(el => el.style.display !== "none");
+    cat.style.display = visible ? "" : "none";
+  });
+}
+
+// wire up
+document.getElementById("search").addEventListener("input", applyFilter);
+document.getElementById("filters").addEventListener("click", e => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#filters button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  activeFilter = btn.dataset.level;
+  applyFilter();
+});
+
+buildSidebar();
+renderWelcome();
+</script>
+</body>
+</html>
