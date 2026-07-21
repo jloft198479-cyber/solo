@@ -50,7 +50,7 @@
 ## 4. 已知安全相关设计取舍
 
 - **mermaid `securityLevel: 'loose'`**：本地优先单文件编辑器，文档由用户自己编写，外部注入风险极低，故放宽以修复「全黑」渲染问题。若未来支持加载不可信远程文档，需重新评估。
-- **图片资产 canonicalize 校验**：专门防御路径穿越，是安全边界的核心，改动需格外谨慎（见 `docs/defect-hotspots.md` 第 4 条）。
+- **图片资产 canonicalize 校验**：专门防御路径穿越，是安全边界的核心，改动需格外谨慎（见 `ARCHITECTURE.md` §11.4）。
 - **自动更新签名**：`TAURI_SIGNING_PRIVATE_KEY` 为 GitHub Secrets，不在仓库中。
 
 ---

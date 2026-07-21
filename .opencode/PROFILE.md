@@ -6,7 +6,7 @@
 
 ```bash
 # 开发（前端 + Tauri）
-cd F:\fzz-Project\md-editor\md-editor
+cd F:\fzz-Project\md-editor
 bun run dev:tauri
 
 # 完整打包（含安装包）
@@ -18,7 +18,7 @@ M:\temp\build_solo_full.bat
 
 ## 项目路径
 
-`F:\fzz-Project\md-editor\md-editor`
+`F:\fzz-Project\md-editor`
 
 ## 技术栈
 
@@ -375,32 +375,7 @@ inline:
 
 ## 版本历史
 
-| 版本 | 主要变更 |
-|------|----------|
-| 1.2.24 | **命令面板 + 大纲面板 + 体感丝滑优化 + 代码审查修复**：全局命令面板（CommandPalette）集中暴露新建/打开/保存/切换主题等常用操作；大纲面板（OutlinePanel）基于标题结构实时导航 + scroll-spy 高亮；统一动效 token（`--motion-fast/base` + `--ease-out`）让全局过渡一致；乐观保存 Ctrl+S 即时反馈；搜索/跳转 300ms 高亮脉冲；主题/字体切换 crossfade；`prefers-reduced-motion` 无障碍关动画；font-display swap 抗 FOUT。修复 Slash 中文触发、mermaid/数学块删除入口、菜单视口边界、图片路径 containment 校验、双开 EBWebView 清理守卫。992 tests all green。 |
-| 1.2.23 | **粘贴来源自动嗅探 + 更新进度可视化 + hasImage+HTML 防重复**。 |
-| 1.2.22 | **格式兼容性修复** — turndown HTML 粘贴 + 代码块保护 + CRLF frontmatter + callout 保留 + 图片不吞文字 + 粘贴门槛拓宽 + 复制按钮增强。 |
-| 1.2.21 | 版本号同步（无功能变更）。 |
-| 1.2.20 | 版本号同步（无功能变更）。 |
-| 1.2.19 | **P0 保存竞态修复 + P2 脏态即时更新**：保存时从编辑器实时取内容绕过防抖延迟；`markUserEdit()` 拆出防抖即时标脏。菜单增量更新（只改快捷键不重建）；配置分两级加载（主题先行，窗口弹完再读全部）；拖拽事件全局单次注册；自动更新默认关闭。|
-| 1.2.18 | **减法重构**：净删 3380 行。删除导出系统（HTML/PDF/微信，~2500行）、删除代理探测模块（proxy.rs）、删除死命令/死字段/透传层；图片 IPC 合并（resolve 命令并入 authorizeImageAsset）；Copy 按钮替代导出。964 tests all green。|
-| 1.2.17 | **asset:// 图片重开后裂图修复 + 启动黑闪修复**：OpenCode 修复 asset:// URL 重开无授权、粘贴路径未用 authorized.path、prevLocalSrc 缓存无重试、main_window.show() 延迟到前端 startup_ready IPC 后调用。新增 CI test.yml + RELEASE-CHECKLIST.md。|
-| 1.2.16 | **图片粘贴保存为文件非 base64 内嵌**：新图片存 assets/ 目录，文档只写相对路径。修复 proxy 编译（移除不存在的 `.proxy()` 方法）。|
-| 1.2.15 | **自动更新代理检测 4 优先级兜底**：env/Git/注册表/端口探测，跨平台注入 updater builder。|
-| 1.2.14 | **性能优化全面复审 35 项**：编辑器核心 13 项（decorations 缓存、appendTransaction 合并遍历、parser WeakMap、serializer O(N) 预计算、search-highlight 缓存、rAF 合帧等），Vue 前端 10 项（KeepAlive 修复、fontLoader 节流、watcher 精确化），Rust 12 项（LTO/strip、hljs 动态加载、字体 IPC 路径化、启动日志缓冲、IPC 命令合并、autoprefixer 移除等）。988 tests all green。 |
-| 1.2.13 | **字体缓存资产作用域修复**：`convertFileSrc` 回退方案，删除未使用的 mime 参数。 |
-| 1.2.12 | **字体缓存 IPC 重构**：pending heading 在文档加载时自动转换。 |
-| 1.2.11 | **callout 斜杠命令修复**：callout 不再插入空块；自动聚焦编辑器。 |
-| 1.2.9 | **微信导出本地图片 base64 嵌入 + 卡片式布局 + 字体下载失败 badge**。CI: 修复 NSIS 路径 target triple 前缀 + 新增「版本号先升后打 tag」约束。发布流程文档化 → `RELEASE_PROCESS.md`。 |
-| 1.2.8 | **ClipboardTextSerializer 拆除 + Tauri 自动更新器**。粘贴不再泄漏 `**你好**` 源码；新增设置/关于面板检测更新；Airbnb/San Francisco/S 字体支持。 |
-| 1.2.7 | **字体系统重构**：远程字体按需下载+缓存+OS 独立超时+自动切换备选；JSON schema 重构移除 deprecated；设置面板通用组件化；CI: replaceAll → split+join(ES2020 兼容) |
-| 1.2.6 | **CommonMark spec roundtrip 6项修复**：code span delimiter、list item blank line、ATX heading # escape、code fence adaptive delimiter、URL parenthesis escaping、consecutive HR blank line suppression。CommonMark skip table 45→34、977 tests all green。CJK 边界专题文档移到 `docs/cjk-boundary.md`。 |
-| 1.2.5 | **拆除 `tauri-plugin-single-instance`，改为多进程独立架构**：每个 .md 双击启动独立 solo.exe，独立 WebView2 数据目录（`%TEMP%\com.solomarkdown\EBWebView-{PID}-{ms}`），消除 LevelDB 锁竞争导致的全进程卡死。启动时自动清理 24h 前过期目录。 |
-| 1.2.4 | callout 去圆角+加重底色，7主题预设 calloutNoteBg 同步；发布 solo_1.2.4_x64-setup.exe |
-| 1.2.3 | 文件关联移入 NSIS installerHooks；word count 切换文件修复；highlight mark 主题化；markdown 导出多余转义修复；roundtrip 测试框架 |
-| 1.2.2 | 粘贴检测 + Ctrl+C 带源码 + PDF→打印 |
-| 1.2.1 | 窗口生命周期全面修复 + 编辑器懒加载 + 保存退出流程 |
-
+> 版本变更史以 [`CHANGELOG.md`](../CHANGELOG.md) 为**唯一真理源**，本文不再复述，避免两处漂移。
 ## 待办
 
 - P3: 崩溃 `.tmp` 残留清理（搁置）
@@ -424,9 +399,8 @@ inline:
 - 多进程架构下：字体缓存走文件系统（`app_local_data_dir/font-cache/`），不走 IndexedDB
 - 发版前先升版本号再打 tag，确保 Cargo.toml/package.json/tauri.conf.json 三处一致
 
-## 字体缓存架构（v1.2.10）
+## 字体缓存架构
 
-多进程共享 `%APPDATA%\com.solomarkdown\data\font-cache\` 目录，每个字体文件以 family 名命名。
-写入策略：临时文件 → rename，防并发脏读。读取策略：Rust 命令检查文件存在 → `convertFileSrc` → `fetch` → Blob → FontFace。
-
-相关文件：`fontLoader.ts` / `commands/font.rs` / `document.ts`
+> 机制细节（下载 / 缓存 / 回退）以 [`ARCHITECTURE.md`](../ARCHITECTURE.md) §10.3 为真理源，本文不复述。
+> 要点：多进程共享 `%APPDATA%\com.solomarkdown\data\font-cache\`，写入走临时文件→rename，读取走 `convertFileSrc`→`fetch`→`FontFace`。
+> 相关文件：`fontLoader.ts` / `commands/font.rs` / `document.ts`

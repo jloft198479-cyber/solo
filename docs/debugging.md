@@ -72,7 +72,7 @@ IME(输入法) → 原生菜单加速器(Tauri) → WebView2浏览器控件 → 
 
 ## See also
 
-- [bug 易发区地图](./defect-hotspots.md)
+- [bug 易发区地图（ARCHITECTURE §11）](../ARCHITECTURE.md)
 - [已知问题与技术债](./KNOWN-ISSUES.md)
 - [文档索引与术语表](./INDEX.md)
 - [接手指南](../HANDOVER.md)

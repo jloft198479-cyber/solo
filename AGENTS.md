@@ -34,12 +34,40 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 - **绝不擅自下载、安装软件**：任何软件 / 依赖安装前先查本机是否已有（Rust 在 `M:\rust`、MSVC 在 `M:\VS` 等，复用不重装）；需安装须先获明确同意，且尽量装到非系统盘（如 `M:` 盘）。
 - **信息更新要及时**：最新信息通过 wiki / 互链保持同步，陈旧无用信息及时清理；改动及时留记录、及时 `git` 提交。
 
+## 文档管理规范（SSOT + DRY + L2 减文件）
+
+> 目标：每件事只在一处写真版，别处只引用不复制，根除信息冗余、版本不一致与 AI 读取无效上下文。
+
+### 一、单一真实源（SSOT）
+- 每个事实只在一处写（真理源），别处只放「一句指向它的话 + 链接」，不抄内容。
+- 已知真理源地图：技术栈/版本 → `ARCHITECTURE.md`；发版流程 → `RELEASE_PROCESS.md`；bug 易发区 → `ARCHITECTURE.md §11`；问题排查 → `docs/debugging.md` + `docs/KNOWN-ISSUES.md`；文档索引 → `docs/INDEX.md`；版本历史 → `CHANGELOG.md`；代码真相 → 以代码为准（不以注释/文档/记忆）。
+- 代码层面的 SSOT 细则（命令名/定义/字体/主题等真理源）见 `ARCHITECTURE.md` §11.6。
+
+### 二、不要重复自己（DRY）
+- 信息拆成原子可复用内容，全局统一引用而非复制。
+- 纯指针/索引类文件（无独家内容）应并入真理源后删除，不留空壳。
+- 多语言 README（zh-CN/ja-JP/ko-KR）是必要本地化，不算冗余，保留。
+
+### 三、L2 减文件纪律（实操）
+1. 合并/删文件前，先确认独有价值内容已存在于真理源。
+2. 先把所有引用它的链接改指真理源。
+3. 再删文件。
+4. 删后用「含隐藏目录的递归 grep」跑死链扫描，确认零孤儿引用。
+- **两层受众区分**：人类文档（README / CONTRIBUTING / SECURITY / 多语言 README）保持可读、不碎片化；agent 文档（ARCHITECTURE / AGENTS / HANDOVER / docs/*）可激进原子化以省 AI 上下文。
+- **禁止为做「原子 include」引入构建工具/新脚本**（守「不擅自装软件」纪律）；Markdown 的 DRY 用链接引用实现，不引 preprocessor。
+
+### 四、死链即 Bug
+- 任何指向已删/已改名文件的链接都是 Bug，发现即修。
+- 文档若与代码不符，以代码为准并更新文档（见 AGENTS 黄金法则 / CONTRIBUTING）。
+
+---
+
 ## 文档地图
 
 | 读者 | 先读这个 | 再看这个 |
 |------|----------|----------|
 | **新接手** | [HANDOVER.md](./HANDOVER.md) | [AGENTS.md](./AGENTS.md) → [ARCHITECTURE.md](./ARCHITECTURE.md) |
-| **找 bug / 定位问题** | [docs/defect-hotspots.md](./docs/defect-hotspots.md) | [docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md) → [docs/debugging.md](./docs/debugging.md) |
+| **找 bug / 定位问题** | [ARCHITECTURE.md §11](./ARCHITECTURE.md)（敏感区速查表） | [docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md) → [docs/debugging.md](./docs/debugging.md) |
 | **查技术决策** | [.opencode/PROFILE.md](./.opencode/PROFILE.md) | [ARCHITECTURE.md](./ARCHITECTURE.md) |
 | **改 CJK 边界** | [docs/cjk-boundary.md](./docs/cjk-boundary.md) | [src/components/Editor/tiptap/markdown/parser.ts](./src/components/Editor/tiptap/markdown/parser.ts) / [src/components/Editor/tiptap/markdown/serializer.ts](./src/components/Editor/tiptap/markdown/serializer.ts) |
 | **发新版本** | [docs/PLAYBOOK.md](./docs/PLAYBOOK.md) | [RELEASE_PROCESS.md](./RELEASE_PROCESS.md) → [.github/workflows/release.yml](./.github/workflows/release.yml) |
@@ -48,22 +76,7 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 
 ### 快速链接
 
-| 用途 | 路径 |
-|------|------|
-| 接手入口（环境 + 真理源） | [HANDOVER.md](./HANDOVER.md) |
-| 文档索引 + 术语表 | [docs/INDEX.md](./docs/INDEX.md) |
-| 已知问题 + 技术债 | [docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md) |
-| bug 易发区地图 | [docs/defect-hotspots.md](./docs/defect-hotspots.md) |
-| 调试指南 | [docs/debugging.md](./docs/debugging.md) |
-| 版本变更史 | [CHANGELOG.md](./CHANGELOG.md) |
-| 协作规范 | [CONTRIBUTING.md](./CONTRIBUTING.md) |
-| 安全披露政策 | [SECURITY.md](./SECURITY.md) |
-| 项目档案（技术栈 + 架构决策 + 版本历史） | [.opencode/PROFILE.md](./.opencode/PROFILE.md) |
-| 体系编译手册 | [BUILD_GUIDE.md](./BUILD_GUIDE.md) |
-| **发布全生命周期剧本（A–F 总纲）** | [docs/PLAYBOOK.md](./docs/PLAYBOOK.md) |
-| 正式发布流程（Phase E 机制细节） | [RELEASE_PROCESS.md](./RELEASE_PROCESS.md) |
-| 架构参考 | [ARCHITECTURE.md](./ARCHITECTURE.md) |
-| CJK 标点加粗边界专题 | [docs/cjk-boundary.md](./docs/cjk-boundary.md) |
+> 完整文档索引与术语表见 [docs/INDEX.md](./docs/INDEX.md)（唯一索引真理源，本文不再复述链接表）。
 
 ## 关键约束速查
 

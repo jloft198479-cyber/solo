@@ -15,7 +15,7 @@
 | 1 | [`HANDOVER.md`](./HANDOVER.md) | 接手第一站：30 秒定位、环境、真理源文件 |
 | 2 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | 三层架构、决策阶梯、核心约束 |
 | 3 | [`AGENTS.md`](./AGENTS.md) | 工作纪律 + 文档地图 |
-| 4 | [`docs/defect-hotspots.md`](./docs/defect-hotspots.md) | 10 个 bug 易发区，改前必看 |
+| 4 | [`ARCHITECTURE.md §11`](./ARCHITECTURE.md) | 10 个 bug 易发区速查表，改前必看 |
 | 5 | [`docs/KNOWN-ISSUES.md`](./docs/KNOWN-ISSUES.md) | 已知问题 / 技术债 |
 | 6 | [`docs/debugging.md`](./docs/debugging.md) | 调试指南、环境坑位 |
 

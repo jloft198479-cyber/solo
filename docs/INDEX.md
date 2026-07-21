@@ -16,13 +16,13 @@
 | [`TROUBLESHOOTING.md`](../TROUBLESHOOTING.md) | 用户 | 运行时问题排查 | 活跃 |
 | [`docs/PLAYBOOK.md`](./PLAYBOOK.md) | 维护者/agent | **发布全生命周期剧本（A–F 六阶段总纲）** | 活跃（2026-07-21 新增） |
 | [`RELEASE_PROCESS.md`](../RELEASE_PROCESS.md) | 维护者 | 发版机制细节（PLAYBOOK 的 Phase E 子文档） | 活跃 |
-| [`RELEASE-CHECKLIST.md`](../RELEASE-CHECKLIST.md) | 维护者 | 发版手动回归清单 | 活跃（导出章节已注记失效） |
-| [`PUBLISH_GUIDE.md`](../PUBLISH_GUIDE.md) | 维护者 | 发布指南 | 活跃 |
-| [`PROFILE.md`](../.opencode/PROFILE.md)（`.opencode/`） | 维护者 | 技术档案（含历史快照） | [警告] 可能滞后，以 ARCHITECTURE+代码为准 |
+| `RELEASE-CHECKLIST.md`（已并入） | 维护者 | 发版手动回归清单 → 已并入 [`RELEASE_PROCESS.md`](../RELEASE_PROCESS.md) §10.4 | 已合并（2026-07-21） |
+| [`PUBLISH_GUIDE.md`](../PUBLISH_GUIDE.md) | 维护者 | 发布指南（RELEASE_PROCESS 小白实操版） | 活跃 |
+| [`PROFILE.md`](../.opencode/PROFILE.md)（`.opencode/`） | 维护者 | 技术档案（与 ARCHITECTURE/CHANGELOG 去重，以二者为真理源） | 活跃 |
 | [`docs/cjk-boundary.md`](./cjk-boundary.md) | 开发者 | CJK 加粗边界专题（历史过程记录） | 活跃（历史快照，勿当现状） |
 | [`docs/network-proxy-guide.md`](./network-proxy-guide.md) | 维护者 | 更新检测代理 | 活跃 |
 | [`docs/KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) | 接手者/agent | **已知问题+技术债**（本批新增） | 活跃 |
-| [`docs/defect-hotspots.md`](./defect-hotspots.md) | 接手者/agent | **bug 易发区地图**（本批新增） | 活跃 |
+| `docs/defect-hotspots.md`（已并入） | 接手者/agent | **bug 易发区地图** → 已并入 [`ARCHITECTURE.md`](../ARCHITECTURE.md) §11 速查表 | 已合并（2026-07-21） |
 | [`docs/debugging.md`](./debugging.md) | 接手者/agent | **调试指南**（本批新增） | 活跃 |
 | [`docs/INDEX.md`](./INDEX.md) | 接手者/agent | 本文（本批新增） | 活跃 |
 | [`CHANGELOG.md`](../CHANGELOG.md) | 接手者/维护者 | **版本变更史**（P1 新增，由真实 git log 整理） | 活跃 |

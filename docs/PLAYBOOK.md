@@ -106,9 +106,9 @@ pwsh scripts/release-gate.ps1 -Stage PostCI
 - **入口**：E 完成（已 `published`）。
 - **动作**：
   - 已安装旧版 → 设置/通用/检查更新 → 确认弹新版 → 下载/安装/重启成功。
-  - 走 [`RELEASE-CHECKLIST.md`](../RELEASE-CHECKLIST.md) 手动回归（图片/路径/边界/升级）。
+  - 走 [`RELEASE_PROCESS.md`](../RELEASE_PROCESS.md) §10.4 手动回归（图片/路径/边界/升级）。
 - **出口关卡**：✅ 自动更新实测通过 + 回归清单全勾。
-- **收尾**：PROFILE 版本历史（已在 D 的 doc 提交里做）、CHANGELOG 对齐。
+- **收尾**：CHANGELOG 版本记录（已在 D 的 doc 提交里做）、CHANGELOG 对齐。
 
 ---
 

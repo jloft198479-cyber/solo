@@ -25,7 +25,7 @@ solo = 本地优先的桌面 Markdown 编辑器（Tauri 2 + Rust 原生核心 + 
 2. [AGENTS.md](./AGENTS.md) —— 工作纪律 + 快速入门（AI/开发者必读）
 3. [ARCHITECTURE.md](./ARCHITECTURE.md) —— **权威架构地图**（命令清单、目录、关键约束、附录 B「常见任务从哪入手」、附录 C「文档-代码差异」）
 4. 按需：[BUILD_GUIDE.md](./BUILD_GUIDE.md)（编译）、[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)（用户侧问题）、[docs/](./docs/)（专题）
-5. 接手专用（本批新增）：[docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md)、[docs/defect-hotspots.md](./docs/defect-hotspots.md)、[docs/debugging.md](./docs/debugging.md)、[docs/INDEX.md](./docs/INDEX.md)
+5. 接手专用（本批新增）：[docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md)、[docs/debugging.md](./docs/debugging.md)、[docs/INDEX.md](./docs/INDEX.md)
 
 ## 环境搭建（本机真实路径，照抄）
 
@@ -85,7 +85,7 @@ bun run build:tauri              # 打安装包
 
 1. **先读 [ARCHITECTURE.md](./ARCHITECTURE.md)**，它比任何对话摘要都准。
 2. **不要信任 `.trae/documents/`**；遇到「文件树/workspace watcher」等描述，那是旧架构。
-3. 找「改 X 去哪个文件」→ 直接查 [ARCHITECTURE.md](./ARCHITECTURE.md) 附录 B，或本批的 [docs/defect-hotspots.md](./docs/defect-hotspots.md)。
+3. 找「改 X 去哪个文件」→ 直接查 [ARCHITECTURE.md](./ARCHITECTURE.md) 附录 B 或 §11 敏感区速查表。
 4. 验证改动：**必须跑完整 `bun run test`**，不要信「我试了子集应该没问题」。
 5. 改 parser/serializer 后，roundtrip + commonmark 测试必须通过（见上方真理源）。
 6. 遇到环境/构建问题 → [docs/debugging.md](./docs/debugging.md)。
@@ -94,7 +94,7 @@ bun run build:tauri              # 打安装包
 
 - [项目工作手册](./AGENTS.md)
 - [架构权威地图](./ARCHITECTURE.md)
-- [bug 易发区地图](./docs/defect-hotspots.md)
+- [bug 易发区地图（ARCHITECTURE §11）](./ARCHITECTURE.md)
 - [已知问题与技术债](./docs/KNOWN-ISSUES.md)
 - [调试指南](./docs/debugging.md)
 - [文档索引与术语表](./docs/INDEX.md)
