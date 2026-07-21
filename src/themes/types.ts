@@ -59,6 +59,8 @@ export interface ThemeColors {
   errorBg: string;
   infoColor: string;
   infoBg: string;
+  /** 脏状态色 — 状态栏「未保存」指示，跟随主题（缺省回退 main.css 默认值） */
+  dirtyColor?: string;
   shadowSm: string;
   shadowMd: string;
   shadowLg: string;
@@ -219,6 +221,7 @@ export const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
   errorBg: '--error-bg',
   infoColor: '--info-color',
   infoBg: '--info-bg',
+  dirtyColor: '--dirty-color',
   shadowSm: '--shadow-sm',
   shadowMd: '--shadow-md',
   shadowLg: '--shadow-lg',
