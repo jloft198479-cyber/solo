@@ -16,6 +16,7 @@ import type { Schema } from '@tiptap/pm/model';
 
 import { parseMarkdown } from '../markdown/parser';
 import { authorizeImageAsset, saveClipboardImage } from '../../../../services/tauri/document';
+import { readClipboardHtml } from '../../../../services/tauri/clipboard';
 import { confirm } from '../../../../services/tauri/dialog';
 
 /** 检测剪贴板中是否包含图片文件 */
@@ -314,10 +315,11 @@ export function markdownPastePlugin(opts?: {
         }
 
         // ── 3.5 HTML 兜底：事件无 text/html 时异步读系统剪贴板 ────────
-        // Tauri/WebView2 等运行时，粘贴事件的 `text/html` 可能缺失，导致内容
-        // 退化成纯文本、格式全丢。此处 `return true` 阻止默认纯文本粘贴，并
-        // 异步从系统剪贴板再读一次 HTML（readClipboardHtmlFallback 保证落内容：
-        // 命中 HTML 解析插入 → 否则降级 markdown/纯文本）。
+        // Tauri/WebView2 的粘贴事件常常不带 `text/html`，导致内容退化成纯文本、
+        // 格式全丢。此处 `return true` 阻止默认纯文本粘贴，并异步从【系统剪贴板】
+        // 读 HTML（readClipboardHtml → 自定义 Rust 命令 `read_clipboard_html`，
+        // 底层 arboard 直接读系统剪贴板；clipboard-manager 插件无 readHtml API，故绕开）。
+        // 命中 HTML 解析插入 → 否则降级 markdown/纯文本。
         if (!html || !html.trim()) {
           if (hasImage) {
             if (text && text.trim()) {
@@ -378,35 +380,25 @@ export function parseHtmlSlice(schema: Schema, htmlString: string): Slice | null
 }
 
 /**
- * 兜底：当粘贴事件的 `text/html` 缺失时，异步从系统剪贴板再读一次 HTML
- * （`navigator.clipboard.read()` 在桌面 webview 的 secure context 下可用）。
+ * 兜底：当粘贴事件的 `text/html` 缺失时，从【系统剪贴板】读 HTML
+ * （readClipboardHtml → 自定义 Rust 命令 `read_clipboard_html`，底层 arboard
+ * 直接读系统剪贴板；clipboard-manager 插件无 readHtml API，故绕开）。
  * 命中 HTML → 解析插入；否则降级为 markdown 解析、最后降级为纯文本插入。
  * 无论成功失败都会落内容，调用方应 `return true` 阻止默认纯文本粘贴。
  */
 async function readClipboardHtmlFallback(view: any, text: string) {
-  try {
-    const clipboard = (navigator as any).clipboard;
-    if (clipboard?.read) {
-      const items = await clipboard.read();
-      for (const item of items) {
-        if (item.types?.includes('text/html')) {
-          const blob = await item.getType('text/html');
-          const html = await blob.text();
-          const slice = parseHtmlSlice(view.state.schema, html);
-          if (slice) {
-            view.dispatch(
-              view.state.tr
-                .replaceSelection(slice)
-                .scrollIntoView()
-                .setMeta(markdownPastePluginKey, { pasted: true }),
-            );
-            return;
-          }
-        }
-      }
+  const html = await readClipboardHtml();
+  if (html) {
+    const slice = parseHtmlSlice(view.state.schema, html);
+    if (slice) {
+      view.dispatch(
+        view.state.tr
+          .replaceSelection(slice)
+          .scrollIntoView()
+          .setMeta(markdownPastePluginKey, { pasted: true }),
+      );
+      return;
     }
-  } catch (err) {
-    console.warn('clipboard.read HTML fallback failed:', err);
   }
 
   // 降级：markdown 解析 → 纯文本
