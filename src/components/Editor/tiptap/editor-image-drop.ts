@@ -17,7 +17,9 @@ interface SetupEditorImageDropOptions {
   getStoragePath: () => string | null;
 }
 
-const supportedImageExtensions = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp']);
+// 允许拖入的图片扩展名。须与 Rust document.rs 的 IMAGE_EXTENSIONS 保持一致，
+// 否则会出现「能拖入保存但显示失败」（如 .bmp/.ico）。
+const supportedImageExtensions = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico']);
 
 function isSupportedImagePath(path: string) {
   const ext = path.split('.').pop()?.toLowerCase() || '';
