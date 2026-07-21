@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.27] — 2026-07-21
+
+### Fixed
+- **复制粘贴格式兼容性（入站）**：从网页 / Word / Notion / 微信等复制的富文本，粘贴事件常不带 `text/html`，导致格式退化成纯文本。原兜底 `navigator.clipboard.read()` 在桌面 webview 不可靠、且官方 `clipboard-manager` 插件并无 `readHtml` API。改为新增 Rust 命令 `read_clipboard_html`（复用项目已有的 `arboard` 依赖直接读系统剪贴板，零新增依赖），缺失 `text/html` 时异步兜底还原格式。回退了两处不存在的 `clipboard-manager:allow-read-html` 权限。
+- **复制粘贴格式兼容性（出站）**：编辑器内 `Ctrl+C` 此前无自定义 `clipboardTextSerializer`，选区复制到外部 Markdown 编辑器（Obsidian / Typora）时，callout / 数学公式 / mermaid / wikilink / frontmatter / 脚注等 solo 扩展语法的 Markdown 标记全丢。新增 `serializeClipboardSlice`，将选区序列化为 Markdown 纯文本写入 `text/plain`；`text/html` 仍由 ProseMirror 默认生成（标准格式走 HTML 还原）。
+- **状态栏保存按钮颜色不跟随主题**：`cinnabar` 与 `scholar` 预设的 `successColor` 同为 `#6b8e5a`（深色 `#8fb87a`），在两者间切换时「已保存」绿色不变，造成不跟随的错觉。已将 `cinnabar` 改为 `#7ba35a`、`cinnabar-dark` 改为 `#93c06f` 区分。
+
+---
+
 ## [1.2.26] — 2026-07-21
 
 ### Fixed
