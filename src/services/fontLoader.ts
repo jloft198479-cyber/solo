@@ -84,12 +84,16 @@ async function downloadWithProgress(
     notifyProgress(family, Math.round((received / len) * 100));
   }
 
-  return new Blob(chunks as BlobPart[]);
+  // 从 URL 推断字体 MIME（.otf→font/otf, .ttf→font/ttf），让 FontFace.load() 能识别格式
+  const mime = url.endsWith('.otf') ? 'font/otf' : url.endsWith('.ttf') ? 'font/ttf' : '';
+  return new Blob(chunks as BlobPart[], { type: mime });
 }
 
 async function readCache(family: string): Promise<boolean> {
   try {
-    const cachedPath = await getCachedFontPath(family);
+    const fileName = REMOTE_FONTS[family];
+    if (!fileName) return false;
+    const cachedPath = await getCachedFontPath(family, fileName);
     if (!cachedPath) return false;
 
     const assetUrl = convertFileSrc(cachedPath);
@@ -123,7 +127,7 @@ async function downloadAndCache(family: string, fileName: string): Promise<boole
   }
 
   // 主路径成功后保存缓存（Rust 已落盘的 fallback 路径无需再保存）
-  saveCachedFont(family, [...new Uint8Array(await blob.arrayBuffer())]).catch(() => {});
+  saveCachedFont(family, fileName, [...new Uint8Array(await blob.arrayBuffer())]).catch(() => {});
 
   const blobUrl = URL.createObjectURL(blob);
   const ok = await registerFont(family, blobUrl);
@@ -167,7 +171,9 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
 export async function isFontAvailable(family: string): Promise<boolean> {
   if (SYSTEM_FONTS.has(family)) return true;
   if (loadedFonts.has(family)) return true;
-  const cachedPath = await getCachedFontPath(family);
+  const fileName = REMOTE_FONTS[family];
+  if (!fileName) return true; // 非下载型字体，视为可用
+  const cachedPath = await getCachedFontPath(family, fileName);
   return cachedPath !== null;
 }
 
