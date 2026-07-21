@@ -9,7 +9,7 @@
 打开 PowerShell（Win + R → 输入 `powershell` → 回车），然后**复制粘贴**下面这行命令：
 
 ```powershell
-cd F:\fzz-Project\md-editor\md-editor
+cd F:\fzz-Project\md-editor
 ```
 
 > 这行命令的意思是：告诉电脑"我要在这个项目文件夹里干活"。

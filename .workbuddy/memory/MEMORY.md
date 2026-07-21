@@ -154,9 +154,21 @@
 
 ### 项目身份
 - **正式名称**: solo
-- **版本**: v1.1.6
-- **历史残留**: `marklight` 字样（package.json name、菜单文案、localStorage key）→ 待清理项
+- **版本**: v1.2.24（以 `package.json` 为准；ARCHITECTURE.md 同步到此版本）
+- **历史残留**: `marklight` 字样 → 已清理（见 2026-06-30 工作记录）
 - **定位**: 本地优先桌面 Markdown 编辑器，面向中文沉浸式写作
+
+### 本机目录结构（2026-07-21 拍平后，重要）
+- **项目根 = 仓库根 = `F:\fzz-Project\md-editor`**（`.git` 在此层）。已消除历史上的 `md-editor/md-editor` 双层同名嵌套。
+- **注意**：本记忆的历史日志（2026-07-19 / 2026-07-21）里凡出现「内层 `md-editor/md-editor` 才是 git 仓库」「外层非 git」的叙事，均为**拍平前的旧状态**，已作废；当下只有单层。
+- 仓库根同时寄生三份未提交且已 gitignore 的原则草稿（architecture：产品开发总原则.md / project_rules：工作原则和纪律.md / solo产品精神.md）+ 辅助文件（.trash-垃圾站/ / .archive-档案室/ / .write-the-fuck-*.json / .sig），均不进公开仓库。
+
+### 本机目录结构（2026-07-21 拍平）
+- **项目根 = 仓库根 = `F:\fzz-Project\md-editor`**（单层，无嵌套）。
+- 历史：曾因 Trae 工作区开在父层导致 `md-editor/md-editor` 双层嵌套（外层非 git，内层才是仓库），2026-07-21 已拍平消除。
+- 仓库根同级的本机辅助/私有文件（已 gitignore，不提交）：`.trash-垃圾站/`（软删中转）、`.archive-档案室/`（MarkLight 时代历史）、`.write-the-fuck-*.json`（笔记工具缓存）、三份原则草稿（`architecture：产品开发总原则.md` / `project_rules：工作原则和纪律.md` / `solo产品精神.md`，待比对吸收后软删）。
+- 仓库内 `.archive/`（solo v2 设计存档，本地未跟踪）与外层 `.archive-档案室/` 不同，勿混。
+- **IDE 锁铁律**：WorkBuddy 打开的项目目录被 IDE 锁占用，agent 侧无法对其 `.git`/根目录做 rename/move；结构性改名/搬迁必须在项目未在 IDE 中打开时进行。
 
 ### 技术栈
 - **桌面框架**: Tauri 2.x
@@ -168,12 +180,14 @@
 
 ### 三层架构
 ```
-Rust 核心 (src-tauri/)   ← 14 个命令 + 3 个事件
+Rust 核心 (src-tauri/)   ← 20 个命令 + 2 类事件
         ▲ invoke/emit
 IPC 服务层 (src/services/tauri/)  ← 契约封装，前端不直接碰 invoke
         ▲
-Vue 前端 (src/)  ← App.vue 协调层 + 11 个 composables + 2 个 Pinia store
+Vue 前端 (src/)  ← App.vue 协调层 + 10 个 composables + 2 个 Pinia store
 ```
+
+> 命令清单以 `src-tauri/src/lib.rs` 的 `generate_handler!` 为准。
 
 ### 关键约束
 1. **脏态机制**: `setContent()` vs `markUserEdit()` 分离 → 动它会重新引入脏态闪烁
@@ -181,6 +195,7 @@ Vue 前端 (src/)  ← App.vue 协调层 + 11 个 composables + 2 个 Pinia stor
 3. **序列化尾换行**: `serializeMarkdown()` 强制恰好一个 `\n`
 4. **图片资产安全**: `validate_image_asset_path` 先做 `canonicalize` 再校验扩展名
 5. **启动开打竞态**: 三层缓冲（`EARLY_OPEN_REQUEST` + `StartupOpenRequests` + `LoadedWindows`）
+6. **Rust 改动必须 `cargo check`（环境陷阱）**：PowerShell 工具禁止 `cmd.exe`，无法用 `vcvars64.bat`；`Enter-VsDevShell` 本机亦失败（参数/路径问题，cl.exe 不进 PATH）。手动设 `$env:PATH/$env:INCLUDE/$env:LIB` 指向 `M:\VS\BuildTools\VC\Tools\MSVC\14.44.35207` + Windows SDK `10.0.26100.0` 后跑 `cargo check`（`CARGO_HOME=M:\rust\.cargo`）。`cargo check` 也会编译 C++ 构建依赖（vswhom-sys 需 cl.exe），故 MSVC 工具链不可省，不能裸跑。
 
 ### 真理源自一处（配置集中点）
 - 命令名: `command-names.ts`
@@ -189,12 +204,58 @@ Vue 前端 (src/)  ← App.vue 协调层 + 11 个 composables + 2 个 Pinia stor
 - 字体栈: `fontStack.ts`
 - 主题色彩映射: `types.ts::CSS_VAR_MAP`
 
+### 字体机制（2026-07-20 核实，重要）
+solo 字体是「两套体系 + 远程下载缓存」模式，并非简单缺失：
+- **体系 A（UI 层，固定栈）**：`main.css` 的 `--font-text` = `'Inter', 系统字体..., 'Microsoft YaHei UI'/'PingFang SC'..., sans-serif`。Inter 排首但**全代码无加载路径**（不打包、不下载），纯系统回退；Windows 上回退 Segoe UI。仅此层"碰运气"。
+- **体系 B（正文可选字体，有下载机制）**：`src/constants/fonts.ts` 的 `FONT_OPTIONS` 共 7 项，5 项带 `fileName`（思源宋体/朱雀仿宋/小赖/霞鹜文楷/汇文明朝）为下载型，2 项（system-ui / 微软雅黑 UI）为系统字体不下载。
+  - 加载：`src/services/fontLoader.ts` 的 `ensureFontLoaded(family)`：先查本地缓存(`getCachedFontPath`→`convertFileSrc`)→否则 `downloadAndCache` 从 `https://github.com/jloft198479-cyber/solo/releases/download/v${pkg.version}/${fileName}` 下载并 `saveCachedFont` 落盘；失败兜底走 Rust `fetchFontData`。用 `new FontFace(family,url,{display:'swap'})` 注册（`fontLoader.ts:43`，无 FOUT）。
+  - 栈拼接：`src/utils/fontStack.ts` 的 `buildFontStack(primary)` 按字体类型拼 CJK fallback 链；编辑器与导出端共用，所见即所得。
+- **分发风险**：字体随每个 `v${pkg.version}` GitHub Release 发布；国内网络首次下载可能慢/不稳；首次冷启无网→回退系统 CJK（fallback 链兜底，可用但失书卷感）。
+- **修正旧误判**：此前设计评审①称"Inter、CJK 字体都没打包"不准确——CJK 正文字体有完整下载+缓存机制（不进安装包、运行期获取），仅 UI 栈的 Inter 是纯回退。
+
+---
+
+## 文档 initiative 真实目的（2026-07-20 校正 — 重要）
+
+- **真实受众是 AI agent，不是人类用户**。整个「接手能力 / agent 友好」文档工作（P0 接手文档 + P1 协作规范）的目的是让 **AI agent（接盘团队可能是其他开发者，也可能是其他 agent）能快速定位问题、熟悉项目和代码**。
+- **人看不看得懂无所谓，agent 能读懂才是硬指标**。写文档时以 agent 可解析、可检索、信息密度为优先，不必为人类可读性做额外修饰。
+- **P2（用户侧诊断/重置 GUI 面板）已否决**：原设计是给「人类用户」用的自救工具（环境卡片/日志重置/导出诊断包）。但 agent 不会点 GUI，它直接读文件 + 调 IPC 命令就能拿版本/日志/设置。故 P2 人类 UI 与 agent 目标错位 → **不做**，除非未来出现具体 agent 需求（如「需要一条命令把诊断信息 dump 成 agent 可读的 JSON」）才考虑，且那是 agent-facing 而非人类 UI。
+- 现有 P0/P1 文档（HANDOVER.md / defect-hotspots / KNOWN-ISSUES / debugging / CONTRIBUTING / CHANGELOG / SECURITY / AGENTS.md）已是 agent 的「快速上手 + 找问题」包，无需再为人类加 GUI。
+
 ---
 
 ## 历史经验
 
-（待补充）
+### mermaid 全黑问题（2026-07-19）
+- **现象**：solo 中 mermaid 图表渲染为黑矩形 + 黑字。
+- **根因**：`mermaid-block.ts` 初始化用 `securityLevel: 'strict'`，mermaid 11 把主题样式生成成 `<style>` 内联进 SVG，但非 `loose` 模式过 DOMPurify（`ADD_TAGS` 不含 `style`）→ 主题 `<style>` 被删 → 节点回退到 SVG 默认样式（黑填充）。
+- **修复**：`securityLevel: 'strict'` → `'loose'`。本地优先单文件编辑器，loose 安全风险可忽略。
+
+### 拖拽单例互斥覆盖 bug（2026-07-19）
+- **现象**：拖入 `.md` 文件到编辑器不会打开新窗口。
+- **根因**：`events.ts` 的 `activeDragDropHandler` 是单值变量，`subscribeDragDrop` 后注册的 handler 覆盖前者。`useAppWindowSession`（处理 .md 打开）被 `MarkdownEditor.vue`（处理图片拖入）覆盖。
+- **修复**：`activeDragDropHandler: DragDropHandler | null` → `activeDragDropHandlers: Set<DragDropHandler>`，事件广播给所有订阅者。新增 `events.spec.ts` 5 个测试守门。
+
+### 图片 IPC 合并（2026-07-19）
+- **问题**：`MarkdownEditor.vue` 的 `setLocalSrcResolver` 需 5 行 if/else 判别路径模式（storage/相对/绝对），再分别调 `authorize_image_asset`。
+- **修复**：Rust 新增 `resolve_image_display` 命令，一步完成路径判别 + canonicalize + authorize。前端调用点简化为 1 行。`lib.rs` 命令数 19 → 20（新增 `resolve_image_display`）。
 
 ---
 
-**最后更新**: 2026-06-25
+### v1.2.24 发版（2026-07-20）
+- **内容**：命令面板（CommandPalette）+ 大纲面板（OutlinePanel + useOutline，scroll-spy）+ 体感丝滑优化（统一动效 token、乐观保存、搜索/跳转脉冲、主题字体 crossfade、font-display swap、prefers-reduced-motion）+ 代码审查修复（Slash 中文触发、mermaid/数学块删除入口、菜单视口边界、图片 containment 校验、双开 EBWebView 清理守卫）。
+- **发版流程复盘**：按 RELEASE_PROCESS.md——两笔提交（feat + bump version）、本地门禁（`bun run test` 992 全过 / `bun run build` 通过）、tag v1.2.24 触发 CI（~14.5min，Rust 编译占大头）、核对三件套资产 + latest.json 版本号、转 published。CI 跑在 GitHub windows-latest，无需本地 MSVC 工具链（cargo check 的环境陷阱只在本地 Rust 改动时适用；本次仅 TS/Vue/CSS + 版本号，未触 Rust 源码）。
+- **教训**：`gh release download -D /tmp/...` 在 Git Bash 下，gh（Windows 二进制）把 `/tmp` 解析成当前盘 `F:\tmp`，与 MSYS 的 `/tmp` 不是同一目录，导致下载"成功"但 cat 找不到。解决：用项目相对路径（如 `./_reltmp`）下完即删。
+
+---
+
+### 发布流程规范化（2026-07-21）
+- **总纲**：`docs/PLAYBOOK.md` —— 全生命周期 6 阶段（A 文档梳理 / B 问题盘点 / C 优化提案 / D 提交纪律 / E 发布 / F 上线验证），每段「入口/动作/出口关卡」。前半段四环节正式固化。
+- **核心原则**：判断归人，机械归脚本。
+- **发版机制细节**：`RELEASE_PROCESS.md` 现为 Phase E 子文档；手动回归见 `RELEASE-CHECKLIST.md`。
+- **机械闸门**：`scripts/release-gate.ps1`（`-Stage PreTag` 查版本三处一致+replaceAll+test/build；`-Stage PostCI [-Publish]` 等 CI+核资产+latest.json+翻转发布）。
+- **铁律**：`-Publish` 默认关闭防误发；`/tmp` 错位坑用项目内 `.reltmp` 规避。
+
+---
+
+**最后更新**: 2026-07-21

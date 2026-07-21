@@ -25,7 +25,7 @@
 在项目根目录执行：
 
 ```powershell
-cd F:\fzz-Project\md-editor\md-editor
+cd F:\fzz-Project\md-editor
 bun run tauri signer generate -w src-tauri/.tauri/updater.key
 ```
 
