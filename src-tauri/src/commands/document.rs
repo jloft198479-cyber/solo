@@ -10,7 +10,10 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
-const IMAGE_EXTENSIONS: [&str; 6] = ["png", "jpg", "jpeg", "gif", "webp", "svg"];
+// 图片扩展名白名单（用于显示授权校验 validate_image_asset_path）。
+// ⚠️ 必须与前端 editor-image-drop.ts 的 supportedImageExtensions 保持一致，
+// 且与 mime_to_extension 支持的格式对齐——否则会出现「能保存但显示失败」（如 .bmp/.ico）。
+const IMAGE_EXTENSIONS: [&str; 8] = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
 
 #[tauri::command]
 pub fn open_document(path: String) -> Result<DocumentOpenResult, AppError> {
@@ -198,7 +201,7 @@ pub fn save_clipboard_image(
         fs::create_dir_all(&target_dir)?;
     }
 
-    // 生成唯一文件名：Pasted image YYYYMMDD_HHMMSS.ext
+    // 生成唯一文件名：Pasted image {毫秒时间戳}.ext
     let timestamp_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis())
