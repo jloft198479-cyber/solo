@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { EditorView } from '@tiptap/pm/view';
 import { Slice } from '@tiptap/pm/model';
@@ -12,6 +12,17 @@ import {
   markdownPastePlugin,
   parseMarkdownTablePaste,
 } from '../markdown-paste';
+
+// 模拟系统剪贴板 HTML 读取（前端 readClipboardHtml → Rust read_clipboard_html 命令，
+// 测试环境无 Tauri 运行时，故整体 mock）。默认返回 null（降级纯文本）；
+// 特定用例改为返回富文本 HTML 以验证兜底路径。
+const clipboardMocks = vi.hoisted(() => ({
+  readClipboardHtml: vi.fn().mockResolvedValue(null),
+}));
+
+vi.mock('../../../../../services/tauri/clipboard', () => ({
+  readClipboardHtml: clipboardMocks.readClipboardHtml,
+}));
 
 describe('looksLikeMarkdownTable', () => {
   it('recognizes a standard GFM table', () => {
@@ -142,14 +153,33 @@ describe('markdownPastePlugin handlePaste（真实 EditorView 端到端）', () 
   });
 
   it('粘贴纯文本（无 HTML）→ 拦截并走兜底（最终插入纯文本，内容不丢）', async () => {
+    // 系统剪贴板也无 HTML → 最终降级为纯文本插入
+    clipboardMocks.readClipboardHtml.mockResolvedValue(null);
     const v = mountEmpty();
     const handled = firePaste(v, pasteEvent({ 'text/plain': 'just a paragraph' }));
 
     expect(handled).toBe(true);
-    // 兜底路径异步把纯文本插入文档（navigator.clipboard.read 在测试环境返回 promise，需 flush）
+    // 兜底路径异步把纯文本插入文档（需 flush 微任务）
     await new Promise((r) => setTimeout(r, 0));
     expect(v.state.doc.textContent).toContain('just a paragraph');
     expect(tableIn(v.state.doc)).toBeNull();
+  });
+
+  it('粘贴事件无 text/html 时，从系统剪贴板读 HTML 并还原加粗格式（Rust 命令兜底）', async () => {
+    // 模拟桌面端真实场景：粘贴事件只带 text/plain，但系统剪贴板里存着富文本 HTML
+    clipboardMocks.readClipboardHtml.mockResolvedValue('<p>Hello <strong>world</strong></p>');
+    const v = mountEmpty();
+    const handled = firePaste(v, pasteEvent({ 'text/plain': 'Hello world' }));
+
+    expect(handled).toBe(true);
+    await new Promise((r) => setTimeout(r, 0));
+    let hasBold = false;
+    v.state.doc.descendants((node) => {
+      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
+      return !hasBold;
+    });
+    expect(hasBold).toBe(true);
+    clipboardMocks.readClipboardHtml.mockResolvedValue(null);
   });
 
   it('剪贴板带富文本 <table> → 显式解析并插入表格节点（保留格式）', () => {

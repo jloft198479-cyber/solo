@@ -344,6 +344,7 @@ pub fn run() {
             save_clipboard_image,
             authorize_image_asset,
             resolve_image_display,
+            read_clipboard_html,
             fetch_remote_image,
             startup_ready,
             new_editor_window,

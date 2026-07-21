@@ -85,7 +85,9 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useFileStore } from '../../stores/file';
 import { useSettingsStore } from '../../stores/settings';
 import { parseMarkdown } from './tiptap/markdown/parser';
-import { serializeMarkdown } from './tiptap/markdown/serializer';
+import { serializeMarkdown, serializeClipboardSlice } from './tiptap/markdown/serializer';
+import type { Slice } from '@tiptap/pm/model';
+import type { EditorView } from '@tiptap/pm/view';
 import type { SlashCommandItem } from './tiptap/extensions/slash-commands';
 import type { EmojiItem } from './tiptap/extensions/emoji-suggest';
 import {
@@ -227,6 +229,12 @@ function createEditor(content: string) {
       attributes: {
         class: 'tiptap-editor',
         spellcheck: settingsStore.settings.spellCheck ? 'true' : 'false',
+      },
+      // 出站修复：选区复制时产出 Markdown 纯文本，确保 callout / 数学公式 /
+      // mermaid / wikilink / frontmatter / 脚注等扩展语法粘到外部 MD 编辑器不丢。
+      // text/html 仍由 ProseMirror 默认生成（标准格式走 HTML 还原，不受影响）。
+      clipboardTextSerializer: (slice: Slice, view: EditorView) => {
+        return serializeClipboardSlice(view.state.doc, slice);
       },
     },
     onUpdate: ({ editor: ed }) => {

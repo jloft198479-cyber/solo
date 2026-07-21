@@ -4,7 +4,7 @@
  * 将 ProseMirror 文档树转换为 markdown 字符串。
  * 自定义实现以精确控制输出格式，支持 GFM 表格、任务列表等扩展语法。
  */
-import type { Node as PMNode, Mark } from '@tiptap/pm/model';
+import type { Node as PMNode, Mark, Slice } from '@tiptap/pm/model';
 import { getPluginNodeSerializers } from './plugins';
 
 // ── 序列化状态 ────────────────────────────────────���─────────────
@@ -508,4 +508,18 @@ export function serializeMarkdownForClipboard(doc: PMNode): string {
   let output = state.output;
   output = output.replace(/\n*$/, '\n');
   return output;
+}
+
+/**
+ * 出站复制：把选区 Slice 序列化为 Markdown 纯文本（供 `editorProps.clipboardTextSerializer` 使用）。
+ *
+ * ProseMirror 默认 `clipboardTextSerializer` 只输出 `textContent`（纯文本），
+ * 导致 callout / 数学公式 / mermaid / wikilink / frontmatter / 脚注等 solo
+ * 扩展语法粘到外部 Markdown 编辑器时标记全丢。这里用文档的 schema 把选区内容
+ * 重新序列化为 Markdown，外部编辑器从 `text/plain` 即可拿到完整语法。
+ * `text/html` 仍由 ProseMirror 默认生成（标准格式走 HTML 还原，不受影响）。
+ */
+export function serializeClipboardSlice(doc: PMNode, slice: Slice): string {
+  const sliced = doc.copy(slice.content);
+  return serializeMarkdownForClipboard(sliced);
 }

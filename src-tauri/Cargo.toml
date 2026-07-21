@@ -31,6 +31,7 @@ url = "2"
 tauri-plugin-store = "2.4.3"
 tauri-plugin-updater = "2"
 tauri-plugin-window-state = "2.4.1"
+arboard = "3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = "0.3.2"
