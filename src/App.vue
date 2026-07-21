@@ -495,7 +495,7 @@ onUnmounted(() => {
 }
 
 .statusbar-stat--success {
-  color: var(--success-color);
+  color: var(--primary-color);
 }
 
 /* ── 保存状态按钮：圆点 + 文字，状态色克制 ──────────────── */
@@ -524,7 +524,7 @@ onUnmounted(() => {
 }
 
 .statusbar-save-btn.is-clean {
-  color: var(--success-color);
+  color: var(--primary-color);
 }
 
 .statusbar-save-dot {
