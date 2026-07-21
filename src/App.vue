@@ -58,8 +58,8 @@ const documentSession = useDocumentSession({
   getContent: () => editorRef.value?.getContent?.() ?? null,
 });
 
-async function handleOpenFile(path: string) {
-  await documentSession.openDocumentWithPrompt(path);
+async function handleOpenFile(path: string, silent = false) {
+  await documentSession.openDocumentWithPrompt(path, silent);
 }
 
 /**

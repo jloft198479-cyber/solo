@@ -10,11 +10,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **首次启动仍弹「打开文件失败」错误框**：v1.2.26 曾修过此问题（`handleOpenPayload` 加了 os error 2 静默跳过逻辑），但修复不完整——`loadDocumentFromPath` 的内层 catch 会先 `await message(...)` 弹窗并 `return false`，错误被吃掉传不到外层 try/catch，静默逻辑形同虚设。修复：给 `loadDocumentFromPath` / `openDocumentWithPrompt` / `handleOpenFile` 加 `silent` 参数，启动链路传 `true`，遇到文件不存在时把错误抛给 `handleOpenPayload` 的静默跳过逻辑处理；用户主动打开（菜单/拖拽）仍走默认 `silent=false`，保留合理的错误提示。复查阶段发现并修复两个关键问题：①`handleOpenPayload` 用 `String(err)` 转换错误对象，但 `invokeCommand` 抛的是 `TauriAppError` 对象 `{code, message}`，`String()` 得到 `"[object Object]"`，正则无法匹配 os error 2——改为用 `normalizeTauriError(err).message` 正确提取 message；②非 os error 2 的错误 `throw err` 会中断 setup 函数，导致 `setupDragDrop()` 不执行、拖拽功能失效——改为弹窗提示但不 throw，避免中断后续启动步骤。
+- **字体下载在网络受限环境失败**：`reqwest` 配 `rustls-tls`（不读系统证书库）但未开启 `system-proxy` feature，导致 rustls-tls 也不读系统代理，fallback 下载通道在网络受限环境失败。修复：`Cargo.toml` 加 `system-proxy` feature，reqwest 自动读环境变量 + Windows 注册表系统代理。同时修正 `fetch_font_data` 注释——v1.2.28 的注释说"无扩展名导致 Content-Type 推断失败"是错误的（v1.2.27 用 family 命名无扩展名文件能正常加载，反证了这一点）；真正原因是缓存 key 命名变更导致旧缓存失效 + reqwest 不读系统代理。
+- **字体缓存兼容 v1.2.27 旧命名**：v1.2.28 改用 fileName（含扩展名）后，v1.2.27 用 family（无扩展名）留下的旧缓存无法识别。`get_cached_font_path` 增加兼容逻辑：先查新名，找不到再查旧名（family），找到则迁移为新名（`fs::rename`）。迁移后旧文件消失，后续都走新名，一次性升级无残留；迁移失败（权限/跨盘）时返回旧路径，字体仍可加载。
+- **SSOT 违规：`read_clipboard_html` 命令名未登记**：`clipboard.ts` 用硬编码字符串 `invoke('read_clipboard_html')` 而非通过 `command-names.ts` 真理源。修复：`command-names.ts` 加 `readClipboardHtml`，`clipboard.ts` 改用 `invokeCommand + TAURI_COMMANDS.readClipboardHtml`。
+
+### Changed
+- **标题字号整体下调**：h1/h2 在 `editor.css` 默认值和全部 7 个主题预设中下调约 0.1em，让标题与正文的层级对比更克制（h3-h6 保持不变，已接近主流编辑器标准）。
+
+---
+
 ## [1.2.28] — 2026-07-21
 
 ### Fixed
 - **状态栏「已保存」文字颜色跟随主题主色**：此前「已保存」指示用了 `--success-color`（各预设多为绿色系差异极小，且 `scholar` 的 successColor 与 `main.css` 兜底值碰巧相同，掩盖了不跟随的真问题）。改为跟随 `--primary-color`——主题主色是什么，它就是什么，真正做到「颜色跟上主题」而非「拉开色值」。仅改 `App.vue` 两处（`statusbar-stat--success` / `statusbar-save-btn.is-clean`），`.is-dirty` 仍走 `--dirty-color` 不动。
-- **正文字体下载失败（缓存文件名缺扩展名）**：字体缓存落到 `$APPLOCALDATA/font-cache/` 时，文件名原用 family 名（无扩展名）。asset protocol 靠**文件扩展名**推断 Content-Type，无扩展名导致 `FontFace.load()` 拒绝加载。修复：缓存文件名改用 URL 末段的 `fileName`（含 `.woff2` 等扩展名），`fetch_font_data` / `get_cached_font_path` / `save_font_cache` 三命令同步增 `file_name` 参数；前端 `fontLoader.ts` 下载落盘时补 MIME type，避免再次因类型推断失败。
+- **正文字体下载失败（缓存文件名变更导致旧缓存失效）**：字体缓存落到 `$APPLOCALDATA/font-cache/` 时，v1.2.27 用 family 名（如 `Noto Serif SC`，无扩展名），v1.2.28 改用 URL 末段的 `fileName`（含 `.woff2` 等扩展名）。改名的本意是与前端 `FONT_OPTIONS.fileName` 字段对齐，避免 family 字符串与磁盘文件名的二次映射；但副作用是 v1.2.27 留下的旧缓存（family 命名）无法被新代码识别，被迫重新下载。`fetch_font_data` / `get_cached_font_path` / `save_font_cache` 三命令同步增 `file_name` 参数；前端 `fontLoader.ts` 下载落盘时补 MIME type。（后续 Unreleased 段补正：早期注释说"无扩展名导致 Content-Type 推断失败"是错误的——v1.2.27 用 family 命名无扩展名文件能正常加载，反证了这一点；真正原因是缓存 key 命名变更 + reqwest 不读系统代理。）
 - **从 AI 工具（豆包 / 千问等）复制内容粘贴格式全丢**：此前粘贴来源嗅探只认「专有 markdown 语法」（`#` 标题、`**` 加粗等字面字符 `### 标题` / `**加粗**` 显示出来）。AI 工具常把 markdown 源包在 `pre`/`div` 壳里复制，源是纯 markdown 但被当成 HTML 解析，格式蒸发。扩展嗅探条件为「专有语法 **或** 通用 markdown 源（`looksLikeMarkdownSource`）」，覆盖豆包 / 千问 / 其他把 markdown 包壳复制的场景。新增 2 个回归测试（纯 markdown 源无 HTML / 通用 AI 工具壳场景）断言格式真保留。
 
 ---
