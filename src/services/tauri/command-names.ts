@@ -7,6 +7,7 @@ export const TAURI_COMMANDS = {
   importDocumentImage: 'import_document_image',
   newEditorWindow: 'new_editor_window',
   openDocument: 'open_document',
+  readClipboardHtml: 'read_clipboard_html',
   refreshNativeMenuShortcuts: 'refresh_native_menu_shortcuts',
   renameFile: 'rename_file',
   registerShellNew: 'register_shell_new',

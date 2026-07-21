@@ -1,4 +1,5 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invokeCommand } from './client';
+import { TAURI_COMMANDS } from './command-names';
 
 /**
  * 从系统剪贴板读取 HTML 富文本。
@@ -13,7 +14,7 @@ import { invoke } from '@tauri-apps/api/core';
  */
 export async function readClipboardHtml(): Promise<string | null> {
   try {
-    const html = await invoke<string | null>('read_clipboard_html');
+    const html = await invokeCommand<string | null>(TAURI_COMMANDS.readClipboardHtml);
     return html && html.trim() ? html : null;
   } catch {
     return null;

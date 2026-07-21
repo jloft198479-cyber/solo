@@ -58,7 +58,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     return `${sanitized}.md`;
   }
 
-  async function loadDocumentFromPath(path: string): Promise<boolean> {
+  async function loadDocumentFromPath(path: string, silent = false): Promise<boolean> {
     if (isOpeningFile) return false;
     isOpeningFile = true;
     try {
@@ -88,6 +88,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       applyLoadedDocument(document);
       return true;
     } catch (error) {
+      // silent 模式：启动/恢复场景下，路径可能指向已被移动/删除的文件，
+      // 把错误抛给外层（如 useAppWindowSession.handleOpenPayload）做静默跳过，
+      // 避免在用户没主动操作时弹"打开文件失败"对话框。
+      if (silent) throw error;
       const { message: errorMessage } = normalizeTauriError(error);
       console.error('Failed to open document:', errorMessage);
       await message(`打开文件失败: ${errorMessage}`, { title: '错误', kind: 'error' });
@@ -118,12 +122,12 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     });
   }
 
-  async function openDocumentWithPrompt(path: string) {
+  async function openDocumentWithPrompt(path: string, silent = false): Promise<boolean> {
     if (!(await confirmDiscardUnsavedChanges())) {
       return false;
     }
 
-    const loaded = await loadDocumentFromPath(path);
+    const loaded = await loadDocumentFromPath(path, silent);
     if (loaded) {
       clearExternalWarning();
       options.resetViewMode();

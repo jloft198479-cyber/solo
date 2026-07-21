@@ -3,6 +3,8 @@ import { onUnmounted, watch } from 'vue';
 import type { AppOpenPathsPayload } from '../services/tauri/events';
 import { listenWindowCloseRequested, subscribeDragDrop } from '../services/tauri/events';
 import { saveWindowState, StateFlags } from '@tauri-apps/plugin-window-state';
+import { normalizeTauriError } from '../services/tauri/client';
+import { message } from '../services/tauri/dialog';
 import {
   destroyCurrentWindow,
   isCurrentWindowFullscreen,
@@ -13,7 +15,7 @@ import {
 } from '../services/tauri/window';
 
 interface AppWindowSessionOptions {
-  openDocument: (path: string) => void | Promise<void>;
+  openDocument: (path: string, silent?: boolean) => void | Promise<void>;
   saveDocument: () => Promise<boolean>;
   isDirty: () => boolean;
   windowTitle: Ref<string>;
@@ -106,17 +108,22 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
     for (const path of payload.paths) {
       if (!path) continue;
       // 启动路径可能来自 OS 文件关联 / 更新后重启的残留参数，
-      // 文件可能已被移动或删除。静默跳过，不弹错误框。
+      // 文件可能已被移动或删除。silent=true 让内层不弹"打开失败"对话框，
+      // 把错误抛到这里做静默跳过。
       try {
-        await options.openDocument(path);
+        await options.openDocument(path, true);
       } catch (err) {
-        const msg = String(err ?? '');
+        // invokeCommand 抛的是 TauriAppError 对象 {code, message}，
+        // 用 normalizeTauriError 提取 message 再做正则匹配。
+        const msg = normalizeTauriError(err).message;
         // os error 2 = ERROR_FILE_NOT_FOUND（Windows）| ENOENT（Unix）
         if (/os error\s*2|No such file|file not found/i.test(msg)) {
           console.warn(`[startup] 跳过不存在的启动文件: ${path}`);
         } else {
-          // 非文件缺失的错误（如权限问题）仍应抛出，由上层处理
-          throw err;
+          // 非文件缺失的错误（如权限问题）弹窗提示用户，
+          // 但不 throw 以免中断 setup（setupDragDrop 等后续步骤仍需执行）。
+          console.error(`[startup] 打开启动文件失败: ${path}`, msg);
+          await message(`打开文件失败: ${msg}`, { title: '错误', kind: 'error' });
         }
       }
     }
