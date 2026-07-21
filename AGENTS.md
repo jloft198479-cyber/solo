@@ -85,7 +85,7 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 - **测试**: `bun run test`（Vitest + happy-dom），测试数随用例增减，以实际输出为准
 - **Rust**: 1.96.0，edition 2021，`CARGO_HOME=M:\rust\.cargo`
 - **MSVC**: Build Tools v14.44，路径 `M:\VS\BuildTools`
-- **Bun**: 1.3.14
+- **Bun**: 1.3.14（工具链版本 / 环境变量 / 编译命令以 [BUILD_GUIDE.md](./BUILD_GUIDE.md) 为唯一真理源，本文仅摘要点）
 
 ## 积压待办
 

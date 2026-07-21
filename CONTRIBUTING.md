@@ -23,21 +23,13 @@
 
 ## 1. 开发环境
 
-### 1.1 必需工具链
+> **工具链版本、安装、环境变量配置、编译命令与踩坑**统一以 [BUILD_GUIDE.md](./BUILD_GUIDE.md) 为唯一真理源（§1 技术栈 / §2 安装 / §3 环境变量 / §4 编译 / §6–§7 踩坑）。本文只保留 BUILD_GUIDE 未覆盖的**本机特有坑位**。
 
-| 工具 | 版本 / 路径 | 备注 |
-|---|---|---|
-| Bun | 1.3.14 | `bun install` / `bun run` |
-| Node.js | 22（CI 用 22） | 作为 bun segfault 时的兜底 |
-| Rust | 1.96.0，edition 2021 | `CARGO_HOME=M:\rust\.cargo`（本机） |
-| MSVC Build Tools | v14.44.35207 | `M:\VS\BuildTools` + Windows SDK `10.0.26100.0` |
-| Tauri | 2.x | 桌面框架 |
-
-### 1.2 本机环境坑位（重要）
+### 1.1 本机环境坑位（重要）
 
 > 以下坑是**本机特有**，CI（GitHub windows-latest）不受影响。本地开发务必照做。
 
-- **Rust / MSVC 不在默认 PATH**：编译前需手动加载 vcvars64 并设置 `CARGO_HOME=M:\rust\.cargo`、`RUSTUP_HOME=M:\rust\.rustup`。完整命令见 `RELEASE_PROCESS.md §4.3`。
+- **Rust / MSVC 不在默认 PATH**：编译前需手动加载 `vcvars64.bat` 并设置 `CARGO_HOME=M:\rust\.cargo`、`RUSTUP_HOME=M:\rust\.rustup`。完整 env 设置见 [BUILD_GUIDE.md §3](./BUILD_GUIDE.md)。
 - **bun 下 `vue-tsc` / `vite` / `vitest run <过滤>` 可能 segfault**：
   - 类型检查兜底：`node node_modules/vue-tsc/bin/vue-tsc.js --noEmit`
   - 构建兜底：`node node_modules/vite/bin/vite.js build`
