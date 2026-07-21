@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.26] — 2026-07-21
+
+### Fixed
+- **启动时目标文件不存在不再弹错误框**：更新后重启或通过文件关联（双击 .md）启动 solo 时，若启动参数指向已删除/移动的文件，原行为弹「打开文件失败: 系统找不到指定的文件。(os error 2)」错误框。改为捕获 os error 2 / ENOENT 类错误后 `console.warn` 静默跳过；非文件缺失类错误（如权限问题）仍正常抛出。
+
+---
+
 ## [1.2.25] — 2026-07-21
 
 ### Fixed
