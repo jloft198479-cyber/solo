@@ -270,12 +270,14 @@ export function markdownPastePlugin(opts?: {
           }
         }
 
-        // ── 2.5 来源嗅探：markdown 编辑器 vs 网页 ────────────────────
+        // ── 2.5 来源嗅探：markdown 编辑器 / AI 工具 vs 网页 ───────────
         // text/plain 和 text/html 同时存在时，判断来源：
-        // - text/plain 含 markdown 专有语法（$$、[[ ]]、> [!NOTE]）→ 来自 markdown 编辑器
-        //   走 markdown 解析，保留 HTML 中已丢失的语法
-        // - 否则 → 来自网页，放行给 ProseMirror DOMParser
-        if (html && html.trim() && hasMarkdownOnlySyntax(text)) {
+        // - text/plain 含 markdown 语法（专有 $$/[[]]/callout，或通用 #/>/- /**）
+        //   → 来自 markdown 编辑器（Obsidian/Typora）或 AI 工具（豆包/千问等把
+        //   markdown 源包在 <pre>/<div> 壳里复制）。走 markdown 解析保留格式，
+        //   无视 HTML 壳（DOMParser 不解析 markdown，壳里是字面字符）。
+        // - 否则 → 来自网页/Word，放行给 ProseMirror DOMParser
+        if (html && html.trim() && (hasMarkdownOnlySyntax(text) || looksLikeMarkdownSource(text))) {
           const slice = parseGeneralMarkdownPaste(view.state.schema, text);
           if (slice) {
             const tr = view.state.tr

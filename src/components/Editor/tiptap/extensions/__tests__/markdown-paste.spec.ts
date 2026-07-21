@@ -233,6 +233,71 @@ describe('markdownPastePlugin handlePaste（真实 EditorView 端到端）', () 
     });
     expect(hasH2).toBe(true);
   });
+
+  it('粘贴纯 markdown 源（无 HTML + 系统剪贴板也无 HTML）→ markdown 解析为 heading/blockquote/listItem/bold（豆包场景）', async () => {
+    // 复现用户报告：豆包复制时只给 text/plain（webview 漏 text/html），
+    // 系统剪贴板也无 HTML（readClipboardHtml 返回 null）。
+    // 期望：markdown 解析为结构化节点，heading/blockquote/listItem/bold 全部命中。
+    clipboardMocks.readClipboardHtml.mockResolvedValue(null);
+    const v = mountEmpty();
+    const mdText = [
+      '# 标题一',
+      '**加粗文本**',
+      '',
+      '> 引用内容',
+      '',
+      '- 列表项 1',
+      '- 列表项 2',
+    ].join('\n');
+    const handled = firePaste(v, pasteEvent({ 'text/plain': mdText }));
+
+    expect(handled).toBe(true);
+    await new Promise((r) => setTimeout(r, 0));
+
+    let hasHeading = false;
+    let hasBlockquote = false;
+    let hasListItem = false;
+    let hasBold = false;
+    v.state.doc.descendants((node) => {
+      if (node.type.name === 'heading') hasHeading = true;
+      if (node.type.name === 'blockquote') hasBlockquote = true;
+      if (node.type.name === 'listItem') hasListItem = true;
+      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
+      return true;
+    });
+    expect(hasHeading).toBe(true);
+    expect(hasBlockquote).toBe(true);
+    expect(hasListItem).toBe(true);
+    expect(hasBold).toBe(true);
+  });
+
+  it('text/plain 是 markdown 源 + html 是壳（AI 工具通用：豆包/千问等）→ 走 markdown 解析保留格式', () => {
+    // 复现通用场景：AI 工具把 markdown 源字面包在 <pre>/<div> 里放进剪贴板 HTML。
+    // DOMParser 不解析 markdown，壳里是字面字符；修复后步骤 2.5 嗅探到 text/plain
+    // 含通用 markdown 语法 → 走 markdown 解析，无视 HTML 壳。
+    const v = mountEmpty();
+    const mdText = '# 标题\n\n**加粗**\n\n> 引用\n\n- 列表项';
+    const htmlShell = `<pre>${mdText}</pre>`;
+    const handled = firePaste(v, pasteEvent({
+      'text/plain': mdText,
+      'text/html': htmlShell,
+    }));
+
+    expect(handled).toBe(true);
+
+    let hasHeading = false;
+    let hasBold = false;
+    let hasBlockquote = false;
+    v.state.doc.descendants((node) => {
+      if (node.type.name === 'heading') hasHeading = true;
+      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
+      if (node.type.name === 'blockquote') hasBlockquote = true;
+      return true;
+    });
+    expect(hasHeading).toBe(true);
+    expect(hasBold).toBe(true);
+    expect(hasBlockquote).toBe(true);
+  });
 });
 
 describe('hasMarkdownOnlySyntax 误判防护', () => {
