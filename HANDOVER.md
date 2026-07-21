@@ -15,7 +15,7 @@
 solo = 本地优先的桌面 Markdown 编辑器（Tauri 2 + Rust 原生核心 + Vue 3 + TipTap/ProseMirror）。
 不是笔记软件、不是知识库、不是平台。面向中文沉浸式写作。
 
-- 当前版本：**v1.2.24**（以 [package.json](./package.json) 为准）
+- 当前版本：**以 [package.json](./package.json) 为准**（单一真理源，不硬编码，避免漂移）
 - 许可证：Apache-2.0
 - 仓库：`https://github.com/jloft198479-cyber/solo`
 
@@ -27,18 +27,13 @@ solo = 本地优先的桌面 Markdown 编辑器（Tauri 2 + Rust 原生核心 + 
 4. 按需：[BUILD_GUIDE.md](./BUILD_GUIDE.md)（编译）、[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)（用户侧问题）、[docs/](./docs/)（专题）
 5. 接手专用（本批新增）：[docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md)、[docs/debugging.md](./docs/debugging.md)、[docs/INDEX.md](./docs/INDEX.md)
 
-## 环境搭建（本机真实路径，照抄）
+## 环境搭建（本机真实路径）
 
 > 环境陷阱：本机 Rust 在 `M:\rust`，MSVC 在 `M:\VS\BuildTools`，**不要因为 PATH 没加载就重装**。
 
-| 工具 | 路径 / 版本 | 说明 |
-|---|---|---|
-| Bun | 1.3.14 | 包管理 + 前端 dev/test |
-| Rust | `M:\rust`（CARGO_HOME=`M:\rust\.cargo`），edition 2021 | 1.96.0 |
-| MSVC Build Tools | `M:\VS\BuildTools`，v14.44.35207 | + Windows SDK `10.0.26100.0` |
-| Node | 22/24（兜底） | 当 bun 在 vue-tsc/vite 下 segfault 时用 |
+**工具链版本、安装、环境变量（CARGO_HOME / RUSTUP_HOME / PATH）配置**统一见 [BUILD_GUIDE.md §1–§3](./BUILD_GUIDE.md)（唯一真理源）。本机 Rust / MSVC 不在默认 PATH，编译前必须按它加载环境。
 
-**`cargo check` 必须先把 MSVC 工具链放进环境**（PowerShell）：
+**`cargo check` 必须先把 MSVC 工具链放进环境**（PowerShell，本机唯一验证可用的精确命令；env 变量细节见 [BUILD_GUIDE.md §3](./BUILD_GUIDE.md)）：
 
 ```powershell
 $env:CARGO_HOME = 'M:\rust\.cargo'
@@ -59,11 +54,7 @@ bun run test                     # Vitest 全量（当前 27 文件 / 974 测试
 bun run build:tauri              # 打安装包
 ```
 
-> [警告] **测试陷阱（本机 bun/Windows 实测）**：
-> - **永远跑完整的 `bun run test`**。子集过滤 `bunx vitest run <过滤>` 会 **segfault**（线程 worker 崩溃）。
-> - `bun run build`（含 `vue-tsc` + `vite`）在本机 bun 下也 **segfault**。兜底办法：用 node 运行时直跑 JS 入口——
->   `node node_modules/vue-tsc/bin/vue-tsc.js --noEmit`
->   `node node_modules/vite/bin/vite.js build`
+> [警告] **测试陷阱（本机 bun/Windows 实测）**：`bun run test` 子集过滤会 segfault，且 `bun run build` 在本机 bun 下也 segfault。完整现象与 node 兜底命令见 [CONTRIBUTING.md §1.1](./CONTRIBUTING.md)。
 
 ## 真理源文件（改任何东西前先读这些）
 
