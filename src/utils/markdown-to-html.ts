@@ -10,7 +10,9 @@ let _md: MarkdownIt | null = null;
 
 function getRenderer(): MarkdownIt {
   if (!_md) {
-    _md = new MarkdownIt({ html: false, linkify: true })
+    // linkify:false 与编辑器内解析器(markdown/parser.ts)保持一致：
+    // 裸 URL 不自动转链接，保证「编辑器所见」与「复制出的 HTML」行为一致。
+    _md = new MarkdownIt({ html: false, linkify: false })
       .enable(['table', 'strikethrough']);
 
     _md.use(markdownItTaskLists, { enabled: true, label: false });
