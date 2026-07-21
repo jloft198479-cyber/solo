@@ -33,7 +33,7 @@
 | 编辑器 | TipTap / ProseMirror | 3.26 | |
 | 包格式 | NSIS | — | 安装包产出 `.exe` |
 
-**项目路径**：`F:\fzz-Project\md-editor\md-editor`
+**项目路径**：`F:\fzz-Project\md-editor`
 
 ---
 
@@ -71,7 +71,7 @@
 ### 2.4 前端依赖安装
 
 ```bash
-cd F:\fzz-Project\md-editor\md-editor
+cd F:\fzz-Project\md-editor
 bun install
 ```
 
@@ -136,7 +136,7 @@ src-tauri/src/ (Rust)  ──cargo build --release──▶ solo.exe
 ### 4.2 方式一：前端独立编译（验证前端改动）
 
 ```bash
-cd F:\fzz-Project\md-editor\md-editor
+cd F:\fzz-Project\md-editor
 bun run build
 ```
 
@@ -159,7 +159,7 @@ cargo build --release --manifest-path src-tauri\Cargo.toml
 ### 4.4 方式三：完整打包（一键生成安装包）
 
 ```batch
-cd F:\fzz-Project\md-editor\md-editor
+cd F:\fzz-Project\md-editor
 bun run build                                          # 前端构建
 call M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat  # MSVC 环境
 set CARGO_HOME=M:\rust\.cargo
@@ -204,7 +204,7 @@ if exist "%VCVARS%" (
     call "%VCVARS%" >nul
 )
 
-cd /d "F:\fzz-Project\md-editor\md-editor"
+cd /d "F:\fzz-Project\md-editor"
 
 echo.
 echo === Solo Dev ===
@@ -223,7 +223,7 @@ pause
 @echo off
 chcp 65001 >nul
 echo ===== 1/3 Frontend: vue-tsc + vite build =====
-cd /d F:\fzz-Project\md-editor\md-editor
+cd /d F:\fzz-Project\md-editor
 call bun run build
 if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
 
@@ -246,7 +246,7 @@ echo 可执行文件: src-tauri\target\release\solo.exe
 ```batch
 @echo off
 chcp 65001 >nul
-cd /d F:\fzz-Project\md-editor\md-editor
+cd /d F:\fzz-Project\md-editor
 
 REM Step 1: frontend
 echo ===== 1/2 Frontend build =====
@@ -298,7 +298,7 @@ $env:RUSTUP_HOME = "M:\rust\.rustup"
 
 **解决**：任何 Tauri CLI 命令（`dev` / `build`）都从项目根目录执行：
 ```bash
-cd F:\fzz-Project\md-editor\md-editor
+cd F:\fzz-Project\md-editor
 bunx tauri build
 ```
 
@@ -470,7 +470,7 @@ Bun:
   bun:     1.3.14
 
 项目:
-  根目录:  F:\fzz-Project\md-editor\md-editor
+  根目录:  F:\fzz-Project\md-editor
   Tauri:   2.11.2
   wry:     0.55.1
   webview2-com: 0.38.2
@@ -577,7 +577,7 @@ bun run build --emptyOutDir     # 清理输出目录后构建
 echo Rust: && rustc --version && cargo --version && rustup show
 echo MSVC: && dir "M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
 echo Bun: && bun --version
-echo Project: && cd F:\fzz-Project\md-editor\md-editor && bun --version
+echo Project: && cd F:\fzz-Project\md-editor && bun --version
 ```
 
 期望输出：

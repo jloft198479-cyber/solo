@@ -37,6 +37,39 @@
 3. 改 Rust → `cargo check`（带 MSVC 环境）。
 4. 发版前 → 升版本号（package.json / Cargo.toml / tauri.conf.json 三处）+ 去硬编码测试数。
 
+## 七、桌面应用快捷键调试（Tauri/Electron + ProseMirror 通用）
+
+> 来源：`_docs/经验/桌面应用快捷键调试经验.md`（2026-06-25）已收编于此，原文件已归档。
+
+### 1. 四层拦截点（从底层到上层）
+```
+IME(输入法) → 原生菜单加速器(Tauri) → WebView2浏览器控件 → JavaScript keydown
+```
+- 快捷键"没反应"先怀疑前两层（IME / 原生菜单），不是 JS 层的问题。
+- **快速定位法**：换一个不冲突的键（如 `Ctrl+Alt+字母`），换了能用 = 被拦截，不是逻辑坏。
+
+### 2. 设计默认快捷键的避坑清单
+| 组合 | 风险 | 推荐替代 |
+|------|------|----------|
+| `Ctrl+Shift+F` | IME 繁简切换拦截 | `Ctrl+Alt+F` |
+| `Ctrl+F` / `Ctrl+H` | WebView2 原生查找/替换拦截 | `Ctrl+G` / `Ctrl+Shift+G` |
+| `Ctrl+Alt+字母` / `Ctrl+Shift+字母`(非 F/H) | 中文 Windows 上最安全 | 首选 |
+- 同一快捷键可能被多层处理导致**双重触发抵消**（窗口 handler + ProseMirror 各触发一次）→ 窗口 handler 跳过 `scope:'editor'` 的默认快捷键。
+
+### 3. 逻辑触发了但无视觉反馈（ProseMirror 装饰层）
+- `view.updateState(view.state)` 传入**同个 state 对象** → ProseMirror 内部 `state === prevState` 检查直接跳过（空操作）。
+- 正确做法：`view.dispatch(state.tr)` 或 `view.updateState(state.apply(state.tr))`。
+- 更可靠：扩展自身用 `MutationObserver` 监听 DOM 类变化，不依赖外部调用（如 `paragraph-focus.ts`）。
+
+### 4. command 链路排查
+```
+快捷键 → findCommandByShortcut → executeCommand
+  → (scope:'editor') editorRef.executeCommand → editor-commands.ts
+  → (scope:'app') switch case → handler
+```
+- `eventToKeyString` 大小写敏感，确认 `event.key` 取值。
+- `scope:'editor'` 默认先被 ProseMirror 处理，窗口级 handler 别再处理一次。
+
 ## See also
 
 - [bug 易发区地图](./defect-hotspots.md)

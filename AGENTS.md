@@ -38,7 +38,7 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 | **找 bug / 定位问题** | [docs/defect-hotspots.md](./docs/defect-hotspots.md) | [docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md) → [docs/debugging.md](./docs/debugging.md) |
 | **查技术决策** | [.opencode/PROFILE.md](./.opencode/PROFILE.md) | [ARCHITECTURE.md](./ARCHITECTURE.md) |
 | **改 CJK 边界** | [docs/cjk-boundary.md](./docs/cjk-boundary.md) | [src/components/Editor/tiptap/markdown/parser.ts](./src/components/Editor/tiptap/markdown/parser.ts) / [src/components/Editor/tiptap/markdown/serializer.ts](./src/components/Editor/tiptap/markdown/serializer.ts) |
-| **发新版本** | [RELEASE_PROCESS.md](./RELEASE_PROCESS.md) | [.github/workflows/release.yml](./.github/workflows/release.yml) |
+| **发新版本** | [docs/PLAYBOOK.md](./docs/PLAYBOOK.md) | [RELEASE_PROCESS.md](./RELEASE_PROCESS.md) → [.github/workflows/release.yml](./.github/workflows/release.yml) |
 | **编译不通过** | [BUILD_GUIDE.md](./BUILD_GUIDE.md) §7 故障排查 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) |
 | **想贡献代码** | [CONTRIBUTING.md](./CONTRIBUTING.md) | [SECURITY.md](./SECURITY.md) / [.github/](./.github/) 模板 |
 
@@ -56,7 +56,8 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 | 安全披露政策 | [SECURITY.md](./SECURITY.md) |
 | 项目档案（技术栈 + 架构决策 + 版本历史） | [.opencode/PROFILE.md](./.opencode/PROFILE.md) |
 | 体系编译手册 | [BUILD_GUIDE.md](./BUILD_GUIDE.md) |
-| 正式发布流程 | [RELEASE_PROCESS.md](./RELEASE_PROCESS.md) |
+| **发布全生命周期剧本（A–F 总纲）** | [docs/PLAYBOOK.md](./docs/PLAYBOOK.md) |
+| 正式发布流程（Phase E 机制细节） | [RELEASE_PROCESS.md](./RELEASE_PROCESS.md) |
 | 架构参考 | [ARCHITECTURE.md](./ARCHITECTURE.md) |
 | CJK 标点加粗边界专题 | [docs/cjk-boundary.md](./docs/cjk-boundary.md) |
 

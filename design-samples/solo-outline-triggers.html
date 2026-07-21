@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>solo · 右侧大纲的三种打开方式</title>
+<style>
+  :root{
+    --paper:#faf8f5;
+    --paper-2:#f4f0ea;
+    --ink:#3a3226;
+    --ink-2:#5c5344;
+    --muted:#8a7d6b;          /* 已按评审建议调深一档 */
+    --primary:#8b7355;
+    --primary-soft:rgba(139,115,85,.12);
+    --line:#e7e0d6;
+    --shadow:0 8px 30px rgba(58,50,38,.10);
+    --radius:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Inter","PingFang SC","Microsoft YaHei",-apple-system,sans-serif;
+    background:#e9e3d9;
+    color:var(--ink);
+    display:flex;align-items:center;justify-content:center;
+    min-height:100vh;padding:32px;
+  }
+  .wrap{width:100%;max-width:1000px}
+  .caption{
+    text-align:center;margin-bottom:18px;
+  }
+  .caption h1{font-size:19px;font-weight:650;color:var(--ink);letter-spacing:.5px}
+  .caption p{font-size:13px;color:var(--ink-2);margin-top:6px}
+
+  /* ===== 模拟应用窗口 ===== */
+  .app{
+    position:relative;
+    height:560px;
+    background:var(--paper);
+    border-radius:14px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+    border:1px solid var(--line);
+    display:flex;flex-direction:column;
+  }
+  /* 标题栏 */
+  .titlebar{
+    height:40px;flex:0 0 40px;
+    display:flex;align-items:center;
+    padding:0 14px;
+    border-bottom:1px solid var(--line);
+    background:var(--paper);
+    position:relative;
+  }
+  .lights{display:flex;gap:8px}
+  .lights i{width:11px;height:11px;border-radius:50%;display:block}
+  .lights i:nth-child(1){background:#e0776b}
+  .lights i:nth-child(2){background:#e6b95c}
+  .lights i:nth-child(3){background:#93c088}
+  .title{
+    position:absolute;left:0;right:0;text-align:center;
+    font-size:12.5px;color:var(--muted);pointer-events:none;letter-spacing:.3px;
+  }
+
+  /* 主体 */
+  .body{flex:1;display:flex;position:relative;overflow:hidden}
+
+  /* 编辑区 */
+  .editor{
+    flex:1;padding:44px 60px;overflow-y:auto;transition:margin-right .32s cubic-bezier(.22,1,.36,1);
+  }
+  .editor h2{font-size:24px;font-weight:650;color:var(--ink);margin-bottom:4px;position:relative}
+  .editor h3{font-size:17px;font-weight:600;color:var(--ink);margin:24px 0 4px;position:relative}
+  /* gutter 徽标（左缘，评审④已调淡） */
+  .editor h2::before,.editor h3::before{
+    position:absolute;left:-38px;top:.35em;
+    font-size:10px;font-weight:600;color:var(--primary);
+    opacity:.28;font-family:"Inter",sans-serif;
+  }
+  .editor h2::before{content:"H1"}
+  .editor h3::before{content:"H2"}
+  .editor p{font-size:15px;line-height:1.9;color:var(--ink-2);margin:10px 0}
+  .editor .lead{color:var(--muted);font-size:13.5px;margin-bottom:20px}
+
+  /* ===== 右侧大纲 ===== */
+  .outline{
+    position:absolute;top:0;right:0;bottom:0;width:236px;
+    background:var(--paper-2);
+    border-left:1px solid var(--line);
+    padding:20px 18px;
+    transform:translateX(100%);
+    transition:transform .32s cubic-bezier(.22,1,.36,1);
+    display:flex;flex-direction:column;
+    z-index:5;
+  }
+  .app.open .outline{transform:translateX(0)}
+  .outline-head{
+    display:flex;align-items:center;justify-content:space-between;
+    font-size:11px;font-weight:600;color:var(--muted);
+    letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;
+  }
+  .outline-head button{
+    border:none;background:none;cursor:pointer;color:var(--muted);
+    font-size:15px;line-height:1;padding:2px 4px;border-radius:5px;
+  }
+  .outline-head button:hover{background:var(--primary-soft);color:var(--primary)}
+  .o-item{
+    font-size:13px;color:var(--ink-2);padding:6px 10px;border-radius:7px;
+    cursor:pointer;margin-bottom:1px;position:relative;transition:background .15s;
+  }
+  .o-item.sub{padding-left:22px;font-size:12.5px;color:var(--muted)}
+  .o-item:hover{background:var(--primary-soft)}
+  .o-item.active{color:var(--primary);font-weight:600;background:var(--primary-soft)}
+  .o-item.active::after{
+    content:"";position:absolute;right:-18px;top:6px;bottom:6px;width:3px;
+    background:var(--primary);border-radius:2px;   /* 激活态用右边框，不撞左缘 gutter */
+  }
+
+  /* ===== 入口① 右边缘手柄 ===== */
+  .handle{
+    position:absolute;top:50%;right:0;transform:translateY(-50%);
+    width:22px;height:64px;
+    background:var(--paper-2);
+    border:1px solid var(--line);border-right:none;
+    border-radius:8px 0 0 8px;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;z-index:6;
+    color:var(--muted);font-size:13px;
+    box-shadow:-2px 0 8px rgba(58,50,38,.04);
+    transition:color .15s,background .15s,opacity .2s;
+  }
+  .handle:hover{color:var(--primary);background:var(--paper)}
+  .app.open .handle{opacity:0;pointer-events:none}
+
+  /* ===== 状态栏 ===== */
+  .statusbar{
+    height:30px;flex:0 0 30px;
+    display:flex;align-items:center;justify-content:flex-end;gap:16px;
+    padding:0 16px;border-top:1px solid var(--line);
+    background:var(--paper);font-size:11.5px;color:var(--muted);
+  }
+  .statusbar .left{margin-right:auto;opacity:.9}
+  .sb-btn{
+    display:flex;align-items:center;gap:5px;cursor:pointer;
+    padding:3px 7px;border-radius:6px;transition:background .15s,color .15s;
+  }
+  .sb-btn:hover{background:var(--primary-soft);color:var(--primary)}
+  .sb-btn.on{color:var(--primary);background:var(--primary-soft)}
+  .sb-btn svg{width:14px;height:14px}
+
+  /* ===== 脉冲标注 ===== */
+  .pulse{
+    position:absolute;border:2px solid var(--primary);border-radius:10px;
+    pointer-events:none;z-index:20;
+    animation:pulse 1.8s ease-out infinite;
+  }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(139,115,85,.35);opacity:1}
+    70%{box-shadow:0 0 0 10px rgba(139,115,85,0);opacity:.85}
+    100%{box-shadow:0 0 0 0 rgba(139,115,85,0);opacity:1}
+  }
+  .tag{
+    position:absolute;z-index:21;background:var(--primary);color:#fff;
+    font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;
+    white-space:nowrap;box-shadow:0 3px 10px rgba(139,115,85,.35);
+  }
+  .tag::after{content:"";position:absolute;width:7px;height:7px;background:var(--primary);transform:rotate(45deg)}
+  .app.open .pulse,.app.open .tag{opacity:0;transition:opacity .2s;pointer-events:none}
+
+  /* 入口①标注：右边缘手柄 */
+  .pulse-1{top:calc(50% - 40px);right:-4px;width:30px;height:80px}
+  .tag-1{top:calc(50% - 12px);right:34px}
+  .tag-1::after{right:-3px;top:9px}
+
+  /* 入口②标注：状态栏图标 */
+  .pulse-2{bottom:3px;right:8px;width:96px;height:24px}
+  .tag-2{bottom:38px;right:12px}
+  .tag-2::after{bottom:-3px;right:24px}
+
+  /* 入口③标注：快捷键 */
+  .tag-3{top:14px;right:16px;background:var(--ink);}
+  .tag-3::after{display:none}
+
+  /* 图例 */
+  .legend{
+    margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;
+  }
+  .legend .li{
+    display:flex;align-items:flex-start;gap:9px;
+    background:var(--paper);border:1px solid var(--line);border-radius:10px;
+    padding:11px 14px;width:300px;box-shadow:0 2px 8px rgba(58,50,38,.04);
+  }
+  .legend .num{
+    flex:0 0 22px;height:22px;border-radius:50%;background:var(--primary);color:#fff;
+    font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  }
+  .legend .t{font-size:12.5px;line-height:1.5}
+  .legend .t b{color:var(--ink);font-weight:650}
+  .legend .t span{color:var(--muted)}
+  .hint{
+    text-align:center;font-size:12px;color:var(--muted);margin-top:14px;
+  }
+  .hint kbd{
+    background:var(--paper);border:1px solid var(--line);border-bottom-width:2px;
+    border-radius:5px;padding:1px 6px;font-family:inherit;font-size:11px;color:var(--ink-2);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="caption">
+    <h1>右侧大纲 · 三种打开方式</h1>
+    <p>默认为「已收起」状态 —— 点右边缘手柄 / 状态栏图标，或按 <kbd style="background:#fff;border:1px solid #e7e0d6;border-radius:4px;padding:1px 5px;font-size:11px">Ctrl + \</kbd> 试试</p>
+  </div>
+
+  <div class="app" id="app">
+    <!-- 标题栏 -->
+    <div class="titlebar">
+      <div class="lights"><i></i><i></i><i></i></div>
+      <div class="title">一场关于专注的写作 — solo</div>
+    </div>
+
+    <!-- 主体 -->
+    <div class="body">
+      <div class="editor">
+        <h2>一场关于专注的写作</h2>
+        <p class="lead">这是一段示例文档，用来演示右侧大纲收起后如何被重新唤出。</p>
+        <p>好的工具应当在你需要时出现，在你不需要时隐身。大纲导航就是这样一个"次级信息"——写作时它退到右侧余光里，甚至完全收起，把整个画面还给文字本身。</p>
+        <h3>为什么收起后还要能找回</h3>
+        <p>可收缩是自由，但如果收起后无迹可寻，自由就变成了困惑。所以打开入口必须冗余、且可被发现。solo 给了三条路：贴边手柄、状态栏图标、键盘快捷键。</p>
+        <h3>三条路各服务谁</h3>
+        <p>手柄服务鼠标直觉派，图标服务四处找按钮的人，快捷键服务键盘流。三者指向同一个动作，谁都不会被困住。</p>
+        <h3>默认收起的理由</h3>
+        <p>沉浸式写作，落笔点越干净越好。所以初始不展开，等你主动唤出——这也是为什么"怎么打开"值得单独设计。</p>
+      </div>
+
+      <!-- 右侧大纲 -->
+      <aside class="outline">
+        <div class="outline-head">
+          <span>大纲</span>
+          <button id="closeBtn" title="收起">›</button>
+        </div>
+        <div class="o-item active">一场关于专注的写作</div>
+        <div class="o-item sub">为什么收起后还要能找回</div>
+        <div class="o-item sub">三条路各服务谁</div>
+        <div class="o-item sub">默认收起的理由</div>
+      </aside>
+
+      <!-- 入口① 右边缘手柄 -->
+      <div class="handle" id="handle" title="展开大纲">‹</div>
+
+      <!-- 脉冲标注 -->
+      <div class="pulse pulse-1"></div>
+      <div class="tag tag-1">① 右边缘手柄</div>
+      <div class="pulse pulse-2"></div>
+      <div class="tag tag-2">② 状态栏图标</div>
+      <div class="tag tag-3">③ 快捷键 Ctrl + \</div>
+    </div>
+
+    <!-- 状态栏 -->
+    <div class="statusbar">
+      <span class="left">1,024 字 · 已保存</span>
+      <span class="sb-btn">墨色书卷</span>
+      <span class="sb-btn on" id="sbBtn" title="切换大纲 (Ctrl+\)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="8" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/>
+          <circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>
+        </svg>
+        大纲
+      </span>
+    </div>
+  </div>
+
+  <!-- 图例 -->
+  <div class="legend">
+    <div class="li"><div class="num">1</div><div class="t"><b>右边缘手柄（主入口）</b><br><span>收起后右缘留一条窄贴片，鼠标扫过浮现。最符合"从右边拉出来"的直觉。</span></div></div>
+    <div class="li"><div class="num">2</div><div class="t"><b>状态栏图标（次入口）</b><br><span>常驻可见，点一下 toggle。复用 solo 已有的状态栏快开模式，发现性最强。</span></div></div>
+    <div class="li"><div class="num">3</div><div class="t"><b>快捷键 Ctrl + \（键盘流）</b><br><span>对齐 VS Code 侧栏切换肌肉记忆，键盘党不用离开主键区。</span></div></div>
+  </div>
+  <div class="hint">当前状态：<b id="stateText" style="color:var(--primary)">已收起</b> —— 三个入口任点其一即可展开，再点收起</div>
+</div>
+
+<script>
+  const app = document.getElementById('app');
+  const stateText = document.getElementById('stateText');
+  const sbBtn = document.getElementById('sbBtn');
+  function sync(){
+    const open = app.classList.contains('open');
+    stateText.textContent = open ? '已展开' : '已收起';
+    sbBtn.classList.toggle('on', open);
+  }
+  function toggle(){ app.classList.toggle('open'); sync(); }
+  document.getElementById('handle').addEventListener('click', toggle);
+  document.getElementById('closeBtn').addEventListener('click', toggle);
+  sbBtn.addEventListener('click', toggle);
+  document.addEventListener('keydown', e=>{
+    if((e.ctrlKey||e.metaKey) && e.key === '\\'){ e.preventDefault(); toggle(); }
+  });
+  sync();
+</script>
+</body>
+</html>

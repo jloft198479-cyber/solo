@@ -14,8 +14,9 @@
 | [`ARCHITECTURE.md`](../ARCHITECTURE.md) | 开发者/agent | **权威架构地图**（代码真相） | 活跃（附录 C 固化差异） |
 | [`BUILD_GUIDE.md`](../BUILD_GUIDE.md) | 开发者 | 编译手册 | 活跃 |
 | [`TROUBLESHOOTING.md`](../TROUBLESHOOTING.md) | 用户 | 运行时问题排查 | 活跃 |
-| [`RELEASE_PROCESS.md`](../RELEASE_PROCESS.md) | 维护者 | 发版流程 | 活跃 |
-| [`RELEASE-CHECKLIST.md`](../RELEASE-CHECKLIST.md) | 维护者 | 发版清单 | 活跃（导出章节已注记失效） |
+| [`docs/PLAYBOOK.md`](./PLAYBOOK.md) | 维护者/agent | **发布全生命周期剧本（A–F 六阶段总纲）** | 活跃（2026-07-21 新增） |
+| [`RELEASE_PROCESS.md`](../RELEASE_PROCESS.md) | 维护者 | 发版机制细节（PLAYBOOK 的 Phase E 子文档） | 活跃 |
+| [`RELEASE-CHECKLIST.md`](../RELEASE-CHECKLIST.md) | 维护者 | 发版手动回归清单 | 活跃（导出章节已注记失效） |
 | [`PUBLISH_GUIDE.md`](../PUBLISH_GUIDE.md) | 维护者 | 发布指南 | 活跃 |
 | [`PROFILE.md`](../.opencode/PROFILE.md)（`.opencode/`） | 维护者 | 技术档案（含历史快照） | [警告] 可能滞后，以 ARCHITECTURE+代码为准 |
 | [`docs/cjk-boundary.md`](./cjk-boundary.md) | 开发者 | CJK 加粗边界专题（历史过程记录） | 活跃（历史快照，勿当现状） |

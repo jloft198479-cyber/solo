@@ -46,7 +46,7 @@ if (Test-Path $vcvars) {
 }
 
 # --- 进入项目目录并启动 ---
-Set-Location "f:\fzz-Project\md-editor\md-editor"
+Set-Location "F:\fzz-Project\md-editor"
 Write-Host ""
 Write-Host "=== MD编辑器 开发模式 ===" -ForegroundColor Green
 Write-Host "Rust: $(rustc --version)" -ForegroundColor Cyan

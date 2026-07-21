@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>solo · 大纲入口 + 主题跟随演示</title>
+<style>
+  /* ===== solo 真实主题变量（light / dark 两套，对齐 main.css） ===== */
+  :root{
+    --bg-color:#faf8f5;
+    --bg-secondary:#f5f1eb;
+    --sidebar-bg:#f4f0ea;          /* solo 已为侧栏预留的专属变量 */
+    --sidebar-hover:rgba(139,115,85,.08);
+    --text-color:#2c2416;
+    --text-secondary:#5c5040;
+    --border-color:#e4ddd2;
+    --muted-color:#8a7d6b;         /* 已按评审建议调深一档 */
+    --primary-color:#8b7355;
+    --primary-soft:rgba(139,115,85,.12);
+  }
+  /* 切换主题 = 只改这些变量的值，所有引用 var() 的元素自动跟随 */
+  html.dark{
+    --bg-color:#1a1815;
+    --bg-secondary:#201d19;
+    --sidebar-bg:#201d19;
+    --sidebar-hover:rgba(176,160,128,.12);
+    --text-color:#e4ddd2;
+    --text-secondary:#b0a898;
+    --border-color:#322e28;
+    --muted-color:#6b6258;
+    --primary-color:#b0a080;
+    --primary-soft:rgba(176,160,128,.14);
+  }
+  /* 主题切换时的全局过渡（对齐 solo 的 theme-transitioning，300ms 抹平闪烁） */
+  html.theme-transitioning *{transition:background-color .3s ease,color .3s ease,border-color .3s ease}
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:"Inter","PingFang SC","Microsoft YaHei",-apple-system,sans-serif;
+    background:#d9d2c6;color:var(--text-color);
+    display:flex;align-items:center;justify-content:center;min-height:100vh;padding:32px;
+    transition:background-color .3s ease;
+  }
+  .wrap{width:100%;max-width:1000px}
+  .caption{text-align:center;margin-bottom:18px}
+  .caption h1{font-size:19px;font-weight:650;letter-spacing:.5px}
+  .caption p{font-size:13px;color:var(--text-secondary);margin-top:6px}
+  .theme-toggle{
+    margin-top:10px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;
+    font-size:12px;color:var(--primary-color);background:var(--bg-secondary);
+    border:1px solid var(--border-color);border-radius:8px;padding:5px 12px;
+    transition:background-color .15s,color .15s;
+  }
+  .theme-toggle:hover{background:var(--sidebar-hover)}
+
+  .app{
+    position:relative;height:560px;background:var(--bg-color);
+    border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.12);overflow:hidden;
+    border:1px solid var(--border-color);display:flex;flex-direction:column;
+    transition:background-color .3s ease;
+  }
+
+  /* 标题栏 */
+  .titlebar{height:36px;flex:0 0 36px;display:flex;align-items:center;padding:0;border-bottom:1px solid var(--border-color);background:var(--bg-color);position:relative;z-index:20;transition:background-color .3s,border-color .3s}
+  .title{flex:1;font-size:12px;color:var(--muted-color);opacity:.7;padding:0 16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tb-btns{display:flex;height:100%}
+  .tb-btn{width:46px;height:100%;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:background .15s,color .15s}
+  .tb-btn:hover{background:var(--sidebar-hover);color:var(--text-color)}
+  .tb-btn.primary{color:var(--primary-color)}
+  .group-sep{width:1px;height:18px;background:var(--border-color);margin:auto 2px}
+
+  .body{flex:1;display:flex;position:relative;overflow:hidden}
+  .editor{flex:1;padding:44px 60px;overflow-y:auto;transition:margin-right .32s cubic-bezier(.22,1,.36,1),background-color .3s,color .3s}
+  .editor h2{font-size:24px;font-weight:650;color:var(--text-color);margin-bottom:4px;position:relative}
+  .editor h3{font-size:17px;font-weight:600;color:var(--text-color);margin:24px 0 4px;position:relative}
+  .editor h2::before,.editor h3::before{position:absolute;left:-38px;top:.35em;font-size:10px;font-weight:600;color:var(--primary-color);opacity:.28;font-family:"Inter",sans-serif}
+  .editor h2::before{content:"H1"}
+  .editor h3::before{content:"H2"}
+  .editor p{font-size:15px;line-height:1.9;color:var(--text-secondary);margin:10px 0}
+  .editor .lead{color:var(--muted-color);font-size:13.5px;margin-bottom:20px}
+
+  /* 右侧大纲：背景引用 --sidebar-bg（solo 侧栏专属变量），自动跟随主题 */
+  .outline{
+    position:absolute;top:0;right:0;bottom:0;width:236px;background:var(--sidebar-bg);
+    border-left:1px solid var(--border-color);padding:20px 18px;
+    transform:translateX(100%);transition:transform .32s cubic-bezier(.22,1,.36,1),background-color .3s,border-color .3s;
+    display:flex;flex-direction:column;z-index:5;
+  }
+  .app.open .outline{transform:translateX(0)}
+  .app.open .editor{margin-right:236px}
+  .outline-head{display:flex;align-items:center;justify-content:space-between;font-size:11px;font-weight:600;color:var(--muted-color);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px}
+  .outline-head button{border:none;background:none;cursor:pointer;color:var(--muted-color);font-size:15px;line-height:1;padding:2px 4px;border-radius:5px}
+  .outline-head button:hover{background:var(--sidebar-hover);color:var(--primary-color)}
+  .o-item{font-size:13px;color:var(--text-secondary);padding:6px 10px;border-radius:7px;cursor:pointer;margin-bottom:1px;position:relative;transition:background .15s,color .15s}
+  .o-item.sub{padding-left:22px;font-size:12.5px;color:var(--muted-color)}
+  .o-item:hover{background:var(--sidebar-hover)}
+  .o-item.active{color:var(--primary-color);font-weight:600;background:var(--primary-soft)}
+  .o-item.active::after{content:"";position:absolute;right:-18px;top:6px;bottom:6px;width:3px;background:var(--primary-color);border-radius:2px}
+
+  .statusbar{height:30px;flex:0 0 30px;display:flex;align-items:center;justify-content:flex-end;gap:16px;padding:0 16px;border-top:1px solid var(--border-color);background:var(--bg-color);font-size:11.5px;color:var(--muted-color);transition:background-color .3s,border-color .3s}
+  .statusbar .left{margin-right:auto}
+
+  .pulse{position:absolute;border:2px solid var(--primary-color);border-radius:9px;pointer-events:none;z-index:30;animation:pulse 1.8s ease-out infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(139,115,85,.35)}70%{box-shadow:0 0 0 9px rgba(139,115,85,0)}100%{box-shadow:0 0 0 0 rgba(139,115,85,0)}}
+  .tag{position:absolute;z-index:31;background:var(--primary-color);color:#fff;font-size:11px;font-weight:600;padding:3px 9px;border-radius:6px;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.2)}
+  .tag::after{content:"";position:absolute;width:7px;height:7px;background:var(--primary-color);transform:rotate(45deg)}
+  .app.open .pulse,.app.open .tag{opacity:0;pointer-events:none;transition:opacity .2s}
+  .pulse-1{top:4px;right:188px;width:54px;height:28px}
+  .tag-1{top:42px;right:150px}
+  .tag-1::after{right:-3px;top:9px}
+  .tag-2{top:42px;right:16px;background:#333}
+  .tag-2::after{display:none}
+
+  .legend{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .legend .li{display:flex;align-items:flex-start;gap:9px;background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:10px;padding:11px 14px;width:430px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+  .legend .num{flex:0 0 22px;height:22px;border-radius:50%;background:var(--primary-color);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .legend .t{font-size:12.5px;line-height:1.5}
+  .legend .t b{color:var(--text-color);font-weight:650}
+  .legend .t span{color:var(--muted-color)}
+  .hint{text-align:center;font-size:12px;color:var(--muted-color);margin-top:14px}
+  .hint b{color:var(--primary-color)}
+  kbd{background:var(--bg-secondary);border:1px solid var(--border-color);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font-family:inherit;font-size:11px;color:var(--text-secondary)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="caption">
+    <h1>大纲入口 · 顶栏按钮 + Ctrl+/ · 主题跟随</h1>
+    <p>点顶栏大纲按钮或按 <kbd>Ctrl + /</kbd> 展开；下方按钮切换明暗，看侧栏是否跟随</p>
+    <button class="theme-toggle" id="themeBtn">🌙 切换明暗主题</button>
+  </div>
+
+  <div class="app" id="app">
+    <div class="titlebar">
+      <div class="title">一场关于专注的写作 — solo</div>
+      <div class="tb-btns">
+        <button class="tb-btn primary" title="焦点模式"><svg width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 7.5s3-5 6.5-5 6.5 5 6.5 5-3 5-6.5 5S1 7.5 1 7.5z"/><circle cx="7.5" cy="7.5" r="2" fill="currentColor"/></svg></button>
+        <button class="tb-btn" id="tbOutline" title="大纲 (Ctrl+/)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1.4" fill="currentColor"/><circle cx="4" cy="12" r="1.4" fill="currentColor"/><circle cx="4" cy="18" r="1.4" fill="currentColor"/></svg></button>
+        <button class="tb-btn" title="置顶"><svg width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 11v3M5.7 7a1.2 1.2 0 0 1-.67 1.08l-1.07.54A1.2 1.2 0 0 0 3.3 9.6v.4a.5.5 0 0 0 .5.5h7.4a.5.5 0 0 0 .5-.5v-.4a1.2 1.2 0 0 0-.67-1.08l-1.07-.54A1.2 1.2 0 0 1 9.3 7V4.5a.5.5 0 0 1 .5-.5 1.2 1.2 0 0 0 0-2.4H5.2a1.2 1.2 0 0 0 0 2.4.5.5 0 0 1 .5.5z"/></svg></button>
+        <div class="group-sep"></div>
+        <button class="tb-btn" title="最小化"><svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg></button>
+        <button class="tb-btn" title="最大化"><svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></button>
+        <button class="tb-btn" title="关闭" style="color:#c0392b"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/></svg></button>
+      </div>
+    </div>
+
+    <div class="body">
+      <div class="editor">
+        <h2>一场关于专注的写作</h2>
+        <p class="lead">点上方「切换明暗」按钮——侧栏背景用的是 solo 的 --sidebar-bg 变量，会自动跟着主题走。</p>
+        <p>侧栏样式里写的是 <code>background:var(--sidebar-bg)</code>。solo 切换主题时只重设 <code>:root</code> 上的变量值，引用这些变量的地方一起变。所以大纲侧栏从设计上就内建了主题跟随，不需要任何额外代码。</p>
+        <h3>用的是哪个变量</h3>
+        <p>背景用 <code>--sidebar-bg</code>、hover 用 <code>--sidebar-hover</code>——这两个是 solo 早已为侧栏预留的专属变量（ThemeColors 里就有）。分隔线 <code>--border-color</code>、激活项 <code>--primary-color</code>、文字 <code>--text-secondary</code>，全部走主题变量。</p>
+        <h3>会跟随几套主题</h3>
+        <p>全部：7 套预设（墨色书卷 schola、elegant、cinnabar、default、gray-domain…）的 light/dark，侧栏都自动适配。还能吃到主题切换 300ms 的过渡动画，不闪。</p>
+      </div>
+
+      <aside class="outline">
+        <div class="outline-head"><span>大纲</span><button id="closeBtn" title="收起">›</button></div>
+        <div class="o-item active">一场关于专注的写作</div>
+        <div class="o-item sub">用的是哪个变量</div>
+        <div class="o-item sub">会跟随几套主题</div>
+      </aside>
+
+      <div class="pulse pulse-1"></div>
+      <div class="tag tag-1">① 顶栏 · 沉浸式按钮右侧</div>
+      <div class="tag tag-2">② Ctrl + /</div>
+    </div>
+
+    <div class="statusbar">
+      <span class="left">1,024 字 · 已保存</span>
+      <span id="themeName">墨色书卷 · 明</span>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="li"><div class="num">1</div><div class="t"><b>顶栏按钮（主入口，常驻）</b><br><span>放在沉浸式按钮右侧，与置顶、焦点构成「视图切换组」；普通模式始终可见。</span></div></div>
+    <div class="li"><div class="num">2</div><div class="t"><b>快捷键 Ctrl+/（键盘流）</b><br><span>组合键不输入字符，与斜杠命令无冲突；中国键盘 / 比 \ 单手可达。</span></div></div>
+  </div>
+  <div class="hint">主题跟随：侧栏引用 <b>--sidebar-bg</b> 等 solo 真实主题变量 → 切换明暗时自动适配，零额外代码</div>
+</div>
+
+<script>
+  const app=document.getElementById('app');
+  const stateText=null;
+  const tb=document.getElementById('tbOutline');
+  function sync(){const open=app.classList.contains('open');tb.classList.toggle('primary',open);}
+  function toggle(){app.classList.toggle('open');sync();}
+  tb.addEventListener('click',toggle);
+  document.getElementById('closeBtn').addEventListener('click',toggle);
+  document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='/'){e.preventDefault();toggle();}});
+
+  // 主题切换：仅 toggle html.dark + 加 theme-transitioning（对齐 solo 机制）
+  const themeBtn=document.getElementById('themeBtn');
+  const themeName=document.getElementById('themeName');
+  themeBtn.addEventListener('click',()=>{
+    const root=document.documentElement;
+    root.classList.add('theme-transitioning');
+    const dark=root.classList.toggle('dark');
+    themeName.textContent=dark?'墨色书卷 · 暗':'墨色书卷 · 明';
+    themeBtn.textContent=dark?'☀️ 切换明亮主题':'🌙 切换明暗主题';
+    setTimeout(()=>root.classList.remove('theme-transitioning'),320);
+  });
+  sync();
+</script>
+</body>
+</html>

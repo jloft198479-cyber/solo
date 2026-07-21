@@ -19,7 +19,7 @@ if (Test-Path $vcvars) {
     }
 }
 
-Set-Location "F:\fzz-Project\md-editor\md-editor"
+Set-Location "F:\fzz-Project\md-editor"
 Write-Host ""
 Write-Host "=== Solo Build ===" -ForegroundColor Green
 Write-Host "Rust: $(rustc --version)" -ForegroundColor Cyan

@@ -62,3 +62,12 @@ performance-*.md
 
 # v2 prototype (separate project copy)
 solo-v2/
+# 外层辅助/私有文件（搬迁后留在仓库根，不提交）
+.trash-垃圾站/
+.write-the-fuck-link-index.json
+.write-the-fuck-order.json
+.archive-档案室/
+solo_1.2.22_x64-setup.sig
+architecture：产品开发总原则.md
+project_rules：工作原则和纪律.md
+solo产品精神.md

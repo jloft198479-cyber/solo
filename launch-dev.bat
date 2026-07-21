@@ -14,7 +14,7 @@ if exist "%VCVARS%" (
     call "%VCVARS%" >nul
 )
 
-cd /d "F:\fzz-Project\md-editor\md-editor"
+cd /d "F:\fzz-Project\md-editor"
 
 echo.
 echo === Solo Dev ===

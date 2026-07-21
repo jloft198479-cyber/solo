@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>solo · 大纲导航(右) + 状态栏重设计（样品）</title>
+<style>
+  :root{
+    /* —— solo 真实设计 token（取自 src/assets/styles/main.css） —— */
+    --primary-color:#8b7355;
+    --primary-hover:#6b5a3e;
+    --primary-light:rgba(139,115,85,0.08);
+    --bg-color:#faf8f5;
+    --bg-secondary:#f5f1eb;
+    --text-color:#2c2416;
+    --text-secondary:#5c5040;
+    --border-color:#e4ddd2;
+    --border-light:#ede8df;
+    --muted-color:#8a7d6b;            /* 改动③：比线上 #9a8e7e 深一档，提升对比度 */
+    --code-bg:#f3efe8;
+    --hover-bg:rgba(139,115,85,0.05);
+    --selected-bg:rgba(139,115,85,0.12);
+    --success-color:#6b8e5a;
+    --radius-sm:3px; --radius-md:6px; --radius-lg:10px; --radius-xl:14px;
+    --font-text:'Inter','Microsoft YaHei UI','PingFang SC',system-ui,sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:var(--font-text);
+    background:#e7e0d4;color:var(--text-color);
+    padding:28px;display:flex;flex-direction:column;align-items:center;gap:18px;
+  }
+  .tag{font-size:12px;color:#7a6f5d;letter-spacing:.04em;}
+  .tag b{color:var(--primary-color);}
+
+  /* ===== 应用窗口壳 ===== */
+  .window{
+    width:1100px;background:var(--bg-color);border-radius:var(--radius-xl);
+    box-shadow:0 25px 50px -12px rgba(44,36,22,0.28);
+    overflow:hidden;display:flex;flex-direction:column;
+  }
+
+  /* 标题栏 */
+  .titlebar{
+    height:38px;display:flex;align-items:center;padding:0 6px 0 16px;
+    background:var(--bg-color);border-bottom:1px solid var(--border-color);
+  }
+  .titlebar .title{font-size:12px;color:var(--text-color);opacity:.6;cursor:text;}
+  .titlebar .spacer{flex:1;}
+  .tb-btn{
+    width:42px;height:100%;border:none;background:transparent;color:var(--text-secondary);
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .tb-btn:hover{background:var(--hover-bg);color:var(--text-color);}
+  .tb-btn.active{color:var(--primary-color);}
+  .tb-btn.close:hover{background:var(--error-color,#c05050);color:#fff;}
+
+  .body{flex:1;display:flex;min-height:600px;}
+
+  /* ===== 编辑区 ===== */
+  .editor{flex:1;overflow:auto;padding:52px 0 40px;}
+  .editor-inner{
+    max-width:720px;margin:0 auto;padding:0 48px;
+    line-height:1.9;font-size:16px;letter-spacing:.02em;
+  }
+  .editor-inner h1{font-size:30px;font-weight:700;margin:0 0 .4em;letter-spacing:.04em;}
+  .editor-inner h2{font-size:23px;font-weight:600;margin:1.2em 0 .5em;}
+  .editor-inner h3{font-size:19px;font-weight:600;margin:1em 0 .4em;}
+  .editor-inner p{margin:.7em 0;}
+  .editor-inner blockquote{
+    border-left:2px solid var(--primary-color);padding:.7em 0 .7em 1em;margin:.75em 0;
+    color:var(--text-secondary);background:rgba(139,115,85,0.04);border-radius:0 4px 4px 0;
+  }
+  .editor-inner pre{
+    background:var(--code-bg);border:1px solid var(--border-color);border-radius:0 0 6px 6px;
+    padding:12px 16px;font-family:var(--font-mono);font-size:13px;line-height:1.6;overflow:auto;
+  }
+  .gutter{
+    font-family:var(--font-mono);font-size:11px;color:var(--primary-color);
+    opacity:.28;margin-right:10px;user-select:none;            /* 改动④：gutter 平时更淡 */
+  }
+
+  /* ===== 大纲侧栏（右侧 · 锁定方向） ===== */
+  .outline{
+    width:248px;flex-shrink:0;background:var(--bg-secondary);
+    border-left:1px solid var(--border-color);padding:18px 12px;
+    display:flex;flex-direction:column;
+  }
+  .outline-head{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 8px 12px;
+  }
+  .outline-head h4{
+    font-size:11px;text-transform:uppercase;letter-spacing:.07em;
+    color:var(--muted-color);font-weight:600;
+  }
+  .outline-head .collapse{
+    font-size:11px;color:var(--muted-color);cursor:pointer;
+  }
+  .outline-head .collapse:hover{color:var(--primary-color);}
+  .oi{
+    display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:var(--radius-sm);
+    font-size:13px;color:var(--text-secondary);cursor:pointer;line-height:1.45;
+  }
+  .oi:hover{background:var(--hover-bg);}
+  .oi.l2{padding-left:24px;font-size:12.5px;}
+  .oi.l3{padding-left:40px;font-size:12px;}
+  .oi.active{
+    background:var(--selected-bg);color:var(--primary-color);font-weight:600;
+    box-shadow:inset -3px 0 0 var(--primary-color);   /* 右侧高亮用右边框 */
+  }
+  .oi .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.45;flex-shrink:0;}
+
+  /* 收缩手柄（细竖条，hover 显示箭头） */
+  .collapse-rail{
+    width:10px;flex-shrink:0;cursor:col-resize;display:flex;align-items:center;justify-content:center;
+    color:var(--muted-color);opacity:.3;transition:opacity .15s;
+  }
+  .collapse-rail:hover{opacity:.8;color:var(--primary-color);}
+
+  /* ===== 状态栏（重设计 · 改动③⑦） ===== */
+  .statusbar{
+    height:46px;display:flex;align-items:center;justify-content:space-between;
+    padding:0 22px;font-size:12px;border-top:1px solid var(--border-color);
+    background:var(--bg-color);opacity:.92;                    /* 改动③：baseline 由 .55 提到 .9 */
+  }
+  .sb-left,.sb-right{display:flex;align-items:center;gap:14px;}
+  .brand{font-size:11px;font-weight:700;color:var(--primary-color);letter-spacing:.06em;text-transform:lowercase;}
+  .stat{color:var(--text-secondary);font-weight:500;font-variant-numeric:tabular-nums;}
+  .save{display:inline-flex;align-items:center;gap:6px;color:var(--success-color);font-weight:600;}
+  .save .dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+  .qa{
+    width:32px;height:32px;border:none;background:transparent;border-radius:var(--radius-lg);
+    color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .qa:hover{background:var(--hover-bg);color:var(--text-color);}
+  .qa.persist{color:var(--primary-color);}   /* 改动⑦：常驻主题/字体入口 */
+
+  /* ===== 改动图例 ===== */
+  .legend{
+    width:1100px;background:#fff;border:1px solid var(--border-color);border-radius:var(--radius-lg);
+    padding:18px 24px;font-size:13px;color:var(--text-secondary);line-height:1.75;
+  }
+  .legend h3{font-size:14px;color:var(--text-color);margin-bottom:10px;}
+  .legend .row{display:flex;gap:10px;margin:6px 0;}
+  .legend .num{
+    flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--primary-color);
+    color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  }
+  .legend b{color:var(--text-color);}
+  .legend .lock{color:#6b8e5a;font-weight:600;}
+</style>
+</head>
+<body>
+
+  <div class="tag">样品 ① · <b>solo · 大纲导航(右·可收缩) + 状态栏重设计</b> · 非最终实现，仅供观摩</div>
+
+  <div class="window">
+    <!-- 标题栏 -->
+    <div class="titlebar">
+      <span class="title">产品需求文档 · solo v1.3.md</span>
+      <span class="spacer"></span>
+      <button class="tb-btn active" title="焦点模式">
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1 7.5s3-5 6.5-5 6.5 5 6.5 5-3 5-6.5 5S1 7.5 1 7.5z"/><circle cx="7.5" cy="7.5" r="2"/></svg>
+      </button>
+      <button class="tb-btn" title="置顶">
+        <svg width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M7.5 11v3M5.7 7a1.2 1.2 0 0 1-.67 1.08l-1.07.54A1.2 1.2 0 0 0 3.3 9.6v.4a.5.5 0 0 0 .5.5h7.4a.5.5 0 0 0 .5-.5v-.4a1.2 1.2 0 0 0-.67-1.08l-1.07-.54A1.2 1.2 0 0 1 9.3 7V4.5a.5.5 0 0 1 .5-.5 1.2 1.2 0 0 0 0-2.4H5.2a1.2 1.2 0 0 0 0 2.4.5.5 0 0 1 .5.5z"/></svg>
+      </button>
+      <button class="tb-btn" title="最小化"><svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg></button>
+      <button class="tb-btn" title="最大化"><svg width="10" height="10" viewBox="0 0 10 10"><rect x=".5" y=".5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.2"/></svg></button>
+      <button class="tb-btn close" title="关闭"><svg width="10" height="10" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/></svg></button>
+    </div>
+
+    <div class="body">
+      <!-- 编辑区（左） -->
+      <main class="editor">
+        <div class="editor-inner">
+          <h1><span class="gutter">H1</span>产品愿景</h1>
+          <p>solo 是一个<b>本地优先</b>的 Markdown 编辑器，面向中文沉浸式写作。它不依赖云端、不上传你的文字，打开即写，关掉即走。</p>
+          <blockquote>写作应当是安静的。我们把所有干扰都移到了视线之外，只留下你和文字。</blockquote>
+          <h2><span class="gutter">H2</span>定位与价值</h2>
+          <p>市面上的编辑器要么太重，要么太轻。solo 取其中道：像纸一样纯粹，又像工具一样可靠。</p>
+          <h3><span class="gutter">H3</span>目标用户</h3>
+          <p>长期写作者、知识库建设者、以及任何不想被弹窗和同步提示打断的人。</p>
+          <h2><span class="gutter">H2</span>核心功能</h2>
+          <p>从大纲导航到命令面板，所有能力都围绕「少动手、多思考」设计。</p>
+          <pre>// 示例：一次本地保存
+await document.save(currentFile.path)</pre>
+        </div>
+      </main>
+
+      <!-- 收缩手柄 -->
+      <div class="collapse-rail" title="拖拽或点击收缩大纲">⟨</div>
+
+      <!-- 大纲侧栏（右） -->
+      <aside class="outline">
+        <div class="outline-head">
+          <h4>大纲</h4>
+          <span class="collapse">收起 ⟩</span>
+        </div>
+        <div class="oi active"><span class="dot"></span>产品愿景</div>
+        <div class="oi l2"><span class="dot"></span>定位与价值</div>
+        <div class="oi l2"><span class="dot"></span>目标用户</div>
+        <div class="oi l2"><span class="dot"></span>非目标</div>
+        <div class="oi"><span class="dot"></span>核心功能</div>
+        <div class="oi l2"><span class="dot"></span>沉浸式编辑</div>
+        <div class="oi l2"><span class="dot"></span>本地优先架构</div>
+        <div class="oi l3"><span class="dot"></span>图片与资产管理</div>
+        <div class="oi"><span class="dot"></span>设计原则</div>
+        <div class="oi l2"><span class="dot"></span>真理源自一处</div>
+        <div class="oi"><span class="dot"></span>里程碑</div>
+      </aside>
+    </div>
+
+    <!-- 状态栏（重设计） -->
+    <div class="statusbar">
+      <div class="sb-left">
+        <span class="brand">solo</span>
+        <span class="stat">1,284 字</span>
+        <span class="stat">第 3 行</span>
+      </div>
+      <div class="sb-right">
+        <span class="save"><span class="dot"></span>已保存</span>
+        <button class="qa persist" title="主题 / 字体"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 2.5l1.6 3.3 3.6.5-2.6 2.6.6 3.6L8 11.1 4.8 12.6l.6-3.6L2.8 6.3l3.6-.5z"/></svg></button>
+        <button class="qa" title="设置"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><path d="M13.1 10a1.2 1.2 0 0 0 .24 1.32l.04.04a1.45 1.45 0 1 1-2.06 2.06l-.04-.04a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.73 1.1v.11a1.45 1.45 0 1 1-2.9 0v-.06a1.2 1.2 0 0 0-.79-1.1 1.2 1.2 0 0 0-1.32.24l-.04.04a1.45 1.45 0 1 1-2.06-2.06l.04-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.73h-.11a1.45 1.45 0 1 1 0-2.9h.06a1.2 1.2 0 0 0 1.1-.79 1.2 1.2 0 0 0-.24-1.32l-.04-.04a1.45 1.45 0 1 1 2.06-2.06l.04.04a1.2 1.2 0 0 0 1.32.24h.06a1.2 1.2 0 0 0 .73-1.1v-.11a1.45 1.45 0 1 1 2.9 0v.06a1.2 1.2 0 0 0 .73 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.04a1.45 1.45 0 1 1 2.06 2.06l-.04.04a1.2 1.2 0 0 0-.24 1.32v.06a1.2 1.2 0 0 0 1.1.73h.11a1.45 1.45 0 1 1 0 2.9h-.06a1.2 1.2 0 0 0-1.1.73z"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 改动图例 -->
+  <div class="legend">
+    <h3>本次样品相对现状的改动（对应设计评审）· <span class="lock">大纲位置已锁定：右侧</span></h3>
+    <div class="row"><span class="num">⑤</span><div><b>新增大纲侧栏（右侧 · 可自由收缩）</b>：复用编辑器已计算的标题大纲（<code>extractEditorOutline</code> 已在产出但从未渲染），点标题跳转段落。右侧细竖条可拖拽/点击收缩，不占常驻空间。<b>不放左侧的原因</b>：用户心智里左边是"文档切换"的位置，而 solo 不做文档切换；放右既不抢落笔点，也不跟习惯打架。</div></div>
+    <div class="row"><span class="num">③</span><div><b>状态栏对比度提升</b>：baseline 透明度由 .55 提到 .9，<code>--muted-color</code> 由 <code>#9a8e7e</code> 调深为 <code>#8a7d6b</code>，次级文字满足 WCAG AA。</div></div>
+    <div class="row"><span class="num">⑦</span><div><b>常驻主题/字体入口</b>：状态栏右侧常驻一个主题色图标，换肤不用再进设置面板。</div></div>
+    <div class="row"><span class="num">④</span><div><b>标题 gutter 噪声收敛</b>：<code>H1/H2/H3</code> 徽标默认更淡（opacity .28），仅在 hover 当前行时浮现，长文档左侧更干净。</div></div>
+  </div>
+
+</body>
+</html>

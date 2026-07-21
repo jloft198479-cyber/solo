@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>solo · 大纲侧栏：左 vs 右（样品）</title>
+<style>
+  :root{
+    --primary-color:#8b7355;
+    --primary-hover:#6b5a3e;
+    --primary-light:rgba(139,115,85,0.08);
+    --bg-color:#faf8f5;
+    --bg-secondary:#f5f1eb;
+    --text-color:#2c2416;
+    --text-secondary:#5c5040;
+    --border-color:#e4ddd2;
+    --border-light:#ede8df;
+    --muted-color:#8a7d6b;
+    --code-bg:#f3efe8;
+    --hover-bg:rgba(139,115,85,0.05);
+    --selected-bg:rgba(139,115,85,0.12);
+    --radius-sm:3px; --radius-md:6px; --radius-lg:10px; --radius-xl:14px;
+    --font-text:'Inter','Microsoft YaHei UI','PingFang SC',system-ui,sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-text);background:#e7e0d4;color:var(--text-color);padding:28px;display:flex;flex-direction:column;align-items:center;gap:16px;}
+  .tag{font-size:12px;color:#7a6f5d;letter-spacing:.04em;}
+  .tag b{color:var(--primary-color);}
+
+  .grid{width:1120px;display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .cell{display:flex;flex-direction:column;gap:8px;}
+  .cell .cap{font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:8px;}
+  .cell .cap .badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;}
+  .badge.rec{background:rgba(107,142,90,0.14);color:#6b8e5a;}
+  .badge.alt{background:rgba(139,115,85,0.1);color:var(--primary-color);}
+
+  .window{background:var(--bg-color);border-radius:var(--radius-xl);box-shadow:0 20px 40px -14px rgba(44,36,22,0.25);overflow:hidden;display:flex;flex-direction:column;}
+  .titlebar{height:36px;display:flex;align-items:center;padding:0 6px 0 16px;background:var(--bg-color);border-bottom:1px solid var(--border-color);}
+  .titlebar .title{font-size:12px;color:var(--text-color);opacity:.6;}
+  .titlebar .spacer{flex:1;}
+
+  .body{flex:1;display:flex;min-height:430px;}
+
+  /* 侧栏（左 / 右 通用） */
+  .outline{width:200px;flex-shrink:0;background:var(--bg-secondary);border-right:1px solid var(--border-color);padding:16px 10px;display:flex;flex-direction:column;}
+  .outline.right{border-right:none;border-left:1px solid var(--border-color);}
+  .outline h4{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted-color);font-weight:600;padding:0 8px 10px;}
+  .oi{display:flex;align-items:center;gap:7px;padding:5px 9px;border-radius:var(--radius-sm);font-size:12.5px;color:var(--text-secondary);line-height:1.4;}
+  .oi.l2{padding-left:22px;font-size:12px;}
+  .oi.l3{padding-left:34px;font-size:11.5px;}
+  .oi.active{background:var(--selected-bg);color:var(--primary-color);font-weight:600;box-shadow:inset 3px 0 0 var(--primary-color);}
+  .oi.right.active{box-shadow:inset -3px 0 0 var(--primary-color);}
+  .oi .dot{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.45;flex-shrink:0;}
+
+  .editor{flex:1;overflow:auto;padding:40px 0 30px;}
+  .editor-inner{max-width:600px;margin:0 auto;padding:0 24px;line-height:1.85;font-size:15px;letter-spacing:.02em;}
+  .editor-inner h1{font-size:25px;font-weight:700;margin:0 0 .35em;letter-spacing:.04em;}
+  .editor-inner h2{font-size:19px;font-weight:600;margin:1.1em 0 .4em;}
+  .editor-inner h3{font-size:16px;font-weight:600;margin:.9em 0 .35em;}
+  .editor-inner p{margin:.6em 0;color:var(--text-color);}
+  .editor-inner blockquote{border-left:2px solid var(--primary-color);padding:.6em 0 .6em 1em;margin:.7em 0;color:var(--text-secondary);background:rgba(139,115,85,0.04);border-radius:0 4px 4px 0;}
+  .gutter{font-family:var(--font-mono);font-size:10px;color:var(--primary-color);opacity:.28;margin-right:8px;user-select:none;}
+
+  .statusbar{height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;font-size:12px;border-top:1px solid var(--border-color);background:var(--bg-color);opacity:.9;}
+  .sb-left,.sb-right{display:flex;align-items:center;gap:12px;}
+  .brand{font-size:11px;font-weight:700;color:var(--primary-color);letter-spacing:.06em;text-transform:lowercase;}
+  .stat{color:var(--text-secondary);font-weight:500;}
+
+  .legend{width:1120px;background:#fff;border:1px solid var(--border-color);border-radius:var(--radius-lg);padding:18px 24px;font-size:13px;color:var(--text-secondary);line-height:1.75;}
+  .legend h3{font-size:14px;color:var(--text-color);margin-bottom:6px;}
+  .legend b{color:var(--text-color);}
+  .legend .row{margin:5px 0;}
+  .legend .num{display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;background:var(--primary-color);color:#fff;border-radius:50%;font-size:10px;font-weight:700;margin-right:6px;}
+</style>
+</head>
+<body>
+
+  <div class="tag">样品 ④ · <b>solo · 大纲侧栏：左 vs 右</b> · 非最终实现，仅供观摩</div>
+
+  <div class="grid">
+    <!-- 左 -->
+    <div class="cell">
+      <div class="cap"><span class="badge alt">方案 A</span> 大纲在左</div>
+      <div class="window">
+        <div class="titlebar"><span class="title">产品需求文档.md</span><span class="spacer"></span></div>
+        <div class="body">
+          <aside class="outline">
+            <h4>大纲</h4>
+            <div class="oi active"><span class="dot"></span>产品愿景</div>
+            <div class="oi l2"><span class="dot"></span>定位与价值</div>
+            <div class="oi l2"><span class="dot"></span>目标用户</div>
+            <div class="oi"><span class="dot"></span>核心功能</div>
+            <div class="oi l2"><span class="dot"></span>沉浸式编辑</div>
+            <div class="oi l3"><span class="dot"></span>图片与资产</div>
+            <div class="oi"><span class="dot"></span>设计原则</div>
+            <div class="oi"><span class="dot"></span>里程碑</div>
+          </aside>
+          <main class="editor">
+            <div class="editor-inner">
+              <h1><span class="gutter">H1</span>产品愿景</h1>
+              <p>solo 是一个<b>本地优先</b>的 Markdown 编辑器，面向中文沉浸式写作。</p>
+              <blockquote>写作应当是安静的。我们把所有干扰都移到了视线之外。</blockquote>
+              <h2><span class="gutter">H2</span>定位与价值</h2>
+              <p>市面上的编辑器要么太重，要么太轻。solo 取其中道。</p>
+              <h3><span class="gutter">H3</span>目标用户</h3>
+              <p>长期写作者、知识库建设者。</p>
+            </div>
+          </main>
+        </div>
+        <div class="statusbar"><div class="sb-left"><span class="brand">solo</span><span class="stat">1,284 字</span></div><div class="sb-right"><span class="stat">已保存</span></div></div>
+      </div>
+    </div>
+
+    <!-- 右 -->
+    <div class="cell">
+      <div class="cap"><span class="badge rec">方案 B · 推荐</span> 大纲在右</div>
+      <div class="window">
+        <div class="titlebar"><span class="title">产品需求文档.md</span><span class="spacer"></span></div>
+        <div class="body">
+          <main class="editor">
+            <div class="editor-inner">
+              <h1><span class="gutter">H1</span>产品愿景</h1>
+              <p>solo 是一个<b>本地优先</b>的 Markdown 编辑器，面向中文沉浸式写作。</p>
+              <blockquote>写作应当是安静的。我们把所有干扰都移到了视线之外。</blockquote>
+              <h2><span class="gutter">H2</span>定位与价值</h2>
+              <p>市面上的编辑器要么太重，要么太轻。solo 取其中道。</p>
+              <h3><span class="gutter">H3</span>目标用户</h3>
+              <p>长期写作者、知识库建设者。</p>
+            </div>
+          </main>
+          <aside class="outline right">
+            <h4>大纲</h4>
+            <div class="oi right active"><span class="dot"></span>产品愿景</div>
+            <div class="oi right l2"><span class="dot"></span>定位与价值</div>
+            <div class="oi right l2"><span class="dot"></span>目标用户</div>
+            <div class="oi right"><span class="dot"></span>核心功能</div>
+            <div class="oi right l2"><span class="dot"></span>沉浸式编辑</div>
+            <div class="oi right l3"><span class="dot"></span>图片与资产</div>
+            <div class="oi right"><span class="dot"></span>设计原则</div>
+            <div class="oi right"><span class="dot"></span>里程碑</div>
+          </aside>
+        </div>
+        <div class="statusbar"><div class="sb-left"><span class="brand">solo</span><span class="stat">1,284 字</span></div><div class="sb-right"><span class="stat">已保存</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h3>左 vs 右：我的判断与理由</h3>
+    <div class="row"><span class="num">1</span><div><b>推荐默认放右侧。</b>核心线索在 solo 自己的代码：<code>editor.css</code> 里标题的 <code>H1/H2/H3</code> gutter 徽标是画在<b>左	margin</b>的（<code>padding-left</code> + 伪元素 <code>::before</code> 负偏移）。大纲再压左边，左缘就同时扛着「徽标 + 侧栏」两层结构，视觉拥挤；放右边，左缘保持干净，徽标继续干它"当前行层级"的活。</div></div>
+    <div class="row"><span class="num">2</span><div><b>阅读入口要干净。</b>中文/LTR 读者从左上进入，沉浸式写作时左缘越空越好；大纲是次级信息，放右边进的是余光，不挡落笔点。</div></div>
+    <div class="row"><span class="num">3</span><div><b>和焦点模式更搭。</b>solo 有焦点模式（UI 整体隐藏），右侧大纲在聚焦时能更顺地自动收起/半透，不抢中心。</div></div>
+    <div class="row"><span class="num">4</span><div><b>反方也成立</b>：Notion / Obsidian / VS Code 培养了"导航在左"的肌肉记忆，左栏发现性略高。所以<b>别硬选边——做成可翻转</b>（设置项 + 标题栏一键切换），让两边习惯的用户各取所需，这是最稳的解法。</div></div>
+  </div>
+
+</body>
+</html>

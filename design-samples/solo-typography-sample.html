@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>solo · 字体打包前后对比（样品）</title>
+<!-- 模拟"打包后"效果：真实产品应把字体文件打进安装包，而非走 CDN -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css" rel="stylesheet" />
+<style>
+  :root{
+    --primary-color:#8b7355;
+    --bg-color:#faf8f5;
+    --bg-secondary:#f5f1eb;
+    --text-color:#2c2416;
+    --text-secondary:#5c5040;
+    --border-color:#e4ddd2;
+    --muted-color:#8a7d6b;
+    --code-bg:#f3efe8;
+    --radius-lg:10px;
+    /* 现状：依赖系统字体（未打包） */
+    --font-system:'Segoe UI','Microsoft YaHei UI','PingFang SC',system-ui,sans-serif;
+    /* 优化：打包 Inter + 霞鹜文楷（中文沉浸式书卷感） */
+    --font-bundled:'Inter','LXGW WenKai','Microsoft YaHei UI',serif;
+    --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-system);background:#e7e0d4;color:var(--text-color);padding:28px;display:flex;flex-direction:column;align-items:center;gap:16px;}
+  .tag{font-size:12px;color:#7a6f5d;letter-spacing:.04em;}
+  .tag b{color:var(--primary-color);}
+
+  .grid{width:1100px;display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .col{background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-lg);overflow:hidden;}
+  .col-head{padding:14px 22px;border-bottom:1px solid var(--border-color);display:flex;align-items:baseline;gap:10px;}
+  .col-head .t{font-size:14px;font-weight:700;color:var(--text-color);}
+  .col-head .s{font-size:12px;color:var(--muted-color);}
+  .col-head .pill{margin-left:auto;font-size:11px;padding:3px 10px;border-radius:999px;font-weight:600;}
+  .pill.before{background:rgba(192,80,80,0.1);color:#c05050;}
+  .pill.after{background:rgba(107,142,90,0.12);color:#6b8e5a;}
+
+  .doc{padding:30px 32px 36px;line-height:1.9;font-size:16px;letter-spacing:.02em;}
+  .doc h1{font-size:28px;font-weight:700;margin:0 0 .35em;letter-spacing:.04em;}
+  .doc h2{font-size:21px;font-weight:600;margin:1.1em 0 .45em;}
+  .doc p{margin:.7em 0;color:var(--text-color);}
+  .doc blockquote{border-left:2px solid var(--primary-color);padding:.7em 0 .7em 1em;margin:.75em 0;color:var(--text-secondary);background:rgba(139,115,85,0.04);border-radius:0 4px 4px 0;}
+  .doc code{font-family:var(--font-mono);background:var(--code-bg);border:1px solid var(--border-color);border-radius:4px;padding:.1em 4px;font-size:.875em;}
+  .doc pre{background:var(--code-bg);border:1px solid var(--border-color);border-radius:0 0 6px 6px;padding:12px 16px;font-family:var(--font-mono);font-size:13px;line-height:1.6;margin-top:.5em;}
+
+  /* 左列用系统字体，右列用打包字体 */
+  .before .doc{font-family:var(--font-system);}
+  .after  .doc{font-family:var(--font-bundled);}
+
+  .legend{width:1100px;background:#fff;border:1px solid var(--border-color);border-radius:var(--radius-lg);padding:16px 24px;font-size:13px;color:var(--text-secondary);line-height:1.75;}
+  .legend h3{font-size:14px;color:var(--text-color);margin-bottom:8px;}
+  .legend b{color:var(--text-color);}
+  .legend .warn{color:#c05050;}
+</style>
+</head>
+<body>
+
+  <div class="tag">样品 ③ · <b>solo · 字体打包前后对比</b> · 非最终实现，仅供观摩</div>
+
+  <div class="grid">
+    <!-- 左：现状 -->
+    <div class="col before">
+      <div class="col-head">
+        <span class="t">现状</span>
+        <span class="s">依赖系统字体（Inter 未随包）</span>
+        <span class="pill before">风险</span>
+      </div>
+      <div class="doc">
+        <h1>产品愿景</h1>
+        <p>solo 是一个 <b>本地优先</b> 的 Markdown 编辑器，built with Tauri + Vue 3，面向中文沉浸式写作。</p>
+        <blockquote>写作应当是安静的。我们把所有干扰都移到了视线之外。</blockquote>
+        <h2>本地优先架构</h2>
+        <p>不依赖云端、不上传你的文字；打开即写，关掉即走。The app feels like paper.</p>
+        <pre>const editor = createEditor({ theme: 'ink' })</pre>
+      </div>
+    </div>
+
+    <!-- 右：优化后 -->
+    <div class="col after">
+      <div class="col-head">
+        <span class="t">优化后</span>
+        <span class="s">打包 Inter + 霞鹜文楷</span>
+        <span class="pill after">建议</span>
+      </div>
+      <div class="doc">
+        <h1>产品愿景</h1>
+        <p>solo 是一个 <b>本地优先</b> 的 Markdown 编辑器，built with Tauri + Vue 3，面向中文沉浸式写作。</p>
+        <blockquote>写作应当是安静的。我们把所有干扰都移到了视线之外。</blockquote>
+        <h2>本地优先架构</h2>
+        <p>不依赖云端、不上传你的文字；打开即写，关掉即走。The app feels like paper.</p>
+        <pre>const editor = createEditor({ theme: 'ink' })</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h3>字体打包说明（对应设计评审 ①）</h3>
+    <div><b>问题</b>：线上 <code>dist/</code> 与 <code>public/</code> 里<b>只有 KaTeX 数学字体</b>，Inter 和任何 CJK 字体都没打包。字体栈写在 <code>main.css</code>，但全靠用户机器「恰好装了」才生效——Windows 没装 Inter 就退化成 Segoe UI，中文完全交给系统雅黑/苹方。整套路「书卷感」不在应用里，在运气里。</div>
+    <div style="margin-top:6px;"><b>右列</b>用 Web 字体（Inter + 霞鹜文楷）模拟「打包后」的真实观感：Latin 更现代、中文更温润，整体气质统一可控。真实产品应把字体文件打进安装包（<code>.ttf/.woff2</code>），而非走 CDN。</div>
+    <div style="margin-top:6px;"><span class="warn">注意</span>：本样品为预览临时从 CDN 拉字体，若你的网络无法访问 Google Fonts / jsDelivr，右列会回退到系统字体，对照效果会减弱——这正是「未打包」风险的现身说法。</div>
+  </div>
+
+</body>
+</html>

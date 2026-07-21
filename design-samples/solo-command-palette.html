@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>solo · 命令面板 Ctrl+K（样品）</title>
+<style>
+  :root{
+    --primary-color:#8b7355;
+    --primary-hover:#6b5a3e;
+    --primary-light:rgba(139,115,85,0.08);
+    --bg-color:#faf8f5;
+    --bg-secondary:#f5f1eb;
+    --text-color:#2c2416;
+    --text-secondary:#5c5040;
+    --border-color:#e4ddd2;
+    --border-light:#ede8df;
+    --muted-color:#8a7d6b;
+    --code-bg:#f3efe8;
+    --hover-bg:rgba(139,115,85,0.05);
+    --selected-bg:rgba(139,115,85,0.12);
+    --success-color:#6b8e5a;
+    --radius-sm:3px; --radius-md:6px; --radius-lg:10px; --radius-xl:14px;
+    --popover-bg:#faf8f5;
+    --popover-border:#e4ddd2;
+    --popover-shadow:0 10px 15px -3px rgba(44,36,22,0.1);
+    --font-text:'Inter','Microsoft YaHei UI','PingFang SC',system-ui,sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--font-text);background:#e7e0d4;color:var(--text-color);padding:28px;display:flex;flex-direction:column;align-items:center;gap:18px;}
+  .tag{font-size:12px;color:#7a6f5d;letter-spacing:.04em;}
+  .tag b{color:var(--primary-color);}
+
+  .window{
+    width:1100px;height:680px;background:var(--bg-color);border-radius:var(--radius-xl);
+    box-shadow:0 25px 50px -12px rgba(44,36,22,0.28);overflow:hidden;position:relative;
+  }
+  /* 背景编辑器（被虚化，仅作衬托） */
+  .ghost{position:absolute;inset:0;padding:52px 0;filter:blur(2px);opacity:.5;pointer-events:none;}
+  .ghost-inner{max-width:720px;margin:0 auto;padding:0 48px;line-height:1.9;font-size:16px;}
+  .ghost-inner h1{font-size:30px;font-weight:700;margin-bottom:.3em;}
+  .ghost-inner p{margin:.7em 0;color:var(--text-secondary);}
+
+  /* 遮罩 */
+  .overlay{position:absolute;inset:0;background:rgba(44,36,22,0.28);backdrop-filter:blur(3px);display:flex;align-items:flex-start;justify-content:center;padding-top:120px;}
+
+  /* 命令面板 */
+  .palette{
+    width:560px;background:var(--popover-bg);border:1px solid var(--popover-border);
+    border-radius:var(--radius-lg);box-shadow:var(--popover-shadow);overflow:hidden;
+  }
+  .search-row{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border-color);}
+  .search-row svg{flex-shrink:0;color:var(--muted-color);}
+  .search-row input{flex:1;border:none;background:transparent;outline:none;font-size:15px;color:var(--text-color);font-family:inherit;}
+  .search-row input::placeholder{color:var(--muted-color);}
+  .kbd{font-family:var(--font-mono);font-size:11px;color:var(--muted-color);border:1px solid var(--border-color);border-radius:4px;padding:2px 6px;background:var(--bg-color);}
+
+  .group-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-color);font-weight:600;padding:10px 16px 4px;}
+  .item{display:flex;align-items:center;gap:12px;padding:9px 16px;cursor:pointer;font-size:14px;color:var(--text-color);}
+  .item .ico{width:28px;height:28px;flex-shrink:0;border-radius:6px;background:var(--bg-secondary);border:1px solid var(--border-color);display:flex;align-items:center;justify-content:center;color:var(--text-secondary);}
+  .item .name{flex:1;}
+  .item .name small{display:block;color:var(--muted-color);font-size:12px;margin-top:1px;}
+  .item .hint{font-family:var(--font-mono);font-size:11px;color:var(--muted-color);}
+  .item.active{background:var(--selected-bg);}
+  .item.active .ico{background:var(--primary-color);color:#fff;border-color:var(--primary-color);}
+  .item.active .name{color:var(--primary-color);font-weight:600;}
+
+  .foot{display:flex;align-items:center;gap:14px;padding:8px 16px;border-top:1px solid var(--border-color);font-size:11px;color:var(--muted-color);}
+  .foot .kbd{font-size:10px;}
+
+  .legend{width:1100px;background:#fff;border:1px solid var(--border-color);border-radius:var(--radius-lg);padding:16px 24px;font-size:13px;color:var(--text-secondary);line-height:1.75;}
+  .legend h3{font-size:14px;color:var(--text-color);margin-bottom:8px;}
+  .legend b{color:var(--text-color);}
+</style>
+</head>
+<body>
+
+  <div class="tag">样品 ② · <b>solo · 命令面板（Ctrl+K）</b> · 非最终实现，仅供观摩</div>
+
+  <div class="window">
+    <div class="ghost">
+      <div class="ghost-inner">
+        <h1>产品愿景</h1>
+        <p>solo 是一个本地优先的 Markdown 编辑器，面向中文沉浸式写作。它不依赖云端、不上传你的文字，打开即写，关掉即走。</p>
+        <p>从大纲导航到命令面板，所有能力都围绕「少动手、多思考」设计。</p>
+        <p>写作应当是安静的。我们把所有干扰都移到了视线之外，只留下你和文字。</p>
+      </div>
+    </div>
+
+    <div class="overlay">
+      <div class="palette">
+        <div class="search-row">
+          <svg width="16" height="16" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="6.5" cy="6.5" r="4.5"/><line x1="9.5" y1="9.5" x2="14" y2="14"/></svg>
+          <input value="保存" placeholder="搜索命令…" />
+          <span class="kbd">Esc</span>
+        </div>
+
+        <div class="group-label">文件</div>
+        <div class="item"><span class="ico"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 2h5l3 3v7H3z"/></svg></span><span class="name">新建窗口<small>打开一篇空白文档</small></span><span class="hint">⌘N</span></div>
+        <div class="item"><span class="ico"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 4h10M2 4v8h10V4M5 2h4v2H5z"/></svg></span><span class="name">打开文件…</span><span class="hint">⌘O</span></div>
+        <div class="item active"><span class="ico"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 2h6l2 2v8H3z"/><path d="M5 7h4M5 9h4"/></svg></span><span class="name">保存当前文档<small>写入磁盘并标记已保存</small></span><span class="hint">⌘S</span></div>
+        <div class="item"><span class="ico"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 2h5l3 3v7H3z"/><path d="M8 2v3h3"/></svg></span><span class="name">另存为…</span><span class="hint">⇧⌘S</span></div>
+
+        <div class="group-label">视图</div>
+        <div class="item"><span class="ico"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="1.6"/></svg></span><span class="name">切换焦点模式</span><span class="hint">⌘.</span></div>
+        <div class="item"><span class="ico"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M7 1.5l1.4 3 3.1.5-2.3 2.2.6 3.1L7 9.6 4.5 11l.6-3.1L2.8 5l3.1-.5z"/></svg></span><span class="name">切换主题 / 字体</span></div>
+
+        <div class="group-label">插入</div>
+        <div class="item"><span class="ico"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 3h10M2 7h10M2 11h6"/></svg></span><span class="name">插入标题</span><span class="hint">#</span></div>
+        <div class="item"><span class="ico"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 2h10v7H2zM4 11h6"/></svg></span><span class="name">插入代码块</span></div>
+        <div class="item"><span class="ico"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="3" width="10" height="8" rx="1"/><path d="M2 6h10M5 3v8"/></svg></span><span class="name">插入表格</span></div>
+        <div class="item"><span class="ico"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="2" width="10" height="10" rx="1"/><path d="M6 2v10M2 6h10"/></svg></span><span class="name">插入 Mermaid 图</span></div>
+
+        <div class="foot">
+          <span><span class="kbd">↑</span> <span class="kbd">↓</span> 选择</span>
+          <span><span class="kbd">↵</span> 执行</span>
+          <span style="margin-left:auto;">共 12 条命令 · 输入可模糊过滤</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h3>命令面板说明（对应设计评审 ⑥）</h3>
+    <div><b>复用现有命令体系</b>：solo 已有完整 command registry + dispatcher（<code>findCommandByShortcut</code> / <code>useCommandDispatcher</code>），命令面板只是把它「可视化 + 可搜索」，零架构成本。</div>
+    <div style="margin-top:6px;"><b>键盘流定位</b>：默认 <code>Ctrl/⌘ + K</code> 唤起，模糊匹配 + 分组 + 右侧快捷键提示，让「记不住快捷键」和「找不到菜单」同时解决。</div>
+    <div style="margin-top:6px;"><b>视觉语言统一</b>：浮层、圆角、阴影、激活态全部沿用 solo 既有的 popover token，与浮动格式菜单 / 斜杠菜单同一套。当前高亮项即「保存当前文档」这一条。</div>
+  </div>
+
+</body>
+</html>
