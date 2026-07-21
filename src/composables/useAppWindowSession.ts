@@ -105,7 +105,20 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
     }
     for (const path of payload.paths) {
       if (!path) continue;
-      await options.openDocument(path);
+      // 启动路径可能来自 OS 文件关联 / 更新后重启的残留参数，
+      // 文件可能已被移动或删除。静默跳过，不弹错误框。
+      try {
+        await options.openDocument(path);
+      } catch (err) {
+        const msg = String(err ?? '');
+        // os error 2 = ERROR_FILE_NOT_FOUND（Windows）| ENOENT（Unix）
+        if (/os error\s*2|No such file|file not found/i.test(msg)) {
+          console.warn(`[startup] 跳过不存在的启动文件: ${path}`);
+        } else {
+          // 非文件缺失的错误（如权限问题）仍应抛出，由上层处理
+          throw err;
+        }
+      }
     }
   }
 
