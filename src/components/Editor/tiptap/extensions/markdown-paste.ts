@@ -11,7 +11,7 @@
  */
 import { Extension } from '@tiptap/vue-3';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-import { Slice } from '@tiptap/pm/model';
+import { DOMParser as PMDOMParser, Slice } from '@tiptap/pm/model';
 import type { Schema } from '@tiptap/pm/model';
 
 import { parseMarkdown } from '../markdown/parser';
@@ -137,13 +137,14 @@ export function hasMarkdownOnlySyntax(text: string): boolean {
     if (/^>\s*\[![A-Z]+\]/.test(t)) return true;
   }
 
-  // $inline math$：非独占行的单美元符号包裹（排除代码围栏内的误判）
+  // $inline math$：单美元符号包裹，且内部不含空格（排除 "$10 到 $20" 类货币/价格误判）。
+  // 真正的行内数学通常无空格（如 $x^2$），含空格的几乎都是价格/普通文本，不应误判为 markdown 源。
   let inFence = false;
   for (const line of lines) {
     if (/^```/.test(line.trim())) { inFence = !inFence; continue; }
     if (inFence) continue;
-    // 匹配 $...$，排除 $$（已在上行处理）和转义的 \$
-    if (/(?<!\$)\$(?!\$)([^\$\n]+)\$(?!\$)/.test(line)) return true;
+    // 匹配 $...$，要求内部不含 $ 和空格，排除 $$ 与转义 \$
+    if (/(?<!\$)\$(?!\$)([^\$\s]+)\$(?!\$)/.test(line)) return true;
   }
 
   return false;
@@ -285,11 +286,13 @@ export function markdownPastePlugin(opts?: {
           }
         }
 
-        // ── 3. HTML 富文本 → 放行给 ProseMirror 默认 DOMParser ──────
-        // text/html 存在时优先放行。HTML 携带的信息量（图片、链接 URL、表格结构）
-        // 远多于 text/plain，ProseMirror 的 DOMParser 一次转换、schema 感知。
-        // 但如果图片正在异步保存（步骤 1），不能放行——ProseMirror 会从 HTML 的
-        // <img> 再插一次图片，导致重复。此时消费事件，手动插文字。
+        // ── 3. HTML 富文本 → 显式解析插入（schema 感知） ──────────────
+        // text/html 存在时，直接用 ProseMirror DOMParser 解析并插入，
+        // 不走 `return false` 甩回默认粘贴（默认同样依赖 text/html 送达、
+        // 且不可控不可测）。HTML 信息量（图片、链接、表格、加粗/标题）远多于
+        // text/plain，是保住格式的关键路径。
+        // 若图片正在异步保存（步骤 1），不能插 HTML 的 <img> 以免重复插图，
+        // 改为消费事件、手动插文字。
         if (html && html.trim()) {
           if (hasImage) {
             if (text && text.trim()) {
@@ -297,7 +300,33 @@ export function markdownPastePlugin(opts?: {
             }
             return true;
           }
-          return false;
+          const slice = parseHtmlSlice(view.state.schema, html);
+          if (slice) {
+            view.dispatch(
+              view.state.tr
+                .replaceSelection(slice)
+                .scrollIntoView()
+                .setMeta(markdownPastePluginKey, { pasted: true }),
+            );
+            return true;
+          }
+          // HTML 解析失败（极少见）→ 落到下方 markdown/纯文本降级
+        }
+
+        // ── 3.5 HTML 兜底：事件无 text/html 时异步读系统剪贴板 ────────
+        // Tauri/WebView2 等运行时，粘贴事件的 `text/html` 可能缺失，导致内容
+        // 退化成纯文本、格式全丢。此处 `return true` 阻止默认纯文本粘贴，并
+        // 异步从系统剪贴板再读一次 HTML（readClipboardHtmlFallback 保证落内容：
+        // 命中 HTML 解析插入 → 否则降级 markdown/纯文本）。
+        if (!html || !html.trim()) {
+          if (hasImage) {
+            if (text && text.trim()) {
+              view.dispatch(view.state.tr.insertText(text).scrollIntoView());
+            }
+            return true;
+          }
+          void readClipboardHtmlFallback(view, text);
+          return true;
         }
 
         // ── 4. 通用 Markdown（纯 text/plain 兜底）──────────────────
@@ -328,6 +357,72 @@ export function markdownPastePlugin(opts?: {
       },
     },
   });
+}
+
+/**
+ * 将 HTML 字符串解析为可插入当前选区的 Slice（schema 感知）。
+ * 用于粘贴富文本：直接用 ProseMirror DOMParser 解析剪贴板 HTML，
+ * 而非依赖 `return false` 把活甩回默认粘贴——默认粘贴同样依赖
+ * `text/html` 送达，且不可控、不可测。显式解析让格式还原可控且可单测。
+ */
+export function parseHtmlSlice(schema: Schema, htmlString: string): Slice | null {
+  if (!htmlString || !htmlString.trim()) return null;
+  try {
+    const dom = new DOMParser().parseFromString(htmlString, 'text/html');
+    const doc = PMDOMParser.fromSchema(schema).parse(dom.body);
+    if (!doc || doc.childCount === 0) return null;
+    return new Slice(doc.content, 0, 0);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 兜底：当粘贴事件的 `text/html` 缺失时，异步从系统剪贴板再读一次 HTML
+ * （`navigator.clipboard.read()` 在桌面 webview 的 secure context 下可用）。
+ * 命中 HTML → 解析插入；否则降级为 markdown 解析、最后降级为纯文本插入。
+ * 无论成功失败都会落内容，调用方应 `return true` 阻止默认纯文本粘贴。
+ */
+async function readClipboardHtmlFallback(view: any, text: string) {
+  try {
+    const clipboard = (navigator as any).clipboard;
+    if (clipboard?.read) {
+      const items = await clipboard.read();
+      for (const item of items) {
+        if (item.types?.includes('text/html')) {
+          const blob = await item.getType('text/html');
+          const html = await blob.text();
+          const slice = parseHtmlSlice(view.state.schema, html);
+          if (slice) {
+            view.dispatch(
+              view.state.tr
+                .replaceSelection(slice)
+                .scrollIntoView()
+                .setMeta(markdownPastePluginKey, { pasted: true }),
+            );
+            return;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('clipboard.read HTML fallback failed:', err);
+  }
+
+  // 降级：markdown 解析 → 纯文本
+  const slice = parseGeneralMarkdownPaste(view.state.schema, text);
+  if (slice) {
+    view.dispatch(
+      view.state.tr
+        .replaceSelection(slice)
+        .scrollIntoView()
+        .setMeta(markdownPastePluginKey, { pasted: true }),
+    );
+    return;
+  }
+  if (text && text.trim()) {
+    view.dispatch(view.state.tr.insertText(text).scrollIntoView());
+  }
 }
 
 export const MarkdownPaste = Extension.create<{

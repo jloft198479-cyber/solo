@@ -7,6 +7,7 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 
 import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
 import {
+  hasMarkdownOnlySyntax,
   looksLikeMarkdownTable,
   markdownPastePlugin,
   parseMarkdownTablePaste,
@@ -140,15 +141,18 @@ describe('markdownPastePlugin handlePaste（真实 EditorView 端到端）', () 
     expect(table!.textContent).toContain('2');
   });
 
-  it('粘贴普通文本 → 不拦截（走默认粘贴）', () => {
+  it('粘贴纯文本（无 HTML）→ 拦截并走兜底（最终插入纯文本，内容不丢）', async () => {
     const v = mountEmpty();
     const handled = firePaste(v, pasteEvent({ 'text/plain': 'just a paragraph' }));
 
-    expect(handled).toBe(false);
+    expect(handled).toBe(true);
+    // 兜底路径异步把纯文本插入文档（navigator.clipboard.read 在测试环境返回 promise，需 flush）
+    await new Promise((r) => setTimeout(r, 0));
+    expect(v.state.doc.textContent).toContain('just a paragraph');
     expect(tableIn(v.state.doc)).toBeNull();
   });
 
-  it('剪贴板带富文本 <table> → 放行默认 HTML 粘贴', () => {
+  it('剪贴板带富文本 <table> → 显式解析并插入表格节点（保留格式）', () => {
     const v = mountEmpty();
     const handled = firePaste(
       v,
@@ -158,7 +162,59 @@ describe('markdownPastePlugin handlePaste（真实 EditorView 端到端）', () 
       }),
     );
 
-    expect(handled).toBe(false);
-    expect(tableIn(v.state.doc)).toBeNull();
+    expect(handled).toBe(true);
+    expect(tableIn(v.state.doc)).not.toBeNull();
+  });
+
+  it('粘贴富文本 <strong> → 插入加粗节点（验证 HTML 真的还原了格式）', () => {
+    const v = mountEmpty();
+    const handled = firePaste(
+      v,
+      pasteEvent({
+        'text/plain': 'Hello world',
+        'text/html': '<p>Hello <strong>world</strong></p>',
+      }),
+    );
+
+    expect(handled).toBe(true);
+    let hasBold = false;
+    v.state.doc.descendants((node) => {
+      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
+      return !hasBold;
+    });
+    expect(hasBold).toBe(true);
+  });
+
+  it('粘贴富文本 <h2> → 插入二级标题节点（验证标题格式还原）', () => {
+    const v = mountEmpty();
+    const handled = firePaste(
+      v,
+      pasteEvent({
+        'text/plain': 'Section',
+        'text/html': '<h2>Section</h2>',
+      }),
+    );
+
+    expect(handled).toBe(true);
+    let hasH2 = false;
+    v.state.doc.descendants((node) => {
+      if (node.type.name === 'heading' && node.attrs.level === 2) hasH2 = true;
+      return !hasH2;
+    });
+    expect(hasH2).toBe(true);
+  });
+});
+
+describe('hasMarkdownOnlySyntax 误判防护', () => {
+  it('货币/价格 "$10 到 $20" 不误判为 markdown 源', () => {
+    expect(hasMarkdownOnlySyntax('价格从 $10 到 $20 不等')).toBe(false);
+  });
+
+  it('行内数学 "$x^2$" 仍判为 markdown 源', () => {
+    expect(hasMarkdownOnlySyntax('公式是 $x^2$ 没错')).toBe(true);
+  });
+
+  it('普通含 $ 文本（无成对 $）不误判', () => {
+    expect(hasMarkdownOnlySyntax('这家公司估值 $5B')).toBe(false);
   });
 });
