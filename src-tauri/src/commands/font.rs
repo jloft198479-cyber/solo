@@ -37,8 +37,16 @@ pub async fn fetch_font_data(
         .map_err(|e| AppError::Native(e.to_string()))?
         .join("font-cache");
     fs::create_dir_all(&cache_dir)?;
-    let cached = cache_dir.join(&family);
-    let tmp = cache_dir.join(format!("{}.tmp", &family));
+    // 从 URL 末段提取文件名（含扩展名）作为缓存文件名。
+    // 不能用 family（如 "Noto Serif SC"）——无扩展名会导致 asset protocol
+    // 无法推断 Content-Type，FontFace.load() 拒绝加载，缓存形同虚设。
+    let file_name = url
+        .rsplit('/')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(&family);
+    let cached = cache_dir.join(file_name);
+    let tmp = cache_dir.join(format!("{}.tmp", file_name));
     fs::write(&tmp, &bytes)?;
     fs::rename(&tmp, &cached)?;
 
@@ -50,14 +58,16 @@ pub async fn fetch_font_data(
 #[tauri::command]
 pub async fn get_cached_font_path(
     family: String,
+    file_name: String,
     app: AppHandle,
 ) -> Result<Option<String>, AppError> {
+    let _ = &family; // family 保留用于日志/将来扩展；缓存定位用 file_name（含扩展名）
     let cache_dir = app
         .path()
         .app_local_data_dir()
         .map_err(|e| AppError::Native(e.to_string()))?
         .join("font-cache");
-    let cached = cache_dir.join(&family);
+    let cached = cache_dir.join(&file_name);
     if cached.exists() {
         Ok(Some(cached.to_string_lossy().to_string()))
     } else {
@@ -70,17 +80,19 @@ pub async fn get_cached_font_path(
 #[tauri::command]
 pub async fn save_font_cache(
     family: String,
+    file_name: String,
     data: Vec<u8>,
     app: AppHandle,
 ) -> Result<(), AppError> {
+    let _ = &family; // family 保留用于日志/将来扩展；缓存定位用 file_name（含扩展名）
     let cache_dir = app
         .path()
         .app_local_data_dir()
         .map_err(|e| AppError::Native(e.to_string()))?
         .join("font-cache");
     fs::create_dir_all(&cache_dir)?;
-    let cached = cache_dir.join(&family);
-    let tmp = cache_dir.join(format!("{}.tmp", &family));
+    let cached = cache_dir.join(&file_name);
+    let tmp = cache_dir.join(format!("{}.tmp", &file_name));
     fs::write(&tmp, &data)?;
     fs::rename(&tmp, &cached)?;
     Ok(())

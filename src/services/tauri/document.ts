@@ -95,10 +95,10 @@ export async function fetchFontData(url: string, family: string) {
   return invokeCommand<string>(TAURI_COMMANDS.fetchFontData, { url, family });
 }
 
-export async function getCachedFontPath(family: string) {
-  return invokeCommand<string | null>(TAURI_COMMANDS.getCachedFontPath, { family });
+export async function getCachedFontPath(family: string, fileName: string) {
+  return invokeCommand<string | null>(TAURI_COMMANDS.getCachedFontPath, { family, fileName });
 }
 
-export async function saveCachedFont(family: string, data: number[]) {
-  return invokeCommand<void>(TAURI_COMMANDS.saveCachedFont, { family, data });
+export async function saveCachedFont(family: string, fileName: string, data: number[]) {
+  return invokeCommand<void>(TAURI_COMMANDS.saveCachedFont, { family, fileName, data });
 }
