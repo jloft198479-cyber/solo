@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.25] — 2026-07-21
+
+### Fixed
+- **粘贴兼容性（核心特性）修复**：从网页 / Word / Notion / 微信 等富文本来源粘贴时格式全丢的问题。
+  - **根因**：之前的「兼容性优化」只是给粘贴加了分发器，最常见那一路（富文本来源）直接 `return false` 甩回 ProseMirror 默认粘贴；默认粘贴要保住格式的前提是剪贴板带 `text/html`，在运行时常常没送到，于是退化成纯文本、格式蒸发。优化没碰这个真病根，所以「好像没什么用」。
+  - **修复**：HTML 分支不再甩默认，改为用 ProseMirror DOMParser 显式解析 `text/html` 并插入（保格式可控、可测）；当粘贴事件无 `text/html` 时，`navigator.clipboard.read()` 异步从系统剪贴板再读一次 HTML 兜底（桌面端最稳）。
+  - **附带修复**：`hasMarkdownOnlySyntax` 行内 `$...$` 误判——要求 `$` 之间不含空格，避免「$10 到 $20」类货币被误判为 markdown 源而走 markdown 解析丢格式。
+  - **测试补强**：新增端到端用例，断言富文本 `<strong>`/`<h2>` 真还原加粗/标题节点（堵住此前「只测分发决策、不测格式是否真保住」的盲区）。
+
 ## [1.2.24] — 2026-07-20
 
 ### Added
