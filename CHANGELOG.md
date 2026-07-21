@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.28] — 2026-07-21
+
+### Fixed
+- **状态栏「已保存」文字颜色跟随主题主色**：此前「已保存」指示用了 `--success-color`（各预设多为绿色系差异极小，且 `scholar` 的 successColor 与 `main.css` 兜底值碰巧相同，掩盖了不跟随的真问题）。改为跟随 `--primary-color`——主题主色是什么，它就是什么，真正做到「颜色跟上主题」而非「拉开色值」。仅改 `App.vue` 两处（`statusbar-stat--success` / `statusbar-save-btn.is-clean`），`.is-dirty` 仍走 `--dirty-color` 不动。
+- **正文字体下载失败（缓存文件名缺扩展名）**：字体缓存落到 `$APPLOCALDATA/font-cache/` 时，文件名原用 family 名（无扩展名）。asset protocol 靠**文件扩展名**推断 Content-Type，无扩展名导致 `FontFace.load()` 拒绝加载。修复：缓存文件名改用 URL 末段的 `fileName`（含 `.woff2` 等扩展名），`fetch_font_data` / `get_cached_font_path` / `save_font_cache` 三命令同步增 `file_name` 参数；前端 `fontLoader.ts` 下载落盘时补 MIME type，避免再次因类型推断失败。
+- **从 AI 工具（豆包 / 千问等）复制内容粘贴格式全丢**：此前粘贴来源嗅探只认「专有 markdown 语法」（`#` 标题、`**` 加粗等字面字符 `### 标题` / `**加粗**` 显示出来）。AI 工具常把 markdown 源包在 `pre`/`div` 壳里复制，源是纯 markdown 但被当成 HTML 解析，格式蒸发。扩展嗅探条件为「专有语法 **或** 通用 markdown 源（`looksLikeMarkdownSource`）」，覆盖豆包 / 千问 / 其他把 markdown 包壳复制的场景。新增 2 个回归测试（纯 markdown 源无 HTML / 通用 AI 工具壳场景）断言格式真保留。
+
+---
+
 ## [1.2.27] — 2026-07-21
 
 ### Fixed
