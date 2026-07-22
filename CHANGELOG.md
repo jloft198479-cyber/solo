@@ -10,10 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.2.31] — 2026-07-22
+## [1.2.32] — 2026-07-22
 
 ### Fixed
 - **字体不生效真正根因：FontFace API 的 CORS 限制**。v1.2.30 修了 CSP `font-src` 漏 `asset:` 协议，但只解决了 CSP 拦截问题，**没有解决 FontFace API 自身的 CORS 限制**。CSP 和 CORS 是两道独立的闸门：CSP = "是否允许发起请求"（v1.2.30 已修），CORS = "是否允许读取响应"（Tauri asset protocol 不返回 `Access-Control-Allow-Origin` 头，FontFace.load() 被拦截）。**为什么图片正常但字体不生效**：图片用 `<img src="assetUrl">`（不走 CORS），字体用 `new FontFace(family, "url('assetUrl')")`（**强制走 CORS**）。修复：新增 Rust 命令 `read_font_bytes` 读取字体字节，前端拿到字节后创建 `blob:` URL 加载 FontFace——blob URL 是同源，完全绕过 CORS。三条加载路径全部改用 blob URL：readCache（重启读缓存）、downloadAndCache 主路径（前端 fetch 成功）、downloadAndCache fallback（Rust 下载）。**教训**：CSP ≠ CORS，CSP 放行了请求不代表 CORS 放行了响应。FontFace API 默认走 CORS 模式，用 asset URL 加载字体必然失败，必须用 blob URL 绕过。
+- **v1.2.31 CI 编译失败修复**：v1.2.31 新增 `read_font_bytes` 命令时，`commands/mod.rs` 的 re-export 列表漏了 `read_font_bytes`（只列了 `fetch_font_data, get_cached_font_path, save_font_cache`），导致 `lib.rs` 的 `generate_handler!` 找不到该函数，CI cargo check 报 `cannot find function read_font_bytes in this scope` + 连锁触发 never type fallback 错误，v1.2.31 因此未发布。修复：补全 re-export。**教训**：新增 Rust 命令时，除在 `font.rs` 定义函数 + `lib.rs` 的 `generate_handler!` 注册外，**必须同步更新 `commands/mod.rs` 的 re-export 列表**——三处缺一不可。
 
 ---
 
