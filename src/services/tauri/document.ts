@@ -99,7 +99,7 @@ export async function getCachedFontPath(family: string, fileName: string) {
   return invokeCommand<string | null>(TAURI_COMMANDS.getCachedFontPath, { family, fileName });
 }
 
-/** 读取字体缓存字节，前端用 blob URL 加载 FontFace，绕过 CORS 限制 */
+/** 读取字体缓存字节，前端用 new FontFace(family, bytes) 同源加载，绕过 asset 协议 CORS 限制 */
 export async function readFontBytes(family: string, fileName: string) {
   return invokeCommand<number[]>(TAURI_COMMANDS.readFontBytes, { family, fileName });
 }
