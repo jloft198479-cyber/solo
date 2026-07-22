@@ -20,7 +20,7 @@ export interface FontOption {
 
 /**
  * 可选字体清单。
- * 顺序即展示顺序：系统默认 → 微软雅黑 UI → 思源宋体 → 朱雀仿宋 → 小赖字体 → 霞鹜文楷 → 汇文明朝。
+ * 顺序即展示顺序：系统默认 → 微软雅黑 UI → 思源宋体 → 朱雀仿宋 → 小赖字体 → 霞鹜文楷 Lite → 汇文明朝。
  */
 
 export const FONT_OPTIONS: readonly FontOption[] = [
@@ -29,6 +29,6 @@ export const FONT_OPTIONS: readonly FontOption[] = [
   { value: 'Noto Serif SC',  label: '思源宋体',   fileName: 'NotoSerifSC-Regular.otf' },
   { value: 'Zhuque Fangsong', label: '朱雀仿宋',   fileName: 'ZhuqueFangsong-Regular.ttf' },
   { value: 'Xiaolai SC',     label: '小赖字体',   fileName: 'XiaolaiSC-Regular.ttf' },
-  { value: 'LXGW WenKai',    label: '霞鹜文楷',   fileName: 'LXGWWenKai-Regular.ttf' },
+  { value: 'LXGW WenKai Lite', label: '霞鹜文楷 Lite', fileName: 'LXGWWenKai-Regular.ttf' },
   { value: 'Huiwen-mincho',  label: '汇文明朝',   fileName: 'Huiwen-mincho-Regular.otf' },
 ] as const;
