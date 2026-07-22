@@ -11,10 +11,11 @@
    内容最大宽度 760px 居中，保证长文阅读舒适度。 */
 .mk-editor {
   padding: 72px 0 48px;
+  scroll-padding-top: 80px;
 }
 
 .mk-editor-inner {
-  max-width: 760px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 0 48px;
 }
@@ -29,14 +30,14 @@
 
 /* 排版变量默认值设在 :root，由主题和设置页通过 documentElement inline style 覆盖 */
 :root {
-  --mk-line-height: 1.9;
+  --mk-line-height: 1.7;
   --mk-font-size: 16px;
-  --mk-letter-spacing: 0.02em;
-  --mk-paragraph-spacing: 0.75em;
-  --mk-heading1-size: 1.75em;
-  --mk-heading2-size: 1.4em;
-  --mk-heading3-size: 1.25em;
-  --mk-heading4-size: 1.1em;
+  --mk-letter-spacing: 0;
+  --mk-paragraph-spacing: 1em;
+  --mk-heading1-size: 1.5em;
+  --mk-heading2-size: 1.3em;
+  --mk-heading3-size: 1.2em;
+  --mk-heading4-size: 1.05em;
   --mk-heading5-size: 1em;
   --mk-heading6-size: 0.9em;
   --mk-heading1-line-height: 1.35;
@@ -45,14 +46,14 @@
   --mk-heading4-line-height: 1.5;
   --mk-heading5-line-height: 1.5;
   --mk-heading6-line-height: 1.5;
-  --mk-heading1-margin: 1.4em 0 0.6em;
-  --mk-heading2-margin: 1.2em 0 0.5em;
-  --mk-heading3-margin: 1em 0 0.4em;
+  --mk-heading1-margin: 2.4em 0 0.6em;
+  --mk-heading2-margin: 1.8em 0 0.5em;
+  --mk-heading3-margin: 1.2em 0 0.4em;
   --mk-heading4-margin: 0.8em 0 0.3em;
   --mk-heading5-margin: 0.6em 0 0.3em;
   --mk-heading6-margin: 0.6em 0 0.3em;
-  --mk-heading1-letter-spacing: 0.04em;
-  --mk-heading2-letter-spacing: 0.03em;
+  --mk-heading1-letter-spacing: -0.02em;
+  --mk-heading2-letter-spacing: -0.01em;
   --mk-quote-border-width: 2px;
   --mk-focus-dimmed-opacity: 0.22;
   --mk-focus-heading-opacity: 0.2;
@@ -321,6 +322,7 @@
   color: var(--text-secondary);
   background-color: var(--quote-bg, transparent);
   border-radius: 0 4px 4px 0;
+  font-style: italic;
 }
 
 .tiptap-editor blockquote > *:first-child {
@@ -346,6 +348,11 @@
 
 .tiptap-editor li {
   margin: calc(var(--mk-paragraph-spacing) * 0.2) 0;
+}
+
+/* 列表 marker 用次要色，让正文内容更突出（iA Writer / Notion 一致做法） */
+.tiptap-editor li::marker {
+  color: var(--text-secondary);
 }
 
 .tiptap-editor li p {
@@ -436,7 +443,7 @@
 .tiptap-editor hr {
   border: none;
   border-top: 1px solid var(--border-light);
-  margin: 1.5em 0;
+  margin: 2em 0;
 }
 
 /* ── 代码块 ────────────────────────────────────────────────── */
@@ -451,7 +458,7 @@
   padding: 0 12px;
   border: 1px solid var(--border-color);
   border-bottom: none;
-  border-radius: 6px 6px 0 0;
+  border-radius: 4px 4px 0 0;
   background-color: var(--sidebar-bg);
 }
 
@@ -522,7 +529,7 @@
 .tiptap-editor pre {
   background-color: var(--code-bg);
   border: 1px solid var(--border-color);
-  border-radius: 0 0 6px 6px;
+  border-radius: 0 0 4px 4px;
   padding: 12px 16px;
   margin: 0;
   overflow-x: auto;
@@ -616,8 +623,35 @@
   max-height: 520px;
   object-fit: contain;
   border-radius: 4px;
-  border: 1px solid var(--border-color);
   display: block;
+}
+
+/* 图片加载中 skeleton 占位（防视觉断层） */
+.tiptap-editor img.mk-image.is-loading {
+  background: linear-gradient(
+    90deg,
+    var(--sidebar-bg) 25%,
+    var(--border-light) 50%,
+    var(--sidebar-bg) 75%
+  );
+  background-size: 200% 100%;
+  animation: img-skeleton 1.2s ease-in-out infinite;
+  min-height: 80px;
+}
+
+@keyframes img-skeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* 图片 caption：显示 alt 文字，居中 muted 小字号（iA Writer 做法） */
+.tiptap-editor .mk-image-caption {
+  font-size: 0.85em;
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.4;
+  max-width: 100%;
+  margin-top: -0.1rem;
 }
 
 .tiptap-editor .mk-image-source-text {
@@ -696,7 +730,7 @@
 
 .tiptap-editor .mk-math-block {
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 4px;
   background-color: var(--sidebar-bg);
   margin: 8px 0;
   overflow: hidden;
@@ -746,7 +780,7 @@
 /* ── Mermaid 图表 ──────────────────────────────────────────── */
 .tiptap-editor .mk-mermaid-block {
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 4px;
   background-color: var(--bg-color);
   margin: 12px 0;
   overflow: hidden;
@@ -891,7 +925,7 @@
 .tiptap-editor .mk-frontmatter {
   background-color: var(--sidebar-bg);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 4px;
   padding: 8px 12px;
   font-family: var(--font-mono);
   font-size: 12px;

@@ -10,7 +10,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.2.30] — 2026-07-22
+
+### Fixed
+- **字体不生效根因：CSP `font-src` 漏 `asset:` 协议**（历史遗留 bug）。v1.2.13 把字体加载从 IndexedDB + blob: URL 改为 `convertFileSrc` + asset.localhost URL，同时给 `assetProtocol.scope` 加了 font-cache 目录，但**忘了同步更新 CSP 的 `font-src`**——`img-src` 一直有 `asset:`，`font-src` 从第一天起就漏了。结果：首次下载用 `blob:` URL（CSP 允许）能临时生效，但重启读缓存用 `convertFileSrc` 转成 asset.localhost URL 时被 CSP 拦截，字体永不生效。v1.2.29 修了 reqwest system-proxy / 旧缓存兼容 / silent 参数透传等周边问题，但都没碰到核心；v1.2.30 才真正修复根因——CSP 的 `font-src` 加 `asset: http://asset.localhost`，与 `img-src` 完全对齐。**教训**：架构切换（加载方式变更）时必须同步审查 CSP/SSOT 等配置类真理源，不能只改代码不改配置。
+- **SSOT 违规：`detect_proxy_for_update` 命令名硬编码**：`App.vue` 和 `AboutSettingsPanel.vue` 用 `invoke('detect_proxy_for_update')` 直接 invoke，违反「前端不直接 invoke」铁律。修复：`command-names.ts` 登记 `detectProxyForUpdate`，两处改用 `invokeCommand + TAURI_COMMANDS.detectProxyForUpdate`。与 v1.2.27 修 `read_clipboard_html` 是同类 SSOT 违规复发。
+- **打印时 focus-mode 会丢段落**（bug 级）：focus mode 开着时打印，未聚焦段落 `opacity: 0.22` 仍生效，打印结果几乎丢段落。修复：`@media print` 强制 `html.focus-mode .paragraph-dimmed { opacity: 1 }`，同时隐藏代码块语言按钮、mermaid/math 删除按钮、frontmatter header 等编辑态 chrome，容器不限制宽度贴满 A4 printable area。
+
+### Changed
+- **排版设计系统性提升（对齐 iA Writer / Obsidian）**：
+  - `line-height` 1.9 → 1.7（CJK 友好但不至于过松，iA Writer 1.5 / Obsidian 1.5）
+  - 正文 `letter-spacing` 0.02em → 0（回归字体默认设计，不再二次放宽）
+  - h1 `letter-spacing` 0.04em → -0.02em（标题应收紧而非放宽，对齐 iA Writer / Obsidian）
+  - 容器宽度 760px → 720px（单行约 44 中文字符，符合 CJK 黄金行宽）
+  - 段落间距 0.75em → 1em（段落不再抱团，层次分明）
+  - h1 margin-top 1.4em → 2.4em，h2 1.2em → 1.8em，h3 1em → 1.2em（章节切换呼吸感）
+  - blockquote 加 `font-style: italic`（西方引文排版传统，iA Writer 独创）
+  - 代码块/mermaid/math/frontmatter 圆角 6px → 4px（去掉软糖感，Obsidian 4px 一致）
+  - 图片移除 1px border（四款天花板全无，让图片沉浸内容流）
+  - hr margin 1.5em → 2em（章节切换呼吸感）
+  - 标题字号统一（h1-h6 在 editor.css + 7 主题预设间不再漂移，全部 1.5/1.3/1.2/1.05/1/0.9em）
+- **图片体验提升**：
+  - 新增 caption：图片下方显示 alt 文字，居中 muted 小字号（iA Writer 做法）
+  - 新增 loading 占位：图片加载中显示 skeleton 动画背景，防视觉断层
+- **可访问性提升**：
+  - 全局 `:focus-visible` 焦点环（WCAG 2.4.7 合规，键盘导航有统一焦点环，鼠标点击不显示）
+  - 列表 marker 颜色用 muted 色（iA Writer / Notion 一致，正文更突出）
+  - `scroll-padding-top: 80px`（预防性修复，防未来 sticky header 遮挡跳转目标）
+
+---
+
+## [1.2.29] — 2026-07-22
 
 ### Fixed
 - **首次启动仍弹「打开文件失败」错误框**：v1.2.26 曾修过此问题（`handleOpenPayload` 加了 os error 2 静默跳过逻辑），但修复不完整——`loadDocumentFromPath` 的内层 catch 会先 `await message(...)` 弹窗并 `return false`，错误被吃掉传不到外层 try/catch，静默逻辑形同虚设。修复：给 `loadDocumentFromPath` / `openDocumentWithPrompt` / `handleOpenFile` 加 `silent` 参数，启动链路传 `true`，遇到文件不存在时把错误抛给 `handleOpenPayload` 的静默跳过逻辑处理；用户主动打开（菜单/拖拽）仍走默认 `silent=false`，保留合理的错误提示。复查阶段发现并修复两个关键问题：①`handleOpenPayload` 用 `String(err)` 转换错误对象，但 `invokeCommand` 抛的是 `TauriAppError` 对象 `{code, message}`，`String()` 得到 `"[object Object]"`，正则无法匹配 os error 2——改为用 `normalizeTauriError(err).message` 正确提取 message；②非 os error 2 的错误 `throw err` 会中断 setup 函数，导致 `setupDragDrop()` 不执行、拖拽功能失效——改为弹窗提示但不 throw，避免中断后续启动步骤。
