@@ -1,4 +1,4 @@
-import { fetchFontData, getCachedFontPath, readFontBytes } from './tauri/document';
+import { fetchFontData, getCachedFontPath, readFontBytes } from './tauri/font';
 import { FONT_OPTIONS } from '../constants/fonts';
 
 // 字体资源固定在独立 tag `fonts-v1` 的 release 下，与 app 版本号解耦：
