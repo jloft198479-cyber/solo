@@ -170,6 +170,20 @@
     background: var(--bg); border: 1px solid var(--border); color: var(--muted);
     padding: 4px 10px; border-radius: 7px;
   }
+  .related .rel-chip {
+    cursor: pointer; color: var(--accent); border-color: var(--accent-soft); background: var(--accent-soft);
+    transition: background .14s var(--ease), color .14s var(--ease);
+  }
+  .related .rel-chip:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .related .rel-static { cursor: default; }
+  .copy-path {
+    margin-top: 3px; flex: 0 0 auto; cursor: pointer;
+    font-size: 12px; font-weight: 600; color: var(--muted);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px;
+    transition: all .14s var(--ease);
+  }
+  .copy-path:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-path.done { color: var(--green); border-color: var(--green); }
 
   /* Welcome */
   .welcome { max-width: 760px; margin: 0 auto; }
@@ -207,7 +221,7 @@
   <div class="topbar">
     <div class="brand">
       <h1>solo 项目导游</h1>
-      <span class="sub">小白友好 · 文件地图 v1.2.24</span>
+      <span class="sub">小白友好 · 文件地图 v1.2.30</span>
     </div>
     <div class="spacer"></div>
     <div class="search">
@@ -294,13 +308,13 @@ const FILES = [
     tldr: "版本变更史，由真实 git log 整理，不是凭空编的。",
     what: "这是项目的「装修日记」。每个版本加了什么、修了什么 bug，都按时间倒序记着。想了解某功能什么时候来的、为什么改，翻它最快。",
     analogy: "像车的保养记录本——哪次换了机油、哪次修了异响，一目了然。",
-    contents: ["v1.2.24 动效优化与乐观保存等近期变更", "历史版本功能/修复摘要", "版本号规则速记（主/次/修订怎么升）"],
+    contents: ["v1.2.24 起的动效优化、乐观保存、字体与复制保格式等近期变更", "历史版本功能/修复摘要", "版本号规则速记（主/次/修订怎么升）"],
     related: ["RELEASE_PROCESS.md", "package.json"] },
 
   // ── 配置中枢 ──
   { cat: "config", path: "package.json", level: "red",
     tldr: "前端的「购物清单 + 说明书」：依赖、脚本、版本号。",
-    what: "这是前端项目的身份证兼采购单。它写着：项目叫 solo、版本 1.2.24、用 bun 管理、需要哪些第三方库（Vue、TipTap、KaTeX…），以及一堆可运行的命令（dev/build/test）。",
+    what: "这是前端项目的身份证兼采购单。它写着：项目叫 solo、版本 1.2.30、用 bun 管理、需要哪些第三方库（Vue、TipTap、KaTeX…），以及一堆可运行的命令（dev/build/test）。",
     analogy: "好比餐厅的食材采购单 + 菜谱卡：要买什么、怎么做、叫什么菜，全在这一张。",
     contents: ["name/version/license 等身份信息", "scripts：dev / build / test / 打包 等命令入口", "dependencies：运行时依赖（Vue3、TipTap、markdown-it…）", "devDependencies：开发期工具（vite、eslint、vitest…）"],
     related: ["tsconfig.json", "vite.config.ts", "Cargo.toml", "tauri.conf.json"] },
@@ -321,7 +335,7 @@ const FILES = [
 
   { cat: "config", path: "src-tauri/Cargo.toml", level: "red",
     tldr: "Rust 侧的「采购单 + 版本号」，与 package.json 对应。",
-    what: "这是生锈工具间（Rust 那一层）的采购单。它列着 Rust 版本、用哪些 Rust 库（tauri、serde、reqwest…），以及最关键的——项目版本号 1.2.24，必须和前端的版本号保持一致。",
+    what: "这是生锈工具间（Rust 那一层）的采购单。它列着 Rust 版本、用哪些 Rust 库（tauri、serde、reqwest…），以及最关键的——项目版本号 1.2.30，必须和前端的版本号保持一致。",
     analogy: "和 package.json 是「同一栋楼两本账」：前端一本、后端一本，两本上的楼号（版本）必须对上，否则发版会乱。",
     contents: ["[package] 名称/版本/许可证", "Rust 依赖：tauri 全家桶、serde、reqwest、tokio…", "Windows 专属依赖（winreg/webview2-com）", "release 编译优化档（lto/codegen/strip）", "版本号须与 package.json、tauri.conf.json 三处一致"],
     related: ["package.json", "src-tauri/tauri.conf.json", "src-tauri/src/lib.rs"] },
@@ -348,19 +362,12 @@ const FILES = [
     contents: ["技术栈速览与必需工具链", "环境变量配置（CARGO_HOME 必须全大写、警惕尾随空格）", "三种编译方式 + 自动化 .bat 脚本", "踩坑实录（11 条本机特有坑）", "故障排查速查表"],
     related: ["RELEASE_PROCESS.md", "Cargo.toml", "HANDOVER.md"] },
 
-  { cat: "release", path: "RELEASE-CHECKLIST.md", level: "green",
-    tldr: "发版手动回归清单，部分章节已失效。",
-    what: "发版前人工过一遍的回归清单。注意：导出相关章节已随 v1.2.18 删除导出功能而失效，看的时候别被旧内容误导。",
-    analogy: "像一份旧的验收单——大框架还能用，但有几栏已经划掉作废了。",
-    contents: ["发版前手动回归项", "导出章节已注记失效（无独立导出功能）"],
-    related: ["RELEASE_PROCESS.md", "PUBLISH_GUIDE.md"] },
-
   { cat: "release", path: "PUBLISH_GUIDE.md", level: "green",
     tldr: "发布指南（较简略的发布说明）。",
     what: "偏发布侧的辅助说明文档，和 RELEASE_PROCESS 互补，细节较少。",
     analogy: "像上架说明的简略版——大流程看 PROCESS，这里补充些边角。",
     contents: ["发布相关辅助说明"],
-    related: ["RELEASE_PROCESS.md", "RELEASE-CHECKLIST.md"] },
+    related: ["RELEASE_PROCESS.md"] },
 
   { cat: "release", path: "docs/PLAYBOOK.md", level: "yellow",
     tldr: "发布全生命周期剧本总纲（A–F 六阶段）。",
@@ -461,21 +468,14 @@ const FILES = [
     what: "这是「地图的地图」。它把仓库里每一份文档按受众、用途、状态列成一张总表，还附了一本「项目黑话词典」（脏态、roundtrip、IPC 服务层…），看代码前先查这个词。",
     analogy: "像图书馆的索引卡柜——不只告诉你书在哪，还解释书里那些让人懵的缩写到底啥意思。",
     contents: ["全量文档路径 + 受众 + 状态（含已废弃项显式标出）", "术语表：脏态/roundtrip/IPC 服务层/原子写…", "相对路径，仓库移动也不碎"],
-    related: ["HANDOVER.md", "ARCHITECTURE.md", "docs/defect-hotspots.md"] },
-
-  { cat: "docs", path: "docs/defect-hotspots.md", level: "red",
-    tldr: "bug 易发区地图：10 个「雷」，改代码前必看。",
-    what: "这是「哪里容易踩雷」的警示图。它把历史上最容易出 bug 的 10 个地方列出来：每个雷讲清楚「为什么容易错、涉及哪些文件、改前必读哪段」。动相关代码前扫一眼能少掉很多坑。",
-    analogy: "像工地的安全警示牌——「此处基坑未填实，勿重压」，老手也先看牌再动手。",
-    contents: ["脏态机制（最易踩）", "保存冲突检测（Rust 侧）", "序列化尾换行", "图片资产安全（防路径穿越）", "启动开打竞态 / 三档防抖 / 命令名真理源 / 主题注入 / 多窗口 / 构建环境"],
-    related: ["src/stores/file.ts", "src-tauri/src/commands/document.rs", "ARCHITECTURE.md §11"] },
+    related: ["HANDOVER.md", "ARCHITECTURE.md"] },
 
   { cat: "docs", path: "docs/KNOWN-ISSUES.md", level: "yellow",
     tldr: "已知问题 + 技术债清单，区分「已修/待办/设计取舍」。",
     what: "这是项目的「病历本」。它把已知问题分了类：已修复（留着溯源）、还没解决、以及「这不算 bug 是故意的」设计取舍，帮你分清眼前的是老坑还是新病。",
     analogy: "像车的已知故障登记册——哪些修好了、哪些通病还没治、哪些其实是出厂设定别瞎拆。",
     contents: ["已修复（mermaid 全黑/拖拽覆盖/IME 箭头…）", "未解决（.tmp 崩溃残留/字体缓存文档脱节…）", "设计取舍（导出删除/多进程架构…）", "文档类坑（.trae/documents 已废弃，忽略）"],
-    related: ["docs/defect-hotspots.md", "docs/debugging.md"] },
+    related: ["docs/debugging.md"] },
 
   { cat: "docs", path: "docs/debugging.md", level: "yellow",
     tldr: "调试指南：人 + AI 共用的排错手册。",
@@ -554,7 +554,11 @@ function selectFile(path) {
 
 function renderDetail(f) {
   const lv = LEVEL[f.level];
-  const relatedHtml = f.related.map(r => `<span>${r}</span>`).join("");
+  const relatedHtml = f.related.map(r => {
+    const target = FILES.find(x => x.path === r);
+    if (target) return `<span class="rel-chip" data-go="${r}" role="button" tabindex="0">${r}</span>`;
+    return `<span class="rel-static" title="仓库内存在，但本指南未单独收录">${r}</span>`;
+  }).join("");
   main.innerHTML = `
     <div class="detail enter">
       <div class="d-head">
@@ -563,6 +567,7 @@ function renderDetail(f) {
           <div class="d-path">${f.path}</div>
         </div>
         <span class="badge ${lv.cls}">● ${lv.label}</span>
+        <button class="copy-path" data-path="${f.path}" title="复制文件路径">⧉ 复制路径</button>
       </div>
 
       <div class="d-section">
@@ -586,6 +591,21 @@ function renderDetail(f) {
         <div class="related">${relatedHtml}</div>
       </div>
     </div>`;
+  main.querySelectorAll(".rel-chip").forEach(chip => {
+    chip.addEventListener("click", () => selectFile(chip.dataset.go));
+    chip.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectFile(chip.dataset.go); }
+    });
+  });
+  main.querySelectorAll(".copy-path").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(btn.dataset.path);
+        btn.classList.add("done"); btn.textContent = "✓ 已复制";
+        setTimeout(() => { btn.classList.remove("done"); btn.textContent = "⧉ 复制路径"; }, 1400);
+      } catch { btn.textContent = "复制失败"; }
+    });
+  });
   main.scrollTop = 0;
 }
 
@@ -601,7 +621,7 @@ function renderWelcome() {
         <div class="route-step"><div class="route-num">2</div><div><div class="rs-title">HANDOVER.md → AGENTS.md → ARCHITECTURE.md</div><div class="rs-desc">30 秒定位 → 工作纪律 → 权威架构蓝图。这是搞懂项目的三块基石。</div></div></div>
         <div class="route-step"><div class="route-num">3</div><div><div class="rs-desc">配置中枢（package.json / Cargo.toml / tauri.conf.json）看一眼，知道版本号和依赖在哪。</div></div></div>
         <div class="route-step"><div class="route-num">4</div><div><div class="rs-desc">核心代码入口挑着看：main.ts、lib.rs、MarkdownEditor.vue、parser/serializer。</div></div></div>
-        <div class="route-step"><div class="route-num">5</div><div><div class="rs-desc">按需查 docs/：改代码前看 defect-hotspots，排错看 debugging，想发版看 RELEASE_PROCESS。</div></div></div>
+        <div class="route-step"><div class="route-num">5</div><div><div class="rs-desc">按需查 docs/：改代码前看 ARCHITECTURE.md §11（原 defect-hotspots 已并入），排错看 debugging，想发版看 RELEASE_PROCESS。</div></div></div>
       </div>
 
       <div class="route-card">

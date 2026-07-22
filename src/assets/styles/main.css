@@ -37,6 +37,22 @@
   }
 }
 
+/* ── 焦点环：键盘导航可见性底线（WCAG 2.4.7） ──────────────
+   只对键盘导航显示（:focus-visible），鼠标点击不显示。
+   用主题色 2px outline + 2px offset，保证与主题协调且足够醒目。 */
+:focus-visible {
+  outline: 2px solid var(--primary-color, #8b7355);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* 按钮类元素的焦点环更贴近边界，避免 outline 与 padding 冲突 */
+button:focus-visible,
+[role="button"]:focus-visible,
+[role="menuitem"]:focus-visible {
+  outline-offset: 1px;
+}
+
 /* ── 浅色主题（书卷气） ────────────────────────────────────── */
 :root {
   /* 主色调 — 墨色系 */
@@ -433,6 +449,32 @@ html.dark .hljs {
   img {
     max-width: 100% !important;
     break-inside: avoid;
+  }
+
+  /* focus-mode 下未聚焦段落强制不透明，避免打印丢段落（bug 级修复） */
+  html.focus-mode .paragraph-dimmed,
+  html.focus-mode .is-dimmed {
+    opacity: 1 !important;
+  }
+
+  /* 打印时去掉编辑态 chrome：代码块语言按钮、heading gutter、
+     mermaid/math 删除按钮、图片选中 outline */
+  .mk-code-block-language-button,
+  .mk-mermaid-delete,
+  .mk-math-delete,
+  .mk-frontmatter-header,
+  .tiptap-editor .mk-image-source-text {
+    display: none !important;
+  }
+
+  .tiptap-editor img.mk-image.is-selected {
+    outline: none !important;
+  }
+
+  /* 打印时容器不限制宽度，让内容贴满 A4 printable area */
+  .mk-editor-inner {
+    max-width: 100% !important;
+    padding: 0 !important;
   }
 }
 

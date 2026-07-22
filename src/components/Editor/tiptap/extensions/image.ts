@@ -290,6 +290,12 @@ export const CustomImage = Image.extend({
       image.draggable = false;
       dom.appendChild(image);
 
+      // caption：显示 alt 文字在图片下方，居中 muted 小字号（iA Writer 做法）
+      const caption = document.createElement('figcaption');
+      caption.className = 'mk-image-caption';
+      caption.draggable = false;
+      dom.appendChild(caption);
+
       const sourceText = document.createElement('div');
       sourceText.className = 'mk-image-source-text';
       sourceText.contentEditable = 'plaintext-only';
@@ -319,6 +325,19 @@ export const CustomImage = Image.extend({
 
         image.alt = attrs.alt;
         image.title = attrs.title ?? '';
+
+        // caption：仅在非编辑模式且有 alt 文字时显示
+        if (!isEditing && attrs.alt) {
+          caption.textContent = attrs.alt;
+          caption.style.display = '';
+        } else {
+          caption.style.display = 'none';
+        }
+
+        // loading 占位：图片加载中显示 skeleton 背景，加载完移除
+        if (image.src && !image.complete && !image.dataset.loaded) {
+          image.classList.add('is-loading');
+        }
 
         if (isRemoteImageSrc(attrs.src)) {
           if (image.dataset.prevRemoteSrc === attrs.src) return;
@@ -462,6 +481,16 @@ export const CustomImage = Image.extend({
             }),
           );
         }
+      });
+
+      // 加载完成移除 skeleton 占位
+      image.addEventListener('load', () => {
+        image.dataset.loaded = '1';
+        image.classList.remove('is-loading');
+      });
+      image.addEventListener('error', () => {
+        image.dataset.loaded = '1';
+        image.classList.remove('is-loading');
       });
 
       syncView();

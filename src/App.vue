@@ -6,6 +6,8 @@ import { useCommandDispatcher } from './composables/useCommandDispatcher';
 import { useAppDomEvents } from './composables/useAppDomEvents';
 import { useAppEditorState } from './composables/useAppEditorState';
 import { useDocumentSession } from './composables/useDocumentSession';
+import { invokeCommand } from './services/tauri/client';
+import { TAURI_COMMANDS } from './services/tauri/command-names';
 import { useImagePreview } from './composables/useImagePreview';
 import { useMenuEvents } from './composables/useMenuEvents';
 import { useMenuShortcutsSync } from './composables/useMenuShortcutsSync';
@@ -21,7 +23,6 @@ import WindowResizeHandles from './components/Layout/WindowResizeHandles.vue';
 import { useOutline } from './composables/useOutline';
 import { useFileStore } from './stores/file';
 import { useSettingsStore } from './stores/settings';
-import { invoke } from '@tauri-apps/api/core';
 import { message } from './services/tauri/dialog';
 import { destroyCurrentWindow, newEditorWindow } from './services/tauri/window';
 import { findCommandByShortcut } from './commands/registry';
@@ -240,7 +241,7 @@ async function autoCheckForUpdate() {
   if (!settings.value.enableAutoUpdateCheck) return;
   try {
     // 先尝试检测代理
-    await invoke<string>('detect_proxy_for_update').catch(() => {});
+    await invokeCommand<string>(TAURI_COMMANDS.detectProxyForUpdate).catch(() => {});
     const { check } = await import('@tauri-apps/plugin-updater');
     await check();
   } catch {
