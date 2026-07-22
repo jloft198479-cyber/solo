@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.31] — 2026-07-22
+
+### Fixed
+- **字体不生效真正根因：FontFace API 的 CORS 限制**。v1.2.30 修了 CSP `font-src` 漏 `asset:` 协议，但只解决了 CSP 拦截问题，**没有解决 FontFace API 自身的 CORS 限制**。CSP 和 CORS 是两道独立的闸门：CSP = "是否允许发起请求"（v1.2.30 已修），CORS = "是否允许读取响应"（Tauri asset protocol 不返回 `Access-Control-Allow-Origin` 头，FontFace.load() 被拦截）。**为什么图片正常但字体不生效**：图片用 `<img src="assetUrl">`（不走 CORS），字体用 `new FontFace(family, "url('assetUrl')")`（**强制走 CORS**）。修复：新增 Rust 命令 `read_font_bytes` 读取字体字节，前端拿到字节后创建 `blob:` URL 加载 FontFace——blob URL 是同源，完全绕过 CORS。三条加载路径全部改用 blob URL：readCache（重启读缓存）、downloadAndCache 主路径（前端 fetch 成功）、downloadAndCache fallback（Rust 下载）。**教训**：CSP ≠ CORS，CSP 放行了请求不代表 CORS 放行了响应。FontFace API 默认走 CORS 模式，用 asset URL 加载字体必然失败，必须用 blob URL 绕过。
+
+---
+
 ## [1.2.30] — 2026-07-22
 
 ### Fixed

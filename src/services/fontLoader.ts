@@ -1,5 +1,4 @@
-import { convertFileSrc } from '@tauri-apps/api/core';
-import { fetchFontData, getCachedFontPath, saveCachedFont } from './tauri/document';
+import { fetchFontData, getCachedFontPath, readFontBytes, saveCachedFont } from './tauri/document';
 import { FONT_OPTIONS } from '../constants/fonts';
 
 // 字体资源固定在独立 tag `fonts-v1` 的 release 下，与 app 版本号解耦：
@@ -96,8 +95,17 @@ async function readCache(family: string): Promise<boolean> {
     const cachedPath = await getCachedFontPath(family, fileName);
     if (!cachedPath) return false;
 
-    const assetUrl = convertFileSrc(cachedPath);
-    const ok = await registerFont(family, assetUrl);
+    // 通过 IPC 读取字节，用 blob URL 加载，绕过 FontFace 对 asset URL 的 CORS 限制。
+    // FontFace API 默认走 CORS 模式，Tauri asset protocol 不返回 CORS 头，
+    // 导致 `new FontFace(family, "url('http://asset.localhost/...')")` 的 load() 被拦截。
+    // blob URL 是同源，完全绕过 CORS。
+    const bytes = await readFontBytes(family, fileName);
+    if (!bytes || bytes.length === 0) return false;
+
+    const mime = fileName.endsWith('.otf') ? 'font/otf' : fileName.endsWith('.ttf') ? 'font/ttf' : '';
+    const blob = new Blob([new Uint8Array(bytes)], { type: mime });
+    const blobUrl = URL.createObjectURL(blob);
+    const ok = await registerFont(family, blobUrl);
     if (ok) loadedFonts.add(family);
     else console.warn(`[fontLoader] readCache: ${family} font face rejected`);
     return ok;
@@ -113,25 +121,31 @@ async function downloadAndCache(family: string, fileName: string): Promise<boole
   notifyProgress(family, 0);
 
   let blob: Blob;
+  let fromRustFallback = false;
   try {
     blob = await downloadWithProgress(remoteUrl, family);
   } catch {
     // fallback：Rust 下载并直接落盘，返回缓存路径。
     // 避免二进制走 IPC JSON number[] 往返（与 get_cached_font_path 路径统一）。
-    const cachedPath = await fetchFontData(remoteUrl, family);
-    const assetUrl = convertFileSrc(cachedPath);
-    const ok = await registerFont(family, assetUrl);
-    if (ok) loadedFonts.add(family);
-    notifyProgress(family, -1);
-    return ok;
+    await fetchFontData(remoteUrl, family);
+    // 通过 IPC 读取字节，用 blob URL 加载（绕过 asset URL 的 CORS 限制）
+    const bytes = await readFontBytes(family, fileName);
+    if (!bytes || bytes.length === 0) {
+      notifyProgress(family, -1);
+      return false;
+    }
+    const mime = fileName.endsWith('.otf') ? 'font/otf' : fileName.endsWith('.ttf') ? 'font/ttf' : '';
+    blob = new Blob([new Uint8Array(bytes)], { type: mime });
+    fromRustFallback = true;
   }
 
   // 主路径成功后保存缓存（Rust 已落盘的 fallback 路径无需再保存）
-  saveCachedFont(family, fileName, [...new Uint8Array(await blob.arrayBuffer())]).catch(() => {});
+  if (!fromRustFallback) {
+    saveCachedFont(family, fileName, [...new Uint8Array(await blob.arrayBuffer())]).catch(() => {});
+  }
 
   const blobUrl = URL.createObjectURL(blob);
   const ok = await registerFont(family, blobUrl);
-  URL.revokeObjectURL(blobUrl);
   if (ok) loadedFonts.add(family);
 
   notifyProgress(family, -1);

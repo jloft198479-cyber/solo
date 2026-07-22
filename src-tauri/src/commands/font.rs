@@ -125,3 +125,44 @@ pub async fn save_font_cache(
     fs::rename(&tmp, &cached)?;
     Ok(())
 }
+
+/// 读取字体缓存的字节内容。
+///
+/// 前端通过 IPC 读取字节后创建 blob URL 加载 FontFace，
+/// 绕过 FontFace API 对 asset URL 的 CORS 限制。
+///
+/// FontFace API 默认走 CORS 模式，而 Tauri asset protocol 不返回
+/// Access-Control-Allow-Origin 头，导致 `new FontFace(family, "url('asset...')")`
+/// 的 `fontFace.load()` 被 CORS 拦截。
+///
+/// 用 blob URL（同源）完全绕过 CORS。代价是 IPC 传输几 MB 字节，
+/// 但只在字体切换时执行一次，之后被 loadedFonts 缓存，可接受。
+#[tauri::command]
+pub async fn read_font_bytes(
+    family: String,
+    file_name: String,
+    app: AppHandle,
+) -> Result<Vec<u8>, AppError> {
+    let cache_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| AppError::Native(e.to_string()))?
+        .join("font-cache");
+
+    // 先查新名（file_name，含扩展名）
+    let cached = cache_dir.join(&file_name);
+    if cached.exists() {
+        return Ok(fs::read(&cached)?);
+    }
+
+    // 再查旧名（family，无扩展名）——v1.2.27 兼容
+    let legacy = cache_dir.join(&family);
+    if legacy.exists() {
+        let bytes = fs::read(&legacy)?;
+        // 迁移为新名
+        let _ = fs::rename(&legacy, &cached);
+        return Ok(bytes);
+    }
+
+    Ok(Vec::new())
+}
