@@ -305,9 +305,13 @@ export function markdownPastePlugin(opts?: {
           }
           const slice = parseHtmlSlice(view.state.schema, html);
           if (slice) {
+            // P0 质量兜底：装饰性 HTML（div/span+CSS）解析后格式塌方、而纯文本是
+            // markdown 源时，改用 markdown 救回格式。已正常的解析（含标题/加粗等）
+            // isLowQualityParse 返回 false → 沿用原 slice，行为不变。
+            const rescued = rescueWithMarkdownIfLowQuality(view.state.schema, slice, text);
             view.dispatch(
               view.state.tr
-                .replaceSelection(slice)
+                .replaceSelection(rescued ?? slice)
                 .scrollIntoView()
                 .setMeta(markdownPastePluginKey, { pasted: true }),
             );
@@ -382,6 +386,62 @@ export function parseHtmlSlice(schema: Schema, htmlString: string): Slice | null
 }
 
 /**
+ * 判断 HTML 解析结果是否"格式塌方"——解析虽然成功，但几乎没保住任何格式。
+ *
+ * 触发条件（同时满足）：
+ * - 至少 2 个块级节点（单段落不判塌方，避免对 legitimately 纯文本误救）
+ * - 全部块都是「无 mark 的纯段落」：没有标题/列表/表格/代码块/引用等块级结构，
+ *   也没有任何加粗/斜体/链接等行内 mark
+ *
+ * 这是装饰性 HTML（div/span + CSS，如千问聊天、豆包生成的文档）的典型后果：
+ * ProseMirror DOMParser 只认语义标签，div/span 被拍平成纯段落、CSS 样式被丢弃，
+ * 解析"成功"但格式全失。此时若纯文本其实是 markdown 源，回头走 markdown 解析能救回。
+ *
+ * 安全性：已正常还原格式的解析（含标题/列表/加粗等）必然 formatted > 0 → 返回 false，
+ * 不会被救——保证豆包/DeepSeek 问答等已正常路径行为完全不变。
+ */
+export function isLowQualityParse(slice: Slice): boolean {
+  let blocks = 0;
+  let formatted = 0;
+
+  slice.content.forEach((block) => {
+    blocks++;
+    // 非段落块（heading/list/table/codeBlock/blockquote 等）= 保住了结构
+    if (block.type.name !== 'paragraph') {
+      formatted++;
+      return;
+    }
+    // 段落内含任意 mark（bold/italic/link/code 等）= 保住了行内格式
+    let hasMark = false;
+    block.descendants((node) => {
+      if (node.isText && node.marks.length > 0) hasMark = true;
+      return !hasMark;
+    });
+    if (hasMark) formatted++;
+  });
+
+  if (blocks === 0) return true;
+  return formatted === 0 && blocks >= 2;
+}
+
+/**
+ * P0 质量兜底：HTML 解析"格式塌方"且纯文本是 markdown 源时，改用 markdown 解析。
+ * 返回 null 表示不救（沿用原 HTML 解析结果）。
+ *
+ * 仅在 isLowQualityParse 为真时才尝试，且 parseGeneralMarkdownPaste 内部还会用
+ * looksLikeMarkdownSource 二次确认纯文本确实含 markdown 块级语法——双重闸门，
+ * 确保只对"HTML 烂 + 纯文本是 markdown"的情况出手，绝不误伤正常路径。
+ */
+function rescueWithMarkdownIfLowQuality(
+  schema: Schema,
+  slice: Slice,
+  text: string,
+): Slice | null {
+  if (!isLowQualityParse(slice)) return null;
+  return parseGeneralMarkdownPaste(schema, text);
+}
+
+/**
  * 兜底：当粘贴事件的 `text/html` 缺失时，从【系统剪贴板】读 HTML
  * （readClipboardHtml → 自定义 Rust 命令 `read_clipboard_html`，底层 arboard
  * 直接读系统剪贴板；clipboard-manager 插件无 readHtml API，故绕开）。
@@ -393,9 +453,13 @@ async function readClipboardHtmlFallback(view: any, text: string) {
   if (html) {
     const slice = parseHtmlSlice(view.state.schema, html);
     if (slice) {
+      // P0 质量兜底（同步骤 3）：装饰性 HTML 解析塌方、纯文本是 markdown 源时改用 markdown。
+      // 这是千问/豆包文档最常走的路径——WebView2 粘贴事件不带 text/html，
+      // 从系统剪贴板读到的往往是装饰性 HTML，解析后格式全丢，此处救回。
+      const rescued = rescueWithMarkdownIfLowQuality(view.state.schema, slice, text);
       view.dispatch(
         view.state.tr
-          .replaceSelection(slice)
+          .replaceSelection(rescued ?? slice)
           .scrollIntoView()
           .setMeta(markdownPastePluginKey, { pasted: true }),
       );

@@ -1,4 +1,5 @@
-import { fetchFontData, getCachedFontPath, readFontBytes, saveCachedFont } from './tauri/document';
+import { fetchFontData, getCachedFontPath } from './tauri/document';
+import { toAssetUrl } from './tauri/asset';
 import { FONT_OPTIONS } from '../constants/fonts';
 
 // 字体资源固定在独立 tag `fonts-v1` 的 release 下，与 app 版本号解耦：
@@ -36,56 +37,37 @@ export function getDownloadProgress(family: string): number {
   return downloadProgress.get(family) ?? -1;
 }
 
-async function registerFont(family: string, url: string): Promise<boolean> {
+/**
+ * 用 CSS @font-face 注入 <style> 标签加载字体。
+ *
+ * 关键：CSS @font-face 的 url() 不走 CORS（和 <img src> 一样），
+ * 而 JavaScript FontFace API 强制走 CORS——Tauri asset protocol 不返回
+ * Access-Control-Allow-Origin 头，所以 FontFace.load() 必然失败。
+ *
+ * 用 @font-face 注入 + convertFileSrc（asset URL）完全绕过 CORS。
+ * document.fonts.load() 触发加载并检测是否成功。
+ */
+async function registerFont(family: string, filePath: string): Promise<boolean> {
+  const assetUrl = toAssetUrl(filePath);
+  const format = filePath.endsWith('.otf') ? 'opentype' : 'truetype';
+  const styleId = `mk-font-${family.replace(/\s+/g, '-')}`;
+
+  let style = document.getElementById(styleId) as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement('style');
+    style.id = styleId;
+    document.head.appendChild(style);
+  }
+  style.textContent = `@font-face { font-family: "${family}"; src: url("${assetUrl}") format("${format}"); font-display: swap; }`;
+
+  // 触发加载并等待完成——document.fonts.load() 走 CSS @font-face 机制，不走 CORS
   try {
-    // display:'swap'：字体加载期间用系统同族字体先顶上，到位无感替换。
-    // 对应 Web Vitals 的「消灭 FOUT（字体切换闪烁）」目标。
-    const fontFace = new FontFace(family, `url('${url}')`, { display: 'swap' });
-    await fontFace.load();
-    document.fonts.add(fontFace);
-    return true;
-  } catch (e) {
-    console.warn(`[fontLoader] FontFace.register failed: ${family}`, e);
+    await document.fonts.load(`16px "${family}"`);
+    // check() 返回 true 仅当字体已加载且可用
+    return document.fonts.check(`16px "${family}"`);
+  } catch {
     return false;
   }
-}
-
-async function downloadWithProgress(
-  url: string,
-  family: string,
-): Promise<Blob> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-  const len = Number(res.headers.get('content-length') ?? 0);
-  const reader = res.body!.getReader();
-
-  const chunks: Uint8Array[] = [];
-  let received = 0;
-  let lastNotifyTime = 0;
-  const THROTTLE_MS = 200;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value);
-    received += value.length;
-    if (len > 0) {
-      const now = Date.now();
-      if (now - lastNotifyTime >= THROTTLE_MS) {
-        lastNotifyTime = now;
-        notifyProgress(family, Math.round((received / len) * 100));
-      }
-    }
-  }
-
-  if (len > 0) {
-    notifyProgress(family, Math.round((received / len) * 100));
-  }
-
-  // 从 URL 推断字体 MIME（.otf→font/otf, .ttf→font/ttf），让 FontFace.load() 能识别格式
-  const mime = url.endsWith('.otf') ? 'font/otf' : url.endsWith('.ttf') ? 'font/ttf' : '';
-  return new Blob(chunks as BlobPart[], { type: mime });
 }
 
 async function readCache(family: string): Promise<boolean> {
@@ -95,19 +77,8 @@ async function readCache(family: string): Promise<boolean> {
     const cachedPath = await getCachedFontPath(family, fileName);
     if (!cachedPath) return false;
 
-    // 通过 IPC 读取字节，用 blob URL 加载，绕过 FontFace 对 asset URL 的 CORS 限制。
-    // FontFace API 默认走 CORS 模式，Tauri asset protocol 不返回 CORS 头，
-    // 导致 `new FontFace(family, "url('http://asset.localhost/...')")` 的 load() 被拦截。
-    // blob URL 是同源，完全绕过 CORS。
-    const bytes = await readFontBytes(family, fileName);
-    if (!bytes || bytes.length === 0) return false;
-
-    const mime = fileName.endsWith('.otf') ? 'font/otf' : fileName.endsWith('.ttf') ? 'font/ttf' : '';
-    const blob = new Blob([new Uint8Array(bytes)], { type: mime });
-    const blobUrl = URL.createObjectURL(blob);
-    const ok = await registerFont(family, blobUrl);
+    const ok = await registerFont(family, cachedPath);
     if (ok) loadedFonts.add(family);
-    else console.warn(`[fontLoader] readCache: ${family} font face rejected`);
     return ok;
   } catch (e) {
     console.warn(`[fontLoader] readCache failed: ${family}`, e);
@@ -117,39 +88,25 @@ async function readCache(family: string): Promise<boolean> {
 
 async function downloadAndCache(family: string, fileName: string): Promise<boolean> {
   const remoteUrl = `${DOWNLOAD_BASE}/${fileName}`;
-
   notifyProgress(family, 0);
 
-  let blob: Blob;
-  let fromRustFallback = false;
   try {
-    blob = await downloadWithProgress(remoteUrl, family);
-  } catch {
-    // fallback：Rust 下载并直接落盘，返回缓存路径。
-    // 避免二进制走 IPC JSON number[] 往返（与 get_cached_font_path 路径统一）。
+    // 直接用 Rust 下载——前端 fetch 会被 GitHub CDN 的 CORS 拦截
+    // （GitHub release 不返回 Access-Control-Allow-Origin 头）
     await fetchFontData(remoteUrl, family);
-    // 通过 IPC 读取字节，用 blob URL 加载（绕过 asset URL 的 CORS 限制）
-    const bytes = await readFontBytes(family, fileName);
-    if (!bytes || bytes.length === 0) {
-      notifyProgress(family, -1);
-      return false;
-    }
-    const mime = fileName.endsWith('.otf') ? 'font/otf' : fileName.endsWith('.ttf') ? 'font/ttf' : '';
-    blob = new Blob([new Uint8Array(bytes)], { type: mime });
-    fromRustFallback = true;
+    notifyProgress(family, 100);
+
+    // 下载落盘后，走 readCache 路径用 CSS @font-face 加载
+    const ok = await readCache(family);
+    if (!ok) downloadFailures.add(family);
+    notifyProgress(family, -1);
+    return ok;
+  } catch (e) {
+    console.warn(`[fontLoader] download failed: ${family}`, e);
+    downloadFailures.add(family);
+    notifyProgress(family, -1);
+    return false;
   }
-
-  // 主路径成功后保存缓存（Rust 已落盘的 fallback 路径无需再保存）
-  if (!fromRustFallback) {
-    saveCachedFont(family, fileName, [...new Uint8Array(await blob.arrayBuffer())]).catch(() => {});
-  }
-
-  const blobUrl = URL.createObjectURL(blob);
-  const ok = await registerFont(family, blobUrl);
-  if (ok) loadedFonts.add(family);
-
-  notifyProgress(family, -1);
-  return ok;
 }
 
 export async function ensureFontLoaded(family: string): Promise<boolean> {

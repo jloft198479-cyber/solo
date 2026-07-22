@@ -22,6 +22,43 @@ fn font_client() -> Result<reqwest::Client, AppError> {
     FONT_CLIENT.get().cloned().ok_or_else(|| AppError::Network("Client init failed".into()))
 }
 
+/// 校验字体文件完整性：magic bytes + 表目录 offset+length ≤ 文件大小。
+/// 防止截断/损坏的字体被写入缓存（GitHub release 曾被截断导致四版修复无效）。
+fn validate_font_bytes(bytes: &[u8]) -> Result<(), AppError> {
+    if bytes.len() < 12 {
+        return Err(AppError::Network(format!(
+            "字体文件过小（{} bytes），疑似截断",
+            bytes.len()
+        )));
+    }
+    let magic = &bytes[0..4];
+    if magic != b"OTTO" && magic != b"\x00\x01\x00\x00" {
+        return Err(AppError::Network(format!(
+            "字体 magic bytes 无效: {:02x?}，非 OTF/TTF 格式",
+            magic
+        )));
+    }
+    let num_tables = u16::from_be_bytes([bytes[4], bytes[5]]) as usize;
+    let file_size = bytes.len() as u64;
+    for i in 0..num_tables {
+        let off = 12 + i * 16;
+        if off + 16 > bytes.len() {
+            return Err(AppError::Network(
+                "字体表目录超出文件范围，文件已截断".into(),
+            ));
+        }
+        let offset = u32::from_be_bytes([bytes[off + 8], bytes[off + 9], bytes[off + 10], bytes[off + 11]]) as u64;
+        let length = u32::from_be_bytes([bytes[off + 12], bytes[off + 13], bytes[off + 14], bytes[off + 15]]) as u64;
+        if offset + length > file_size {
+            return Err(AppError::Network(format!(
+                "字体表 {} 数据越界（offset={} + length={} > file_size={}），文件已截断",
+                i, offset, length, file_size
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// 通过 Rust 的 reqwest 下载字体文件并直接写入 font-cache 目录，返回缓存路径。
 /// 绕过前端 CSP/CORS 限制。
 /// 返回路径供前端用 convertFileSrc + fetch 读取，避免 IPC 传输二进制数据。
@@ -33,6 +70,9 @@ pub async fn fetch_font_data(
 ) -> Result<String, AppError> {
     let response = font_client()?.get(&url).send().await?;
     let bytes = response.bytes().await?;
+
+    // 下载后立即校验完整性，拒绝截断/损坏文件（不写入缓存）
+    validate_font_bytes(&bytes)?;
 
     let cache_dir = app
         .path()
@@ -113,6 +153,8 @@ pub async fn save_font_cache(
     app: AppHandle,
 ) -> Result<(), AppError> {
     let _ = &family; // family 保留用于日志/将来扩展；缓存定位用 file_name（含扩展名）
+    // 校验字体完整性，拒绝截断/损坏数据
+    validate_font_bytes(&data)?;
     let cache_dir = app
         .path()
         .app_local_data_dir()

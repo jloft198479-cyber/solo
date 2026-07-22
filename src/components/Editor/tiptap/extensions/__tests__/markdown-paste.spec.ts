@@ -8,8 +8,10 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
 import {
   hasMarkdownOnlySyntax,
+  isLowQualityParse,
   looksLikeMarkdownTable,
   markdownPastePlugin,
+  parseHtmlSlice,
   parseMarkdownTablePaste,
 } from '../markdown-paste';
 
@@ -298,6 +300,65 @@ describe('markdownPastePlugin handlePaste（真实 EditorView 端到端）', () 
     expect(hasBold).toBe(true);
     expect(hasBlockquote).toBe(true);
   });
+
+  it('P0 质量兜底：系统剪贴板是装饰性 HTML（千问/豆包文档）+ 纯文本是 markdown 源 → 救回 markdown 格式', async () => {
+    // 复现千问/豆包文档场景：WebView2 粘贴事件不带 text/html，从系统剪贴板读到的是
+    // 装饰性 HTML（span+inline style，无语义标签），DOMParser 解析后只剩纯段落、格式全丢。
+    // 纯文本其实是 markdown 源。期望：P0 检测到解析塌方 → 改用 markdown 解析，救回格式。
+    clipboardMocks.readClipboardHtml.mockResolvedValue(
+      '<p><span style="font-weight:700">标题</span></p><p><span style="font-size:16px">正文内容</span></p>',
+    );
+    const v = mountEmpty();
+    const mdText = '# 标题\n\n**重点内容**\n\n- 项目一\n- 项目二';
+    const handled = firePaste(v, pasteEvent({ 'text/plain': mdText }));
+
+    expect(handled).toBe(true);
+    await new Promise((r) => setTimeout(r, 0));
+
+    let hasHeading = false;
+    let hasBold = false;
+    let hasListItem = false;
+    v.state.doc.descendants((node) => {
+      if (node.type.name === 'heading') hasHeading = true;
+      if (node.type.name === 'listItem') hasListItem = true;
+      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
+      return true;
+    });
+    expect(hasHeading).toBe(true);
+    expect(hasBold).toBe(true);
+    expect(hasListItem).toBe(true);
+    clipboardMocks.readClipboardHtml.mockResolvedValue(null);
+  });
+
+  it('P0 回归守卫：系统剪贴板是规范富文本 HTML（含标题/加粗）→ 不被误救，保留原格式', async () => {
+    // 守卫「不朝坏的方向发展」：当系统剪贴板 HTML 本身规范（h2+strong，解析后含结构），
+    // 即使纯文本也是 markdown 源，isLowQualityParse 返回 false → 沿用 HTML 解析，不被误改。
+    clipboardMocks.readClipboardHtml.mockResolvedValue(
+      '<h2>章节标题</h2><p>这是 <strong>加粗</strong> 正文</p>',
+    );
+    const v = mountEmpty();
+    const mdText = '# 不同的标题\n\n- 列表项';
+    const handled = firePaste(v, pasteEvent({ 'text/plain': mdText }));
+
+    expect(handled).toBe(true);
+    await new Promise((r) => setTimeout(r, 0));
+
+    // 应保留 HTML 的 h2（level 2），而非被 markdown 的 h1 覆盖
+    let hasH2 = false;
+    let hasBold = false;
+    let hasListItem = false;
+    v.state.doc.descendants((node) => {
+      if (node.type.name === 'heading' && node.attrs.level === 2) hasH2 = true;
+      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
+      if (node.type.name === 'listItem') hasListItem = true;
+      return true;
+    });
+    expect(hasH2).toBe(true);
+    expect(hasBold).toBe(true);
+    // 不应出现 markdown 源的列表（证明没走 markdown 解析）
+    expect(hasListItem).toBe(false);
+    clipboardMocks.readClipboardHtml.mockResolvedValue(null);
+  });
 });
 
 describe('hasMarkdownOnlySyntax 误判防护', () => {
@@ -311,5 +372,34 @@ describe('hasMarkdownOnlySyntax 误判防护', () => {
 
   it('普通含 $ 文本（无成对 $）不误判', () => {
     expect(hasMarkdownOnlySyntax('这家公司估值 $5B')).toBe(false);
+  });
+});
+
+describe('isLowQualityParse（P0 质量兜底判定）', () => {
+  const schema = createMarkdownCompatSchema();
+
+  function sliceOf(html: string) {
+    return parseHtmlSlice(schema, html);
+  }
+
+  it('多个无格式纯段落 → 判为塌方（装饰性 HTML 的典型后果）', () => {
+    const slice = sliceOf('<p><span style="font-weight:700">一</span></p><p><span>二</span></p>');
+    expect(slice).not.toBeNull();
+    expect(isLowQualityParse(slice!)).toBe(true);
+  });
+
+  it('段落含加粗 mark → 不塌方（保住了行内格式）', () => {
+    const slice = sliceOf('<p>Hello <strong>world</strong></p><p>plain</p>');
+    expect(isLowQualityParse(slice!)).toBe(false);
+  });
+
+  it('含标题块 → 不塌方（保住了块级结构）', () => {
+    const slice = sliceOf('<h2>标题</h2><p>正文</p>');
+    expect(isLowQualityParse(slice!)).toBe(false);
+  });
+
+  it('单个纯段落 → 不塌方（避免对 legitimately 纯文本误救）', () => {
+    const slice = sliceOf('<p>just one paragraph</p>');
+    expect(isLowQualityParse(slice!)).toBe(false);
   });
 });

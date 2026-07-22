@@ -10,11 +10,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.33] — 2026-07-22
+
+### Fixed
+- **字体不生效最终修复：改用 CSS `@font-face` 注入替代 FontFace API**。v1.2.31/v1.2.32 用 blob URL 绕过 FontFace API 的 CORS 限制，但 dev 模式实测仍失败（`FontFace.load()` 报 `NetworkError`，且 IPC 传输 `Vec<u8>` 有破坏字体数据的风险）。**根本原因**：JavaScript `FontFace API` 强制走 CORS 模式，无论用 asset URL 还是 blob URL 都有各种边缘问题。**修复方案**：改用 CSS `@font-face { src: url("assetUrl") }` 注入 `<style>` 标签——CSS `@font-face` 的 `url()` 加载字体**不走 CORS**（和 `<img src>` 一样，W3C 标准行为），用 `document.fonts.load()` 检测加载是否成功。同时移除了被 GitHub CDN CORS 拦截的前端 `fetch` 下载路径，直接用 Rust `fetch_font_data` 下载落盘后走 CSS @font-face 加载。**教训**：`FontFace API`（JavaScript）和 `@font-face`（CSS）是两套机制——前者强制走 CORS，后者不走。Tauri asset protocol 不返回 CORS 头，所以 `FontFace API` 必然失败，必须用 CSS `@font-face` 注入。
+- **【根因追加】GitHub release `fonts-v1` 的字体文件全部被截断**（v1.2.33 深度排查发现）。通过 PowerShell 大端序解析 OTF/TTF 表目录，发现 5 个字体文件全部只有 1.4 MB 左右，但内部表（glyf、CFF、GPOS 等）的 offset 指向 800 万字节位置——文件被截断到只剩头部 + 表目录，表数据全部丢失。**这才是 v1.2.29 ~ v1.2.33 四个版本字体一直不生效的终极根因**——之前修 CSP、CORS、FontFace API 都是代码层面的正确修复，但文件本身就是坏的，再怎么修加载逻辑也没用。**教训**：遇到"资源加载失败"问题，第一步应该验证资源本身是否完整（检查文件大小、表目录偏移量），而不是从加载机制上猜原因。
+
+### Added
+- **互链跳转（最小可用版）**：`[[文档名]]` 单击跳转同目录目标文档；未保存文档点击时提示先保存；无扩展名自动补 `.md`；兼容 `\` 与 `/` 分隔符。涉及 `wikilink.ts`（`resolveWikilinkTarget` 纯函数 + 点击插件）、`editor-extensions.ts`、`MarkdownEditor.vue`、`App.vue`，含回归测试 `wikilink.spec.ts`。
+- **粘贴质量兜底（P0）**：HTML 粘贴解析结果为「全白话段落、无 mark/结构」时，自动回退用 markdown 重新解析。双重保险门（`isLowQualityParse` + markdown 源检测）**不触碰现有正常路径**（豆包/DeepSeek 问答粘贴），含回归守卫测试 `markdown-paste.spec.ts`。
+
+### Changed
+- **字体下载硬化**：Rust 侧 `font.rs` 新增 `validate_font_bytes()`，下载后与写缓存前校验字体完整性（magic bytes + 表目录 offset/length 合法），从源头阻断坏字体落盘。
+
+---
+
 ## [1.2.32] — 2026-07-22
 
 ### Fixed
-- **字体不生效真正根因：FontFace API 的 CORS 限制**。v1.2.30 修了 CSP `font-src` 漏 `asset:` 协议，但只解决了 CSP 拦截问题，**没有解决 FontFace API 自身的 CORS 限制**。CSP 和 CORS 是两道独立的闸门：CSP = "是否允许发起请求"（v1.2.30 已修），CORS = "是否允许读取响应"（Tauri asset protocol 不返回 `Access-Control-Allow-Origin` 头，FontFace.load() 被拦截）。**为什么图片正常但字体不生效**：图片用 `<img src="assetUrl">`（不走 CORS），字体用 `new FontFace(family, "url('assetUrl')")`（**强制走 CORS**）。修复：新增 Rust 命令 `read_font_bytes` 读取字体字节，前端拿到字节后创建 `blob:` URL 加载 FontFace——blob URL 是同源，完全绕过 CORS。三条加载路径全部改用 blob URL：readCache（重启读缓存）、downloadAndCache 主路径（前端 fetch 成功）、downloadAndCache fallback（Rust 下载）。**教训**：CSP ≠ CORS，CSP 放行了请求不代表 CORS 放行了响应。FontFace API 默认走 CORS 模式，用 asset URL 加载字体必然失败，必须用 blob URL 绕过。
+- **字体不生效真正根因：FontFace API 的 CORS 限制**。v1.2.30 修了 CSP `font-src` 漏 `asset:` 协议，但只解决了 CSP 拦截问题，**没有解决 FontFace API 自身的 CORS 限制**。CSP 和 CORS 是两道独立的闸门：CSP = "是否允许发起请求"（v1.2.30 已修），CORS = "是否允许读取响应"（Tauri asset protocol 不返回 `Access-Control-Allow-Origin` 头，FontFace.load() 被拦截）。**为什么图片正常但字体不生效**：图片用 `<img src="assetUrl">`（不走 CORS），字体用 `new FontFace(family, "url('assetUrl')")`（**强制走 CORS**）。修复：新增 Rust 命令 `read_font_bytes` 读取字体字节，前端拿到字节后创建 `blob:` URL 加载 FontFace——blob URL 是同源，完全绕过 CORS。三条加载路径全部改用 blob URL：readCache（重启读缓存）、downloadAndCache 主路径（前端 fetch 成功）、downloadAndCache fallback（Rust 下载）。**教训**：CSP ≠ CORS，CSP 放行了请求不代表 CORS 放行了响应。FontFace API 默认走 CORS 模式，用 asset URL 加载字体必然失败，必须用 blob URL 绕过。**（注：此方案在 dev 实测中仍有边缘问题，v1.2.33 改用 CSS @font-face 彻底解决。）**
 - **v1.2.31 CI 编译失败修复**：v1.2.31 新增 `read_font_bytes` 命令时，`commands/mod.rs` 的 re-export 列表漏了 `read_font_bytes`（只列了 `fetch_font_data, get_cached_font_path, save_font_cache`），导致 `lib.rs` 的 `generate_handler!` 找不到该函数，CI cargo check 报 `cannot find function read_font_bytes in this scope` + 连锁触发 never type fallback 错误，v1.2.31 因此未发布。修复：补全 re-export。**教训**：新增 Rust 命令时，除在 `font.rs` 定义函数 + `lib.rs` 的 `generate_handler!` 注册外，**必须同步更新 `commands/mod.rs` 的 re-export 列表**——三处缺一不可。
+
+---
+
+## [1.2.31] — 未发布（CI 编译失败）
+
+v1.2.31 尝试用 blob URL 绕过 FontFace API 的 CORS 限制，但因 `commands/mod.rs` 漏了 `read_font_bytes` 的 re-export 导致 CI 编译失败，未发布。内容已并入 v1.2.32。
 
 ---
 
