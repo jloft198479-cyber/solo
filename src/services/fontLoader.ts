@@ -1,5 +1,4 @@
-import { fetchFontData, getCachedFontPath } from './tauri/document';
-import { toAssetUrl } from './tauri/asset';
+import { fetchFontData, getCachedFontPath, readFontBytes } from './tauri/document';
 import { FONT_OPTIONS } from '../constants/fonts';
 
 // 字体资源固定在独立 tag `fonts-v1` 的 release 下，与 app 版本号解耦：
@@ -38,34 +37,19 @@ export function getDownloadProgress(family: string): number {
 }
 
 /**
- * 用 CSS @font-face 注入 <style> 标签加载字体。
- *
- * 关键：CSS @font-face 的 url() 不走 CORS（和 <img src> 一样），
- * 而 JavaScript FontFace API 强制走 CORS——Tauri asset protocol 不返回
- * Access-Control-Allow-Origin 头，所以 FontFace.load() 必然失败。
- *
- * 用 @font-face 注入 + convertFileSrc（asset URL）完全绕过 CORS。
- * document.fonts.load() 触发加载并检测是否成功。
+ * 用字体字节直接构造 FontFace 加载（缓存字节或安装包内置字节均可）。
+ * 同源构造，绕开 asset protocol 的 CORS 拦截。
  */
-async function registerFont(family: string, filePath: string): Promise<boolean> {
-  const assetUrl = toAssetUrl(filePath);
-  const format = filePath.endsWith('.otf') ? 'opentype' : 'truetype';
-  const styleId = `mk-font-${family.replace(/\s+/g, '-')}`;
-
-  let style = document.getElementById(styleId) as HTMLStyleElement | null;
-  if (!style) {
-    style = document.createElement('style');
-    style.id = styleId;
-    document.head.appendChild(style);
-  }
-  style.textContent = `@font-face { font-family: "${family}"; src: url("${assetUrl}") format("${format}"); font-display: swap; }`;
-
-  // 触发加载并等待完成——document.fonts.load() 走 CSS @font-face 机制，不走 CORS
+async function registerFontFromBytes(family: string, bytes: BufferSource): Promise<boolean> {
   try {
-    await document.fonts.load(`16px "${family}"`);
-    // check() 返回 true 仅当字体已加载且可用
-    return document.fonts.check(`16px "${family}"`);
-  } catch {
+    const face = new FontFace(family, bytes);
+    await face.load();
+    document.fonts.add(face);
+    const ok = document.fonts.check(`16px "${family}"`);
+    console.log(`[fontLoader] registerFontFromBytes: family="${family}", status="${face.status}", check=${ok}`);
+    return ok;
+  } catch (err) {
+    console.error(`[fontLoader] registerFontFromBytes failed: ${family}`, err);
     return false;
   }
 }
@@ -75,10 +59,21 @@ async function readCache(family: string): Promise<boolean> {
     const fileName = REMOTE_FONTS[family];
     if (!fileName) return false;
     const cachedPath = await getCachedFontPath(family, fileName);
-    if (!cachedPath) return false;
+    if (!cachedPath) {
+      console.log(`[fontLoader] readCache: no cached file for "${family}" (${fileName})`);
+      return false;
+    }
 
-    const ok = await registerFont(family, cachedPath);
+    console.log(`[fontLoader] readCache: family="${family}", cachedPath="${cachedPath}"`);
+    // 走 IPC 取字节 → new FontFace(family, bytes) 同源加载，绕开 asset 协议 CORS 拦截
+    const bytes = await readFontBytes(family, fileName);
+    if (!bytes || bytes.length === 0) {
+      console.warn(`[fontLoader] readCache: readFontBytes empty for "${family}"`);
+      return false;
+    }
+    const ok = await registerFontFromBytes(family, new Uint8Array(bytes));
     if (ok) loadedFonts.add(family);
+    else console.warn(`[fontLoader] readCache: registerFontFromBytes returned false for "${family}"`);
     return ok;
   } catch (e) {
     console.warn(`[fontLoader] readCache failed: ${family}`, e);
@@ -96,7 +91,7 @@ async function downloadAndCache(family: string, fileName: string): Promise<boole
     await fetchFontData(remoteUrl, family);
     notifyProgress(family, 100);
 
-    // 下载落盘后，走 readCache 路径用 CSS @font-face 加载
+    // 下载落盘后，走 readCache 用字节通道（readFontBytes → FontFace）加载
     const ok = await readCache(family);
     if (!ok) downloadFailures.add(family);
     notifyProgress(family, -1);
@@ -144,6 +139,7 @@ export async function isFontAvailable(family: string): Promise<boolean> {
   if (loadedFonts.has(family)) return true;
   const fileName = REMOTE_FONTS[family];
   if (!fileName) return true; // 非下载型字体，视为可用
+  // 兜底：缓存 / 下载链路
   const cachedPath = await getCachedFontPath(family, fileName);
   return cachedPath !== null;
 }
