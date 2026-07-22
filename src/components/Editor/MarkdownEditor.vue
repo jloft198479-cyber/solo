@@ -104,9 +104,11 @@ import {
 } from './tiptap/editor-metadata';
 import { setupEditorImageDrop } from './tiptap/editor-image-drop';
 import { resetLocalSrcResolver, setLocalSrcResolver } from './tiptap/extensions/image';
+import { resolveWikilinkTarget } from './tiptap/extensions/wikilink';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch, pulseJumpTarget } from './tiptap/useEditorSearch';
 import { resolveImageDisplay } from '../../services/tauri/document';
+import { message } from '../../services/tauri/dialog';
 import { toAssetUrl } from '../../services/tauri/asset';
 import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
 import BubbleMenuComponent from './views/BubbleMenu.vue';
@@ -134,6 +136,7 @@ const props = defineProps<{ initialContent?: string }>();
 const emit = defineEmits<{
   (e: 'update', data: EditorUpdatePayload): void;
   (e: 'image-dblclick', src: string): void;
+  (e: 'navigate-wikilink', path: string): void;
 }>();
 
 // 图片双击事件处理（用于冒泡监听器移除）
@@ -205,6 +208,19 @@ function handleSearchEscape() {
   }
 }
 
+/** 互链点击：解析目标路径并请求父组件打开；未保存文档时提示先保存。 */
+async function handleWikilinkNavigate(target: string) {
+  const resolved = resolveWikilinkTarget(fileStore.currentFile.path, target);
+  if (!resolved) {
+    await message('请先保存当前文档，才能跳转到互链的目标文档。', {
+      title: '互链跳转',
+      kind: 'info',
+    });
+    return;
+  }
+  emit('navigate-wikilink', resolved);
+}
+
 function createEditor(content: string) {
   if (editor.value) {
     editor.value.destroy();
@@ -224,6 +240,7 @@ function createEditor(content: string) {
       },
       getDocumentPath: () => fileStore.currentFile.path,
       getStoragePath: () => settingsStore.settings.imageStoragePath || null,
+      onWikilinkNavigate: handleWikilinkNavigate,
     }),
     editorProps: {
       attributes: {

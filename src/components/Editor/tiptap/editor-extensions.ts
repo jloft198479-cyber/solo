@@ -118,6 +118,8 @@ interface EditorExtensionOptions {
   getDocumentPath?: () => string | null;
   /** 返回自定义图片存储路径 */
   getStoragePath?: () => string | null;
+  /** 互链 [[target]] 点击回调，由上层解析路径并打开目标文档 */
+  onWikilinkNavigate?: (target: string) => void;
 }
 
 export function createEditorExtensions(options: EditorExtensionOptions) {
@@ -164,7 +166,9 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     }),
     Superscript,
     Subscript,
-    Wikilink,
+    Wikilink.configure({
+      onNavigate: options.onWikilinkNavigate,
+    }),
     SlashCommands.configure({
       suggestion: {
         char: '/',

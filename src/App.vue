@@ -292,6 +292,7 @@ onUnmounted(() => {
           :initial-content="fileStore.currentFile.content"
           @update="handleEditorUpdate"
           @image-dblclick="openFullscreenPreview"
+          @navigate-wikilink="handleOpenFile"
         />
 
         <ImagePreviewView

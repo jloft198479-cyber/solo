@@ -10,6 +10,8 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 
 ## 工作纪律（不可违反）
 
+> 工作原则与执行纪律（通用底线，不可违反）见 `docs/project_rules：工作原则和纪律.md`（真理源）；本节只列 solo 项目特有的操作纪律与导航。
+
 ### 改代码前
 - 先读实际代码行为，不以注释为准
 - 确认影响范围：改了这个文件，还有哪些文件受影响？逐个检查
@@ -18,6 +20,13 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 1. `bun run test` — 所有 roundtrip 测试必须通过
 2. `vue-tsc --noEmit` — 类型检查通过
 3. `bun run build` — 前端构建通过
+
+### 代码验证（多层自检）
+- 改动完成前按 **函数 / 集成 / 用户 / 异常** 四层自检，并**跨端互验**（改后端必验前端，改前端必验后端）——完整框架见团队通用《技术规范》。
+- solo 特有必做：
+  - **Rust 改动必跑 `cargo check`**：本机缺 MSVC 时不能跳过，CI 是最终闸门（曾因本地跳过导致发版编译失败）。
+  - 改 parser/serializer 必跑上节三步（roundtrip + 类型 + 构建）。
+  - **退化安全**：任何加载/优化必有 fallback（字体、图片、主题切换等），不假设环境永远正常。
 
 ### 发版前（🛑 常见踩坑区）
 1. **先升版本号**（3 个文件：[package.json](./package.json) / [Cargo.toml](./src-tauri/Cargo.toml) / [tauri.conf.json](./src-tauri/tauri.conf.json)）
@@ -33,6 +42,14 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 ### 环境 / 依赖纪律（铁律）
 - **绝不擅自下载、安装软件**：任何软件 / 依赖安装前先查本机是否已有（Rust 在 `M:\rust`、MSVC 在 `M:\VS` 等，复用不重装）；需安装须先获明确同意，且尽量装到非系统盘（如 `M:` 盘）。
 - **信息更新要及时**：最新信息通过 wiki / 互链保持同步，陈旧无用信息及时清理；改动及时留记录、及时 `git` 提交。
+
+### 经验沉淀（标注可复用）
+
+> 通用纪律见 `docs/project_rules：工作原则和纪律.md` 二、执行纪律；以下为 solo 项目细化。
+
+- 跑通的有效做法（无论源自别人验证还是自己验证），只要预判还会再用，就在收尾时标注可复用标签并归入分类记忆 / 技能库，方便下次检索复用。
+- 重点标四类：跨任务通用模式、踩过的坑、项目特有约定、第三方库陷阱。
+- 未验证的猜测不标——只有「看」到的、验证过的才配打标（连修多版都在「猜」原因的教训）。
 
 ## 文档管理规范（SSOT + DRY + L2 减文件）
 
@@ -59,6 +76,9 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 ### 四、死链即 Bug
 - 任何指向已删/已改名文件的链接都是 Bug，发现即修。
 - 文档若与代码不符，以代码为准并更新文档（见 AGENTS 黄金法则 / CONTRIBUTING）。
+
+### 五、改动即自查
+- 每改一处，立刻复查语法、逻辑、交叉引用（死链）——不止改完才查。
 
 ---
 
@@ -119,6 +139,8 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 - **排版设计系统性审查**（v1.2.30）：对照 iA Writer / Obsidian / Typora 做全面排版审查，发现 line-height 过松（1.9）、letter-spacing 正值反潮流（0.02em）、标题字距反人类（h1 0.04em 应为负值）、容器偏宽（760px 超过 CJK 黄金行宽）、段落间距偏紧（0.75em）等问题。**教训**：排版参数不能凭感觉定，要对照行业天花板产品的实测数据——iA Writer 的 640px / 18px / line-height 1.5 是基于阅读光学研究的硬结论，不是审美随意值。CJK 场景下 line-height 可略松（1.6-1.7），但不应超过 1.8；letter-spacing 应为 0 或负值（字体设计师已做视觉间距调整，正值等于二次放宽）。设计审查要分维度：节奏（字号差值均匀递减）/ 对比（h5 不应小于正文）/ 惯例（marker 用 muted 色、blockquote italic、图片无 border）三个维度缺一不可。
 - **字体不生效真正根因：CSP ≠ CORS，FontFace API 强制走 CORS**（v1.2.32）：v1.2.30 修了 CSP `font-src` 漏 `asset:` 协议（只解决「是否允许发起请求」），但没解决 FontFace API 自身的 CORS 限制（「是否允许读取响应」）。**两道闸门是独立的**：CSP 放行请求不代表 CORS 放行响应。`new FontFace(family, "url('http://asset.localhost/...')")` 的 `fontFace.load()` **默认强制走 CORS 模式**，而 Tauri asset protocol 不返回 `Access-Control-Allow-Origin` 头，字体加载被拦截。**为什么图片正常但字体失败**：图片用 `<img src="assetUrl">`（不走 CORS），字体用 `new FontFace`（强制走 CORS）。修复：新增 `read_font_bytes` Rust 命令读取字体字节，前端用 `blob:` URL 加载 FontFace——blob URL 同源，完全绕过 CORS。三条加载路径（readCache / downloadAndCache 主路径 / fallback）全部改用 blob URL。**教训**：CSP 和 CORS 是两道独立的闸门，修了 CSP 不等于修了 CORS。FontFace API 默认走 CORS 模式，用 asset URL 加载字体必然失败，必须用 blob URL 绕过。排查「资源加载失败」时，先区分资源类型——`<img>`/`<script>`/`<link>` 是普通加载（不走 CORS），`fetch()`/`FontFace`/`XMLHttpRequest` 强制走 CORS；CORS 资源失败时检查响应头有没有 `Access-Control-Allow-Origin`，没有就用 blob URL 绕过。**更深层教训**：连续两版（v1.2.29 修 system-proxy / v1.2.30 修 CSP）都没修对根因，因为都在「猜」失败原因而非「看」失败原因——正确做法是先在 DevTools Network 面板看 FontFace 请求的实际报错（CORS 错误会有明确提示），再定位修复方向，而不是从代码层面推测可能的原因。
 - **新增 Rust 命令必须同步三处**（v1.2.32）：v1.2.31 新增 `read_font_bytes` 命令时，只改了 `font.rs`（定义函数）和 `lib.rs`（`generate_handler!` 注册），**漏了 `commands/mod.rs` 的 re-export**，导致 CI cargo check 报 `cannot find function read_font_bytes in this scope` + 连锁触发 never type fallback 错误，v1.2.31 编译失败未发布。**教训**：新增 Rust 命令时三处缺一不可——①`commands/xxx.rs` 定义 `pub async fn`；②`commands/mod.rs` 的 `pub use xxx::{...}` re-export 列表加函数名；③`lib.rs` 的 `generate_handler!` 注册。本次还暴露一个发版流程漏洞：本地因缺 MSVC 环境没真正跑 `cargo check`，误判"已验证通过"——发版前必须真正跑通 `cargo check`，不能因本地环境受限就跳过 Rust 编译验证，CI 是最终闸门。
+- **FontFace API vs CSS @font-face：blob URL 绕过 CORS 仍有边缘问题**（v1.2.33）：v1.2.32 用 blob URL 绕过 FontFace API 的 CORS 限制，但 dev 模式实测仍失败——`FontFace.load()` 报 `NetworkError`，且 IPC 传输 `Vec<u8>` 有破坏字体数据的风险（`OTS parsing error`）。**根本原因**：JavaScript `FontFace API` 强制走 CORS 模式，无论 asset URL 还是 blob URL 都有边缘问题；IPC 传输 1.4MB 字节可能被 JSON 序列化破坏。**最终修复**：改用 CSS `@font-face { src: url("assetUrl") }` 注入 `<style>` 标签——CSS `@font-face` 的 `url()` 加载字体**不走 CORS**（W3C 标准行为，和 `<img src>` 一样），用 `document.fonts.load()` 检测加载是否成功。同时移除被 GitHub CDN CORS 拦截的前端 `fetch` 下载路径，直接用 Rust `fetch_font_data` 下载落盘。**教训**：`FontFace API`（JavaScript）和 `@font-face`（CSS）是两套机制——前者强制走 CORS，后者不走。Tauri asset protocol 不返回 CORS 头，`FontFace API` 必然失败，**必须用 CSS `@font-face` 注入**。v1.2.29→v1.2.30→v1.2.32→v1.2.33 连修四版才修对，根因是每次都在「猜」失败原因（network-proxy → CSP → CORS → blob URL）而非「看」实际报错。正确做法：**先在 DevTools Console 加诊断日志看真实报错**，再定位修复方向。字体加载这类问题，第一步就应该试 CSS @font-face 注入（最简单、不走 CORS），而不是绕路用 FontFace API + blob URL。
+- **字体不生效终极根因：GitHub release 字体文件被截断**（v1.2.33 深度排查）：v1.2.29→v1.2.33 四版分别修了 system-proxy / CSP / CORS / FontFace API，代码层面都修对了，但字体始终不生效。最终通过 PowerShell 大端序解析 OTF/TTF 表目录发现：GitHub release `fonts-v1` 的 5 个字体文件全部只有 1.4 MB 左右，但内部表（glyf、CFF、GPOS 等）的 offset 指向 800 万字节位置——**文件被截断到只剩头部 + 表目录，表数据全部丢失**。CJK 字体正常应为 8-15 MB。**这才是四版都没修对的终极根因**——文件本身就是坏的，再怎么修加载逻辑也没用。**教训**：遇到「资源加载失败」问题，**第一步应该验证资源本身是否完整**（检查文件大小、magic bytes、表目录 offset+length ≤ 文件大小），而不是从加载机制上猜原因。验证字体完整性：OTF 用 `OTTO` magic，TTF 用 `00 01 00 00` magic；表目录在偏移量 12 开始，每 16 字节一张表（4 字节 tag + 4 字节 checksum + 4 字节 offset + 4 字节 length），所有表 offset+length 必须 ≤ 文件大小。
 
 ## 沟通风格
 
