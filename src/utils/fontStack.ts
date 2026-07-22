@@ -50,8 +50,8 @@ export function buildFontStack(primary: string): string {
   if (primary === 'Xiaolai SC') {
     return `'${primary}', ${SANS_FALLBACK}`;
   }
-  // 霞鹜文楷 → 楷体 fallback
-  if (primary === 'LXGW WenKai') {
+  // 霞鹜文楷 Lite → 楷体 fallback
+  if (primary === 'LXGW WenKai Lite') {
     return `'${primary}', 'Kaiti SC', 'STKaiti', 'KaiTi', ${SANS_FALLBACK}`;
   }
   // 默认：思源宋体等衬线字体
