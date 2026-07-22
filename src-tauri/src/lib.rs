@@ -351,6 +351,7 @@ pub fn run() {
             fetch_font_data,
             get_cached_font_path,
             save_font_cache,
+            read_font_bytes,
             refresh_native_menu_shortcuts,
             reveal_startup_open_log,
             exit_app,
