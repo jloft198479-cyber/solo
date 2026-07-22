@@ -10,6 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.34] — 2026-07-23
+
+> 注意：v1.2.33 记录的「CSS `@font-face` 注入方案」在**真实 WebView2** 下仍被 Tauri asset 协议（不返回 `Access-Control-Allow-Origin` 头）静默拦截——字体文件下载落盘成功，但 `FontFace` 加载字体强制走 CORS 模式，浏览器静默拒收、`document.fonts.check` 只悄悄返回 `false`。因此 v1.2.33 字体**实际仍未生效**。本版本改用 IPC 字节通道才真正修复。
+
+### Fixed
+- **字体真正生效：缓存渲染改走 IPC 字节通道**。原 `readCache` 用 `toAssetUrl()`（asset:// 协议）注入 `@font-face`，被 CORS 静默拦截。改为 `readFontBytes`（Rust 命令经 IPC 取字节）→ `new FontFace(family, bytes)` 同源加载，彻底绕开 asset 协议 CORS。Rust 侧 `read_font_bytes` 基础设施由 v1.2.32 写好但渲染层未接上，本版本接上。dev 窗口实测：切换下载型字体（思源宋体/汇文明朝/霞鹜文楷 等）正文即时变字形，Console 见 `registerFontFromBytes ... status="loaded", check=true`。
+- **霞鹜文楷实为 Lite 轻便版（资源错配）**。`LXGWWenKai-Regular.ttf` 文件名标 Regular，但字体名表内部真实家族名为 `LXGW WenKai Lite`（霞鹜文楷轻便版），导致用户看到字形与预期不符。代码逻辑无误（四处 family 名自洽），问题在资源文件本身。修复：`src/constants/fonts.ts` 的 `value`→`'LXGW WenKai Lite'`、`label`→`'霞鹜文楷 Lite'`；`src/utils/fontStack.ts` 匹配分支同步对齐（不动 `fileName`，避免牵动 release/cache key）。用户若此前在设置里选过旧值「霞鹜文楷」，需重新选一次「霞鹜文楷 Lite」。
+
+### Changed
+- **字体 IPC 封装抽离为独立模块** `src/services/tauri/font.ts`：`fetchFontData` / `getCachedFontPath` / `readFontBytes` / `saveCachedFont` 从 `document.ts` 迁出，`fontLoader.ts` 的 import 改指 `./tauri/font`。字体相关逻辑收口到一个模块，便于后续排查（与文档/图片调用解耦）。`document.ts` 不再承载字体关注点。
+
+### 经验沉淀
+- **字体类「加载失败」第一步应验证资源本身**：本版本前多个 agent（含本人早期）都在查下载通道 / CSP / CORS / 代码逻辑，没人第一步解析字体文件内部 `name` 表确认它到底是不是声称的字体。霞鹜这一例正是「文件名 ≠ 文件内容」的资源错配。
+- **单元测试绿 ≠ 字体真显示**：solo 测试是 Vitest + happy-dom（模拟浏览器），不模拟真实 WebView2 的 CORS 行为、也不渲染字体。字体修复必须 `bun run tauri dev` 起真窗口肉眼验证。
+
+---
+
 ## [1.2.33] — 2026-07-22
 
 ### Fixed
