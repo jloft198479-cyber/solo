@@ -487,9 +487,10 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 ### 10.3 字体系统
 
-- `constants/fonts.ts`：`FONT_OPTIONS`（7 种：思源宋体/微软雅黑 UI/朱雀仿宋/小赖字体/霞鹜文楷/汇文明朝/系统默认）。
+- `constants/fonts.ts`：`FONT_OPTIONS`（7 种：思源宋体/微软雅黑 UI/朱雀仿宋/小赖字体/霞鹜文楷 Lite/汇文明朝/系统默认）。注意「霞鹜文楷 Lite」文件名标 `Regular` 但内部是 Lite 轻便版，`value` 必须对齐文件内部真实 family 名（详见字体手册）。
 - `utils/fontStack.ts`：`buildFontStack(primary)` —— 按字体类型生成带中文 fallback 的完整 font-family 栈，**编辑器与导出端共享**，消除两端不一致。
-- `services/fontLoader.ts`：远程字体按需下载 + 文件系统缓存 + FontFace 注册，系统字体跳过，已加载缓存复用，加载中去重。
+- `services/fontLoader.ts`：远程字体按需下载 + 文件系统缓存 + **字节通道** FontFace 注册（经 IPC `readFontBytes` 取字节 → `new FontFace(family, bytes)` 同源加载，**绕开 asset:// 协议的 CORS 静默拦截**），系统字体跳过，已加载缓存复用，加载中去重。
+- 字体系统深度专题与踩坑总结见 [`docs/font-handling.md`](./docs/font-handling.md)（含 CORS 陷阱、资源错配、验证方法论、排查决策树）。
 
 ---
 
@@ -509,6 +510,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 8 | 主题色彩/排版注入 | [`themes/manager.ts`](./src/themes/manager.ts) + [`types.ts`](./src/themes/types.ts) | — |
 | 9 | 多窗口进程模型 | [`lib.rs`](./src-tauri/src/lib.rs) | — |
 | 10 | 构建环境 | 见 [`docs/debugging.md`](./docs/debugging.md) + [`HANDOVER.md`](./HANDOVER.md) | — |
+| 11 | 字体渲染 CORS + 资源错配 | [`fontLoader.ts`](./src/services/fontLoader.ts) + [`font.rs`](./src-tauri/src/commands/font.rs) | [字体手册](./docs/font-handling.md) |
 
 ### 11.1 脏态机制不可随意改动
 

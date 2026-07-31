@@ -1,13 +1,28 @@
 /**
- * Markdown 及 HTML 粘贴识别
+ * 粘贴处理 —— 「默认流程 + 管道钩子」范式
  *
- * 处理四种粘贴场景（按优先级）：
- * 1. Markdown 表格文本 → parseMarkdown
- * 2. 来源嗅探：text/plain 含 markdown 专有语法（$$、[[]]、callout）→ 走 markdown 解析
- * 3. HTML 富文本 → 放行给 ProseMirror 默认 DOMParser（一次转换，schema 感知）
- * 4. 通用 Markdown 块结构（纯 text/plain）→ parseMarkdown
+ * 设计原则：信任 ProseMirror 默认粘贴流程（上下文感知、Slice 合并），
+ * 只在必要环节加管道钩子做增量改写，避免 handlePaste 全接管。
  *
- * 非结构化纯文本放行给默认粘贴，避免误伤。
+ * 三层架构：
+ * Layer 0  默认管道（ProseMirror 内置）
+ *          - HTML 路径：clipboardParser (DOMParser, schema 感知)
+ *          - 纯文本路径：clipboardTextParser 钩子（Layer 1）
+ *          - 上下文感知插入（代码块自动纯文本、列表自动合并）
+ *
+ * Layer 1  clipboardTextParser 钩子
+ *          - 触发：走纯文本路径时（text/html 缺失或不可用）
+ *          - 职责：识别结构化 Markdown 源 → 解析为 Slice
+ *          - 保留默认上下文感知插入
+ *
+ * Layer 2  transformPasted 钩子
+ *          - 触发：所有粘贴路径（HTML 和纯文本都会过）
+ *          - 职责：装饰性 HTML 塌方时，从 slice.textContent 反查 Markdown 源救回
+ *
+ * Layer 3  handlePaste 逃生舱（仅图片）
+ *          - 触发：剪贴板含图片文件
+ *          - 职责：异步落盘 + 插入 image 节点
+ *          - 其他场景 return false 放行默认流程
  */
 import { Extension } from '@tiptap/vue-3';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
@@ -16,7 +31,6 @@ import type { Schema } from '@tiptap/pm/model';
 
 import { parseMarkdown } from '../markdown/parser';
 import { authorizeImageAsset, saveClipboardImage } from '../../../../services/tauri/document';
-import { readClipboardHtml } from '../../../../services/tauri/clipboard';
 import { confirm } from '../../../../services/tauri/dialog';
 
 /** 检测剪贴板中是否包含图片文件 */
@@ -181,7 +195,19 @@ export function parseMarkdownTablePaste(schema: Schema, text: string): Slice | n
  * 将结构化 Markdown 文本解析为 Slice（不含纯段落文本兜底）。
  * 仅当解析结果包含至少一个非 paragraph 的块级节点时才返回有效 Slice，
  * 避免纯文本被误转为段落。
+ *
+ * openStart/openEnd 策略：首尾节点若是可合并类型给 1，让 ProseMirror 默认合并逻辑生效
+ * （如列表内粘贴并入当前列表、段落内粘贴并入当前段落）；
+ * 其他类型（heading/codeBlock/table 等）给 0，独立插入。
  */
+const MERGEABLE_TYPES = new Set([
+  'paragraph',
+  'bulletList',
+  'orderedList',
+  'listItem',
+  'blockquote',
+]);
+
 export function parseGeneralMarkdownPaste(schema: Schema, text: string): Slice | null {
   if (!looksLikeMarkdownSource(text)) return null;
 
@@ -193,7 +219,12 @@ export function parseGeneralMarkdownPaste(schema: Schema, text: string): Slice |
   }
   if (!doc || doc.childCount === 0) return null;
 
-  return new Slice(doc.content, 0, 0);
+  const first = doc.firstChild;
+  const last = doc.lastChild;
+  const openStart = first && MERGEABLE_TYPES.has(first.type.name) ? 1 : 0;
+  const openEnd = last && MERGEABLE_TYPES.has(last.type.name) ? 1 : 0;
+
+  return new Slice(doc.content, openStart, openEnd);
 }
 
 const markdownPastePluginKey = new PluginKey('markdownPaste');
@@ -205,166 +236,115 @@ export function markdownPastePlugin(opts?: {
   return new Plugin({
     key: markdownPastePluginKey,
     props: {
+      // ── Layer 3: handlePaste 逃生舱（仅图片） ─────────────────────
+      // 非图片场景一律 return false，放行给 ProseMirror 默认流程
+      // （默认流程已上下文感知：代码块自动纯文本、列表自动合并）
       handlePaste(view, event) {
         const clipboard = event.clipboardData;
         if (!clipboard) return false;
 
-        // ── 0. 代码块内粘贴 ───────────────────────────────────────
-        // 光标在 codeBlock 中时放行给 ProseMirror 默认粘贴（只插纯文本），
-        // 避免结构化 markdown 解析把块级节点注入到只允许 text* 的节点中。
-        const { selection } = view.state;
-        if (selection.$from.parent.type.spec.code) return false;
-
-        // ── 1. 剪贴板图片 ─────────────────────────────────────────
-        // 异步保存，不阻塞文字处理。图片和文字可以同时粘贴。
         const hasImage = hasClipboardImage(clipboard);
-        if (hasImage) {
-          const docPath = opts?.getDocumentPath?.() ?? null;
-          const storagePath = opts?.getStoragePath?.() ?? null;
+        if (!hasImage) return false;
 
-          if (storagePath || docPath) {
-            void readClipboardImageAsDataUrl(clipboard).then(async (dataUrl) => {
-              if (!dataUrl || !view || view.isDestroyed) return;
+        // 图片处理：异步落盘 + 插入 image 节点，同时手动插入文字
+        // return true 消费事件，阻止默认流程基于 text/html 再插一次 <img>
+        handleClipboardImagePaste(view, clipboard, opts);
+        return true;
+      },
 
-              try {
-                const saved = await saveClipboardImage(
-                  dataUrl,
-                  docPath ?? undefined,
-                  storagePath ?? undefined,
-                );
-                if (!view || view.isDestroyed) return;
+      // ── Layer 1: clipboardTextParser 钩子 ─────────────────────────
+      // 触发：走纯文本路径时（text/html 缺失或不可用，如 WebView2 常见场景）
+      // 职责：识别结构化 Markdown 源 → 解析为 Slice
+      // 返回 null → ProseMirror fallback 到默认纯文本处理（逐行成段）
+      // 类型断言：ProseMirror 类型签名要求返回 Slice，但运行时 someProp 支持 null fallback
+      clipboardTextParser: ((text: string, $context: { doc: { type: { schema: Schema } } }) => {
+        const schema = $context.doc.type.schema;
 
-                await authorizeImageAsset(saved.absolutePath);
-                insertImageNode(view, saved.relativePath, '');
-              } catch (err) {
-                console.error('Failed to handle pasted image:', err);
-              }
-            });
-          } else {
-            void confirm(
-              '请先保存文档，或设置图片存储位置，才能粘贴图片。',
-              { title: '粘贴图片', kind: 'warning', okLabel: '我知道了' },
-            );
-          }
-          // 不 return——继续处理文字，防止文字被吞
-        }
-
-        const text = clipboard.getData('text/plain');
-        if (!text || !text.trim()) return hasImage;
-
-        const html = clipboard.getData('text/html');
-
-        // ── 2. GFM 表格 ──────────────────────────────────────────
-        // 剪贴板带有富文本 `<table>`（从网页/Excel 拷）时，交给默认 HTML 粘贴
+        // GFM 表格识别
         if (looksLikeMarkdownTable(text)) {
-          if (!(html && /<table[\s>]/i.test(html))) {
-            const slice = parseMarkdownTablePaste(view.state.schema, text);
-            if (slice) {
-              const tr = view.state.tr
-                .replaceSelection(slice)
-                .scrollIntoView()
-                .setMeta(markdownPastePluginKey, { pasted: true });
-              view.dispatch(tr);
-              return true;
-            }
-          }
+          const slice = parseMarkdownTablePaste(schema, text);
+          if (slice) return slice;
         }
 
-        // ── 2.5 来源嗅探：markdown 编辑器 / AI 工具 vs 网页 ───────────
-        // text/plain 和 text/html 同时存在时，判断来源：
-        // - text/plain 含 markdown 语法（专有 $$/[[]]/callout，或通用 #/>/- /**）
-        //   → 来自 markdown 编辑器（Obsidian/Typora）或 AI 工具（豆包/千问等把
-        //   markdown 源包在 <pre>/<div> 壳里复制）。走 markdown 解析保留格式，
-        //   无视 HTML 壳（DOMParser 不解析 markdown，壳里是字面字符）。
-        // - 否则 → 来自网页/Word，放行给 ProseMirror DOMParser
-        if (html && html.trim() && (hasMarkdownOnlySyntax(text) || looksLikeMarkdownSource(text))) {
-          const slice = parseGeneralMarkdownPaste(view.state.schema, text);
-          if (slice) {
-            const tr = view.state.tr
-              .replaceSelection(slice)
-              .scrollIntoView()
-              .setMeta(markdownPastePluginKey, { pasted: true });
-            view.dispatch(tr);
-            return true;
-          }
+        // 结构化 Markdown 识别（标题/引用/代码围栏/列表/frontmatter/数学块/wikilink/callout）
+        if (looksLikeMarkdownSource(text) || hasMarkdownOnlySyntax(text)) {
+          const slice = parseGeneralMarkdownPaste(schema, text);
+          if (slice) return slice;
         }
 
-        // ── 3. HTML 富文本 → 显式解析插入（schema 感知） ──────────────
-        // text/html 存在时，直接用 ProseMirror DOMParser 解析并插入，
-        // 不走 `return false` 甩回默认粘贴（默认同样依赖 text/html 送达、
-        // 且不可控不可测）。HTML 信息量（图片、链接、表格、加粗/标题）远多于
-        // text/plain，是保住格式的关键路径。
-        // 若图片正在异步保存（步骤 1），不能插 HTML 的 <img> 以免重复插图，
-        // 改为消费事件、手动插文字。
-        if (html && html.trim()) {
-          if (hasImage) {
-            if (text && text.trim()) {
-              view.dispatch(view.state.tr.insertText(text).scrollIntoView());
-            }
-            return true;
-          }
-          const slice = parseHtmlSlice(view.state.schema, html);
-          if (slice) {
-            // P0 质量兜底：装饰性 HTML（div/span+CSS）解析后格式塌方、而纯文本是
-            // markdown 源时，改用 markdown 救回格式。已正常的解析（含标题/加粗等）
-            // isLowQualityParse 返回 false → 沿用原 slice，行为不变。
-            const rescued = rescueWithMarkdownIfLowQuality(view.state.schema, slice, text);
-            view.dispatch(
-              view.state.tr
-                .replaceSelection(rescued ?? slice)
-                .scrollIntoView()
-                .setMeta(markdownPastePluginKey, { pasted: true }),
-            );
-            return true;
-          }
-          // HTML 解析失败（极少见）→ 落到下方 markdown/纯文本降级
-        }
+        // 兜底：纯文本，让 ProseMirror 用默认逻辑逐行成段
+        return null;
+      }) as any,
 
-        // ── 3.5 HTML 兜底：事件无 text/html 时异步读系统剪贴板 ────────
-        // Tauri/WebView2 的粘贴事件常常不带 `text/html`，导致内容退化成纯文本、
-        // 格式全丢。此处 `return true` 阻止默认纯文本粘贴，并异步从【系统剪贴板】
-        // 读 HTML（readClipboardHtml → 自定义 Rust 命令 `read_clipboard_html`，
-        // 底层 arboard 直接读系统剪贴板；clipboard-manager 插件无 readHtml API，故绕开）。
-        // 命中 HTML 解析插入 → 否则降级 markdown/纯文本。
-        if (!html || !html.trim()) {
-          if (hasImage) {
-            if (text && text.trim()) {
-              view.dispatch(view.state.tr.insertText(text).scrollIntoView());
-            }
-            return true;
-          }
-          void readClipboardHtmlFallback(view, text);
-          return true;
-        }
+      // ── Layer 2: transformPasted 钩子 ─────────────────────────────
+      // 触发：所有粘贴路径（HTML 和纯文本都会过这一环）
+      // 职责：装饰性 HTML 塌方时，从 slice.content 反查 Markdown 源救回
+      // 双重闸门：isLowQualityParse + looksLikeMarkdownSource，绝不误伤正常路径
+      transformPasted(slice, view) {
+        if (!isLowQualityParse(slice)) return slice;
 
-        // ── 4. 通用 Markdown（纯 text/plain 兜底）──────────────────
-        // 无 HTML 时，从 markdown 编辑器复制的结构化文本仍可被识别。
-        if (looksLikeMarkdownSource(text)) {
-          const slice = parseGeneralMarkdownPaste(view.state.schema, text);
-          if (slice) {
-            const tr = view.state.tr
-              .replaceSelection(slice)
-              .scrollIntoView()
-              .setMeta(markdownPastePluginKey, { pasted: true });
-            view.dispatch(tr);
-            return true;
-          }
-        }
+        // 装饰性 HTML 塌方：遍历 slice.content 子节点取 textContent 拼接，反查原 Markdown 源
+        // （千问/豆包文档典型路径：div/span+CSS 被 DOMParser 拍平成纯段落，textContent 保留原 markdown 字符）
+        const parts: string[] = [];
+        slice.content.forEach((node) => {
+          parts.push(node.textContent);
+        });
+        const md = parts.join('\n');
+        if (!md || !looksLikeMarkdownSource(md)) return slice;
 
-        // ── 5. 纯文本兜底（仅当有图片时） ──────────────────────────
-        // 上面没命中 markdown 解析，但图片正在异步保存中。
-        // 消费事件+兜底插文字，避免默认粘贴通过 HTML 路径再插一次图片。
-        if (hasImage) {
-          if (text && text.trim()) {
-            view.dispatch(view.state.tr.insertText(text).scrollIntoView());
-          }
-          return true;
-        }
-
-        return false;
+        const rescued = parseGeneralMarkdownPaste(view.state.schema, md);
+        return rescued ?? slice;
       },
     },
   });
+}
+
+/**
+ * 处理剪贴板图片粘贴：异步落盘 + 插入 image 节点，同时手动插入文字。
+ * 调用方应 return true 消费事件，阻止默认流程基于 text/html 再插 <img>。
+ *
+ * 文字部分：同步插入纯文本（丢失格式，但图片是主体，可接受降级）
+ * 图片部分：异步落盘为 asset URL（保留本地优先特性）
+ */
+function handleClipboardImagePaste(
+  view: any,
+  clipboard: DataTransfer,
+  opts?: { getDocumentPath?: () => string | null; getStoragePath?: () => string | null },
+) {
+  const docPath = opts?.getDocumentPath?.() ?? null;
+  const storagePath = opts?.getStoragePath?.() ?? null;
+
+  // 文字部分：同步插入纯文本
+  const text = clipboard.getData('text/plain');
+  if (text && text.trim()) {
+    view.dispatch(view.state.tr.insertText(text).scrollIntoView());
+  }
+
+  // 图片部分：异步落盘
+  if (storagePath || docPath) {
+    void readClipboardImageAsDataUrl(clipboard).then(async (dataUrl) => {
+      if (!dataUrl || !view || view.isDestroyed) return;
+
+      try {
+        const saved = await saveClipboardImage(
+          dataUrl,
+          docPath ?? undefined,
+          storagePath ?? undefined,
+        );
+        if (!view || view.isDestroyed) return;
+
+        await authorizeImageAsset(saved.absolutePath);
+        insertImageNode(view, saved.relativePath, '');
+      } catch (err) {
+        console.error('Failed to handle pasted image:', err);
+      }
+    });
+  } else {
+    void confirm(
+      '请先保存文档，或设置图片存储位置，才能粘贴图片。',
+      { title: '粘贴图片', kind: 'warning', okLabel: '我知道了' },
+    );
+  }
 }
 
 /**
@@ -422,65 +402,6 @@ export function isLowQualityParse(slice: Slice): boolean {
 
   if (blocks === 0) return true;
   return formatted === 0 && blocks >= 2;
-}
-
-/**
- * P0 质量兜底：HTML 解析"格式塌方"且纯文本是 markdown 源时，改用 markdown 解析。
- * 返回 null 表示不救（沿用原 HTML 解析结果）。
- *
- * 仅在 isLowQualityParse 为真时才尝试，且 parseGeneralMarkdownPaste 内部还会用
- * looksLikeMarkdownSource 二次确认纯文本确实含 markdown 块级语法——双重闸门，
- * 确保只对"HTML 烂 + 纯文本是 markdown"的情况出手，绝不误伤正常路径。
- */
-function rescueWithMarkdownIfLowQuality(
-  schema: Schema,
-  slice: Slice,
-  text: string,
-): Slice | null {
-  if (!isLowQualityParse(slice)) return null;
-  return parseGeneralMarkdownPaste(schema, text);
-}
-
-/**
- * 兜底：当粘贴事件的 `text/html` 缺失时，从【系统剪贴板】读 HTML
- * （readClipboardHtml → 自定义 Rust 命令 `read_clipboard_html`，底层 arboard
- * 直接读系统剪贴板；clipboard-manager 插件无 readHtml API，故绕开）。
- * 命中 HTML → 解析插入；否则降级为 markdown 解析、最后降级为纯文本插入。
- * 无论成功失败都会落内容，调用方应 `return true` 阻止默认纯文本粘贴。
- */
-async function readClipboardHtmlFallback(view: any, text: string) {
-  const html = await readClipboardHtml();
-  if (html) {
-    const slice = parseHtmlSlice(view.state.schema, html);
-    if (slice) {
-      // P0 质量兜底（同步骤 3）：装饰性 HTML 解析塌方、纯文本是 markdown 源时改用 markdown。
-      // 这是千问/豆包文档最常走的路径——WebView2 粘贴事件不带 text/html，
-      // 从系统剪贴板读到的往往是装饰性 HTML，解析后格式全丢，此处救回。
-      const rescued = rescueWithMarkdownIfLowQuality(view.state.schema, slice, text);
-      view.dispatch(
-        view.state.tr
-          .replaceSelection(rescued ?? slice)
-          .scrollIntoView()
-          .setMeta(markdownPastePluginKey, { pasted: true }),
-      );
-      return;
-    }
-  }
-
-  // 降级：markdown 解析 → 纯文本
-  const slice = parseGeneralMarkdownPaste(view.state.schema, text);
-  if (slice) {
-    view.dispatch(
-      view.state.tr
-        .replaceSelection(slice)
-        .scrollIntoView()
-        .setMeta(markdownPastePluginKey, { pasted: true }),
-    );
-    return;
-  }
-  if (text && text.trim()) {
-    view.dispatch(view.state.tr.insertText(text).scrollIntoView());
-  }
 }
 
 export const MarkdownPaste = Extension.create<{

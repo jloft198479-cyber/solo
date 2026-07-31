@@ -22,6 +22,7 @@
 | [`docs/cjk-boundary.md`](./cjk-boundary.md) | 开发者 | CJK 加粗边界专题（历史过程记录） | 活跃（历史快照，勿当现状） |
 | [`docs/network-proxy-guide.md`](./network-proxy-guide.md) | 维护者 | 更新检测代理 | 活跃 |
 | [`docs/KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) | 接手者/agent | **已知问题+技术债**（本批新增） | 活跃 |
+| [`docs/font-handling.md`](./font-handling.md) | 接手者/agent | **字体处理经验手册**（CORS 陷阱/资源错配/验证/排查树） | 活跃（2026-07-23 新增） |
 | `docs/defect-hotspots.md`（已并入） | 接手者/agent | **bug 易发区地图** → 已并入 [`ARCHITECTURE.md`](../ARCHITECTURE.md) §11 速查表 | 已合并（2026-07-21） |
 | [`docs/debugging.md`](./debugging.md) | 接手者/agent | **调试指南**（本批新增） | 活跃 |
 | [`docs/INDEX.md`](./INDEX.md) | 接手者/agent | 本文（本批新增） | 活跃 |
