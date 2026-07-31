@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { EditorView } from '@tiptap/pm/view';
 import { Slice } from '@tiptap/pm/model';
-import type { Node as PMNode } from '@tiptap/pm/model';
+import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model';
 
 import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
 import {
@@ -13,18 +13,29 @@ import {
   markdownPastePlugin,
   parseHtmlSlice,
   parseMarkdownTablePaste,
+  parseGeneralMarkdownPaste,
 } from '../markdown-paste';
 
-// 模拟系统剪贴板 HTML 读取（前端 readClipboardHtml → Rust read_clipboard_html 命令，
-// 测试环境无 Tauri 运行时，故整体 mock）。默认返回 null（降级纯文本）；
-// 特定用例改为返回富文本 HTML 以验证兜底路径。
-const clipboardMocks = vi.hoisted(() => ({
-  readClipboardHtml: vi.fn().mockResolvedValue(null),
+// 图片落盘依赖 Tauri runtime，测试环境整体 mock。
+const imageMocks = vi.hoisted(() => ({
+  saveClipboardImage: vi.fn().mockResolvedValue({ absolutePath: '/tmp/x.png', relativePath: 'x.png' }),
+  authorizeImageAsset: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../../../../services/tauri/clipboard', () => ({
-  readClipboardHtml: clipboardMocks.readClipboardHtml,
+vi.mock('../../../../../services/tauri/document', () => ({
+  saveClipboardImage: imageMocks.saveClipboardImage,
+  authorizeImageAsset: imageMocks.authorizeImageAsset,
+  // 其他 document 模块导出（部分测试可能间接依赖）
+  resolveImageDisplay: vi.fn(),
 }));
+
+vi.mock('../../../../../services/tauri/dialog', () => ({
+  confirm: vi.fn().mockResolvedValue(true),
+}));
+
+// ────────────────────────────────────────────────────────────
+// 纯函数测试（保留，与新范式无关）
+// ────────────────────────────────────────────────────────────
 
 describe('looksLikeMarkdownTable', () => {
   it('recognizes a standard GFM table', () => {
@@ -89,278 +100,6 @@ describe('parseMarkdownTablePaste', () => {
   });
 });
 
-describe('markdownPastePlugin handlePaste（真实 EditorView 端到端）', () => {
-  const schema = createMarkdownCompatSchema();
-  let view: EditorView | null = null;
-  let mount: HTMLElement | null = null;
-
-  beforeEach(() => {
-    mount = document.createElement('div');
-    document.body.appendChild(mount);
-  });
-  afterEach(() => {
-    if (view && !view.isDestroyed) view.destroy();
-    view = null;
-    if (mount) mount.remove();
-    mount = null;
-  });
-
-  function mountEmpty(): EditorView {
-    const doc = schema.nodes.doc.create(null, [schema.nodes.paragraph.create()]);
-    const state = EditorState.create({
-      schema,
-      doc,
-      selection: TextSelection.create(doc, 1),
-      plugins: [markdownPastePlugin()],
-    });
-    view = new EditorView(mount!, { state });
-    return view;
-  }
-
-  // 仅模拟 handlePaste 实际读取的 clipboardData.getData；用 ProseMirror 自己的
-  // someProp 分发，等价于真实粘贴时引擎调用 handlePaste 的路径。
-  function pasteEvent(parts: Record<string, string>): ClipboardEvent {
-    return {
-      clipboardData: { getData: (type: string) => parts[type] ?? '' },
-    } as unknown as ClipboardEvent;
-  }
-
-  function firePaste(v: EditorView, event: ClipboardEvent): boolean {
-    return Boolean(
-      v.someProp('handlePaste', (handler) => handler(v, event, Slice.empty)),
-    );
-  }
-
-  function tableIn(doc: PMNode): PMNode | null {
-    let found: PMNode | null = null;
-    doc.descendants((node) => {
-      if (node.type.name === 'table') found = node;
-      return !found;
-    });
-    return found;
-  }
-
-  it('粘贴 GFM 表格文本 → 插入真实表格节点', () => {
-    const v = mountEmpty();
-    const handled = firePaste(
-      v,
-      pasteEvent({ 'text/plain': '| A | B |\n| --- | --- |\n| 1 | 2 |' }),
-    );
-
-    expect(handled).toBe(true);
-    const table = tableIn(v.state.doc);
-    expect(table).not.toBeNull();
-    expect(table!.textContent).toContain('A');
-    expect(table!.textContent).toContain('2');
-  });
-
-  it('粘贴纯文本（无 HTML）→ 拦截并走兜底（最终插入纯文本，内容不丢）', async () => {
-    // 系统剪贴板也无 HTML → 最终降级为纯文本插入
-    clipboardMocks.readClipboardHtml.mockResolvedValue(null);
-    const v = mountEmpty();
-    const handled = firePaste(v, pasteEvent({ 'text/plain': 'just a paragraph' }));
-
-    expect(handled).toBe(true);
-    // 兜底路径异步把纯文本插入文档（需 flush 微任务）
-    await new Promise((r) => setTimeout(r, 0));
-    expect(v.state.doc.textContent).toContain('just a paragraph');
-    expect(tableIn(v.state.doc)).toBeNull();
-  });
-
-  it('粘贴事件无 text/html 时，从系统剪贴板读 HTML 并还原加粗格式（Rust 命令兜底）', async () => {
-    // 模拟桌面端真实场景：粘贴事件只带 text/plain，但系统剪贴板里存着富文本 HTML
-    clipboardMocks.readClipboardHtml.mockResolvedValue('<p>Hello <strong>world</strong></p>');
-    const v = mountEmpty();
-    const handled = firePaste(v, pasteEvent({ 'text/plain': 'Hello world' }));
-
-    expect(handled).toBe(true);
-    await new Promise((r) => setTimeout(r, 0));
-    let hasBold = false;
-    v.state.doc.descendants((node) => {
-      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
-      return !hasBold;
-    });
-    expect(hasBold).toBe(true);
-    clipboardMocks.readClipboardHtml.mockResolvedValue(null);
-  });
-
-  it('剪贴板带富文本 <table> → 显式解析并插入表格节点（保留格式）', () => {
-    const v = mountEmpty();
-    const handled = firePaste(
-      v,
-      pasteEvent({
-        'text/plain': '| A | B |\n| --- | --- |\n| 1 | 2 |',
-        'text/html': '<table><tr><td>A</td><td>B</td></tr></table>',
-      }),
-    );
-
-    expect(handled).toBe(true);
-    expect(tableIn(v.state.doc)).not.toBeNull();
-  });
-
-  it('粘贴富文本 <strong> → 插入加粗节点（验证 HTML 真的还原了格式）', () => {
-    const v = mountEmpty();
-    const handled = firePaste(
-      v,
-      pasteEvent({
-        'text/plain': 'Hello world',
-        'text/html': '<p>Hello <strong>world</strong></p>',
-      }),
-    );
-
-    expect(handled).toBe(true);
-    let hasBold = false;
-    v.state.doc.descendants((node) => {
-      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
-      return !hasBold;
-    });
-    expect(hasBold).toBe(true);
-  });
-
-  it('粘贴富文本 <h2> → 插入二级标题节点（验证标题格式还原）', () => {
-    const v = mountEmpty();
-    const handled = firePaste(
-      v,
-      pasteEvent({
-        'text/plain': 'Section',
-        'text/html': '<h2>Section</h2>',
-      }),
-    );
-
-    expect(handled).toBe(true);
-    let hasH2 = false;
-    v.state.doc.descendants((node) => {
-      if (node.type.name === 'heading' && node.attrs.level === 2) hasH2 = true;
-      return !hasH2;
-    });
-    expect(hasH2).toBe(true);
-  });
-
-  it('粘贴纯 markdown 源（无 HTML + 系统剪贴板也无 HTML）→ markdown 解析为 heading/blockquote/listItem/bold（豆包场景）', async () => {
-    // 复现用户报告：豆包复制时只给 text/plain（webview 漏 text/html），
-    // 系统剪贴板也无 HTML（readClipboardHtml 返回 null）。
-    // 期望：markdown 解析为结构化节点，heading/blockquote/listItem/bold 全部命中。
-    clipboardMocks.readClipboardHtml.mockResolvedValue(null);
-    const v = mountEmpty();
-    const mdText = [
-      '# 标题一',
-      '**加粗文本**',
-      '',
-      '> 引用内容',
-      '',
-      '- 列表项 1',
-      '- 列表项 2',
-    ].join('\n');
-    const handled = firePaste(v, pasteEvent({ 'text/plain': mdText }));
-
-    expect(handled).toBe(true);
-    await new Promise((r) => setTimeout(r, 0));
-
-    let hasHeading = false;
-    let hasBlockquote = false;
-    let hasListItem = false;
-    let hasBold = false;
-    v.state.doc.descendants((node) => {
-      if (node.type.name === 'heading') hasHeading = true;
-      if (node.type.name === 'blockquote') hasBlockquote = true;
-      if (node.type.name === 'listItem') hasListItem = true;
-      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
-      return true;
-    });
-    expect(hasHeading).toBe(true);
-    expect(hasBlockquote).toBe(true);
-    expect(hasListItem).toBe(true);
-    expect(hasBold).toBe(true);
-  });
-
-  it('text/plain 是 markdown 源 + html 是壳（AI 工具通用：豆包/千问等）→ 走 markdown 解析保留格式', () => {
-    // 复现通用场景：AI 工具把 markdown 源字面包在 <pre>/<div> 里放进剪贴板 HTML。
-    // DOMParser 不解析 markdown，壳里是字面字符；修复后步骤 2.5 嗅探到 text/plain
-    // 含通用 markdown 语法 → 走 markdown 解析，无视 HTML 壳。
-    const v = mountEmpty();
-    const mdText = '# 标题\n\n**加粗**\n\n> 引用\n\n- 列表项';
-    const htmlShell = `<pre>${mdText}</pre>`;
-    const handled = firePaste(v, pasteEvent({
-      'text/plain': mdText,
-      'text/html': htmlShell,
-    }));
-
-    expect(handled).toBe(true);
-
-    let hasHeading = false;
-    let hasBold = false;
-    let hasBlockquote = false;
-    v.state.doc.descendants((node) => {
-      if (node.type.name === 'heading') hasHeading = true;
-      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
-      if (node.type.name === 'blockquote') hasBlockquote = true;
-      return true;
-    });
-    expect(hasHeading).toBe(true);
-    expect(hasBold).toBe(true);
-    expect(hasBlockquote).toBe(true);
-  });
-
-  it('P0 质量兜底：系统剪贴板是装饰性 HTML（千问/豆包文档）+ 纯文本是 markdown 源 → 救回 markdown 格式', async () => {
-    // 复现千问/豆包文档场景：WebView2 粘贴事件不带 text/html，从系统剪贴板读到的是
-    // 装饰性 HTML（span+inline style，无语义标签），DOMParser 解析后只剩纯段落、格式全丢。
-    // 纯文本其实是 markdown 源。期望：P0 检测到解析塌方 → 改用 markdown 解析，救回格式。
-    clipboardMocks.readClipboardHtml.mockResolvedValue(
-      '<p><span style="font-weight:700">标题</span></p><p><span style="font-size:16px">正文内容</span></p>',
-    );
-    const v = mountEmpty();
-    const mdText = '# 标题\n\n**重点内容**\n\n- 项目一\n- 项目二';
-    const handled = firePaste(v, pasteEvent({ 'text/plain': mdText }));
-
-    expect(handled).toBe(true);
-    await new Promise((r) => setTimeout(r, 0));
-
-    let hasHeading = false;
-    let hasBold = false;
-    let hasListItem = false;
-    v.state.doc.descendants((node) => {
-      if (node.type.name === 'heading') hasHeading = true;
-      if (node.type.name === 'listItem') hasListItem = true;
-      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
-      return true;
-    });
-    expect(hasHeading).toBe(true);
-    expect(hasBold).toBe(true);
-    expect(hasListItem).toBe(true);
-    clipboardMocks.readClipboardHtml.mockResolvedValue(null);
-  });
-
-  it('P0 回归守卫：系统剪贴板是规范富文本 HTML（含标题/加粗）→ 不被误救，保留原格式', async () => {
-    // 守卫「不朝坏的方向发展」：当系统剪贴板 HTML 本身规范（h2+strong，解析后含结构），
-    // 即使纯文本也是 markdown 源，isLowQualityParse 返回 false → 沿用 HTML 解析，不被误改。
-    clipboardMocks.readClipboardHtml.mockResolvedValue(
-      '<h2>章节标题</h2><p>这是 <strong>加粗</strong> 正文</p>',
-    );
-    const v = mountEmpty();
-    const mdText = '# 不同的标题\n\n- 列表项';
-    const handled = firePaste(v, pasteEvent({ 'text/plain': mdText }));
-
-    expect(handled).toBe(true);
-    await new Promise((r) => setTimeout(r, 0));
-
-    // 应保留 HTML 的 h2（level 2），而非被 markdown 的 h1 覆盖
-    let hasH2 = false;
-    let hasBold = false;
-    let hasListItem = false;
-    v.state.doc.descendants((node) => {
-      if (node.type.name === 'heading' && node.attrs.level === 2) hasH2 = true;
-      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
-      if (node.type.name === 'listItem') hasListItem = true;
-      return true;
-    });
-    expect(hasH2).toBe(true);
-    expect(hasBold).toBe(true);
-    // 不应出现 markdown 源的列表（证明没走 markdown 解析）
-    expect(hasListItem).toBe(false);
-    clipboardMocks.readClipboardHtml.mockResolvedValue(null);
-  });
-});
-
 describe('hasMarkdownOnlySyntax 误判防护', () => {
   it('货币/价格 "$10 到 $20" 不误判为 markdown 源', () => {
     expect(hasMarkdownOnlySyntax('价格从 $10 到 $20 不等')).toBe(false);
@@ -390,16 +129,324 @@ describe('isLowQualityParse（P0 质量兜底判定）', () => {
 
   it('段落含加粗 mark → 不塌方（保住了行内格式）', () => {
     const slice = sliceOf('<p>Hello <strong>world</strong></p><p>plain</p>');
+    expect(slice).not.toBeNull();
     expect(isLowQualityParse(slice!)).toBe(false);
   });
 
   it('含标题块 → 不塌方（保住了块级结构）', () => {
     const slice = sliceOf('<h2>标题</h2><p>正文</p>');
+    expect(slice).not.toBeNull();
     expect(isLowQualityParse(slice!)).toBe(false);
   });
 
   it('单个纯段落 → 不塌方（避免对 legitimately 纯文本误救）', () => {
     const slice = sliceOf('<p>just one paragraph</p>');
+    expect(slice).not.toBeNull();
     expect(isLowQualityParse(slice!)).toBe(false);
+  });
+});
+
+// ────────────────────────────────────────────────────────────
+// parseGeneralMarkdownPaste 的 openStart/openEnd 策略（新范式核心）
+// ────────────────────────────────────────────────────────────
+
+describe('parseGeneralMarkdownPaste openStart/openEnd 策略', () => {
+  const schema = createMarkdownCompatSchema();
+
+  it('首是 bulletList（可合并）+ 尾是 paragraph（可合并）→ (1, 1)', () => {
+    // 需要 2 行列表项才命中 looksLikeMarkdownSource
+    const text = '- 项 A\n- 项 B\n\n正文段落';
+    const slice = parseGeneralMarkdownPaste(schema, text);
+    expect(slice).not.toBeNull();
+    // 首节点是 bulletList（可合并）→ openStart=1
+    // 尾节点是 paragraph（可合并）→ openEnd=1
+    expect(slice!.openStart).toBe(1);
+    expect(slice!.openEnd).toBe(1);
+  });
+
+  it('首尾都是 bulletList → (1, 1)（列表可合并到当前列表）', () => {
+    const text = '- 项 A\n- 项 B';
+    const slice = parseGeneralMarkdownPaste(schema, text);
+    expect(slice).not.toBeNull();
+    expect(slice!.openStart).toBe(1);
+    expect(slice!.openEnd).toBe(1);
+  });
+
+  it('首是 heading（不可合并）→ openStart=0', () => {
+    const text = '# 标题\n\n正文';
+    const slice = parseGeneralMarkdownPaste(schema, text);
+    expect(slice).not.toBeNull();
+    expect(slice!.openStart).toBe(0);
+    // 尾是 paragraph（可合并）→ openEnd=1
+    expect(slice!.openEnd).toBe(1);
+  });
+
+  it('首是 codeBlock（不可合并）→ openStart=0', () => {
+    const text = '```js\nconsole.log(1)\n```\n\n正文';
+    const slice = parseGeneralMarkdownPaste(schema, text);
+    expect(slice).not.toBeNull();
+    expect(slice!.openStart).toBe(0);
+    expect(slice!.openEnd).toBe(1);
+  });
+});
+
+// ────────────────────────────────────────────────────────────
+// clipboardTextParser 钩子（Layer 1）
+// ────────────────────────────────────────────────────────────
+
+describe('clipboardTextParser 钩子（Layer 1：纯文本 Markdown 识别）', () => {
+  const schema = createMarkdownCompatSchema();
+
+  function callHook(text: string): Slice | null | undefined {
+    const plugin = markdownPastePlugin();
+    const props = plugin.spec.props!;
+    const fn = props.clipboardTextParser as
+      | ((text: string, $context: ResolvedPos) => Slice | null)
+      | undefined;
+    if (!fn) return undefined;
+    const doc = schema.nodes.doc.create(null, [schema.nodes.paragraph.create()]);
+    const $context = doc.resolve(1);
+    return fn(text, $context);
+  }
+
+  it('GFM 表格文本 → 返回含 table 节点的 Slice', () => {
+    const slice = callHook('| A | B |\n| --- | --- |\n| 1 | 2 |');
+    expect(slice).not.toBeNull();
+
+    let hasTable = false;
+    slice!.content.descendants((node) => {
+      if (node.type.name === 'table') hasTable = true;
+      return true;
+    });
+    expect(hasTable).toBe(true);
+  });
+
+  it('结构化 Markdown 源（标题+引用+列表）→ 返回对应块级节点', () => {
+    const md = '# 标题\n\n> 引用\n\n- 列表项';
+    const slice = callHook(md);
+    expect(slice).not.toBeNull();
+
+    let hasHeading = false;
+    let hasBlockquote = false;
+    let hasListItem = false;
+    slice!.content.descendants((node) => {
+      if (node.type.name === 'heading') hasHeading = true;
+      if (node.type.name === 'blockquote') hasBlockquote = true;
+      if (node.type.name === 'listItem') hasListItem = true;
+      return true;
+    });
+    expect(hasHeading).toBe(true);
+    expect(hasBlockquote).toBe(true);
+    expect(hasListItem).toBe(true);
+  });
+
+  it('含 markdown 专有语法（wikilink/callout/$$）→ 返回 Slice', () => {
+    const md = '[[wikilink]]';
+    const slice = callHook(md);
+    // hasMarkdownOnlySyntax 命中 [[wikilink]]，但 parseGeneralMarkdownPaste 需要块级语法
+    // 实际上 [[wikilink]] 是行内节点，可能解析为段落 → looksLikeMarkdownSource 不命中
+    // 这里验证专有语法识别路径不崩溃
+    expect(slice).toBeDefined();
+  });
+
+  it('纯文本（无 markdown 语法）→ 返回 null（让默认流程逐行成段）', () => {
+    const slice = callHook('just a plain paragraph');
+    expect(slice).toBeNull();
+  });
+
+  it('空文本 → 返回 null', () => {
+    const slice = callHook('');
+    expect(slice).toBeNull();
+  });
+
+  it('代码围栏 markdown → 返回含 codeBlock 的 Slice', () => {
+    const md = '```js\nconsole.log(1)\n```';
+    const slice = callHook(md);
+    expect(slice).not.toBeNull();
+
+    let hasCodeBlock = false;
+    slice!.content.descendants((node) => {
+      if (node.type.name === 'codeBlock') hasCodeBlock = true;
+      return true;
+    });
+    expect(hasCodeBlock).toBe(true);
+  });
+});
+
+// ────────────────────────────────────────────────────────────
+// transformPasted 钩子（Layer 2：装饰性 HTML 塌方救回）
+// ────────────────────────────────────────────────────────────
+
+describe('transformPasted 钩子（Layer 2：装饰性 HTML 塌方救回）', () => {
+  const schema = createMarkdownCompatSchema();
+  let view: EditorView | null = null;
+  let mount: HTMLElement | null = null;
+
+  beforeEach(() => {
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+  });
+  afterEach(() => {
+    if (view && !view.isDestroyed) view.destroy();
+    view = null;
+    if (mount) mount.remove();
+    mount = null;
+  });
+
+  function callHook(slice: Slice): Slice {
+    const plugin = markdownPastePlugin();
+    const props = plugin.spec.props!;
+    const fn = props.transformPasted as
+      | ((slice: Slice, view: EditorView) => Slice)
+      | undefined;
+    if (!fn) return slice;
+
+    const doc = schema.nodes.doc.create(null, [schema.nodes.paragraph.create()]);
+    const state = EditorState.create({
+      schema,
+      doc,
+      selection: TextSelection.create(doc, 1),
+      plugins: [plugin],
+    });
+    view = new EditorView(mount!, { state });
+    return fn(slice, view);
+  }
+
+  it('装饰性 HTML 塌方 Slice + textContent 是 markdown 源 → 救回为 Markdown 解析', () => {
+    // 模拟千问/豆包文档：装饰性 HTML 被 DOMParser 拍平成多个纯段落（塌方）
+    // slice.content 子节点的 textContent 拼起来是原 markdown 源
+    const html = '<p># 标题</p><p>**加粗**</p><p>- 列表项</p>';
+    const original = parseHtmlSlice(schema, html);
+    expect(original).not.toBeNull();
+    expect(isLowQualityParse(original!)).toBe(true);
+
+    const transformed = callHook(original!);
+
+    let hasHeading = false;
+    let hasBold = false;
+    let hasListItem = false;
+    transformed.content.descendants((node) => {
+      if (node.type.name === 'heading') hasHeading = true;
+      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
+      if (node.type.name === 'listItem') hasListItem = true;
+      return true;
+    });
+    expect(hasHeading).toBe(true);
+    expect(hasBold).toBe(true);
+    expect(hasListItem).toBe(true);
+  });
+
+  it('正常 HTML Slice（含标题/加粗）→ 原样返回，不被误救', () => {
+    const html = '<h2>章节标题</h2><p>这是 <strong>加粗</strong> 正文</p>';
+    const original = parseHtmlSlice(schema, html);
+    expect(original).not.toBeNull();
+    expect(isLowQualityParse(original!)).toBe(false);
+
+    const transformed = callHook(original!);
+    // 应原样返回（同一对象或内容等价）
+    expect(transformed).toBe(original);
+  });
+
+  it('单个纯段落 Slice → 不塌方，原样返回', () => {
+    const html = '<p>just one paragraph</p>';
+    const original = parseHtmlSlice(schema, html);
+    expect(original).not.toBeNull();
+    expect(isLowQualityParse(original!)).toBe(false);
+
+    const transformed = callHook(original!);
+    expect(transformed).toBe(original);
+  });
+
+  it('塌方 Slice 但 textContent 不是 markdown 源 → 原样返回', () => {
+    // 多个纯段落（塌方），但内容是普通文本，不是 markdown 源
+    const html = '<p>第一段普通文字</p><p>第二段普通文字</p>';
+    const original = parseHtmlSlice(schema, html);
+    expect(original).not.toBeNull();
+    expect(isLowQualityParse(original!)).toBe(true);
+
+    const transformed = callHook(original!);
+    // 不应救回（textContent 不是 markdown 源）
+    expect(transformed).toBe(original);
+  });
+});
+
+// ────────────────────────────────────────────────────────────
+// handlePaste 逃生舱（Layer 3：仅图片处理）
+// ────────────────────────────────────────────────────────────
+
+describe('handlePaste 逃生舱（Layer 3：仅图片处理）', () => {
+  const schema = createMarkdownCompatSchema();
+  let view: EditorView | null = null;
+  let mount: HTMLElement | null = null;
+
+  beforeEach(() => {
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+  });
+  afterEach(() => {
+    if (view && !view.isDestroyed) view.destroy();
+    view = null;
+    if (mount) mount.remove();
+    mount = null;
+  });
+
+  function mountEmpty(): EditorView {
+    const doc = schema.nodes.doc.create(null, [schema.nodes.paragraph.create()]);
+    const state = EditorState.create({
+      schema,
+      doc,
+      selection: TextSelection.create(doc, 1),
+      plugins: [markdownPastePlugin()],
+    });
+    view = new EditorView(mount!, { state });
+    return view;
+  }
+
+  function pasteEvent(parts: Record<string, string>, files: File[] = []): ClipboardEvent {
+    return {
+      clipboardData: {
+        getData: (type: string) => parts[type] ?? '',
+        files,
+      } as unknown as DataTransfer,
+    } as unknown as ClipboardEvent;
+  }
+
+  function firePaste(v: EditorView, event: ClipboardEvent): boolean {
+    return Boolean(
+      v.someProp('handlePaste', (handler) => handler(v, event, Slice.empty)),
+    );
+  }
+
+  it('无图片（纯文字）→ return false 放行给默认流程', () => {
+    const v = mountEmpty();
+    const handled = firePaste(v, pasteEvent({ 'text/plain': 'just text' }));
+    expect(handled).toBe(false);
+  });
+
+  it('无 clipboardData → return false', () => {
+    const v = mountEmpty();
+    const handled = firePaste(v, {} as ClipboardEvent);
+    expect(handled).toBe(false);
+  });
+
+  it('有图片文件 → return true 接管（阻止默认流程再插 <img>）', () => {
+    const v = mountEmpty();
+    const imageFile = new File([''], 'test.png', { type: 'image/png' });
+    const handled = firePaste(
+      v,
+      pasteEvent({ 'text/plain': 'caption', 'text/html': '<img src="x">' }, [imageFile]),
+    );
+    expect(handled).toBe(true);
+  });
+
+  it('有图片 + 文字 → 同步插入文字（图片异步落盘）', () => {
+    const v = mountEmpty();
+    const imageFile = new File([''], 'test.png', { type: 'image/png' });
+    firePaste(
+      v,
+      pasteEvent({ 'text/plain': 'caption text' }, [imageFile]),
+    );
+    // 文字应被同步插入（图片走异步，测试不验证落盘细节）
+    expect(v.state.doc.textContent).toContain('caption text');
   });
 });

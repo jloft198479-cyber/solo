@@ -25,6 +25,7 @@ import { Superscript, Subscript } from './extensions/sub-sup';
 import { Frontmatter } from './extensions/frontmatter';
 import { FootnoteRef, FootnoteSection, FootnoteDef } from './extensions/footnote';
 import { Wikilink } from './extensions/wikilink';
+import { LinkOpen } from './extensions/link-open';
 import {
   SlashCommands,
   slashCommandItems,
@@ -151,6 +152,7 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
       openOnClick: false,
       HTMLAttributes: { class: '' },
     }),
+    LinkOpen,
     TaskList,
     TaskItem.configure({ nested: true }),
     Placeholder.configure({
@@ -181,7 +183,9 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
           const q = query.toLowerCase();
           return slashCommandItems.filter(
             (item) =>
-              item.title.toLowerCase().includes(q) || item.description.toLowerCase().includes(q),
+              item.title.toLowerCase().includes(q) ||
+              item.description.toLowerCase().includes(q) ||
+              (item.alias?.toLowerCase().includes(q) ?? false),
           );
         },
         render: () => ({

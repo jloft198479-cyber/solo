@@ -426,6 +426,9 @@
 }
 
 /* ── 链接 ──────────────────────────────────────────────────── */
+/* LinkOpen 扩展处理 Ctrl/Cmd+Click 跳转，单击留给光标定位/编辑。
+   hover 显示 pointer 是视觉提示（用户看到指针知道是链接可点），
+   单击不会跳转，需按住 Ctrl/Cmd 才触发跳转。 */
 .tiptap-editor a {
   color: var(--primary-color);
   text-decoration: none;
@@ -532,7 +535,10 @@
   border-radius: 0 0 4px 4px;
   padding: 12px 16px;
   margin: 0;
-  overflow-x: auto;
+  /* 自动换行：长行折行显示，不出横向滚动条。适合中文文档为主、代码块短的场景 */
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-all;
   font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.6;
