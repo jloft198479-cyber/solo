@@ -594,7 +594,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 字体依赖本地安装 | **已解决**。改为按需远程下载 + 文件系统缓存，安装包不再内嵌字体文件 |
 | 字体栈分散 | **已收口**到 `fontStack.ts::buildFontStack`，编辑器+导出共享 |
 | 序列化防抖 300ms | **实际 500ms**（序列化）/ 50ms（统计）/ 100ms（光标）三档 |
-| Rust 命令 ~20 个 | **实际 21 个**（见 `lib.rs::invoke_handler!`，v1.2.23 含 `resolve_image_display`，后又加 `read_clipboard_html`） |
+| Rust 命令 ~20 个 | **实际 22 个**（见 `lib.rs::invoke_handler!`，v1.2.23 含 `resolve_image_display`，后又加 `read_clipboard_html`、`read_font_bytes`） |
 | 快捷键表 / 发布清单列有「导出 HTML / PDF / 微信」 | **已移除**（v1.2.18）。复制为 HTML 用状态栏「复制为 HTML」按钮，无导出命令 |
 
 > 若你发现本附录与代码不符，**以代码为准并更新本表**——这是这份文档保持可信的唯一方式。
