@@ -10,6 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.35] — 2026-07-31
+
+### Changed
+- **粘贴逻辑范式重构**：从 `handlePaste` 全接管 + 来源嗅探分发，重构为「信任 ProseMirror 默认流程 + 三层管道钩子」架构。Layer 0 默认管道处理 HTML 解析与上下文感知插入（代码块自动纯文本、列表自动合并）；Layer 1 `clipboardTextParser` 钩子识别纯文本 Markdown 源；Layer 2 `transformPasted` 钩子救回装饰性 HTML 塌方；Layer 3 `handlePaste` 逃生舱仅处理图片。`handlePaste` 函数体从 150+ 行缩减到 12 行，移除了来源嗅探反模式，代码块内粘贴代码、列表内粘贴列表等场景交给 ProseMirror 默认流程处理。
+- **代码块自动换行**：`editor.css` 的 `.tiptap-editor pre` 从 `overflow-x: auto` 改为 `white-space: pre-wrap` + `overflow-wrap: break-word`，长行代码折行显示，不再出横向滚动条。
+
+### Added
+- **斜杠命令拼音首字母检索**：`slash-commands.ts` 的 `SlashCommandItem` 新增 `alias` 字段，14 条命令填入拼音首字母 + 常用英文缩写。输入 `/bg` 匹配「表格」、`/dmk` 匹配「代码块」、`/lb` 匹配三个列表、`/gs` 匹配「数学公式」等，提升中文用户的命令发现性。
+- **链接 Ctrl/Cmd+Click 跳转**：新增 `link-open.ts` 扩展，ProseMirror `handleClick` 插件检测 Ctrl/Cmd + 左键点击 `<a>` 元素，调用 `@tauri-apps/plugin-opener` 的 `openUrl` 用系统浏览器打开。协议白名单限制为 http/https/mailto，`openUrl` 失败时回退 `window.open`。
+
+### 经验沉淀
+- **ProseMirror 粘贴范式**：「信任默认流程 + 管道钩子增量改写」优于「全接管 + 来源嗅探分发」。默认流程已内置上下文感知（代码块纯文本、列表合并、嵌套处理），手动接管会覆盖这些行为导致「消灭一个问题又出一个」。`handlePaste` 应仅作逃生舱（处理默认流程无法处理的场景如图片落盘），常规改写用 `clipboardTextParser` / `transformPasted` 等管道钩子。
+- **Slice openStart/openEnd 控制合并行为**：闭合切片（0,0）独立插入不与周围合并，开放切片（1,1）允许 ProseMirror 自动合并列表/段落。列表内粘贴列表变嵌套的问题，根因是用了闭合切片——改用开放切片让 ProseMirror 自动合并即可。
+
+---
+
 ## [1.2.34] — 2026-07-23
 
 > 注意：v1.2.33 记录的「CSS `@font-face` 注入方案」在**真实 WebView2** 下仍被 Tauri asset 协议（不返回 `Access-Control-Allow-Origin` 头）静默拦截——字体文件下载落盘成功，但 `FontFace` 加载字体强制走 CORS 模式，浏览器静默拒收、`document.fonts.check` 只悄悄返回 `false`。因此 v1.2.33 字体**实际仍未生效**。本版本改用 IPC 字节通道才真正修复。
