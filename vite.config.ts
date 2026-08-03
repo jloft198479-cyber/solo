@@ -41,7 +41,10 @@ export default defineConfig(async () => ({
           }
           if (id.includes('markdown-it')) return 'markdown-it';
           if (id.includes('katex')) return 'katex';
-          if (id.includes('mermaid')) return 'mermaid';
+          // 注意：mermaid 不手动分包。mermaid 11 内部按图表类型（flow/sequence/gantt...）
+          // 用 await import() 懒加载，主题样式随图表模块一起加载。若用 id.includes('mermaid')
+          // 强制合并，会打坏它的懒加载链路 → 图表模块加载失败 → 主题样式不注入 → SVG 纯黑。
+          // 动态 import('mermaid') 会让 Rollup 自动拆出独立 chunk，无需手动干预。
         },
       },
     },
