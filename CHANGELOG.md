@@ -10,6 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.36] — 2026-08-04
+
+> 集中修复三处 UI 体验问题（均来自用户在真窗口（tauri dev）验证后反馈）：mermaid 主题切换残留黑块、mermaid 无法放大查看、BubbleMenu 清除格式按钮不显眼；并顺带消除切换模板时的轻微闪烁。
+
+### Fixed
+- **mermaid 主题切换残留黑块**：根因是 `reinitializeMermaidTheme()` 只重设 mermaid 全局 theme、不重渲已存在的 SVG，导致切换 editor 主题后旧 SVG 卡在首次渲染时的主题。修复：① 用模块级 `Set` 登记所有活跃 mermaid NodeView，`reinitializeMermaidTheme` 遍历全部 `rerender()`；② 重渲改**双缓冲**（保留旧 SVG 直到新 SVG 就绪），消除「旧→空→新」的闪烁；③ `destroy()` 时从 `Set` 移除，防对已销毁实例重渲与内存泄漏。
+- **mermaid 暗色主题 subgraph 标题/边框不可见**：mermaid 11 dark theme 把 cluster 标题文字与背景同色。修复：暗色下显式注入 `themeVariables`（`titleColor`/`clusterBkg`/`clusterBorder` 提亮），让「数据源/接入层/核心工具…」等 subgraph 标题清晰可读。
+- **mermaid 无法放大查看**：mermaid 输出是 SVG 矢量图，原 NodeView 无任何缩放控件（点击 SVG 仅进源码编辑）。新增 **lightbox 全屏预览**：header 加独立「放大」按钮，点击弹出全屏 overlay 克隆当前 SVG，支持滚轮缩放、+/-/1:1 按钮、拖拽平移、Esc/点背景关闭——与「点 SVG 进编辑」手势零冲突，且放大多大都不糊。
+- **BubbleMenu 清除格式按钮不显眼**：原按钮用灰色 muted + 抽象图标、无文字标签，用户难以识别。修复：换成通用**橡皮擦图标** + 提高对比度 + hover 切 `error` 色，意图一眼可辨。
+
+### Changed
+- **消除切换模板/主题的轻微闪烁**：`main.css` 的 `theme-transitioning` 过渡原只覆盖 `background-color` + `color`、避开 `border-color`，导致边框瞬切与背景/文字的平滑过渡不同步、形成视觉错位（用户感知到的「轻微闪一下」）。补上 `border-color` 让边框一并平滑过渡（`box-shadow` 仍避开以保性能）；`manager.ts` 的过渡类移除 `setTimeout` 由 300ms 对齐到 `--motion-base` 的 200ms，避免快速二次切换时过渡叠加。
+
+### 经验沉淀
+- **主题切换与图表重渲必须解耦联动**：改全局 theme 配置不等于改已渲染节点的视觉；任何「跟随主题重画」的组件（mermaid/SVG/图表），都需持有活跃实例引用并在主题切换时主动重渲，否则残留旧主题 SVG 是最易踩的坑。
+- **双缓冲重渲**：就地替换 SVG 会产生「旧→空→新」可见闪烁；保留旧节点、等新节点就绪再替换，是体感更稳的标准做法（与 DOM 双缓冲同思路）。
+- **SVG 矢量放大是天然优势**：mermaid 等 SVG 输出做 lightbox 缩放成本极低、无损清晰，比位图放大体验好得多。
+
+---
+
 ## [1.2.35] — 2026-07-31
 
 ### Changed
