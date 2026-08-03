@@ -379,12 +379,14 @@ html.focus-mode .statusbar-container:hover {
   pointer-events: auto !important;
 }
 
-/* ── 主题切换过渡：仅 background-color + color，避开昂贵的 border/box-shadow ── */
+/* ── 主题切换过渡：background-color + color + border-color，避开昂贵的 box-shadow ──
+   边框颜色瞬切会与背景/文字的平滑过渡形成视觉错位（用户感知到的「轻微闪一下」），
+   补上 border-color 让边框也平滑过渡；box-shadow 仍避开（性能代价高）。 */
 html.theme-transitioning,
 html.theme-transitioning *,
 html.theme-transitioning *::before,
 html.theme-transitioning *::after {
-  transition: background-color var(--motion-base) var(--ease-out), color var(--motion-base) var(--ease-out) !important;
+  transition: background-color var(--motion-base) var(--ease-out), color var(--motion-base) var(--ease-out), border-color var(--motion-base) var(--ease-out) !important;
 }
 
 /* ── 深色模式下 highlight.js 代码高亮 ─────────────────────── */

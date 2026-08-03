@@ -154,9 +154,11 @@ export function applyTheme(theme: Theme) {
   void syncNativeWindowBackground(theme.colors.bgColor);
   // 编辑区内容 crossfade：灭「内容闪一下」的体感（与 theme-transitioning 协同）
   triggerContentCrossfade();
+  // 移除过渡类：时长对齐 --motion-base (200ms)，避免 class 多挂期间
+  // 用户快速二次切换时过渡叠加。原生窗口背景设置异步进行，不阻塞此处。
   setTimeout(() => {
     document.documentElement.classList.remove('theme-transitioning');
-  }, 300);
+  }, 200);
 }
 
 /**

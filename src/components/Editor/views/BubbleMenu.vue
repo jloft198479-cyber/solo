@@ -41,10 +41,9 @@
       <button class="bubble-menu-heading-btn" @click="exec('h2')">H2</button>
       <div class="bubble-menu-divider"></div>
       <button class="bubble-menu-clear-btn" title="清除格式" @click="exec('clearFormat')">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 4l8 8" />
-          <path d="M3 12h3l1.5-5" />
-          <path d="M7 3h6l-1.5 3" />
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L21 10C21.5 10.5 21.5 11.5 21 12L11 22" />
+          <line x1="18" y1="13" x2="9" y2="4" />
         </svg>
       </button>
     </div>
@@ -299,7 +298,8 @@ defineExpose({
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
-  color: var(--muted-color);
+  /* 用 --text-color 而非 --muted-color：与相邻按钮一致对比度，让按钮「看得见」 */
+  color: var(--text-color);
   background-color: transparent;
   transition: background-color 0.15s, color 0.15s;
   cursor: pointer;
@@ -308,6 +308,7 @@ defineExpose({
 
 .bubble-menu-clear-btn:hover {
   background-color: var(--hover-bg);
-  color: var(--text-color);
+  /* hover 切 error 色，暗示这是破坏性操作（去掉格式） */
+  color: var(--error-color, #d33);
 }
 </style>
