@@ -844,6 +844,33 @@
   background-color: var(--hover-bg);
 }
 
+/* Mermaid 放大按钮：与删除按钮并列，共用 hover 显示机制（mermaid 专用，math 无此按钮） */
+.tiptap-editor .mk-block-zoom-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted-color);
+  cursor: pointer;
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background-color 0.15s;
+}
+
+.tiptap-editor .mk-mermaid-block:hover .mk-block-zoom-button {
+  opacity: 1;
+}
+
+.tiptap-editor .mk-block-zoom-button:hover {
+  color: var(--text-color);
+  background-color: var(--hover-bg);
+}
+
 .tiptap-editor .mk-mermaid-render {
   padding: 16px;
   overflow-x: auto;
@@ -1001,8 +1028,81 @@
   height: auto;
 }
 
-html.dark .tiptap-editor .mk-mermaid-render .nodeLabel {
+html.dark .tiptap-editor .mk-mermaid-render .nodeLabel,
+html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   color: var(--text-color);
+}
+
+/* ── Mermaid Lightbox：全屏放大预览 ──────────────────────────
+   挂在 document.body（编辑器外层），所以选择器不加 .tiptap-editor 前缀。
+   暗色半透明背景 + 居中 SVG + 右上工具栏；矢量无损缩放。 */
+.mk-mermaid-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.75);
+  /* 渐入动画：抹平「突然全黑」的突兀感 */
+  animation: mk-mermaid-lightbox-in var(--motion-fast, 120ms) var(--ease-out, ease-out);
+}
+
+@keyframes mk-mermaid-lightbox-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.mk-mermaid-lightbox-toolbar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md, 6px);
+  backdrop-filter: blur(8px);
+}
+
+.mk-mermaid-lightbox-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-sm, 4px);
+  background: transparent;
+  color: #fff;
+  font-size: 18px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.mk-mermaid-lightbox-btn:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.mk-mermaid-lightbox-svg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  /* 拖拽平移：grab 光标在 JS 里动态切换 grabbing */
+  user-select: none;
+}
+
+.mk-mermaid-lightbox-svg svg {
+  /* 矢量无损，transform scale 由 JS 控制 */
+  transition: none;
+  max-width: 90vw;
+  max-height: 80vh;
+  /* 暗色背景下的 SVG 自带浅色填充（克隆自编辑器已渲染 SVG），无需额外处理 */
 }
 
 /* ── Typora 风格内联源码提示 ─────────────────────────────────── */
