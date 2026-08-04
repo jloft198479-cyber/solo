@@ -109,7 +109,12 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 
 ## 积压待办
 
-（暂无积压。阶段 1（图片 IPC 合并）与阶段 2（拖拽 bug 修复）已于 2026-07-19 完成，详见 `.archive/solo-v2-design/solo-v1-upgrade-roadmap.md`。）
+> 完整待办清单见 [docs/KNOWN-ISSUES.md §二](./docs/KNOWN-ISSUES.md)（真理源），本文不复述。
+> agent 接手时请优先查看该清单，可主动认领修复。
+
+当前待办（2026-08-04 统计）：
+
+- **打开含 Mermaid 的文档，未作任何修改却显示「未保存」**：`onUpdate` 无条件 `markUserEdit()`，加载时的 `forceCheck` 与 Mermaid 异步 NodeView 渲染叠加产生非 `preventUpdate` transaction 触发误标脏。详情见 [KNOWN-ISSUES.md §二 #4](./docs/KNOWN-ISSUES.md)。
 
 ## 历史经验沉淀
 

@@ -22,6 +22,7 @@
 | 1 | 崩溃时 `.tmp` 文件未清理 | `save_document` 原子写产生 `.tmp`，崩溃路径无清理 | [`src-tauri/src/commands/document.rs`](../src-tauri/src/commands/document.rs) |
 | 2 | mermaid 中文标签体验有限 | 已加错误提示 + 5 个单测，但中文/特殊字符标签仍需用户自加引号 `A["文本"]` | [`src/components/Editor/tiptap/extensions/mermaid-block.ts`](../src/components/Editor/tiptap/extensions/mermaid-block.ts) |
 | 3 | 测试数曾多处不一致 | 2026-07-20 已治理（README/PROFILE/ARCHITECTURE 去硬编码），但**新增文档请勿再硬编码测试数**，统一写「以 `bun run test` 实际输出为准」 | 全局 |
+| 4 | 打开含 Mermaid 的文档，未作任何修改却显示「未保存」 | **成因**：`MarkdownEditor.vue` 的 `onUpdate` 回调里无条件调用 `fileStore.markUserEdit()`。`setContent({ emitUpdate: false })` 虽用 `preventUpdate` meta 阻止 `onUpdate`，但它仍是 docChanged 的 transaction，会触发 `markdown-input.ts` 插件的 `update` → 延迟 `forceCheck` → `appendTransaction` 扫描文档。普通文档扫描后无转换返回 null；**含 Mermaid 的文档**因异步 NodeView 渲染与 `forceCheck` 时机叠加，产生了非 `preventUpdate` 的 transaction → 触发 `onUpdate` → `markUserEdit()` → 误标脏。**影响**：仅状态栏显示错误，不影响数据安全（保存后脏标清除）。**解决办法**：在 `onUpdate` 里判断 transaction 的 `preventUpdate` meta，是 `true` 则跳过 `markUserEdit()`；或加「加载中」标志位，加载完成前的 `onUpdate` 不标脏。**验证**：含 Mermaid 文档打开后状态栏应显示「已保存」，手动编辑后才变「未保存」。 | [`src/components/Editor/MarkdownEditor.vue`](../src/components/Editor/MarkdownEditor.vue):257-264 / [`src/components/Editor/tiptap/extensions/markdown-input.ts`](../src/components/Editor/tiptap/extensions/markdown-input.ts):185-239 |
 
 ## 三、设计取舍（[设计取舍]，非 bug，勿"修"）
 
