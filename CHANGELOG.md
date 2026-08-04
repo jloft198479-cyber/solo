@@ -10,12 +10,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.2.37] — 2026-08-04
+## [1.2.38] — 2026-08-04
 
-> 修复 mermaid 在生产构建（prod）下纯黑的问题——这是 1.2.36 发布后才暴露的真因（dev 模式因不走 manualChunks 而正常，prod 才复现）。
+> 修复 mermaid 生产构建纯黑的**真正根因**——1.2.37 修了 manualChunks（真问题但不是黑块根因），本次才真正修复。
 
 ### Fixed
-- **mermaid 生产构建纯黑**：根因是 `vite.config.ts` 的 `manualChunks` 用 `id.includes('mermaid')` 把 mermaid 主入口与所有图表 chunk（flow/sequence/gantt…）强制合并成一坨，打坏 mermaid 11 按图表类型 `await import()` 的懒加载链路 → 图表模块加载失败 → 主题样式不注入 → SVG 纯黑（亮/暗主题都黑）。修复：移除该手动分包行，让 Rollup 按动态 import 自动拆出独立 chunk，懒加载链路恢复。
+- **mermaid 生产构建纯黑（真正根因）**：Tauri 在 `tauri build` 时自动往 CSP 的 `style-src` 注入随机 nonce。按浏览器规范，一旦 `style-src` 含 nonce，`'unsafe-inline'` 被忽略。mermaid `render()` 时通过 innerHTML 注入 `<style>` 到 SVG，没带 nonce → 被 CSP 静默拦截 → 所有形状回退到黑色填充。亮/暗主题都黑，因为根本没拿到样式。修复：`tauri.conf.json` 加 `dangerousDisableAssetCspModification: ["style-src"]`，`script-src` 的 nonce 保留（XSS 防护不降级），`style-src` 不注入 nonce（`'unsafe-inline'` 生效，mermaid `<style>` 放行）。
+
+### 经验沉淀
+- **Tauri dev 不附加 CSP，prod 才附加**：`tauri dev` 走 Vite dev server（localhost），不附加 CSP；`tauri build` 走 `tauri://localhost`，才附加含 nonce 的 CSP。**CSP 相关问题不能用 dev 验证**，必须 build 后跑真实 release 二进制。这是"dev 正常 prod 黑"的根本机制。
+- **CSP nonce 会静默中和 'unsafe-inline'**：按 CSP 规范，`style-src` 一旦含 nonce/hash，`'unsafe-inline'` 被忽略。任何"运行时 innerHTML 注入 `<style>`"的库（mermaid/lit/KaTeX 等）在 Tauri prod 下都会踩这个坑。证据：frenetik.mdlite PR #68 + Tauri 官方 issue #3831。
+- **不要靠猜排查 prod-only 问题**：1.2.37 修了 manualChunks 但没解决黑块，因为在猜原因而非看真实报错。正确做法是在 prod 开 DevTools 看 Console，CSP 违规会有明确报错。AGENTS.md 已有此教训，本次又犯一次。
+
+## [1.2.37] — 2026-08-04
+
+> 修复 mermaid 生产构建纯黑的**次因**（manualChunks 打坏懒加载）——真根因（CSP nonce）在 1.2.38 修复。
+
+### Fixed
+- **mermaid 生产构建纯黑（次因）**：根因是 `vite.config.ts` 的 `manualChunks` 用 `id.includes('mermaid')` 把 mermaid 主入口与所有图表 chunk（flow/sequence/gantt…）强制合并成一坨，打坏 mermaid 11 按图表类型 `await import()` 的懒加载链路 → 图表模块加载失败 → 主题样式不注入 → SVG 纯黑（亮/暗主题都黑）。修复：移除该手动分包行，让 Rollup 按动态 import 自动拆出独立 chunk，懒加载链路恢复。
 - 顺带消除主题切换卡顿（同根因：重渲时 mermaid 内部模块加载链路已乱）。
 
 ### 经验沉淀
