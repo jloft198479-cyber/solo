@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.37] — 2026-08-04
+
+> 修复 mermaid 在生产构建（prod）下纯黑的问题——这是 1.2.36 发布后才暴露的真因（dev 模式因不走 manualChunks 而正常，prod 才复现）。
+
+### Fixed
+- **mermaid 生产构建纯黑**：根因是 `vite.config.ts` 的 `manualChunks` 用 `id.includes('mermaid')` 把 mermaid 主入口与所有图表 chunk（flow/sequence/gantt…）强制合并成一坨，打坏 mermaid 11 按图表类型 `await import()` 的懒加载链路 → 图表模块加载失败 → 主题样式不注入 → SVG 纯黑（亮/暗主题都黑）。修复：移除该手动分包行，让 Rollup 按动态 import 自动拆出独立 chunk，懒加载链路恢复。
+- 顺带消除主题切换卡顿（同根因：重渲时 mermaid 内部模块加载链路已乱）。
+
+### 经验沉淀
+- **手动 manualChunks 会破坏库的懒加载契约**：mermaid 11 这类基于动态 import 拆包的库，强制合并其 chunk 会打坏内部 `await import()` 链路，导致运行时加载失败且症状隐蔽（仅 prod 复现、dev 正常）。对这类库，让其走 Rollup 自动分包，不要手动干预。
+
 ## [1.2.36] — 2026-08-04
 
 > 集中修复三处 UI 体验问题（均来自用户在真窗口（tauri dev）验证后反馈）：mermaid 主题切换残留黑块、mermaid 无法放大查看、BubbleMenu 清除格式按钮不显眼；并顺带消除切换模板时的轻微闪烁。
