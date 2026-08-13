@@ -1,6 +1,10 @@
+use crate::commands::document::mime_to_extension;
 use crate::error::AppError;
-use base64::{engine::general_purpose, Engine as _};
+use std::collections::hash_map::DefaultHasher;
+use std::fs;
+use std::hash::{Hash, Hasher};
 use std::sync::OnceLock;
+use tauri::{AppHandle, Manager};
 
 const MAX_REMOTE_IMAGE_BYTES: usize = 10 * 1024 * 1024;
 static IMAGE_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
@@ -23,9 +27,18 @@ fn image_client() -> Result<reqwest::Client, AppError> {
         .ok_or_else(|| AppError::Network("图片客户端初始化失败".to_string()))
 }
 
-/// 异步获取网络图片并返回 base64 数据 URL
+/// 对 URL 做稳定哈希，用作缓存文件名
+fn url_hash(url: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    url.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// 异步获取网络图片，落盘缓存后返回本地文件路径。
+/// 前端通过 `toAssetUrl(path)` 转为 asset:// URL 直接显示。
+/// IPC 只传几十字节路径，不再传 base64 数据。
 #[tauri::command]
-pub async fn fetch_remote_image(url: String) -> Result<String, AppError> {
+pub async fn fetch_remote_image(app: AppHandle, url: String) -> Result<String, AppError> {
     let client = image_client()?;
     let mut response = client
         .get(&url)
@@ -74,9 +87,25 @@ pub async fn fetch_remote_image(url: String) -> Result<String, AppError> {
         bytes.extend_from_slice(&chunk);
     }
 
-    // 转换为 base64 data URL
-    let base64_data = general_purpose::STANDARD.encode(&bytes);
-    let data_url = format!("data:{};base64,{}", content_type, base64_data);
+    // 落盘缓存：以 URL 哈希命名，已存在则跳过写盘
+    let cache_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| AppError::Native(format!("获取缓存目录失败: {}", e)))?
+        .join("remote-image-cache");
+    fs::create_dir_all(&cache_dir)?;
 
-    Ok(data_url)
+    let ext = mime_to_extension(&content_type);
+    let file_name = format!("{:x}.{}", url_hash(&url), ext);
+    let cached = cache_dir.join(&file_name);
+
+    if !cached.exists() {
+        fs::write(&cached, &bytes)?;
+    }
+
+    // 授权 asset 协议作用域
+    app.asset_protocol_scope().allow_file(&cached)?;
+
+    // 只回传路径（几十字节），不再回传 base64（十几 MB）
+    Ok(cached.to_string_lossy().to_string())
 }

@@ -21,17 +21,30 @@ let rafId: number | null = null;
 
 function updateActive() {
   const view = props.editorRef?.getEditorView?.();
-  if (!view || !scrollContainer) return;
+  if (!view || !scrollContainer || props.items.length === 0) {
+    activePos.value = null;
+    return;
+  }
   const top = scrollContainer.getBoundingClientRect().top + 88;
+
+  // 二分查找：标题按文档序排列，top 单调递增
+  // 找「top <= 阈值」的最后一个标题
+  let lo = 0;
+  let hi = props.items.length - 1;
   let current: number | null = null;
-  for (const item of props.items) {
-    const dom = view.domAtPos(item.pos);
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const dom = view.domAtPos(props.items[mid].pos);
     const el = dom.node instanceof HTMLElement ? dom.node : dom.node.parentElement;
-    if (!el) continue;
+    if (!el) {
+      lo = mid + 1;
+      continue;
+    }
     if (el.getBoundingClientRect().top <= top) {
-      current = item.pos;
+      current = props.items[mid].pos;
+      lo = mid + 1;
     } else {
-      break;
+      hi = mid - 1;
     }
   }
   activePos.value = current;
@@ -86,12 +99,16 @@ const hasItems = computed(() => props.items.length > 0);
     <div class="outline-inner">
       <div class="outline-header">
         <span class="outline-title">大纲</span>
-        <button
-          class="outline-close"
-          title="收起大纲 (Ctrl+/)"
-          @click="emit('close')"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+        <button class="outline-close" title="收起大纲 (Ctrl+/)" @click="emit('close')">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+          >
             <path d="M8 2L4 6l4 4" />
           </svg>
         </button>
@@ -102,10 +119,7 @@ const hasItems = computed(() => props.items.length > 0);
           v-for="item in items"
           :key="item.pos"
           class="outline-item"
-          :class="[
-            `outline-level-${item.level}`,
-            { 'is-active': activePos === item.pos },
-          ]"
+          :class="[`outline-level-${item.level}`, { 'is-active': activePos === item.pos }]"
           :title="item.text"
           @click="onClickItem(item)"
         >
@@ -125,7 +139,8 @@ const hasItems = computed(() => props.items.length > 0);
   overflow: hidden;
   background-color: var(--sidebar-bg);
   border-left: 1px solid transparent;
-  transition: width var(--motion-base) var(--ease-out),
+  transition:
+    width var(--motion-base) var(--ease-out),
     border-color var(--motion-base) var(--ease-out);
 }
 
@@ -173,7 +188,10 @@ const hasItems = computed(() => props.items.length > 0);
   cursor: pointer;
   border-radius: var(--radius-md);
   opacity: 0.55;
-  transition: background-color var(--motion-fast), color var(--motion-fast), opacity var(--motion-fast);
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast),
+    opacity var(--motion-fast);
 }
 
 .outline-close:hover {
@@ -204,19 +222,39 @@ const hasItems = computed(() => props.items.length > 0);
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.4;
-  transition: background-color var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast);
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast),
+    border-color var(--motion-fast);
 }
 
 /* 按层级缩进，层级越深越往右 */
-.outline-level-1 { padding-left: 10px; }
-.outline-level-2 { padding-left: 22px; }
-.outline-level-3 { padding-left: 34px; }
-.outline-level-4 { padding-left: 46px; }
-.outline-level-5 { padding-left: 58px; }
-.outline-level-6 { padding-left: 70px; }
+.outline-level-1 {
+  padding-left: 10px;
+}
+.outline-level-2 {
+  padding-left: 22px;
+}
+.outline-level-3 {
+  padding-left: 34px;
+}
+.outline-level-4 {
+  padding-left: 46px;
+}
+.outline-level-5 {
+  padding-left: 58px;
+}
+.outline-level-6 {
+  padding-left: 70px;
+}
 
-.outline-level-1 { font-weight: 600; color: var(--text-color); }
-.outline-level-2 { font-weight: 500; }
+.outline-level-1 {
+  font-weight: 600;
+  color: var(--text-color);
+}
+.outline-level-2 {
+  font-weight: 500;
+}
 
 .outline-item:hover {
   background-color: var(--sidebar-hover);
