@@ -63,6 +63,7 @@ A 文档梳理 ──▶ B 问题盘点 ──▶ C 优化提案 ──▶ D 提
   - **feat 提交**：功能/修复主体（相关多文件归一笔）。
   - **bump 提交**：版本号变更独立一笔（`package.json` / `Cargo.toml` / `tauri.conf.json`）。
   - **doc 提交**：PROFILE 版本历史等文档补充。
+  - 拆分是**推荐做法**；若工具/环境受限（如 `.git` 目录被保护导致 amend 失败、一次交互只允许一笔提交），可退化为合并提交，但必须在 message 里写明各子项（如 `perf: … + bump version to 1.x.x`），保证 changelog 可还原。
 - **message 规范**：见 `CONTRIBUTING.md`（Conventional 风格：`feat` / `fix` / `docs` / …）。
 - **出口关卡**：✅ `git status` 干净、无 secrets、无 `node_modules`/`target`；然后进 E（先 bump 再 tag）。
 

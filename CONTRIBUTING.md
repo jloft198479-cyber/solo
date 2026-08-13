@@ -61,7 +61,7 @@ bun run lint                # 静态检查
 - 功能 / 修复从 `master` 切出短生命周期分支，PR 回 `master`。
 
 ### 3.2 提交信息
-- 用**中文**写 commit message（与历史一致），动词开头：`fix:` / `feat:` / `refactor:` / `chore:` / `docs:`。
+- 用**中文**写 commit message（与历史一致），动词开头：`fix:` / `feat:` / `refactor:` / `chore:` / `docs:` / `perf:`。
 - 一句话说清「改了什么、为什么」。例如：
   - `fix: 修复 asset:// 图片重开后裂图`
   - `refactor: Callout 极简化 — 单一类型、无 icon`
