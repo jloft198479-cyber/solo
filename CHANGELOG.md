@@ -10,6 +10,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.39] — 2026-08-14
+
+> 深度性能优化（9 项）+ WebView2 缓存清理 + Mermaid 误标脏修复。
+
+### Performance
+- **Rust 同步命令异步化**：`open_document` / `save_document` / `rename_file` 等 7 个命令改为 `async fn` + `tauri::async_runtime::spawn_blocking`，大文件读写不再阻塞主线程，界面不再卡顿。
+- **markdown-input 双扫描合并**：`view.update` 与 `appendTransaction` 对同一文档的两次全树遍历改为 WeakMap 缓存，第二次命中缓存；`findPendingHeading` 委托 `scanHeadings`，避免重复扫描。
+- **远程图片 base64 往返消除**：`fetch_remote_image` 改为 Rust 落盘缓存 + asset URL，不再把字节转 base64 走 IPC 再 atob 转回——10MB 图片不再往返搬运 23MB 数据、不再阻塞主线程。
+- **字体加载走 CSS @font-face**：`read_font_bytes` IPC 传字节改为 `@font-face { src: assetUrl }` 注入 + `document.fonts.load()` 检测，保留 IPC fallback。
+- **resolve_image_display 加缓存**：Map 缓存授权结果，文件切换/路径变化时清空，多图文档不再每张图重复 canonicalize + 授权 IPC 往返。
+- **字数统计改逐节点计数**：`doc.textContent` 全文拷贝改为 `descendants` 逐节点计数，防抖触发不再产生全量字符串拷贝。
+- **OutlinePanel scroll-spy 二分**：滚动时对标题列表线性扫描改二分查找，标题多的文档有收益。
+
+### Fixed
+- **Mermaid 误标「未保存」**：`onUpdate` 无条件 `markUserEdit()`，加载含 Mermaid 文档时异步渲染叠加产生非 `preventUpdate` 事务 → 误标脏 → 自动保存空转、关闭弹无谓确认框。修复：**交互门控**——文档加载后，收到第一个真实用户事件（键盘/指针/输入法）才放行标脏，对触发源免疫。
+- **releaseRemoteImageBlobs 未接线**：`onBeforeUnmount` 补上调用，编辑器销毁时释放远程图片 Blob。
+
+### Changed
+- **WebView2 缓存目录清理**：退出时清理当前进程 `EBWebView-{PID}-*` 目录（残留阈值从 24h 缩短到 1h 兜底崩溃残留），根治高频重启用户的缓存膨胀。
+
 ## [1.2.38] — 2026-08-04
 
 > 修复 mermaid 生产构建纯黑的**真正根因**——1.2.37 修了 manualChunks（真问题但不是黑块根因），本次才真正修复。
