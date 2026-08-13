@@ -13,15 +13,18 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 > 工作原则与执行纪律（通用底线，不可违反）见 `docs/project_rules：工作原则和纪律.md`（真理源）；本节只列 solo 项目特有的操作纪律与导航。
 
 ### 改代码前
+
 - 先读实际代码行为，不以注释为准
 - 确认影响范围：改了这个文件，还有哪些文件受影响？逐个检查
 
 ### 改 parser/serializer 后
+
 1. `bun run test` — 所有 roundtrip 测试必须通过
 2. `vue-tsc --noEmit` — 类型检查通过
 3. `bun run build` — 前端构建通过
 
 ### 代码验证（多层自检）
+
 - 改动完成前按 **函数 / 集成 / 用户 / 异常** 四层自检，并**跨端互验**（改后端必验前端，改前端必验后端）——完整框架见团队通用《技术规范》。
 - solo 特有必做：
   - **Rust 改动必跑 `cargo check`**：本机缺 MSVC 时不能跳过，CI 是最终闸门（曾因本地跳过导致发版编译失败）。
@@ -29,17 +32,20 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
   - **退化安全**：任何加载/优化必有 fallback（字体、图片、主题切换等），不假设环境永远正常。
 
 ### 发版前（🛑 常见踩坑区）
+
 1. **先升版本号**（3 个文件：[package.json](./package.json) / [Cargo.toml](./src-tauri/Cargo.toml) / [tauri.conf.json](./src-tauri/tauri.conf.json)）
 2. **检查 `replaceAll`**：TS target ES2020，用 `.split().join()` 替代
 3. 确认 tag 名与版本号一致（`v1.x.x`）
 4. 完整流程见 [RELEASE_PROCESS.md](./RELEASE_PROCESS.md)
 
 ### 提交前
+
 - 不要提交 secrets / key
 - 不要提交 `node_modules` / `target`
 - 先看 `git status` 再 commit
 
 ### 环境 / 依赖纪律（铁律）
+
 - **绝不擅自下载、安装软件**：任何软件 / 依赖安装前先查本机是否已有（Rust 在 `M:\rust`、MSVC 在 `M:\VS` 等，复用不重装）；需安装须先获明确同意，且尽量装到非系统盘（如 `M:` 盘）。
 - **信息更新要及时**：最新信息通过 wiki / 互链保持同步，陈旧无用信息及时清理；改动及时留记录、及时 `git` 提交。
 
@@ -56,43 +62,49 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 > 目标：每件事只在一处写真版，别处只引用不复制，根除信息冗余、版本不一致与 AI 读取无效上下文。
 
 ### 一、单一真实源（SSOT）
+
 - 每个事实只在一处写（真理源），别处只放「一句指向它的话 + 链接」，不抄内容。
 - 已知真理源地图：技术栈/版本 → `ARCHITECTURE.md`；发版流程 → `RELEASE_PROCESS.md`；bug 易发区 → `ARCHITECTURE.md §11`；问题排查 → `docs/debugging.md` + `docs/KNOWN-ISSUES.md`；文档索引 → `docs/INDEX.md`；版本历史 → `CHANGELOG.md`；代码真相 → 以代码为准（不以注释/文档/记忆）。
 - 代码层面的 SSOT 细则（命令名/定义/字体/主题等真理源）见 `ARCHITECTURE.md` §11.6。
 
 ### 二、不要重复自己（DRY）
+
 - 信息拆成原子可复用内容，全局统一引用而非复制。
 - 纯指针/索引类文件（无独家内容）应并入真理源后删除，不留空壳。
 - 多语言 README（zh-CN/ja-JP/ko-KR）是必要本地化，不算冗余，保留。
 
 ### 三、L2 减文件纪律（实操）
+
 1. 合并/删文件前，先确认独有价值内容已存在于真理源。
 2. 先把所有引用它的链接改指真理源。
 3. 再删文件。
 4. 删后用「含隐藏目录的递归 grep」跑死链扫描，确认零孤儿引用。
-- **两层受众区分**：人类文档（README / CONTRIBUTING / SECURITY / 多语言 README）保持可读、不碎片化；agent 文档（ARCHITECTURE / AGENTS / HANDOVER / docs/*）可激进原子化以省 AI 上下文。
+
+- **两层受众区分**：人类文档（README / CONTRIBUTING / SECURITY / 多语言 README）保持可读、不碎片化；agent 文档（ARCHITECTURE / AGENTS / HANDOVER / docs/\*）可激进原子化以省 AI 上下文。
 - **禁止为做「原子 include」引入构建工具/新脚本**（守「不擅自装软件」纪律）；Markdown 的 DRY 用链接引用实现，不引 preprocessor。
 
 ### 四、死链即 Bug
+
 - 任何指向已删/已改名文件的链接都是 Bug，发现即修。
 - 文档若与代码不符，以代码为准并更新文档（见 AGENTS 黄金法则 / CONTRIBUTING）。
 
 ### 五、改动即自查
+
 - 每改一处，立刻复查语法、逻辑、交叉引用（死链）——不止改完才查。
 
 ---
 
 ## 文档地图
 
-| 读者 | 先读这个 | 再看这个 |
-|------|----------|----------|
-| **新接手** | [HANDOVER.md](./HANDOVER.md) | [AGENTS.md](./AGENTS.md) → [ARCHITECTURE.md](./ARCHITECTURE.md) |
-| **找 bug / 定位问题** | [ARCHITECTURE.md §11](./ARCHITECTURE.md)（敏感区速查表） | [docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md) → [docs/debugging.md](./docs/debugging.md) |
-| **查技术决策** | [.opencode/PROFILE.md](./.opencode/PROFILE.md) | [ARCHITECTURE.md](./ARCHITECTURE.md) |
-| **改 CJK 边界** | [docs/cjk-boundary.md](./docs/cjk-boundary.md) | [src/components/Editor/tiptap/markdown/parser.ts](./src/components/Editor/tiptap/markdown/parser.ts) / [src/components/Editor/tiptap/markdown/serializer.ts](./src/components/Editor/tiptap/markdown/serializer.ts) |
-| **发新版本** | [docs/PLAYBOOK.md](./docs/PLAYBOOK.md) | [RELEASE_PROCESS.md](./RELEASE_PROCESS.md) → [.github/workflows/release.yml](./.github/workflows/release.yml) |
-| **编译不通过** | [BUILD_GUIDE.md](./BUILD_GUIDE.md) §7 故障排查 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) |
-| **想贡献代码** | [CONTRIBUTING.md](./CONTRIBUTING.md) | [SECURITY.md](./SECURITY.md) / [.github/](./.github/) 模板 |
+| 读者                  | 先读这个                                                 | 再看这个                                                                                                                                                                                                            |
+| --------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **新接手**            | [HANDOVER.md](./HANDOVER.md)                             | [AGENTS.md](./AGENTS.md) → [ARCHITECTURE.md](./ARCHITECTURE.md)                                                                                                                                                     |
+| **找 bug / 定位问题** | [ARCHITECTURE.md §11](./ARCHITECTURE.md)（敏感区速查表） | [docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md) → [docs/debugging.md](./docs/debugging.md)                                                                                                                           |
+| **查技术决策**        | [.opencode/PROFILE.md](./.opencode/PROFILE.md)           | [ARCHITECTURE.md](./ARCHITECTURE.md)                                                                                                                                                                                |
+| **改 CJK 边界**       | [docs/cjk-boundary.md](./docs/cjk-boundary.md)           | [src/components/Editor/tiptap/markdown/parser.ts](./src/components/Editor/tiptap/markdown/parser.ts) / [src/components/Editor/tiptap/markdown/serializer.ts](./src/components/Editor/tiptap/markdown/serializer.ts) |
+| **发新版本**          | [docs/PLAYBOOK.md](./docs/PLAYBOOK.md)                   | [RELEASE_PROCESS.md](./RELEASE_PROCESS.md) → [.github/workflows/release.yml](./.github/workflows/release.yml)                                                                                                       |
+| **编译不通过**        | [BUILD_GUIDE.md](./BUILD_GUIDE.md) §7 故障排查           | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)                                                                                                                                                                          |
+| **想贡献代码**        | [CONTRIBUTING.md](./CONTRIBUTING.md)                     | [SECURITY.md](./SECURITY.md) / [.github/](./.github/) 模板                                                                                                                                                          |
 
 ### 快速链接
 
@@ -112,9 +124,10 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 > 完整待办清单见 [docs/KNOWN-ISSUES.md §二](./docs/KNOWN-ISSUES.md)（真理源），本文不复述。
 > agent 接手时请优先查看该清单，可主动认领修复。
 
-当前待办（2026-08-04 统计）：
+当前待办（2026-08-14 更新）：
 
-- **打开含 Mermaid 的文档，未作任何修改却显示「未保存」**：`onUpdate` 无条件 `markUserEdit()`，加载时的 `forceCheck` 与 Mermaid 异步 NodeView 渲染叠加产生非 `preventUpdate` transaction 触发误标脏。详情见 [KNOWN-ISSUES.md §二 #4](./docs/KNOWN-ISSUES.md)。
+- **（已修复）打开含 Mermaid 的文档，未作任何修改却显示「未保存」**：交互门控方案已落地（2026-08-14），`onUpdate` 改为只有用户真实交互过才标脏，免疫插件后台事务。详情见 [KNOWN-ISSUES.md §二 #4](./docs/KNOWN-ISSUES.md)。
+- **字体 @font-face 优化的 prod CSP 验证**：CSS @font-face + asset URL 方案已落地（2026-08-14），有 `readFontBytes` fallback 兜底，但 prod CSP 验证待发版时做。
 
 ## 历史经验沉淀
 
@@ -150,8 +163,19 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
   1. **v1.2.36**：修了主题切换残留黑块（NodeView 登记遍历重渲）+ subgraph 标题不可见（themeVariables）+ 放大 lightbox + 清除按钮可见性。但这些都是 dev 能复现的问题，**没碰 prod 黑块的根因**。
   2. **v1.2.37**：修了 `manualChunks` 用 `id.includes('mermaid')` 强制合并 mermaid 内部懒加载 chunk 的问题——这是真问题（打坏 mermaid 11 的 `await import()` 链路），**但不是 prod 黑块的根因**。dev 正常 prod 黑依旧。
   3. **v1.2.38 才修对真正根因**：Tauri 在 `tauri build` 时自动往 CSP 的 `style-src` 注入随机 nonce。按浏览器规范，一旦 `style-src` 含 nonce，`'unsafe-inline'` 被忽略。mermaid `render()` 时通过 innerHTML 注入 `<style>` 到 SVG，没带 nonce → 被 CSP 静默拦截 → 所有形状回退到黑色填充。
-  **为什么三版才修对**：① **Tauri dev 不附加 CSP，prod 才附加**——`tauri dev` 走 localhost 不附加 CSP，`tauri build` 走 `tauri://localhost` 才附加含 nonce 的 CSP。所以 dev 永远验证不了 CSP 问题，这是"dev 正常 prod 黑"的根本机制。② **又在猜原因而非看报错**——1.2.37 修 manualChunks 是基于"chunk 加载失败"的推测，没在 prod 开 DevTools 看 Console。CSP 违规会有明确报错，看了直接就能定位。AGENTS.md 已有"连续两版都没修对因为都在猜"的教训（字体问题），本次又犯一次。
-  **教训**：① **CSP 相关问题不能用 `tauri dev` 验证**，必须 `tauri build` 后跑真实 release 二进制。② **任何"运行时 innerHTML 注入 `<style>`"的库**（mermaid/lit/KaTeX 等）在 Tauri prod 下都会踩 CSP nonce 的坑，解法是 `dangerousDisableAssetCspModification: ["style-src"]`（`script-src` 的 nonce 保留，XSS 防护不降级）。③ **prod-only 问题必须在 prod 开 DevTools 看真实报错**，不能靠猜。证据：frenetik.mdlite PR #68（完全相同现象）+ Tauri 官方 issue #3831（lit 库同类问题，促成了 `dangerousDisableAssetCspModification` 选项）+ Tauri CSP 文档。
+     **为什么三版才修对**：① **Tauri dev 不附加 CSP，prod 才附加**——`tauri dev` 走 localhost 不附加 CSP，`tauri build` 走 `tauri://localhost` 才附加含 nonce 的 CSP。所以 dev 永远验证不了 CSP 问题，这是"dev 正常 prod 黑"的根本机制。② **又在猜原因而非看报错**——1.2.37 修 manualChunks 是基于"chunk 加载失败"的推测，没在 prod 开 DevTools 看 Console。CSP 违规会有明确报错，看了直接就能定位。AGENTS.md 已有"连续两版都没修对因为都在猜"的教训（字体问题），本次又犯一次。
+     **教训**：① **CSP 相关问题不能用 `tauri dev` 验证**，必须 `tauri build` 后跑真实 release 二进制。② **任何"运行时 innerHTML 注入 `<style>`"的库**（mermaid/lit/KaTeX 等）在 Tauri prod 下都会踩 CSP nonce 的坑，解法是 `dangerousDisableAssetCspModification: ["style-src"]`（`script-src` 的 nonce 保留，XSS 防护不降级）。③ **prod-only 问题必须在 prod 开 DevTools 看真实报错**，不能靠猜。证据：frenetik.mdlite PR #68（完全相同现象）+ Tauri 官方 issue #3831（lit 库同类问题，促成了 `dangerousDisableAssetCspModification` 选项）+ Tauri CSP 文档。
+- **性能优化批量修复（2026-08-14）**：对照两轮排查出的 12 项性能问题清单逐项落地，9 项已修复、3 项经评估跳过。完整方案见 `.dumate/inbox/性能优化修复方案.md`。
+  1. **#1 Mermaid 误标脏 → 交互门控**：`onUpdate` 里 `markUserEdit()` 无条件标脏，Mermaid 异步渲染等插件后台事务触发误标。修复：文档加载/切换时武装门控（`userInteracted = false`），capture 阶段监听 keydown/pointerdown/beforeinput/compositionstart，首个用户事件放行后才允许标脏。**教训**：不去纠结后台事务从哪来，换个判定标准（用户是否真实交互过）更彻底——对触发源免疫，不依赖定位那个"幽灵事务"。KNOWN-ISSUES 给的修法①（判断 preventUpdate meta）无效，因为 TipTap 在 emit update 之前已过滤掉带 preventUpdate 的事务，`onUpdate` 回调里拿到的事务必然不带 preventUpdate。
+  2. **#2 Rust 同步命令阻塞 → async + spawn_blocking**：9 个同步命令（open/save/rename/import/clipboard/authorize/resolve）全在 Tauri 主线程跑，大文件 IO 卡死 UI。修复：全部改 `async fn`，IO 逻辑进 `tauri::async_runtime::spawn_blocking`，校验逻辑（trim/非法字符/stem 剥离/parse_data_url）留主线程，9 个测试改 `#[tokio::test]`。**教训**：Tauri 同步命令跑在主线程，异步命令才跑在 tokio 线程池——大文件读写必须异步化；`generate_handler!` 和 `commands/mod.rs` re-export 不用改（函数名不变，Tauri 自动识别 async）。
+  3. **#3 markdown-input 双扫 → WeakMap 缓存**：`view.update` 和 `appendTransaction` 各调一次 `scanHeadings`（全树 `descendants`），同一 doc 扫两遍。修复：`WeakMap<PMNode, Result>` 缓存，`findPendingHeading` 委托 `scanHeadings(doc).pendingHeading` 共享缓存。**教训**：ProseMirror doc 是不可变的，doc 引用没变 = 内容没变，WeakMap 缓存绝对安全——这跟大纲的 `WeakMap<EditorState>` 缓存是同一个成熟套路。
+  4. **#4 远程图片 base64 往返 → Rust 落盘 + asset URL**：`fetch_remote_image` 下载后 base64 编码走 IPC，前端 `atob` 逐字符解码建 Blob，10MB 图片来回搬 ~23MB。修复：Rust 下载后写入 `$APPLOCALDATA/remote-image-cache/{url_hash}.{ext}`，`allow_file` 授权 scope，只回传路径；前端 `toAssetUrl(filePath)` 转 asset URL；`tauri.conf.json` scope 加 `"$APPLOCALDATA/remote-image-cache/*"`；`mime_to_extension` 改 `pub(crate)` 供 `image.rs` 复用。**教训**：IPC 是窄门，大块二进制数据应落盘后传路径让浏览器内核自己读，不要走 IPC 传字节。
+  5. **#5 字体 IPC 传字节 → CSS @font-face + asset URL**：`readFontBytes` 走 IPC 传 8-15MB 字体字节，前端 `new FontFace` 加载。修复：新增 `registerFontViaCss(family, cachedPath)` 注入 `<style>@font-face{src:url(assetUrl)}`，`readCache` 优先走此路径，失败回退 `readFontBytes`。**教训**：CSS `@font-face` 的 `url()` 不走 CORS（W3C 标准，v1.2.33 血泪教训）；FontFace API 强制走 CORS，Tauri asset protocol 不返回 CORS 头所以必败。字体有"连修四版才修对"历史，必须保留 fallback + prod 验证 CSP。
+  6. **#6 resolve_image_display 无缓存 → Map 缓存**：每张本地图片每次渲染都重新 IPC + canonicalize + metadata + allow_file。修复：前端 `Map<string, string>` 缓存，key 为 `${src}|${docPath}|${storagePath}`，文件切换和 storagePath 变化分别 watch 清空。**教训**：`allow_file` 幂等无害，缓存只省 IPC 往返和磁盘校验；缓存失效条件要拆成独立 watch（文件切换 / 存储路径变化），而非合并成一个——虽然合并写法更短，但两个 watch 各司其职更清晰。
+  7. **#7 字数统计全文拷贝 → descendants 逐节点计数**：`editor.state.doc.textContent` 拼全文大字符串 + `replace` 再生成一个。修复：`descendants` 遍历文本节点逐段 `replace(/\s+/g, '').length` 累加。**教训**：不要为了统计生成全文大字符串——遍历文本节点逐段处理，内存峰值从 O(全文 × 2) 降到 O(最长单节点)。
+  8. **#8 OutlinePanel scroll-spy O(n) → 二分查找**：每帧 `for` 循环遍历所有标题做 `getBoundingClientRect`。修复：二分查找（标题按文档序排列，`top` 单调），O(n) → O(log n)。**教训**：有序数据用二分是基本功——`getBoundingClientRect` 触发样式计算，调用次数从每帧 n 次降到 log n 次。
+  9. **#9 releaseRemoteImageBlobs 未接线 → onBeforeUnmount 调用**：函数定义并导出但从未被调用。修复：`onBeforeUnmount` 里加一行 `releaseRemoteImageBlobs()`。**教训**：定义了清理函数就要接线，否则等于没写——好在有 50MB LRU 上限兜底不是无界泄漏。
+  10. **#10/#11/#12 跳过**：① lowlight 17 种语言静态注册——需先量化首包占比再决定；② 焦点模式 decoration 重建——`forEach` 只遍历顶层块开销极小，改造插件结构风险大于收益；③ `findCommandByShortcut` 线性查找——几十条命令微秒级开销可忽略。**教训**：不是所有"理论缺陷"都值得修——开销极小的路径优化不如把精力花在高频高开销的路径上；遵循「不过度优化」纪律，先量化再决定。
 
 ## 沟通风格
 

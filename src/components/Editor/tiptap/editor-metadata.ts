@@ -13,8 +13,15 @@ export interface EditorCursorInfo {
 }
 
 export function getEditorWordCount(editor: TiptapEditor): number {
-  const text = editor.state.doc.textContent;
-  return text.replace(/\s+/g, '').length;
+  let count = 0;
+  editor.state.doc.descendants((node) => {
+    if (node.isText) {
+      count += (node.text ?? '').replace(/\s+/g, '').length;
+      return false;
+    }
+    return true;
+  });
+  return count;
 }
 
 // ── 大纲缓存 keyed by EditorState 引用 ──

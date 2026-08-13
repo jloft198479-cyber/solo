@@ -143,9 +143,7 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
         return { composing: false, forceCheck: false, suppressUntil: 0 };
       },
       apply(tr, value) {
-        const meta = tr.getMeta(markdownInputPluginKey) as
-          | Partial<MarkdownInputState>
-          | undefined;
+        const meta = tr.getMeta(markdownInputPluginKey) as Partial<MarkdownInputState> | undefined;
         if (!meta) {
           return { ...value, forceCheck: false };
         }
@@ -375,10 +373,7 @@ function findPendingInlineMark(state: EditorState): InlineMatch | null {
   return null;
 }
 
-export function convertPendingInlineMarks(
-  tr: Transaction,
-  state: EditorState,
-): Transaction | null {
+export function convertPendingInlineMarks(tr: Transaction, state: EditorState): Transaction | null {
   const { selection } = state;
   const { $cursor } = selection as TextSelection;
   if (!$cursor) return null;
@@ -456,10 +451,22 @@ export function convertPendingLink(tr: Transaction, state: EditorState): Transac
  * 合并原 findPendingHeading + revertEmptyHeading 的两次全量 descendants 遍历。
  * 优先级：空 heading 优先（先恢复再转换，避免互踩）。
  */
+// doc 级扫描缓存：doc 引用不变即内容不变，WeakMap 不阻止 doc 被 GC
+const _scanCache = new WeakMap<
+  PMNode,
+  {
+    emptyHeading: { pos: number; level: number } | null;
+    pendingHeading: PendingHeading | null;
+  }
+>();
+
 function scanHeadings(doc: PMNode): {
   emptyHeading: { pos: number; level: number } | null;
   pendingHeading: PendingHeading | null;
 } {
+  const cached = _scanCache.get(doc);
+  if (cached) return cached;
+
   let emptyHeading: { pos: number; level: number } | null = null;
   let pendingHeading: PendingHeading | null = null;
 
@@ -489,7 +496,9 @@ function scanHeadings(doc: PMNode): {
     return true;
   });
 
-  return { emptyHeading, pendingHeading };
+  const result = { emptyHeading, pendingHeading };
+  _scanCache.set(doc, result);
+  return result;
 }
 
 /**
@@ -528,10 +537,7 @@ export function convertPendingHeading(
   if (pending === undefined) {
     pending = findPendingHeading(doc);
   }
-  if (
-    !pending ||
-    !HEADING_LEVELS.includes(pending.level as (typeof HEADING_LEVELS)[number])
-  ) {
+  if (!pending || !HEADING_LEVELS.includes(pending.level as (typeof HEADING_LEVELS)[number])) {
     return null;
   }
 

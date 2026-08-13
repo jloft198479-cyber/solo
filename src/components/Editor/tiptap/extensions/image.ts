@@ -179,7 +179,10 @@ function runWithRemoteImageConcurrency<T>(task: () => Promise<T>): Promise<T> {
 function getRemoteImageFetcher(): RemoteImageFetcher {
   remoteImageFetcher ??= async (src: string) => {
     const { fetchRemoteImageData } = await import('../../../../services/tauri/document');
-    return fetchRemoteImageData(src);
+    const { toAssetUrl } = await import('../../../../services/tauri/asset');
+    // Rust 侧落盘后返回文件路径，前端转成 asset URL 直接显示
+    const filePath = await fetchRemoteImageData(src);
+    return toAssetUrl(filePath);
   };
   return remoteImageFetcher;
 }
@@ -256,7 +259,9 @@ function extractPathFromAssetUrl(assetUrl: string): string | null {
     let path = decodeURIComponent(url.pathname);
     if (/^\/[A-Za-z]:\//.test(path)) path = path.slice(1);
     return path || null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 /** 判断是否为本地相对路径（非 http/data/blob/asset/绝对路径） */
@@ -404,9 +409,9 @@ export const CustomImage = Image.extend({
 
         const current = getAttrs();
         if (
-          parsed.src === current.src
-          && parsed.alt === current.alt
-          && parsed.title === current.title
+          parsed.src === current.src &&
+          parsed.alt === current.alt &&
+          parsed.title === current.title
         ) {
           syncView();
           return;
@@ -511,12 +516,10 @@ export const CustomImage = Image.extend({
         },
         ignoreMutation(mutation: MutationRecord | { type: 'selection'; target: Node }) {
           return (
-            mutation.target instanceof Node
-            && (
-              mutation.target === dom
-              || sourceText.contains(mutation.target)
-              || image.contains(mutation.target)
-            )
+            mutation.target instanceof Node &&
+            (mutation.target === dom ||
+              sourceText.contains(mutation.target) ||
+              image.contains(mutation.target))
           );
         },
       };

@@ -16,9 +16,15 @@ use tauri::{AppHandle, Manager};
 const IMAGE_EXTENSIONS: [&str; 8] = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
 
 #[tauri::command]
-pub fn open_document(path: String) -> Result<DocumentOpenResult, AppError> {
-    let content = fs::read_to_string(&path)?;
-    let last_modified_ms = read_modified_time_ms(Path::new(&path))?;
+pub async fn open_document(path: String) -> Result<DocumentOpenResult, AppError> {
+    let path_for_io = path.clone();
+    let (content, last_modified_ms) = tauri::async_runtime::spawn_blocking(move || {
+        let content = fs::read_to_string(&path_for_io)?;
+        let last_modified_ms = read_modified_time_ms(Path::new(&path_for_io))?;
+        Ok::<_, AppError>((content, last_modified_ms))
+    })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))??;
 
     Ok(DocumentOpenResult {
         path,
@@ -28,27 +34,33 @@ pub fn open_document(path: String) -> Result<DocumentOpenResult, AppError> {
 }
 
 #[tauri::command]
-pub fn save_document(
+pub async fn save_document(
     path: String,
     content: String,
     expected_last_modified_ms: Option<u64>,
     force: bool,
 ) -> Result<DocumentSaveResult, AppError> {
-    let path_ref = Path::new(&path);
-    if !force {
-        if let Some(expected) = expected_last_modified_ms {
-            if let Ok(current_modified) = read_modified_time_ms(path_ref) {
-                if current_modified != expected {
-                    return Err(AppError::conflict(
-                        "文件已被外部修改，请重新加载或选择强制覆盖",
-                    ));
+    // 冲突检查也涉及 metadata IO，一并放进 spawn_blocking
+    let path_for_io = path.clone();
+    let last_modified_ms = tauri::async_runtime::spawn_blocking(move || {
+        let path_ref = Path::new(&path_for_io);
+        if !force {
+            if let Some(expected) = expected_last_modified_ms {
+                if let Ok(current_modified) = read_modified_time_ms(path_ref) {
+                    if current_modified != expected {
+                        return Err(AppError::conflict(
+                            "文件已被外部修改，请重新加载或选择强制覆盖",
+                        ));
+                    }
                 }
             }
         }
-    }
 
-    atomic_write(path_ref, content.as_bytes())?;
-    let last_modified_ms = read_modified_time_ms(path_ref)?;
+        atomic_write(path_ref, content.as_bytes())?;
+        read_modified_time_ms(path_ref)
+    })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))??;
 
     Ok(DocumentSaveResult {
         path,
@@ -57,7 +69,7 @@ pub fn save_document(
 }
 
 #[tauri::command]
-pub fn rename_file(old_path: String, new_name: String) -> Result<DocumentRenameResult, AppError> {
+pub async fn rename_file(old_path: String, new_name: String) -> Result<DocumentRenameResult, AppError> {
     let trimmed = new_name.trim();
     if trimmed.is_empty() {
         return Err(AppError::validation("文件名不能为空"));
@@ -68,100 +80,107 @@ pub fn rename_file(old_path: String, new_name: String) -> Result<DocumentRenameR
         return Err(AppError::validation("文件名包含非法字符"));
     }
 
-    let old_path_ref = Path::new(&old_path);
-    if !old_path_ref.exists() {
-        return Err(AppError::validation("原文件不存在"));
-    }
-
-    let extension = old_path_ref
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .ok_or_else(|| AppError::validation("无法识别文件扩展名"))?;
-
-    let parent = old_path_ref
-        .parent()
-        .ok_or_else(|| AppError::validation("无法获取父目录"))?;
-
-    // 去掉用户可能自己加的 .md 后缀
+    // 去掉用户可能自己加的 .md 后缀（纯字符串操作，无需 IO，留在 spawn_blocking 外）
     let stem = trimmed
         .strip_suffix(".md")
         .or_else(|| trimmed.strip_suffix(".markdown"))
         .or_else(|| trimmed.strip_suffix(".txt"))
-        .unwrap_or(trimmed);
-
-    let new_filename = format!("{}.{}", stem, extension);
-    let new_path = parent.join(&new_filename);
-
-    // 目标已存在且不是同一文件 → 冲突
-    if new_path.exists() {
-        let same = old_path_ref.canonicalize().ok()
-            == new_path.canonicalize().ok();
-        if !same {
-            return Err(AppError::conflict("目标文件已存在"));
-        }
-        // 同一文件（如仅大小写变化）→ 无需操作
-        return Ok(DocumentRenameResult {
-            path: new_path.to_string_lossy().to_string(),
-        });
-    }
-
-    fs::rename(old_path_ref, &new_path)?;
-
-    let new_path_str = new_path
-        .to_str()
-        .ok_or_else(|| AppError::validation("路径包含非法字符"))?
+        .unwrap_or(trimmed)
         .to_string();
+
+    let new_path_str = tauri::async_runtime::spawn_blocking(move || -> Result<String, AppError> {
+        let old_path_ref = Path::new(&old_path);
+        if !old_path_ref.exists() {
+            return Err(AppError::validation("原文件不存在"));
+        }
+
+        let extension = old_path_ref
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .ok_or_else(|| AppError::validation("无法识别文件扩展名"))?;
+
+        let parent = old_path_ref
+            .parent()
+            .ok_or_else(|| AppError::validation("无法获取父目录"))?;
+
+        let new_filename = format!("{}.{}", stem, extension);
+        let new_path = parent.join(&new_filename);
+
+        // 目标已存在且不是同一文件 → 冲突
+        if new_path.exists() {
+            let same = old_path_ref.canonicalize().ok()
+                == new_path.canonicalize().ok();
+            if !same {
+                return Err(AppError::conflict("目标文件已存在"));
+            }
+            // 同一文件（如仅大小写变化）→ 无需操作
+            return Ok(new_path.to_string_lossy().to_string());
+        }
+
+        fs::rename(old_path_ref, &new_path)?;
+
+        Ok(new_path
+            .to_str()
+            .ok_or_else(|| AppError::validation("路径包含非法字符"))?
+            .to_string())
+    })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))??;
 
     Ok(DocumentRenameResult { path: new_path_str })
 }
 
 #[tauri::command]
-pub fn import_document_image(
+pub async fn import_document_image(
     source_path: String,
     document_path: String,
     storage_dir: Option<String>,
 ) -> Result<DocumentImageImportResult, AppError> {
-    let source = Path::new(&source_path);
-    let filename = source
-        .file_name()
-        .and_then(|name| name.to_str())
-        .ok_or_else(|| AppError::validation("无法解析图片文件名"))?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let source = Path::new(&source_path);
+        let filename = source
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| AppError::validation("无法解析图片文件名"))?;
 
-    let target_dir = if let Some(ref dir) = storage_dir {
-        Path::new(dir).to_path_buf()
-    } else {
-        let document_dir = Path::new(&document_path)
-            .parent()
-            .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
-        document_dir.join("assets")
-    };
+        let target_dir = if let Some(ref dir) = storage_dir {
+            Path::new(dir).to_path_buf()
+        } else {
+            let document_dir = Path::new(&document_path)
+                .parent()
+                .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
+            document_dir.join("assets")
+        };
 
-    if !target_dir.exists() {
-        fs::create_dir_all(&target_dir)?;
-    }
+        if !target_dir.exists() {
+            fs::create_dir_all(&target_dir)?;
+        }
 
-    let (target_path, target_filename) = unique_asset_target(&target_dir, filename);
-    fs::copy(source, &target_path)?;
-    let absolute_path = target_path
-        .to_str()
-        .ok_or_else(|| AppError::validation("无法解析图片路径"))?
-        .to_string();
+        let (target_path, target_filename) = unique_asset_target(&target_dir, filename);
+        fs::copy(source, &target_path)?;
+        let absolute_path = target_path
+            .to_str()
+            .ok_or_else(|| AppError::validation("无法解析图片路径"))?
+            .to_string();
 
-    // 有自定义路径时只用文件名（前端用 asset://），否则用 assets/ 相对路径
-    let relative_path = if storage_dir.is_some() {
-        target_filename.clone()
-    } else {
-        format!("assets/{}", target_filename)
-    };
+        // 有自定义路径时只用文件名（前端用 asset://），否则用 assets/ 相对路径
+        let relative_path = if storage_dir.is_some() {
+            target_filename.clone()
+        } else {
+            format!("assets/{}", target_filename)
+        };
 
-    Ok(DocumentImageImportResult {
-        relative_path,
-        absolute_path,
+        Ok(DocumentImageImportResult {
+            relative_path,
+            absolute_path,
+        })
     })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?
 }
 
 /// MIME 类型 → 文件扩展名映射
-fn mime_to_extension(mime: &str) -> &'static str {
+pub(crate) fn mime_to_extension(mime: &str) -> &'static str {
     match mime {
         "image/png" => "png",
         "image/jpeg" | "image/jpg" => "jpg",
@@ -176,63 +195,66 @@ fn mime_to_extension(mime: &str) -> &'static str {
 
 /// 从 data URL 解码图片并保存到 assets 目录
 #[tauri::command]
-pub fn save_clipboard_image(
+pub async fn save_clipboard_image(
     data_url: String,
     document_path: Option<String>,
     storage_dir: Option<String>,
 ) -> Result<DocumentImageImportResult, AppError> {
-    // 解析 data URL: data:image/png;base64,iVBOR...
+    // 解析 data URL: data:image/png;base64,iVBOR...（纯字符串解析，不阻塞）
     let (mime_type, base64_data) = parse_data_url(&data_url)?;
-
     let ext = mime_to_extension(&mime_type);
 
-    let target_dir = if let Some(ref dir) = storage_dir {
-        Path::new(dir).to_path_buf()
-    } else if let Some(ref doc_path) = document_path {
-        let document_dir = Path::new(doc_path)
-            .parent()
-            .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
-        document_dir.join("assets")
-    } else {
-        return Err(AppError::validation("请先保存文档，或设置图片存储位置"));
-    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let target_dir = if let Some(ref dir) = storage_dir {
+            Path::new(dir).to_path_buf()
+        } else if let Some(ref doc_path) = document_path {
+            let document_dir = Path::new(doc_path)
+                .parent()
+                .ok_or_else(|| AppError::validation("无法获取文档目录"))?;
+            document_dir.join("assets")
+        } else {
+            return Err(AppError::validation("请先保存文档，或设置图片存储位置"));
+        };
 
-    if !target_dir.exists() {
-        fs::create_dir_all(&target_dir)?;
-    }
+        if !target_dir.exists() {
+            fs::create_dir_all(&target_dir)?;
+        }
 
-    // 生成唯一文件名：Pasted image {毫秒时间戳}.ext
-    let timestamp_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let base_name = format!("Pasted image {}", timestamp_ms);
-    let filename = format!("{}.{}", base_name, ext);
+        // 生成唯一文件名：Pasted image {毫秒时间戳}.ext
+        let timestamp_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let base_name = format!("Pasted image {}", timestamp_ms);
+        let filename = format!("{}.{}", base_name, ext);
 
-    let (target_path, target_filename) = unique_asset_target(&target_dir, &filename);
+        let (target_path, target_filename) = unique_asset_target(&target_dir, &filename);
 
-    let decoded = general_purpose::STANDARD
-        .decode(base64_data.as_bytes())
-        .map_err(|_| AppError::validation("图片数据解码失败"))?;
+        let decoded = general_purpose::STANDARD
+            .decode(base64_data.as_bytes())
+            .map_err(|_| AppError::validation("图片数据解码失败"))?;
 
-    fs::write(&target_path, decoded)?;
+        fs::write(&target_path, decoded)?;
 
-    let absolute_path = target_path
-        .to_str()
-        .ok_or_else(|| AppError::validation("无法解析图片路径"))?
-        .to_string();
+        let absolute_path = target_path
+            .to_str()
+            .ok_or_else(|| AppError::validation("无法解析图片路径"))?
+            .to_string();
 
-    // 有自定义路径时只用文件名（前端用 asset://），否则用 assets/ 相对路径
-    let relative_path = if storage_dir.is_some() {
-        target_filename.clone()
-    } else {
-        format!("assets/{}", target_filename)
-    };
+        // 有自定义路径时只用文件名（前端用 asset://），否则用 assets/ 相对路径
+        let relative_path = if storage_dir.is_some() {
+            target_filename.clone()
+        } else {
+            format!("assets/{}", target_filename)
+        };
 
-    Ok(DocumentImageImportResult {
-        relative_path,
-        absolute_path,
+        Ok(DocumentImageImportResult {
+            relative_path,
+            absolute_path,
+        })
     })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?
 }
 
 /// 解析 data URL，返回 (MIME 类型, base64 数据)
@@ -262,11 +284,12 @@ fn parse_data_url(data_url: &str) -> Result<(String, String), AppError> {
 }
 
 #[tauri::command]
-pub fn authorize_image_asset(
+pub async fn authorize_image_asset(
     app: AppHandle,
     path: String,
     document_path: Option<String>,
 ) -> Result<ImageAssetAuthorizationResult, AppError> {
+    // 纯路径拼接，不阻塞
     let resolved = if let Some(doc_path) = document_path {
         let doc_dir = Path::new(&doc_path)
             .parent()
@@ -275,7 +298,15 @@ pub fn authorize_image_asset(
     } else {
         PathBuf::from(&path)
     };
-    let canonical_path = validate_image_asset_path(&resolved)?;
+
+    // canonicalize + metadata IO 丢进后台线程
+    let canonical_path = tauri::async_runtime::spawn_blocking(move || {
+        validate_image_asset_path(&resolved)
+    })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))??;
+
+    // scope 管理不阻塞，留在主线程
     app.asset_protocol_scope().allow_file(&canonical_path)?;
 
     Ok(ImageAssetAuthorizationResult {
@@ -297,30 +328,39 @@ pub fn authorize_image_asset(
 /// 4. 否则若有 document_path → join 到文档目录
 /// 5. 都没有 → 当作绝对路径
 #[tauri::command]
-pub fn resolve_image_display(
+pub async fn resolve_image_display(
     app: AppHandle,
     src: String,
     document_path: Option<String>,
     storage_dir: Option<String>,
 ) -> Result<ImageAssetAuthorizationResult, AppError> {
+    // 纯路径解析，不阻塞
     let (resolved, is_absolute, base_dir) =
         resolve_image_src(&src, document_path.as_deref(), storage_dir.as_deref())?;
 
-    let canonical_path = validate_image_asset_path(&resolved)?;
+    // canonicalize + metadata + containment check 丢进后台线程
+    let canonical_path = tauri::async_runtime::spawn_blocking(move || -> Result<PathBuf, AppError> {
+        let canonical_path = validate_image_asset_path(&resolved)?;
 
-    // 相对路径必须落在基目录之内（防 ../../secret.png 越权）
-    // 绝对路径放行——solo 是本地编辑器，用户有权引用 D:/photos/cat.png 这类外部图片
-    if !is_absolute {
-        if let Some(ref base) = base_dir {
-            let base_canonical = base.canonicalize().ok();
-            if let Some(ref base_canonical) = base_canonical {
-                if !canonical_path.starts_with(base_canonical) {
-                    return Err(AppError::validation("图片路径越权：不允许引用文档目录之外的相对路径"));
+        // 相对路径必须落在基目录之内（防 ../../secret.png 越权）
+        // 绝对路径放行——solo 是本地编辑器，用户有权引用 D:/photos/cat.png 这类外部图片
+        if !is_absolute {
+            if let Some(ref base) = base_dir {
+                let base_canonical = base.canonicalize().ok();
+                if let Some(ref base_canonical) = base_canonical {
+                    if !canonical_path.starts_with(base_canonical) {
+                        return Err(AppError::validation("图片路径越权：不允许引用文档目录之外的相对路径"));
+                    }
                 }
             }
         }
-    }
 
+        Ok(canonical_path)
+    })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))??;
+
+    // scope 管理不阻塞，留在主线程
     app.asset_protocol_scope().allow_file(&canonical_path)?;
 
     Ok(ImageAssetAuthorizationResult {
@@ -507,13 +547,13 @@ mod tests {
         dir
     }
 
-    #[test]
-    fn open_document_returns_content_and_mtime() {
+    #[tokio::test]
+    async fn open_document_returns_content_and_mtime() {
         let dir = test_dir();
         let path = dir.join("demo.md");
         atomic_write(&path, b"# demo").unwrap();
 
-        let result = open_document(path.to_string_lossy().to_string()).unwrap();
+        let result = open_document(path.to_string_lossy().to_string()).await.unwrap();
 
         assert_eq!(result.content, "# demo");
         assert!(result.last_modified_ms > 0);
@@ -521,12 +561,12 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
-    #[test]
-    fn save_document_reports_conflicts() {
+    #[tokio::test]
+    async fn save_document_reports_conflicts() {
         let dir = test_dir();
         let path = dir.join("demo.md");
         atomic_write(&path, b"first").unwrap();
-        let opened = open_document(path.to_string_lossy().to_string()).unwrap();
+        let opened = open_document(path.to_string_lossy().to_string()).await.unwrap();
         thread::sleep(Duration::from_millis(5));
         atomic_write(&path, b"second").unwrap();
 
@@ -536,6 +576,7 @@ mod tests {
             Some(opened.last_modified_ms),
             false,
         )
+        .await
         .unwrap_err();
 
         match error {
@@ -546,8 +587,8 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
-    #[test]
-    fn import_document_image_does_not_overwrite_existing_asset() {
+    #[tokio::test]
+    async fn import_document_image_does_not_overwrite_existing_asset() {
         let dir = test_dir();
         let document_path = dir.join("demo.md");
         let source_dir = dir.join("source");
@@ -564,6 +605,7 @@ mod tests {
             document_path.to_string_lossy().to_string(),
             None,
         )
+        .await
         .unwrap();
 
         assert_eq!(imported.relative_path, "assets/cover-1.png");
@@ -602,12 +644,12 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
-    #[test]
-    fn save_document_force_skips_conflict_check() {
+    #[tokio::test]
+    async fn save_document_force_skips_conflict_check() {
         let dir = test_dir();
         let path = dir.join("force.md");
         atomic_write(&path, b"original").unwrap();
-        let opened = open_document(path.to_string_lossy().to_string()).unwrap();
+        let opened = open_document(path.to_string_lossy().to_string()).await.unwrap();
 
         // externally modify file
         thread::sleep(Duration::from_millis(5));
@@ -620,6 +662,7 @@ mod tests {
             Some(opened.last_modified_ms),
             true,
         )
+        .await
         .unwrap();
 
         assert_eq!(result.path, opened.path);
@@ -627,8 +670,8 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
-    #[test]
-    fn save_document_creates_parent_directory() {
+    #[tokio::test]
+    async fn save_document_creates_parent_directory() {
         let dir = test_dir();
         let nested = dir.join("sub").join("new.md");
         let result = save_document(
@@ -637,6 +680,7 @@ mod tests {
             None,
             true,
         )
+        .await
         .unwrap();
 
         assert!(nested.exists());
@@ -646,13 +690,13 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
-    #[test]
-    fn rename_file_rejects_empty_name() {
+    #[tokio::test]
+    async fn rename_file_rejects_empty_name() {
         let dir = test_dir();
         let path = dir.join("old.md");
         atomic_write(&path, b"content").unwrap();
 
-        let err = rename_file(path.to_string_lossy().to_string(), "  ".into()).unwrap_err();
+        let err = rename_file(path.to_string_lossy().to_string(), "  ".into()).await.unwrap_err();
         match err {
             AppError::Validation(msg) => assert_eq!(msg, "文件名不能为空"),
             _ => panic!("expected validation error"),
@@ -661,13 +705,13 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
-    #[test]
-    fn rename_file_rejects_illegal_chars() {
+    #[tokio::test]
+    async fn rename_file_rejects_illegal_chars() {
         let dir = test_dir();
         let path = dir.join("old.md");
         atomic_write(&path, b"content").unwrap();
 
-        let err = rename_file(path.to_string_lossy().to_string(), "a/b".into()).unwrap_err();
+        let err = rename_file(path.to_string_lossy().to_string(), "a/b".into()).await.unwrap_err();
         match err {
             AppError::Validation(msg) => assert_eq!(msg, "文件名包含非法字符"),
             _ => panic!("expected validation error"),
@@ -676,13 +720,13 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
-    #[test]
-    fn rename_file_strips_md_extension_from_new_name() {
+    #[tokio::test]
+    async fn rename_file_strips_md_extension_from_new_name() {
         let dir = test_dir();
         let path = dir.join("old.md");
         atomic_write(&path, b"content").unwrap();
 
-        let result = rename_file(path.to_string_lossy().to_string(), "new.md".into()).unwrap();
+        let result = rename_file(path.to_string_lossy().to_string(), "new.md".into()).await.unwrap();
 
         let expected = dir.join("new.md");
         assert_eq!(result.path, expected.to_string_lossy());
@@ -691,15 +735,15 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
-    #[test]
-    fn rename_file_rejects_target_exists() {
+    #[tokio::test]
+    async fn rename_file_rejects_target_exists() {
         let dir = test_dir();
         let old = dir.join("old.md");
         let target = dir.join("target.md");
         atomic_write(&old, b"old").unwrap();
         atomic_write(&target, b"target").unwrap();
 
-        let err = rename_file(old.to_string_lossy().to_string(), "target".into()).unwrap_err();
+        let err = rename_file(old.to_string_lossy().to_string(), "target".into()).await.unwrap_err();
         match err {
             AppError::Conflict(msg) => assert_eq!(msg, "目标文件已存在"),
             _ => panic!("expected conflict error"),
@@ -708,13 +752,13 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
-    #[test]
-    fn rename_file_success() {
+    #[tokio::test]
+    async fn rename_file_success() {
         let dir = test_dir();
         let old = dir.join("old.md");
         atomic_write(&old, b"hello").unwrap();
 
-        let result = rename_file(old.to_string_lossy().to_string(), "renamed".into()).unwrap();
+        let result = rename_file(old.to_string_lossy().to_string(), "renamed".into()).await.unwrap();
 
         let expected = dir.join("renamed.md");
         assert_eq!(result.path, expected.to_string_lossy());

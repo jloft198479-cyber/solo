@@ -1,4 +1,5 @@
 import { fetchFontData, getCachedFontPath, readFontBytes } from './tauri/font';
+import { toAssetUrl } from './tauri/asset';
 import { FONT_OPTIONS } from '../constants/fonts';
 
 // 字体资源固定在独立 tag `fonts-v1` 的 release 下，与 app 版本号解耦：
@@ -46,10 +47,39 @@ async function registerFontFromBytes(family: string, bytes: BufferSource): Promi
     await face.load();
     document.fonts.add(face);
     const ok = document.fonts.check(`16px "${family}"`);
-    console.log(`[fontLoader] registerFontFromBytes: family="${family}", status="${face.status}", check=${ok}`);
+    console.log(
+      `[fontLoader] registerFontFromBytes: family="${family}", status="${face.status}", check=${ok}`,
+    );
     return ok;
   } catch (err) {
     console.error(`[fontLoader] registerFontFromBytes failed: ${family}`, err);
+    return false;
+  }
+}
+
+/**
+ * 通过 CSS @font-face 注入字体，让浏览器内核直接从磁盘读取。
+ * CSS @font-face 的 url() 不走 CORS（W3C 标准），绕开 FontFace API 的 CORS 限制。
+ * IPC 只传路径（几十字节），不传字体字节（几 MB）。
+ */
+async function registerFontViaCss(family: string, cachedPath: string): Promise<boolean> {
+  try {
+    const assetUrl = toAssetUrl(cachedPath);
+    const style = document.createElement('style');
+    style.textContent = `@font-face {
+  font-family: "${family}";
+  src: url("${assetUrl}");
+  font-display: swap;
+}`;
+    document.head.appendChild(style);
+    await document.fonts.load(`16px "${family}"`);
+    const ok = document.fonts.check(`16px "${family}"`);
+    console.log(
+      `[fontLoader] registerFontViaCss: family="${family}", assetUrl="${assetUrl}", check=${ok}`,
+    );
+    return ok;
+  } catch (err) {
+    console.error(`[fontLoader] registerFontViaCss failed: ${family}`, err);
     return false;
   }
 }
@@ -65,7 +95,17 @@ async function readCache(family: string): Promise<boolean> {
     }
 
     console.log(`[fontLoader] readCache: family="${family}", cachedPath="${cachedPath}"`);
-    // 走 IPC 取字节 → new FontFace(family, bytes) 同源加载，绕开 asset 协议 CORS 拦截
+
+    // 优先走 CSS @font-face（IPC 零字节传输，浏览器内核直接读盘）
+    if (await registerFontViaCss(family, cachedPath)) {
+      loadedFonts.add(family);
+      return true;
+    }
+
+    // fallback: 走 IPC 取字节 → new FontFace(family, bytes) 同源加载
+    console.warn(
+      `[fontLoader] readCache: CSS @font-face failed, falling back to bytes for "${family}"`,
+    );
     const bytes = await readFontBytes(family, fileName);
     if (!bytes || bytes.length === 0) {
       console.warn(`[fontLoader] readCache: readFontBytes empty for "${family}"`);
@@ -73,7 +113,8 @@ async function readCache(family: string): Promise<boolean> {
     }
     const ok = await registerFontFromBytes(family, new Uint8Array(bytes));
     if (ok) loadedFonts.add(family);
-    else console.warn(`[fontLoader] readCache: registerFontFromBytes returned false for "${family}"`);
+    else
+      console.warn(`[fontLoader] readCache: registerFontFromBytes returned false for "${family}"`);
     return ok;
   } catch (e) {
     console.warn(`[fontLoader] readCache failed: ${family}`, e);
@@ -91,7 +132,7 @@ async function downloadAndCache(family: string, fileName: string): Promise<boole
     await fetchFontData(remoteUrl, family);
     notifyProgress(family, 100);
 
-    // 下载落盘后，走 readCache 用字节通道（readFontBytes → FontFace）加载
+    // 下载落盘后，走 readCache 加载（优先 CSS @font-face，失败回退字节通道）
     const ok = await readCache(family);
     if (!ok) downloadFailures.add(family);
     notifyProgress(family, -1);
@@ -115,7 +156,10 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
     try {
       downloadFailures.delete(family);
       const fileName = REMOTE_FONTS[family];
-      if (!fileName) { loadedFonts.add(family); return true; }
+      if (!fileName) {
+        loadedFonts.add(family);
+        return true;
+      }
 
       if (await readCache(family)) return true;
 

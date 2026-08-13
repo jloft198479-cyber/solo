@@ -1,8 +1,8 @@
 <template>
-    <div
-      class="editor-shell relative h-full w-full cursor-text transition-colors"
-      @click="lazyInitEditor"
-    >
+  <div
+    class="editor-shell relative h-full w-full cursor-text transition-colors"
+    @click="lazyInitEditor"
+  >
     <div ref="editorWrapRef" class="mk-editor h-full overflow-y-auto outline-none">
       <div class="mk-editor-inner">
         <EditorContent v-if="editor" :editor="editor" />
@@ -15,63 +15,112 @@
 
     <!-- 搜索替换面板 -->
     <Transition name="search-panel" :appear="true">
-    <div v-show="isSearchVisible" class="search-panel" @keydown.escape.stop="handleSearchEscape">
-      <div class="search-row">
-        <svg class="search-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="6" cy="6" r="4.5" />
-          <line x1="9.5" y1="9.5" x2="14" y2="14" />
-        </svg>
-        <input
-          ref="searchInputRef"
-          v-model="searchQuery"
-          type="text"
-          placeholder="搜索…"
-          class="search-input"
-          spellcheck="false"
-          @input="onSearchQuery(searchQuery)"
-          @keydown.enter.exact.prevent="onSearchNext()"
-          @keydown.shift.enter.prevent="onSearchPrev()"
-        />
-        <div class="search-meta">
-          <button
-            class="search-btn-meta"
-            :class="{ active: caseSensitive }"
-            title="区分大小写"
-            @click="toggleCaseSensitive"
+      <div v-show="isSearchVisible" class="search-panel" @keydown.escape.stop="handleSearchEscape">
+        <div class="search-row">
+          <svg
+            class="search-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 15 15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
           >
-            Aa
+            <circle cx="6" cy="6" r="4.5" />
+            <line x1="9.5" y1="9.5" x2="14" y2="14" />
+          </svg>
+          <input
+            ref="searchInputRef"
+            v-model="searchQuery"
+            type="text"
+            placeholder="搜索…"
+            class="search-input"
+            spellcheck="false"
+            @input="onSearchQuery(searchQuery)"
+            @keydown.enter.exact.prevent="onSearchNext()"
+            @keydown.shift.enter.prevent="onSearchPrev()"
+          />
+          <div class="search-meta">
+            <button
+              class="search-btn-meta"
+              :class="{ active: caseSensitive }"
+              title="区分大小写"
+              @click="toggleCaseSensitive"
+            >
+              Aa
+            </button>
+            <span v-if="searchMatchCount > 0" class="search-count"
+              >{{ searchCurrentIndex }}/{{ searchMatchCount }}</span
+            >
+          </div>
+          <button class="search-btn-nav" title="上一个 (Shift+Enter)" @click="onSearchPrev()">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+              <path d="M5 2l4 6H1z" />
+            </svg>
           </button>
-          <span v-if="searchMatchCount > 0" class="search-count">{{ searchCurrentIndex }}/{{ searchMatchCount }}</span>
+          <button class="search-btn-nav" title="下一个 (Enter)" @click="onSearchNext()">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+              <path d="M1 2h8l-4 6z" />
+            </svg>
+          </button>
+          <button class="search-btn-close" title="关闭 (Esc)" @click="closeSearch()">
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 10 10"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.2"
+              stroke-linecap="round"
+            >
+              <line x1="1" y1="1" x2="9" y2="9" />
+              <line x1="9" y1="1" x2="1" y2="9" />
+            </svg>
+          </button>
         </div>
-        <button class="search-btn-nav" title="上一个 (Shift+Enter)" @click="onSearchPrev()">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 2l4 6H1z" /></svg>
-        </button>
-        <button class="search-btn-nav" title="下一个 (Enter)" @click="onSearchNext()">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M1 2h8l-4 6z" /></svg>
-        </button>
-        <button class="search-btn-close" title="关闭 (Esc)" @click="closeSearch()">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9" /><line x1="9" y1="1" x2="1" y2="9" /></svg>
-        </button>
-      </div>
 
-      <div v-if="showReplace" class="search-row search-replace-row">
-        <svg class="search-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4.5 2v10M2.5 9.5l2 2 2-2M10.5 13V3M8.5 5.5l2-2 2 2" />
-        </svg>
-        <input
-          v-model="replaceText"
-          type="text"
-          placeholder="替换为…"
-          class="search-input"
-          spellcheck="false"
-          @keydown.enter.prevent="onSearchReplace(replaceText)"
-        />
-        <div class="search-actions">
-          <button class="search-action-btn" :disabled="searchMatchCount === 0" @click="onSearchReplace(replaceText)">替换</button>
-          <button class="search-action-btn" :disabled="searchMatchCount === 0" @click="onSearchReplaceAll(replaceText)">全部替换</button>
+        <div v-if="showReplace" class="search-row search-replace-row">
+          <svg
+            class="search-icon"
+            width="14"
+            height="14"
+            viewBox="0 0 15 15"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M4.5 2v10M2.5 9.5l2 2 2-2M10.5 13V3M8.5 5.5l2-2 2 2" />
+          </svg>
+          <input
+            v-model="replaceText"
+            type="text"
+            placeholder="替换为…"
+            class="search-input"
+            spellcheck="false"
+            @keydown.enter.prevent="onSearchReplace(replaceText)"
+          />
+          <div class="search-actions">
+            <button
+              class="search-action-btn"
+              :disabled="searchMatchCount === 0"
+              @click="onSearchReplace(replaceText)"
+            >
+              替换
+            </button>
+            <button
+              class="search-action-btn"
+              :disabled="searchMatchCount === 0"
+              @click="onSearchReplaceAll(replaceText)"
+            >
+              全部替换
+            </button>
+          </div>
         </div>
       </div>
-    </div>
     </Transition>
   </div>
 </template>
@@ -95,7 +144,11 @@ import {
   runBubbleMenuAction,
   type BubbleMenuActionData,
 } from './tiptap/editor-commands';
-import { createEditorExtensions, type SlashMenuController, type EmojiMenuController } from './tiptap/editor-extensions';
+import {
+  createEditorExtensions,
+  type SlashMenuController,
+  type EmojiMenuController,
+} from './tiptap/editor-extensions';
 import {
   extractEditorOutline,
   getEditorCursorInfo,
@@ -103,7 +156,11 @@ import {
   type EditorOutlineItem,
 } from './tiptap/editor-metadata';
 import { setupEditorImageDrop } from './tiptap/editor-image-drop';
-import { resetLocalSrcResolver, setLocalSrcResolver } from './tiptap/extensions/image';
+import {
+  resetLocalSrcResolver,
+  setLocalSrcResolver,
+  releaseRemoteImageBlobs,
+} from './tiptap/extensions/image';
 import { resolveWikilinkTarget } from './tiptap/extensions/wikilink';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch, pulseJumpTarget } from './tiptap/useEditorSearch';
@@ -221,7 +278,23 @@ async function handleWikilinkNavigate(target: string) {
   emit('navigate-wikilink', resolved);
 }
 
+// ── 加载门控：文档加载后暂停标脏，直到首个真实用户交互 ──
+// 免疫一切插件后台事务（Mermaid 异步渲染 / forceCheck 等），不依赖定位触发源。
+let userInteracted = false;
+
+// ── 图片路径解析缓存：同一 src + docPath + storagePath 的解析结果不会变，缓存避免重复 IPC ──
+const resolvedImageCache = new Map<string, string>();
+
+function armInteractionGate() {
+  userInteracted = false;
+}
+
+function releaseInteractionGate() {
+  userInteracted = true;
+}
+
 function createEditor(content: string) {
+  armInteractionGate();
   if (editor.value) {
     editor.value.destroy();
   }
@@ -256,8 +329,8 @@ function createEditor(content: string) {
     },
     onUpdate: ({ editor: ed }) => {
       const t = ed as unknown as TiptapEditor;
-      // 即时标脏：用户打字后状态栏立刻显示"未保存"，不等防抖
-      fileStore.markUserEdit();
+      // 交互门控：只有用户真实交互过才标脏，免疫插件后台事务（Mermaid 异步渲染等）
+      if (userInteracted) fileStore.markUserEdit();
       debouncedWordCount(t);
       debouncedOutline(t);
       debouncedSerialize(t);
@@ -326,6 +399,8 @@ const debouncedEmitCursorInfo = debounce((ed: TiptapEditor) => {
 watch(
   () => fileStore.currentFile.path,
   () => {
+    armInteractionGate();
+    resolvedImageCache.clear();
     if (!editor.value || editor.value.isDestroyed) return;
     const content = fileStore.currentFile.content;
     // 比较当前 editor 序列化结果与目标内容，相同则跳过（如另存为场景）
@@ -451,9 +526,14 @@ onMounted(async () => {
   setLocalSrcResolver(async (src: string) => {
     const storagePath = settingsStore.settings.imageStoragePath;
     const docPath = fileStore.currentFile.path;
+    const cacheKey = `${src}|${docPath ?? ''}|${storagePath ?? ''}`;
+    const hit = resolvedImageCache.get(cacheKey);
+    if (hit) return hit;
     try {
       const resolved = await resolveImageDisplay(src, docPath, storagePath);
-      return toAssetUrl(resolved.path);
+      const url = toAssetUrl(resolved.path);
+      resolvedImageCache.set(cacheKey, url);
+      return url;
     } catch {
       return null;
     }
@@ -475,6 +555,15 @@ onMounted(async () => {
 
   // 图片双击 → 全屏预览（从 CustomImage NodeView 冒泡上来的自定义事件）
   editorWrapRef.value?.addEventListener('editor:image-dblclick', handleImageDblClick);
+
+  // 交互门控：capture 阶段监听用户事件，首个事件放行标脏
+  const gateEl = editorWrapRef.value;
+  if (gateEl) {
+    gateEl.addEventListener('keydown', releaseInteractionGate, true);
+    gateEl.addEventListener('pointerdown', releaseInteractionGate, true);
+    gateEl.addEventListener('beforeinput', releaseInteractionGate, true);
+    gateEl.addEventListener('compositionstart', releaseInteractionGate, true);
+  }
 });
 
 onBeforeUnmount(() => {
@@ -504,7 +593,17 @@ onBeforeUnmount(() => {
   editor.value = null;
 
   // 5. 清理 DOM 级事件监听
-  editorWrapRef.value?.removeEventListener('editor:image-dblclick', handleImageDblClick);
+  const gateEl = editorWrapRef.value;
+  if (gateEl) {
+    gateEl.removeEventListener('editor:image-dblclick', handleImageDblClick);
+    gateEl.removeEventListener('keydown', releaseInteractionGate, true);
+    gateEl.removeEventListener('pointerdown', releaseInteractionGate, true);
+    gateEl.removeEventListener('beforeinput', releaseInteractionGate, true);
+    gateEl.removeEventListener('compositionstart', releaseInteractionGate, true);
+  }
+
+  // 6. 释放远程图片 Blob 缓存
+  releaseRemoteImageBlobs();
 });
 
 // 拼写检查：编辑器创建后 settings 变更时动态更新 DOM 属性
@@ -513,6 +612,12 @@ watch(
   (enabled) => {
     editor.value?.view.dom.setAttribute('spellcheck', enabled ? 'true' : 'false');
   },
+);
+
+// 图片存储路径变化时清空路径解析缓存（基目录变了，旧缓存失效）
+watch(
+  () => settingsStore.settings.imageStoragePath,
+  () => resolvedImageCache.clear(),
 );
 
 // 焦点模式：切换时强制刷新段落聚焦装饰层
@@ -649,7 +754,9 @@ defineExpose({
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .search-btn-meta:hover {
@@ -682,7 +789,9 @@ defineExpose({
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .search-btn-nav:hover {
@@ -701,7 +810,9 @@ defineExpose({
   background: transparent;
   color: var(--muted-color);
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .search-btn-close:hover {
@@ -724,7 +835,10 @@ defineExpose({
   color: var(--text-secondary);
   font-size: 12px;
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
   white-space: nowrap;
 }
 
