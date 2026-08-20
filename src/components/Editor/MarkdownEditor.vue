@@ -127,12 +127,12 @@
 
 <script setup lang="ts">
 import { nextTick, onMounted, ref, shallowRef, onBeforeUnmount, watch } from 'vue';
-import { debounce } from 'lodash-es';
 import { Editor as TiptapEditor, EditorContent } from '@tiptap/vue-3';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { useFileStore } from '../../stores/file';
 import { useSettingsStore } from '../../stores/settings';
+import { useEditorSync } from '../../composables/useEditorSync';
 import { parseMarkdown } from './tiptap/markdown/parser';
 import { serializeMarkdown, serializeClipboardSlice } from './tiptap/markdown/serializer';
 import type { Slice } from '@tiptap/pm/model';
@@ -149,12 +149,7 @@ import {
   type SlashMenuController,
   type EmojiMenuController,
 } from './tiptap/editor-extensions';
-import {
-  extractEditorOutline,
-  getEditorCursorInfo,
-  getEditorWordCount,
-  type EditorOutlineItem,
-} from './tiptap/editor-metadata';
+import type { EditorSyncPayload } from '../../composables/useEditorSync';
 import { setupEditorImageDrop } from './tiptap/editor-image-drop';
 import {
   resetLocalSrcResolver,
@@ -174,21 +169,7 @@ import SlashMenu from './views/SlashMenu.vue';
 import EmojiMenu from './views/EmojiMenu.vue';
 import './tiptap/editor.css';
 
-type EditorUpdatePayload = {
-  wordCount?: number;
-  cursor?: { line: number; col: number };
-  selectionText?: string;
-  outline?: EditorOutlineItem[];
-};
-
-// 字数统计轻量（读 doc.textContent），150ms 均衡响应与开销
-const WORD_COUNT_DEBOUNCE_MS = 150;
-// 大纲提取需遍历 headings，500ms 避免高频编辑时频繁重建
-const OUTLINE_DEBOUNCE_MS = 500;
-// 序列化防抖：500ms 停顿后再序列化 markdown 并同步 store，避免连续击键时频繁序列化
-const SERIALIZE_DEBOUNCE_MS = 500;
-// 光标信息防抖：拖选时频繁触发 selection 更新，100ms 节流避免全量遍历 doc 计算行号
-const CURSOR_INFO_DEBOUNCE_MS = 100;
+type EditorUpdatePayload = EditorSyncPayload;
 
 const props = defineProps<{ initialContent?: string }>();
 const emit = defineEmits<{
@@ -217,6 +198,16 @@ const emojiMenuItems = ref<EmojiItem[]>([]);
 const emojiMenuCommand = ref<(item: EmojiItem) => void>(() => {});
 const editor = shallowRef<TiptapEditor | null>(null);
 useEditorAppearance(editor);
+
+// ── 编辑器 → 下层状态同步中枢（字数 / 大纲 / 光标 / 序列化，防抖后单出口）──
+const {
+  handleDocChange,
+  handleSelectionChange,
+  emitImmediateStats,
+  cancelPending,
+} = useEditorSync({
+  onUpdate: (data) => emit('update', data),
+});
 
 // ── 创建 TipTap Editor ────────────────────────────────────────
 
@@ -332,13 +323,11 @@ function createEditor(content: string) {
       const t = ed as unknown as TiptapEditor;
       // 交互门控：只有用户真实交互过才标脏，免疫插件后台事务（Mermaid 异步渲染等）
       if (userInteracted) fileStore.markUserEdit();
-      debouncedWordCount(t);
-      debouncedOutline(t);
-      debouncedSerialize(t);
+      handleDocChange(t);
     },
     onSelectionUpdate: ({ editor: ed }) => {
       rafUpdateBubbleMenu(ed as unknown as TiptapEditor);
-      debouncedEmitCursorInfo(ed as unknown as TiptapEditor);
+      handleSelectionChange(ed as unknown as TiptapEditor);
     },
   });
 
@@ -357,44 +346,8 @@ function createEditor(content: string) {
   fileStore.setContent(content || '');
 
   // 触发初始字数统计
-  const wc = getEditorWordCount(e);
-  const ol = extractEditorOutline(e);
-  emit('update', { wordCount: wc, outline: ol });
+  emitImmediateStats(e);
 }
-
-// ── 更新回调 ──────────────────────────────────────────────────
-
-// 字数统计：轻量操作，150ms 快速响应
-const debouncedWordCount = debounce((ed: TiptapEditor) => {
-  if (ed.isDestroyed) return;
-  emit('update', { wordCount: getEditorWordCount(ed) });
-}, WORD_COUNT_DEBOUNCE_MS);
-
-// 大纲提取：需遍历 headings，500ms 低频率刷新
-const debouncedOutline = debounce((ed: TiptapEditor) => {
-  if (ed.isDestroyed) return;
-  emit('update', { outline: extractEditorOutline(ed) });
-}, OUTLINE_DEBOUNCE_MS);
-
-// 序列化 + store 同步：重量操作，500ms 防抖减少频繁序列化开销
-const debouncedSerialize = debounce((ed: TiptapEditor) => {
-  // 防止 debounce 延迟期间切换文件导致旧内容写入新文件
-  if (ed.isDestroyed) return;
-
-  const markdown = serializeMarkdown(ed.state.doc);
-  // 规范化比较：序列化器总是追加 \n，store 初始值可能是 ''
-  const normalizedStored = fileStore.currentFile.content.replace(/\n+$/, '');
-  const normalizedNew = markdown.replace(/\n+$/, '');
-  if (normalizedNew !== normalizedStored) {
-    fileStore.setContent(markdown);
-  }
-}, SERIALIZE_DEBOUNCE_MS);
-
-// 选区信息更新做节流，避免拖选时频繁全量遍历 doc 计算行号
-const debouncedEmitCursorInfo = debounce((ed: TiptapEditor) => {
-  if (ed.isDestroyed) return;
-  emit('update', getEditorCursorInfo(ed));
-}, CURSOR_INFO_DEBOUNCE_MS);
 
 // ── 文件切换：复用 editor 实例替换文档（避免全量重建） ─────────
 watch(
@@ -409,19 +362,14 @@ watch(
     const targetMarkdown = content.replace(/\n+$/, '');
     if (currentMarkdown === targetMarkdown) return;
 
-    debouncedWordCount.cancel();
-    debouncedOutline.cancel();
-    debouncedSerialize.cancel();
-    debouncedEmitCursorInfo.cancel();
+    cancelPending();
     const doc = parseMarkdown(editor.value.schema, content);
     // emitUpdate: false 避免触发 onUpdate 导致误判 dirty
     editor.value.commands.setContent(doc.toJSON(), { emitUpdate: false });
     // 重置基线：直接用目标内容，避免一次序列化
     fileStore.setContent(targetMarkdown);
     // setContent({ emitUpdate:false }) 不触发 onUpdate → 手动补发字数和大纲
-    const wc = getEditorWordCount(editor.value);
-    const ol = extractEditorOutline(editor.value);
-    emit('update', { wordCount: wc, outline: ol });
+    emitImmediateStats(editor.value);
     editor.value.commands.focus('start');
   },
 );
@@ -574,12 +522,6 @@ onBeforeUnmount(() => {
 
   // 2. 清理图片路径解析器
   resetLocalSrcResolver();
-
-  // 3. 取消所有防抖操作，防止回调中操作已销毁的 editor
-  debouncedWordCount.cancel();
-  debouncedOutline.cancel();
-  debouncedSerialize.cancel();
-  debouncedEmitCursorInfo.cancel();
 
   // 3. 清理拖拽监听
   if (unlistenDragDrop) {
