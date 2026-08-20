@@ -59,14 +59,23 @@ fn create_editor_window(
 ) -> Result<String, error::AppError> {
     let label = format!("editor-{}", WINDOW_COUNTER.fetch_add(1, Ordering::Relaxed));
 
-    let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
+    let mut builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
         .title("solo")
         .inner_size(1200.0, 800.0)
         .min_inner_size(320.0, 240.0)
         .center()
         .resizable(true)
         .decorations(false)
-        .visible(false)
+        .visible(false);
+
+    // 透明模式：消除 Windows 无边框窗口快速缩放时的黑边屏闪（Tauri issue #13270）。
+    // 视觉不变——前端 body 透明、.app-root 铺不透明底色；macOS 走独立背景处理，不启用。
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.transparent(true);
+    }
+
+    let window = builder
         .build()
         .map_err(|e| error::AppError::Native(e.to_string()))?;
 

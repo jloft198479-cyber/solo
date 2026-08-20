@@ -488,12 +488,12 @@ html.theme-transitioning *::after {
   z-index: 9999;
 }
 
-/* 四边 */
+/* 四边：6px 热区（对齐 Windows 原生边框可抓范围，原 4px 过窄） */
 .window-resize-n {
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 6px;
   cursor: n-resize;
 }
 
@@ -501,7 +501,7 @@ html.theme-transitioning *::after {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 6px;
   cursor: s-resize;
 }
 
@@ -509,7 +509,7 @@ html.theme-transitioning *::after {
   top: 0;
   left: 0;
   bottom: 0;
-  width: 4px;
+  width: 6px;
   cursor: w-resize;
 }
 
@@ -517,40 +517,40 @@ html.theme-transitioning *::after {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 4px;
+  width: 6px;
   cursor: e-resize;
 }
 
-/* 四角 */
+/* 四角：12px 热区（原 8px 过窄） */
 .window-resize-nw {
   top: 0;
   left: 0;
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
   cursor: nw-resize;
 }
 
 .window-resize-ne {
   top: 0;
   right: 0;
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
   cursor: ne-resize;
 }
 
 .window-resize-sw {
   bottom: 0;
   left: 0;
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
   cursor: sw-resize;
 }
 
 .window-resize-se {
   bottom: 0;
   right: 0;
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
   cursor: se-resize;
 }
 
