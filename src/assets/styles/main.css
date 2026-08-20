@@ -53,7 +53,10 @@ button:focus-visible,
   outline-offset: 1px;
 }
 
-/* ── 浅色主题（书卷气） ────────────────────────────────────── */
+/* ── 浅色主题（书卷气） ──────────────────────────────────────
+   注：本块为「主题注入前」的闪屏/回退兜底，色值须与
+   scholar-light 主题 + manager.ts SHARED_LIGHT_COLORS 保持一致
+   （真理源自一处），否则启动瞬间会跳色。 */
 :root {
   /* 主色调 — 墨色系 */
   --primary-color: #8b7355;
@@ -75,10 +78,10 @@ button:focus-visible,
   --border-light: #ede8df;
 
   /* 弱化文字 */
-  --muted-color: #7a6e5e;
+  --muted-color: #7a6c5c;
 
   /* 信号色 — 赭红：链接悬停 / 焦点环 / 活动指示（可随主题 accentColor 覆盖） */
-  --accent-color: #b5503a;
+  --accent-color: #a8443c;
 
   /* 代码 */
   --code-bg: #f3efe8;
@@ -92,19 +95,19 @@ button:focus-visible,
   /* 引用 & 标签 */
   --quote-bg: rgba(139, 115, 85, 0.04);
   --tag-bg: rgba(139, 115, 85, 0.1);
-  --tag-color: #8b7355;
+  --tag-color: #6b5a3e;
   --mark-bg: #fef08a;
 
-  /* 状态颜色 */
-  --success-color: #6b8e5a;
-  --success-bg: rgba(107, 142, 90, 0.1);
-  --warning-color: #b8860b;
-  --warning-bg: rgba(184, 134, 11, 0.1);
-  --error-color: #c05050;
-  --error-bg: rgba(192, 80, 80, 0.1);
-  --info-color: #5a7e9e;
-  --info-bg: rgba(90, 126, 158, 0.1);
-  --dirty-color: #c08a5a;
+  /* 状态颜色 — 与 SHARED_LIGHT_COLORS 一致（均已实测 ≥4.5:1） */
+  --success-color: #15803d;
+  --success-bg: rgba(21, 128, 61, 0.1);
+  --warning-color: #b45309;
+  --warning-bg: rgba(180, 83, 9, 0.1);
+  --error-color: #b91c1c;
+  --error-bg: rgba(185, 28, 28, 0.1);
+  --info-color: #1d4ed8;
+  --info-bg: rgba(29, 78, 216, 0.1);
+  --dirty-color: #a85f2e;
 
   /* 阴影 */
   --shadow-sm: 0 1px 2px rgba(44, 36, 22, 0.04);
@@ -129,10 +132,10 @@ button:focus-visible,
   --input-border: #e4ddd2;
   --input-focus-border: #8b7355;
   --input-focus-shadow: 0 0 0 3px rgba(139, 115, 85, 0.1);
-  --input-placeholder: #b0a898;
+  --input-placeholder: #9a9084;
 
   /* 按钮 */
-  --btn-primary-bg: #8b7355;
+  --btn-primary-bg: #7a6245;
   --btn-primary-hover: #6b5a3e;
   --btn-primary-text: #faf8f5;
   --btn-secondary-bg: rgba(139, 115, 85, 0.08);
@@ -146,86 +149,89 @@ button:focus-visible,
   --popover-border: #e4ddd2;
   --popover-shadow: 0 10px 15px -3px rgba(44, 36, 22, 0.1);
 
-  /* Callout */
-  --callout-note: #8b7355;
-  --callout-note-bg: rgba(139, 115, 85, 0.08);
-  --callout-abstract: #0891b2;
-  --callout-abstract-bg: rgba(8, 145, 178, 0.08);
-  --callout-info: #2563eb;
-  --callout-info-bg: rgba(37, 99, 235, 0.08);
-  --callout-tip: #16a34a;
-  --callout-tip-bg: rgba(22, 163, 74, 0.08);
-  --callout-success: #16a34a;
-  --callout-success-bg: rgba(22, 163, 74, 0.08);
-  --callout-question: #7c3aed;
-  --callout-question-bg: rgba(124, 58, 237, 0.08);
-  --callout-warning: #d97706;
-  --callout-warning-bg: rgba(217, 119, 6, 0.08);
-  --callout-failure: #dc2626;
-  --callout-failure-bg: rgba(220, 38, 38, 0.08);
-  --callout-danger: #dc2626;
-  --callout-danger-bg: rgba(220, 38, 38, 0.08);
-  --callout-bug: #dc2626;
-  --callout-bug-bg: rgba(220, 38, 38, 0.08);
-  --callout-example: #7c3aed;
-  --callout-example-bg: rgba(124, 58, 237, 0.08);
-  --callout-quote: #78716c;
-  --callout-quote-bg: rgba(120, 113, 108, 0.08);
+  /* Callout — 与 SHARED_LIGHT_COLORS 一致（色值均实测 ≥4.5:1） */
+  --callout-note: #6b5a3e;
+  --callout-note-bg: rgba(107, 90, 62, 0.08);
+  --callout-abstract: #155e75;
+  --callout-abstract-bg: rgba(21, 94, 117, 0.08);
+  --callout-info: #1e40af;
+  --callout-info-bg: rgba(30, 64, 175, 0.08);
+  --callout-tip: #166534;
+  --callout-tip-bg: rgba(22, 101, 52, 0.08);
+  --callout-success: #166534;
+  --callout-success-bg: rgba(22, 101, 52, 0.08);
+  --callout-question: #5b21b6;
+  --callout-question-bg: rgba(91, 33, 182, 0.08);
+  --callout-warning: #92400e;
+  --callout-warning-bg: rgba(146, 64, 14, 0.08);
+  --callout-failure: #991b1b;
+  --callout-failure-bg: rgba(153, 27, 27, 0.08);
+  --callout-danger: #991b1b;
+  --callout-danger-bg: rgba(153, 27, 27, 0.08);
+  --callout-bug: #991b1b;
+  --callout-bug-bg: rgba(153, 27, 27, 0.08);
+  --callout-example: #5b21b6;
+  --callout-example-bg: rgba(91, 33, 182, 0.08);
+  --callout-quote: #44403c;
+  --callout-quote-bg: rgba(68, 64, 60, 0.08);
 
 }
 
-/* ── 深色主题（夜读墨色） ──────────────────────────────────── */
+/* ── 深色主题（夜读墨色） ────────────────────────────────────
+   注：本块为「主题注入前」的闪屏/回退兜底，色值须与
+   scholar-dark 主题 + manager.ts SHARED_DARK_COLORS 保持一致
+   （真理源自一处），否则启动瞬间会跳色。 */
 html.dark {
-  /* 主色调 — 暖墨色 */
-  --primary-color: #b0a080;
-  --primary-hover: #c8b89a;
-  --primary-light: rgba(176, 160, 128, 0.12);
+  /* 主色调 — 冷墨蓝 */
+  --primary-color: #6f8fa5;
+  --primary-hover: #7fa3bc;
+  --primary-light: rgba(111, 143, 165, 0.12);
 
-  /* 背景 & 文字 — 宣纸暗 */
-  --bg-color: #1a1815;
-  --bg-secondary: #201d19;
-  --text-color: #e4ddd2;
-  --text-secondary: #b0a898;
+  /* 背景 & 文字 — 墨蓝夜色 */
+  --bg-color: #14181d;
+  --bg-secondary: #1a2026;
+  --text-color: #dbe3ea;
+  --text-secondary: #9fb0bd;
 
   /* 侧边栏 */
-  --sidebar-bg: #201d19;
+  --sidebar-bg: #1a2026;
   --sidebar-hover: rgba(255, 255, 255, 0.04);
 
   /* 边框 */
-  --border-color: #322e28;
-  --border-light: #2a2620;
+  --border-color: #2a3440;
+  --border-light: #232c36;
 
   /* 弱化文字 */
-  --muted-color: #94887a;
+  --muted-color: #8296a6;
 
-  /* 信号色 — 深色下提亮赭红 */
-  --accent-color: #cf6a4f;
+  /* 信号色 — 深色下提亮灰蓝（随主题 accentColor 覆盖） */
+  --accent-color: #7fa3bc;
 
   /* 代码 */
-  --code-bg: #1e1b17;
-  --code-border: #322e28;
+  --code-bg: #171e25;
+  --code-border: #2a3440;
 
   /* 交互状态 */
   --hover-bg: rgba(255, 255, 255, 0.04);
   --active-bg: rgba(255, 255, 255, 0.08);
-  --selected-bg: rgba(176, 160, 128, 0.12);
+  --selected-bg: rgba(111, 143, 165, 0.12);
 
   /* 引用 & 标签 */
-  --quote-bg: rgba(176, 160, 128, 0.06);
-  --tag-bg: rgba(176, 160, 128, 0.14);
-  --tag-color: #b0a080;
+  --quote-bg: rgba(111, 143, 165, 0.06);
+  --tag-bg: rgba(111, 143, 165, 0.14);
+  --tag-color: #8faec4;
   --mark-bg: #854d0e;
 
-  /* 状态颜色 */
-  --success-color: #8fb87a;
-  --success-bg: rgba(143, 184, 122, 0.15);
-  --warning-color: #d4a520;
-  --warning-bg: rgba(212, 165, 32, 0.15);
-  --error-color: #d06868;
-  --error-bg: rgba(208, 104, 104, 0.15);
-  --info-color: #7ea0be;
-  --info-bg: rgba(126, 160, 190, 0.15);
-  --dirty-color: #d4a888;
+  /* 状态颜色 — 与 SHARED_DARK_COLORS 一致（暗底已达标） */
+  --success-color: #6ee7b7;
+  --success-bg: rgba(110, 231, 183, 0.15);
+  --warning-color: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.15);
+  --error-color: #f87171;
+  --error-bg: rgba(248, 113, 113, 0.15);
+  --info-color: #93c5fd;
+  --info-bg: rgba(147, 197, 253, 0.15);
+  --dirty-color: #b98a4e;
 
   /* 阴影 */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -240,34 +246,34 @@ html.dark {
   --radius-xl: 14px;
 
   /* 弹窗/模态框 */
-  --modal-bg: #1a1815;
-  --modal-border: #322e28;
+  --modal-bg: #14181d;
+  --modal-border: #2a3440;
   --modal-overlay: rgba(0, 0, 0, 0.65);
   --modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 
   /* 输入框 */
-  --input-bg: #201d19;
-  --input-border: #322e28;
-  --input-focus-border: #b0a080;
-  --input-focus-shadow: 0 0 0 3px rgba(176, 160, 128, 0.18);
-  --input-placeholder: #6b6258;
+  --input-bg: #1a2026;
+  --input-border: #2a3440;
+  --input-focus-border: #6f8fa5;
+  --input-focus-shadow: 0 0 0 3px rgba(111, 143, 165, 0.18);
+  --input-placeholder: #6f7d88;
 
   /* 按钮 */
-  --btn-primary-bg: #b0a080;
-  --btn-primary-hover: #c8b89a;
-  --btn-primary-text: #1a1815;
+  --btn-primary-bg: #6f8fa5;
+  --btn-primary-hover: #7fa3bc;
+  --btn-primary-text: #14181d;
   --btn-secondary-bg: rgba(255, 255, 255, 0.07);
   --btn-secondary-hover: rgba(255, 255, 255, 0.12);
-  --btn-secondary-text: #e4ddd2;
+  --btn-secondary-text: #dbe3ea;
   --btn-ghost-bg: transparent;
   --btn-ghost-hover: rgba(255, 255, 255, 0.05);
 
   /* 浮动菜单 */
-  --popover-bg: #1a1815;
-  --popover-border: #322e28;
+  --popover-bg: #14181d;
+  --popover-border: #2a3440;
   --popover-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
 
-  /* Callout */
+  /* Callout — 与 SHARED_DARK_COLORS 一致（暗底已达标） */
   --callout-note: #b0a080;
   --callout-note-bg: rgba(176, 160, 128, 0.1);
   --callout-abstract: #67e8f9;

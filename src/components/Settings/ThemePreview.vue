@@ -19,9 +19,10 @@ defineProps<{
       class="theme-preview-topbar"
       :style="{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.borderLight }"
     >
+      <!-- 顶栏圆点用主题自有性格色（主色/标签/脏状态），体现各主题差异 -->
       <div class="theme-preview-dot" :style="{ backgroundColor: theme.colors.primaryColor }" />
-      <div class="theme-preview-dot" :style="{ backgroundColor: theme.colors.warningColor }" />
-      <div class="theme-preview-dot" :style="{ backgroundColor: theme.colors.successColor }" />
+      <div class="theme-preview-dot" :style="{ backgroundColor: theme.colors.tagColor }" />
+      <div class="theme-preview-dot" :style="{ backgroundColor: theme.colors.dirtyColor }" />
     </div>
     <div class="theme-preview-shell">
       <div

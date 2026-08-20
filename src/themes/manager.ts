@@ -32,19 +32,20 @@ const presetThemeMap = new Map<string, Theme>(PRESET_THEMES.map((theme) => [them
 
 /**
  * 共享默认配色（亮/暗各一套）——「真理源自一处」：
- * 非性格 token（圆角/功能色/标记底色/幽灵按钮/遮罩）只定义一次，
+ * 非性格 token（圆角/功能色/标记底色/幽灵按钮/遮罩/callout 色板）只定义一次，
  * 主题 JSON 只写性格差异，缺失字段由 resolveTheme 在此补齐。
  * 主题若需定制某个共享值，在其 JSON 中显式声明即可覆盖。
+ * 色值均经 WCAG 实测（对比度 ≥4.5 或有意为之，见 .sandbox-theme-audit/verify.py）。
  */
 const SHARED_LIGHT_COLORS: Partial<ThemeColors> = {
-  successColor: '#22c55e',
-  successBg: 'rgba(34, 197, 94, 0.1)',
-  warningColor: '#f59e0b',
-  warningBg: 'rgba(245, 158, 11, 0.1)',
-  errorColor: '#ef4444',
-  errorBg: 'rgba(239, 68, 68, 0.1)',
-  infoColor: '#3b82f6',
-  infoBg: 'rgba(59, 130, 246, 0.1)',
+  successColor: '#15803d',
+  successBg: 'rgba(21, 128, 61, 0.1)',
+  warningColor: '#b45309',
+  warningBg: 'rgba(180, 83, 9, 0.1)',
+  errorColor: '#b91c1c',
+  errorBg: 'rgba(185, 28, 28, 0.1)',
+  infoColor: '#1d4ed8',
+  infoBg: 'rgba(29, 78, 216, 0.1)',
   markBg: '#fef08a',
   btnGhostBg: 'transparent',
   modalOverlay: 'rgba(0, 0, 0, 0.45)',
@@ -52,6 +53,30 @@ const SHARED_LIGHT_COLORS: Partial<ThemeColors> = {
   radiusMd: '6px',
   radiusLg: '10px',
   radiusXl: '14px',
+  calloutNote: '#6b5a3e',
+  calloutNoteBg: 'rgba(107, 90, 62, 0.08)',
+  calloutAbstract: '#155e75',
+  calloutAbstractBg: 'rgba(21, 94, 117, 0.08)',
+  calloutInfo: '#1e40af',
+  calloutInfoBg: 'rgba(30, 64, 175, 0.08)',
+  calloutTip: '#166534',
+  calloutTipBg: 'rgba(22, 101, 52, 0.08)',
+  calloutSuccess: '#166534',
+  calloutSuccessBg: 'rgba(22, 101, 52, 0.08)',
+  calloutQuestion: '#5b21b6',
+  calloutQuestionBg: 'rgba(91, 33, 182, 0.08)',
+  calloutWarning: '#92400e',
+  calloutWarningBg: 'rgba(146, 64, 14, 0.08)',
+  calloutFailure: '#991b1b',
+  calloutFailureBg: 'rgba(153, 27, 27, 0.08)',
+  calloutDanger: '#991b1b',
+  calloutDangerBg: 'rgba(153, 27, 27, 0.08)',
+  calloutBug: '#991b1b',
+  calloutBugBg: 'rgba(153, 27, 27, 0.08)',
+  calloutExample: '#5b21b6',
+  calloutExampleBg: 'rgba(91, 33, 182, 0.08)',
+  calloutQuote: '#44403c',
+  calloutQuoteBg: 'rgba(68, 64, 60, 0.08)',
 };
 
 const SHARED_DARK_COLORS: Partial<ThemeColors> = {
@@ -70,6 +95,30 @@ const SHARED_DARK_COLORS: Partial<ThemeColors> = {
   radiusMd: '6px',
   radiusLg: '10px',
   radiusXl: '14px',
+  calloutNote: '#b0a080',
+  calloutNoteBg: 'rgba(176, 160, 128, 0.1)',
+  calloutAbstract: '#67e8f9',
+  calloutAbstractBg: 'rgba(103, 232, 249, 0.1)',
+  calloutInfo: '#93c5fd',
+  calloutInfoBg: 'rgba(147, 197, 253, 0.1)',
+  calloutTip: '#86efac',
+  calloutTipBg: 'rgba(134, 239, 172, 0.1)',
+  calloutSuccess: '#86efac',
+  calloutSuccessBg: 'rgba(134, 239, 172, 0.1)',
+  calloutQuestion: '#c4b5fd',
+  calloutQuestionBg: 'rgba(196, 181, 253, 0.1)',
+  calloutWarning: '#fcd34d',
+  calloutWarningBg: 'rgba(252, 211, 77, 0.1)',
+  calloutFailure: '#fca5a5',
+  calloutFailureBg: 'rgba(252, 165, 165, 0.1)',
+  calloutDanger: '#fca5a5',
+  calloutDangerBg: 'rgba(252, 165, 165, 0.1)',
+  calloutBug: '#fca5a5',
+  calloutBugBg: 'rgba(252, 165, 165, 0.1)',
+  calloutExample: '#c4b5fd',
+  calloutExampleBg: 'rgba(196, 181, 253, 0.1)',
+  calloutQuote: '#a8a29e',
+  calloutQuoteBg: 'rgba(168, 162, 158, 0.1)',
 };
 
 /** 用共享默认补齐主题缺失字段，返回完整 colors 的主题（消费方无感知） */
