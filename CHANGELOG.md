@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **大纲点击跳转不精准定位**：点击侧边栏标题后正文只滚到视口边缘、没对准标题。根因：`view.domAtPos` 在块节点起始边界返回编辑根容器而非标题元素，`scrollIntoView` 静默失效，只剩 focus 附带的「最小滚动」。修复：新增 `editor-dom.ts` 统一取块节点 DOM（`nodeDOM` 优先）+ 手算滚动位置，标题平滑停靠视口上方约 1/4（Obsidian/Typora 风格）；scroll-spy 高亮阈值与跳转目标对齐，跳转后高亮不再跳回上一个标题。已真窗口验证。
+
 ## [1.2.39] — 2026-08-14
 
 > 深度性能优化（9 项）+ WebView2 缓存清理 + Mermaid 误标脏修复。
