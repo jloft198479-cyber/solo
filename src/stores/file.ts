@@ -52,6 +52,25 @@ export const useFileStore = defineStore('file', {
       }
     },
 
+    /**
+     * 编辑序列化结果回写（A1 改造）。
+     * 与 setContent 的「同步基线、不标脏」不同，本方法以「内容与基线是否语义变化」为脏标记的唯一真相源：
+     * 内容与基线不同 → 更新内容并标脏（不再依赖 hasUserEdit 门控）；内容未变 → 不改动、不标脏。
+     * 由此同时根治「漏标脏」（拖入图片等非键盘交互）与「误标脏」（Mermaid 等后台事务不改内容）。
+     * 调用前保证 content 是编辑器当前的序列化 markdown。
+     * @returns 是否发生了语义变化（即是否标为脏）
+     */
+    syncEditedContent(content: string) {
+      const normalizedNew = content.replace(/\n+$/, '');
+      const normalizedBase = this.currentFile.content.replace(/\n+$/, '');
+      if (normalizedNew === normalizedBase) {
+        return false;
+      }
+      this.currentFile.content = content;
+      this.currentFile.isDirty = true;
+      return true;
+    },
+
     // 用户编辑操作时调用
     markUserEdit() {
       this.hasUserEdit = true;

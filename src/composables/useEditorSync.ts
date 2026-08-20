@@ -56,12 +56,8 @@ export function useEditorSync(options: EditorSyncOptions) {
     if (ed.isDestroyed) return;
 
     const markdown = serializeMarkdown(ed.state.doc);
-    // 规范化比较：序列化器总是追加 \n，store 初始值可能是 ''
-    const normalizedStored = fileStore.currentFile.content.replace(/\n+$/, '');
-    const normalizedNew = markdown.replace(/\n+$/, '');
-    if (normalizedNew !== normalizedStored) {
-      fileStore.setContent(markdown);
-    }
+    // A1：脏标记唯一真相源 = 编辑序列化结果与基线是否语义变化（比较逻辑在 store 收敛）
+    fileStore.syncEditedContent(markdown);
   }, SERIALIZE_DEBOUNCE_MS);
 
   const debouncedEmitCursorInfo = debounce((ed: TiptapEditor) => {
