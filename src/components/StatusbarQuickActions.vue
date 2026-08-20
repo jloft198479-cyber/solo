@@ -5,8 +5,15 @@ import FontPopover from './FontPopover.vue';
 import { useClickOutside } from '../composables/useClickOutside';
 import { useFileStore } from '../stores/file';
 import { renderMarkdown } from '../utils/markdown-to-html';
+import type { AppEditorExpose } from '../composables/useAppEditorState';
 
 type PopoverType = 'theme' | 'font' | null;
+
+// 复制按钮需要编辑器「实时内容」：store 的 currentFile.content 是 500ms 防抖后才落库的旧快照，
+// 用户刚编辑完立刻点复制会得到缺最后几次击键的过期内容。故依赖编辑器引用实时序列化。
+const props = withDefaults(defineProps<{ editorRef?: AppEditorExpose | null }>(), {
+  editorRef: null,
+});
 const activePopover = ref<PopoverType>(null);
 const wrapRef = ref<HTMLElement | null>(null);
 const copied = ref(false);
@@ -21,7 +28,8 @@ function closePopover() {
 }
 
 async function copyMarkdown() {
-  const content = useFileStore().currentFile.content;
+  // 优先编辑器实时内容（绕过 store 500ms 防抖），编辑器不可用时回退到 store 内容
+  const content = props.editorRef?.getContent?.() ?? useFileStore().currentFile.content;
   try {
     const html = renderMarkdown(content);
     await navigator.clipboard.write([

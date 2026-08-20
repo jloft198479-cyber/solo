@@ -336,7 +336,7 @@ onUnmounted(() => {
           </button>
 
           <!-- 快捷入口：主题/字体 直达弹出菜单 -->
-          <StatusbarQuickActions />
+          <StatusbarQuickActions :editor-ref="editorRef" />
 
           <button
             class="statusbar-settings-btn"
