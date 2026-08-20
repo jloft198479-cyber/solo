@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { EditorOutlineItem } from '../Editor/tiptap/editor-metadata';
 import type { AppEditorExpose } from '../../composables/useAppEditorState';
+import { getBlockElFromPos, OUTLINE_SCROLL_RATIO } from '../Editor/tiptap/editor-dom';
 
 const props = defineProps<{
   items: EditorOutlineItem[];
@@ -14,7 +15,8 @@ const emit = defineEmits<{
 }>();
 
 // ── 当前激活项（scroll-spy）────────────────────────────
-// 监听编辑器滚动容器，取视口顶部阈值之上、最后一个标题作为激活项。
+// 监听编辑器滚动容器，取「视口顶部往下 25% 阈值线之上、最后一个标题」作为激活项。
+// 阈值与跳转目标（scrollToPos 的 OUTLINE_SCROLL_RATIO）一致，保证跳转后高亮不跳回。
 const activePos = ref<number | null>(null);
 let scrollContainer: HTMLElement | null = null;
 let rafId: number | null = null;
@@ -25,7 +27,9 @@ function updateActive() {
     activePos.value = null;
     return;
   }
-  const top = scrollContainer.getBoundingClientRect().top + 88;
+  const top =
+    scrollContainer.getBoundingClientRect().top +
+    scrollContainer.clientHeight * OUTLINE_SCROLL_RATIO;
 
   // 二分查找：标题按文档序排列，top 单调递增
   // 找「top <= 阈值」的最后一个标题
@@ -34,8 +38,8 @@ function updateActive() {
   let current: number | null = null;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    const dom = view.domAtPos(props.items[mid].pos);
-    const el = dom.node instanceof HTMLElement ? dom.node : dom.node.parentElement;
+    // domAtPos 在块边界会拿到编辑根，须走块节点定位
+    const el = getBlockElFromPos(view, props.items[mid].pos);
     if (!el) {
       lo = mid + 1;
       continue;
