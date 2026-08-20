@@ -30,6 +30,54 @@ const PRESET_THEMES: Theme[] = [
 
 const presetThemeMap = new Map<string, Theme>(PRESET_THEMES.map((theme) => [theme.id, theme]));
 
+/**
+ * 共享默认配色（亮/暗各一套）——「真理源自一处」：
+ * 非性格 token（圆角/功能色/标记底色/幽灵按钮/遮罩）只定义一次，
+ * 主题 JSON 只写性格差异，缺失字段由 resolveTheme 在此补齐。
+ * 主题若需定制某个共享值，在其 JSON 中显式声明即可覆盖。
+ */
+const SHARED_LIGHT_COLORS: Partial<ThemeColors> = {
+  successColor: '#22c55e',
+  successBg: 'rgba(34, 197, 94, 0.1)',
+  warningColor: '#f59e0b',
+  warningBg: 'rgba(245, 158, 11, 0.1)',
+  errorColor: '#ef4444',
+  errorBg: 'rgba(239, 68, 68, 0.1)',
+  infoColor: '#3b82f6',
+  infoBg: 'rgba(59, 130, 246, 0.1)',
+  markBg: '#fef08a',
+  btnGhostBg: 'transparent',
+  modalOverlay: 'rgba(0, 0, 0, 0.45)',
+  radiusSm: '3px',
+  radiusMd: '6px',
+  radiusLg: '10px',
+  radiusXl: '14px',
+};
+
+const SHARED_DARK_COLORS: Partial<ThemeColors> = {
+  successColor: '#6ee7b7',
+  successBg: 'rgba(110, 231, 183, 0.15)',
+  warningColor: '#fbbf24',
+  warningBg: 'rgba(251, 191, 36, 0.15)',
+  errorColor: '#f87171',
+  errorBg: 'rgba(248, 113, 113, 0.15)',
+  infoColor: '#93c5fd',
+  infoBg: 'rgba(147, 197, 253, 0.15)',
+  markBg: 'rgba(254, 240, 138, 0.45)',
+  btnGhostBg: 'transparent',
+  modalOverlay: 'rgba(0, 0, 0, 0.65)',
+  radiusSm: '3px',
+  radiusMd: '6px',
+  radiusLg: '10px',
+  radiusXl: '14px',
+};
+
+/** 用共享默认补齐主题缺失字段，返回完整 colors 的主题（消费方无感知） */
+function resolveTheme(theme: Theme): Theme {
+  const base = theme.appearance === 'dark' ? SHARED_DARK_COLORS : SHARED_LIGHT_COLORS;
+  return { ...theme, colors: { ...base, ...theme.colors } };
+}
+
 let isDarkMode = false;
 
 interface LegacyThemeFile {
@@ -186,15 +234,17 @@ export function triggerContentCrossfade() {
 }
 
 export function getPresetTheme(id: string): Theme | undefined {
-  return presetThemeMap.get(id);
+  const theme = presetThemeMap.get(id);
+  return theme ? resolveTheme(theme) : undefined;
 }
 
 export function getAllPresetThemes(): Theme[] {
-  return PRESET_THEMES;
+  return PRESET_THEMES.map(resolveTheme);
 }
 
 export function getTheme(id: string, customThemes: Theme[]): Theme | undefined {
-  return presetThemeMap.get(id) ?? customThemes.find((theme) => theme.id === id);
+  const theme = presetThemeMap.get(id) ?? customThemes.find((theme) => theme.id === id);
+  return theme ? resolveTheme(theme) : undefined;
 }
 
 function isThemeColors(value: unknown): value is ThemeColors {
@@ -230,14 +280,14 @@ export function importTheme(json: string, appearance: ThemeAppearance = 'light')
   const parsed = JSON.parse(json) as unknown;
 
   if (isModernTheme(parsed)) {
-    return {
+    return resolveTheme({
       ...parsed,
       type: 'custom',
-    };
+    });
   }
 
   if (isLegacyTheme(parsed)) {
-    return {
+    return resolveTheme({
       id: parsed.id,
       name: parsed.name,
       type: 'custom',
@@ -246,7 +296,7 @@ export function importTheme(json: string, appearance: ThemeAppearance = 'light')
       description: parsed.description,
       version: parsed.version,
       colors: appearance === 'dark' ? parsed.dark : parsed.light,
-    };
+    });
   }
 
   throw new Error('无效的主题 JSON：缺少必要字段');
