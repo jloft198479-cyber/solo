@@ -9,6 +9,7 @@ import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
 import {
   hasInlineMarkdownSyntax,
   hasMarkdownOnlySyntax,
+  hasMsoHtml,
   isLowQualityParse,
   looksLikeMarkdownTable,
   markdownPastePlugin,
@@ -559,10 +560,12 @@ describe('handlePaste 逃生舱（Layer 3：仅图片处理）', () => {
     );
   }
 
-  it('无图片（纯文字）→ return false 放行给默认流程', () => {
+  it('无图片（纯文字，无 text/html）→ 接管并同步插入纯文本（异步 fallback 升级）', () => {
     const v = mountEmpty();
     const handled = firePaste(v, pasteEvent({ 'text/plain': 'just text' }));
-    expect(handled).toBe(false);
+    // Layer 4 异步 fallback 接管，同步插入纯文本
+    expect(handled).toBe(true);
+    expect(v.state.doc.textContent).toBe('just text');
   });
 
   it('无 clipboardData → return false', () => {
@@ -650,5 +653,46 @@ describe('handlePaste 逃生舱（Layer 3：仅图片处理）', () => {
     );
     // handlePaste 不嗅探（无 text/html），放行给默认流程 → clipboardTextParser 兜底
     expect(handled).toBe(false);
+  });
+});
+
+// ── Word HTML 清理 + 体积熔断 ────────────────────────────────────
+
+describe('hasMsoHtml（Word HTML 嗅探）', () => {
+  it('含 mso- 样式 → 命', () => {
+    expect(hasMsoHtml('<p style="mso-spacerun: yes">x</p>')).toBe(true);
+  });
+  it('含 MsoNormal → 命中', () => {
+    expect(hasMsoHtml('<p class="MsoNormal">x</p>')).toBe(true);
+  });
+  it('含 <o:p> 标签 → 命中', () => {
+    expect(hasMsoHtml('<p>文本<o:p></o:p></p>')).toBe(true);
+  });
+  it('普通 HTML → 不命中', () => {
+    expect(hasMsoHtml('<p>Hello</p><strong>bold</strong>')).toBe(false);
+  });
+});
+
+describe('parseHtmlSlice 体积熔断', () => {
+  it('>2MB HTML → 返回 null', () => {
+    const schema = createMarkdownCompatSchema();
+    const big = 'x'.repeat(2_000_001);
+    expect(parseHtmlSlice(schema, big)).toBeNull();
+  });
+
+  it('Word HTML 经清理后能正常解析', () => {
+    const schema = createMarkdownCompatSchema();
+    const wordHtml = '<p class="MsoNormal" style="mso-spacerun: yes">Hello <o:p></o:p></p>';
+    const slice = parseHtmlSlice(schema, wordHtml);
+    expect(slice).not.toBeNull();
+    expect(slice!.content.textBetween(0, slice!.content.size)).toBe('Hello');
+  });
+
+  it('普通 HTML 不受影响', () => {
+    const schema = createMarkdownCompatSchema();
+    const html = '<p>Hello <strong>World</strong></p>';
+    const slice = parseHtmlSlice(schema, html);
+    expect(slice).not.toBeNull();
+    expect(slice!.content.textBetween(0, slice!.content.size)).toBe('Hello World');
   });
 });

@@ -92,7 +92,7 @@ export function createTestSchema(): Schema {
     marks: {
       bold: { parseDOM: [{ tag: 'strong' }], toDOM: () => ['strong', 0] },
       italic: { parseDOM: [{ tag: 'em' }], toDOM: () => ['em', 0] },
-      strike: { parseDOM: [{ tag: 's' }], toDOM: () => ['s', 0] },
+      strike: { parseDOM: [{ tag: 's' }, { tag: 'del' }], toDOM: () => ['s', 0] },
       code: { parseDOM: [{ tag: 'code' }], toDOM: () => ['code', 0] },
       highlight: { parseDOM: [{ tag: 'mark' }], toDOM: () => ['mark', 0] },
       link: {
