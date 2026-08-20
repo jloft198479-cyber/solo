@@ -394,11 +394,14 @@ function stripMsoMarkup(html: string): string {
   // <o:p> 标签（保留内容）
   html = html.replace(/<\/?o:p[^>]*>/gi, '');
   // mso-* CSS 声明——限定在 style 属性值内移除，正文文字不受影响。
-  // 内层字符类必须排除引号：否则「属性值里最后一条声明无分号」时
+  // 内层字符类必须排除两种引号：否则「属性值里最后一条声明无分号」时
   // [^;]* 会连闭合引号一起吃掉，产出 style="> 的残缺 HTML。
-  html = html.replace(/style\s*=\s*"[^"]*"/gi, (attr) =>
-    attr.replace(/\s*mso-[^:;"]+:[^;"]*;?/gi, ''),
+  // 外层同时匹配单/双引号（HTML 规范允许 style='...'），单引号变体一并覆盖。
+  html = html.replace(/style\s*=\s*["'][^"']*["']/gi, (attr) =>
+    attr.replace(/\s*mso-[^:;'"]+:[^;'"]*;?/gi, ''),
   );
+  // 清理后残留的空 style 属性（如 style="mso-spacerun: yes" 只剩空壳）直接删除
+  html = html.replace(/\s+style\s*=\s*["']["']/gi, '');
   // Mso 类名
   html = html.replace(/\sclass="Mso[^"]*"/gi, '');
   // XML namespace
@@ -429,10 +432,27 @@ export function parseHtmlSlice(schema: Schema, htmlString: string): Slice | null
 
 const markdownPastePluginKey = new PluginKey('markdownPaste');
 
+/**
+ * 解析链的「最近一次」缓存：PM 管线在同一次粘贴中会先跑 clipboardTextParser（Layer 1），
+ * 再进 handlePaste 守卫（Layer 4）——两者以相同 text 各解析一次。对命中启发式的大段
+ * markdown 源码，double-parse 是真实浪费（parseMarkdown 两次）。缓存只存「上一次」结果，
+ * 天然只覆盖同一次粘贴（两次调用之间无其它粘贴，key=text 相同即命中），无内存增长。
+ * 普通纯文本启发式全不命中时，两次都只是 O(n) 扫描，本缓存不改变任何行为。
+ */
+function cachedTryParseMarkdown(schema: Schema, text: string, cache: { key: string | null; result: Slice | null }): Slice | null {
+  if (cache.key === text) return cache.result;
+  const result = tryParseClipboardMarkdown(schema, text);
+  cache.key = text;
+  cache.result = result;
+  return result;
+}
+
 export function markdownPastePlugin(opts?: {
   getDocumentPath?: () => string | null;
   getStoragePath?: () => string | null;
 }): Plugin {
+  // 每次 plugin 实例独享一份缓存（同一 view 内 schema 恒定，key 不会跨 schema 碰撞）
+  const parseCache: { key: string | null; result: Slice | null } = { key: null, result: null };
   return new Plugin({
     key: markdownPastePluginKey,
     props: {
@@ -450,9 +470,12 @@ export function markdownPastePlugin(opts?: {
         //（数学块 / wikilink / callout / frontmatter）。这些标记经 HTML 渲染后必然丢失，
         // 只可能来自 markdown 编辑器（Obsidian / Typora 等）——此时 HTML 路径会丢扩展语法，
         // 强制改走纯文本 Markdown 管道。不命中则放行默认流程（HTML 路径格式更完整）。
+        // 代码块上下文除外：默认流程在 code 内强制按原始文本插入，嗅探接管（replaceSelection
+        // 解析块）会把代码块整个替换掉，故 code 内一律放行。
         if (!hasImage && (clipboard.types?.includes('text/html') ?? false)) {
           const text = clipboard.getData('text/plain');
-          if (text && hasMarkdownOnlySyntax(text)) {
+          const inCode = Boolean(view.state.selection.$from.parent.type.spec.code);
+          if (text && !inCode && hasMarkdownOnlySyntax(text)) {
             const mdSlice = parseProprietaryMarkdownPaste(view.state.schema, text);
             if (mdSlice) {
               view.dispatch(view.state.tr.replaceSelection(mdSlice).scrollIntoView());
@@ -474,7 +497,7 @@ export function markdownPastePlugin(opts?: {
           const text = clipboard.getData('text/plain');
           const inCode = Boolean(view.state.selection.$from.parent.type.spec.code);
           if (text && text.trim() && !inCode && slice && slice.size > 0
-            && !tryParseClipboardMarkdown(view.state.schema, text)) {
+            && !cachedTryParseMarkdown(view.state.schema, text, parseCache)) {
             const from = view.state.selection.from;
             // 复刻 doPaste 默认插入（prosemirror-view paste 事件处理）：
             // 单节点闭环 slice 用 replaceSelectionWith，其余用 replaceSelection
@@ -519,7 +542,7 @@ export function markdownPastePlugin(opts?: {
       // 类型断言：ProseMirror 类型签名要求返回 Slice，但运行时 someProp 支持 null fallback
       clipboardTextParser: ((text: string, $context: { doc: { type: { schema: Schema } } }) => {
         // 兜底：纯文本，让 ProseMirror 用默认逻辑逐行成段
-        return tryParseClipboardMarkdown($context.doc.type.schema, text);
+        return cachedTryParseMarkdown($context.doc.type.schema, text, parseCache);
       }) as any,
 
       // ── Layer 2: transformPasted 钩子 ─────────────────────────────

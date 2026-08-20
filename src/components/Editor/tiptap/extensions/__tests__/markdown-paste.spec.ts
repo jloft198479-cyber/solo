@@ -32,6 +32,23 @@ const clipboardMocks = vi.hoisted(() => ({
   readClipboardHtml: vi.fn().mockResolvedValue(null),
 }));
 
+// parseMarkdown 调用计数：防「同一次粘贴解析链 double-parse」回归
+//（clipboardTextParser 与 Layer 4 守卫共享最近一次缓存，parseMarkdown 只应跑一次）
+const parserMocks = vi.hoisted(() => ({
+  parseMarkdownSpy: vi.fn(),
+}));
+
+vi.mock('../../markdown/parser', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../../markdown/parser')>();
+  return {
+    ...mod,
+    parseMarkdown: (...args: Parameters<typeof mod.parseMarkdown>) => {
+      parserMocks.parseMarkdownSpy(...args);
+      return mod.parseMarkdown(...args);
+    },
+  };
+});
+
 vi.mock('../../../../../services/tauri/document', () => ({
   saveClipboardImage: imageMocks.saveClipboardImage,
   authorizeImageAsset: imageMocks.authorizeImageAsset,
@@ -668,6 +685,28 @@ describe('handlePaste 逃生舱（Layer 3：仅图片处理）', () => {
     expect(handled).toBe(false);
   });
 
+  it('代码块内粘贴含专有语法富文本（有 text/html）→ 放行（来源嗅探不劫持代码块）', () => {
+    const v = mountCodeBlock();
+    const handled = firePaste(v, pasteEvent({
+      'text/plain': '[[wikilink]]',
+      'text/html': '<p><a href="x">link</a></p>',
+    }));
+    // 来源嗅探分支若接管，replaceSelection(解析块) 会把代码块整体替换掉；
+    // code 内必须放行默认流程（PM 在 code 上下文按原始文本插入）
+    expect(handled).toBe(false);
+  });
+
+  it('同一次粘贴解析链只执行一次（最近一次缓存防 double-parse）', () => {
+    parserMocks.parseMarkdownSpy.mockClear();
+    const v = mountEmpty();
+    // 结构化 markdown（命中启发式 → 会调 parseMarkdown）走完整粘贴管线
+    const handled = firePaste(v, pasteEvent({ 'text/plain': '# 标题\n\n正文段落' }));
+    expect(handled).toBe(false); // 结构化 markdown 放行默认流程
+    // 管线内 clipboardTextParser（Layer 1）与 Layer 4 守卫以相同 text 各解析一次；
+    // 缓存命中后 parseMarkdown 只跑一次，防大段 markdown 源码 double-parse
+    expect(parserMocks.parseMarkdownSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('占位升级：系统剪贴板有 HTML → 异步原地升级为富格式', async () => {
     clipboardMocks.readClipboardHtml.mockResolvedValue('<p>rich <strong>bold</strong> text</p>');
     const v = mountEmpty();
@@ -877,6 +916,24 @@ describe('parseHtmlSlice 体积熔断', () => {
     const wordHtml = '<p style="mso-spacerun: yes; color: red">Colored</p>';
     const slice = parseHtmlSlice(schema, wordHtml);
     expect(slice).not.toBeNull();
+    expect(slice!.content.textBetween(0, slice!.content.size)).toBe('Colored');
+  });
+
+  it('style 属性用单引号 → mso 声明同样被移除（HTML 规范允许 style=\'...\'）', () => {
+    const schema = createMarkdownCompatSchema();
+    const wordHtml = "<p style='mso-spacerun: yes; color: red'>Colored</p>";
+    const slice = parseHtmlSlice(schema, wordHtml);
+    expect(slice).not.toBeNull();
+    expect(slice!.content.textBetween(0, slice!.content.size)).toBe('Colored');
+  });
+
+  it('style 属性全是 mso 声明 → 清理后空属性被删除，不残留 style=""', () => {
+    const schema = createMarkdownCompatSchema();
+    const wordHtml = '<p style="mso-spacerun: yes">Colored</p>';
+    const slice = parseHtmlSlice(schema, wordHtml);
+    expect(slice).not.toBeNull();
+    // mso 声明是唯一样式：清理后若空 style 残留，文本仍应为 Colored（DOM 忽略空属性）；
+    // 该断言防「清理正则误伤正常 style 属性」回归——若误删非 mso 声明，文本会变化
     expect(slice!.content.textBetween(0, slice!.content.size)).toBe('Colored');
   });
 
