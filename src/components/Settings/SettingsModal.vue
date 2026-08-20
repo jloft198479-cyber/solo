@@ -104,7 +104,7 @@ function onKeyDown(e: KeyboardEvent) {
         @keydown="onKeyDown"
       >
         <div
-          class="settings-modal__dialog rounded-lg shadow-2xl w-[1040px] max-w-[94vw] max-h-[84vh] overflow-hidden flex flex-col"
+          class="settings-modal__dialog shadow-2xl w-[1040px] max-w-[94vw] max-h-[84vh] overflow-hidden flex flex-col"
           @click.stop
         >
           <!-- 头部 -->
@@ -230,6 +230,8 @@ function onKeyDown(e: KeyboardEvent) {
 .settings-modal__dialog {
   background-color: var(--bg-color);
   color: var(--text-color);
+  /* 直角语言：弹窗容器完全直角（替代原先 Tailwind rounded-lg 硬编码，与项目 token 体系一致） */
+  border-radius: 0;
 }
 
 .settings-modal__content {
