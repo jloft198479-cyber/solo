@@ -7,13 +7,16 @@ import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model';
 
 import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
 import {
+  hasInlineMarkdownSyntax,
   hasMarkdownOnlySyntax,
   isLowQualityParse,
   looksLikeMarkdownTable,
   markdownPastePlugin,
+  parseGeneralMarkdownPaste,
   parseHtmlSlice,
   parseMarkdownTablePaste,
-  parseGeneralMarkdownPaste,
+  parseProprietaryMarkdownPaste,
+  parseUrlPaste,
 } from '../markdown-paste';
 
 // 图片落盘依赖 Tauri runtime，测试环境整体 mock。
@@ -111,6 +114,117 @@ describe('hasMarkdownOnlySyntax 误判防护', () => {
 
   it('普通含 $ 文本（无成对 $）不误判', () => {
     expect(hasMarkdownOnlySyntax('这家公司估值 $5B')).toBe(false);
+  });
+});
+
+describe('hasInlineMarkdownSyntax（单段落行内标记识别 + 误判防护）', () => {
+  it('识别 **加粗**', () => {
+    expect(hasInlineMarkdownSyntax('这是 **加粗** 文本')).toBe(true);
+  });
+
+  it('识别 `代码`', () => {
+    expect(hasInlineMarkdownSyntax('跑 `npm run test` 即可')).toBe(true);
+  });
+
+  it('识别 ~~删除线~~', () => {
+    expect(hasInlineMarkdownSyntax('这段 ~~已废弃~~ 了')).toBe(true);
+  });
+
+  it('单星号 *斜体* 不触发（避免 a*b*c / 5 * 3 误判）', () => {
+    expect(hasInlineMarkdownSyntax('用 a*b*c 计算')).toBe(false);
+    expect(hasInlineMarkdownSyntax('5 * 3 = 15')).toBe(false);
+  });
+
+  it('未闭合的 ** 不触发', () => {
+    expect(hasInlineMarkdownSyntax('这是 **未闭合')).toBe(false);
+  });
+
+  it('普通中文文本不触发', () => {
+    expect(hasInlineMarkdownSyntax('今天天气很好，适合写文档。')).toBe(false);
+  });
+});
+
+describe('parseUrlPaste（整段 URL 转链接）', () => {
+  const schema = createMarkdownCompatSchema();
+
+  it('整段 https URL → 返回含 link mark 的 Slice', () => {
+    const slice = parseUrlPaste(schema, 'https://example.com/page');
+    expect(slice).not.toBeNull();
+
+    let hasLink = false;
+    let href = '';
+    slice!.content.descendants((node) => {
+      if (node.isText) {
+        node.marks.forEach((m) => {
+          if (m.type.name === 'link') {
+            hasLink = true;
+            href = m.attrs.href as string;
+          }
+        });
+      }
+      return true;
+    });
+    expect(hasLink).toBe(true);
+    expect(href).toBe('https://example.com/page');
+  });
+
+  it('URL 带中文句末标点 → 标点剥离、链接保留', () => {
+    const slice = parseUrlPaste(schema, 'https://example.com，');
+    expect(slice).not.toBeNull();
+    // 链接文本不含标点（Fragment 用 textBetween 取全量文本）
+    expect(slice!.content.textBetween(0, slice!.content.size)).toBe('https://example.com');
+  });
+
+  it('非 URL 纯文本 → null', () => {
+    expect(parseUrlPaste(schema, 'just a sentence')).toBeNull();
+  });
+
+  it('含 URL 的整段句子（非整段 URL）→ null（不做全文 linkify）', () => {
+    expect(parseUrlPaste(schema, '去 https://example.com 看看')).toBeNull();
+  });
+
+  it('http URL 同样识别', () => {
+    expect(parseUrlPaste(schema, 'http://localhost:1420')).not.toBeNull();
+  });
+});
+
+describe('parseProprietaryMarkdownPaste（专有语法解析，handlePaste 嗅探用）', () => {
+  const schema = createMarkdownCompatSchema();
+
+  it('wikilink 单行（无块级语法）→ 解析出 wikilink 节点', () => {
+    const slice = parseProprietaryMarkdownPaste(schema, '[[Obsidian]]');
+    expect(slice).not.toBeNull();
+
+    let hasWikilink = false;
+    slice!.content.descendants((node) => {
+      if (node.type.name === 'wikilink') hasWikilink = true;
+      return true;
+    });
+    expect(hasWikilink).toBe(true);
+  });
+
+  it('callout 内容 → 解析出 callout 块', () => {
+    const slice = parseProprietaryMarkdownPaste(schema, '> [!NOTE]\n> 注意这里');
+    expect(slice).not.toBeNull();
+
+    let hasCallout = false;
+    slice!.content.descendants((node) => {
+      if (node.type.name === 'callout') hasCallout = true;
+      return true;
+    });
+    expect(hasCallout).toBe(true);
+  });
+
+  it('行内数学 $x^2$ → 解析出 mathInline 节点', () => {
+    const slice = parseProprietaryMarkdownPaste(schema, '公式是 $x^2$');
+    expect(slice).not.toBeNull();
+
+    let hasMath = false;
+    slice!.content.descendants((node) => {
+      if (node.type.name === 'mathInline') hasMath = true;
+      return true;
+    });
+    expect(hasMath).toBe(true);
   });
 });
 
@@ -240,13 +354,40 @@ describe('clipboardTextParser 钩子（Layer 1：纯文本 Markdown 识别）', 
     expect(hasListItem).toBe(true);
   });
 
-  it('含 markdown 专有语法（wikilink/callout/$$）→ 返回 Slice', () => {
-    const md = '[[wikilink]]';
-    const slice = callHook(md);
-    // hasMarkdownOnlySyntax 命中 [[wikilink]]，但 parseGeneralMarkdownPaste 需要块级语法
-    // 实际上 [[wikilink]] 是行内节点，可能解析为段落 → looksLikeMarkdownSource 不命中
-    // 这里验证专有语法识别路径不崩溃
-    expect(slice).toBeDefined();
+  it('含 markdown 专有语法（wikilink 单行）→ 返回含 wikilink 节点的 Slice', () => {
+    const slice = callHook('[[wikilink]]');
+    expect(slice).not.toBeNull();
+
+    let hasWikilink = false;
+    slice!.content.descendants((node) => {
+      if (node.type.name === 'wikilink') hasWikilink = true;
+      return true;
+    });
+    expect(hasWikilink).toBe(true);
+  });
+
+  it('整段 URL → 返回含 link mark 的 Slice', () => {
+    const slice = callHook('https://example.com/page');
+    expect(slice).not.toBeNull();
+
+    let hasLink = false;
+    slice!.content.descendants((node) => {
+      if (node.isText && node.marks.some((m) => m.type.name === 'link')) hasLink = true;
+      return true;
+    });
+    expect(hasLink).toBe(true);
+  });
+
+  it('单段落行内标记 **加粗** → 返回含 bold mark 的 Slice', () => {
+    const slice = callHook('这是 **加粗** 文本');
+    expect(slice).not.toBeNull();
+
+    let hasBold = false;
+    slice!.content.descendants((node) => {
+      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
+      return true;
+    });
+    expect(hasBold).toBe(true);
   });
 
   it('纯文本（无 markdown 语法）→ 返回 null（让默认流程逐行成段）', () => {
@@ -406,6 +547,7 @@ describe('handlePaste 逃生舱（Layer 3：仅图片处理）', () => {
     return {
       clipboardData: {
         getData: (type: string) => parts[type] ?? '',
+        types: Object.keys(parts),
         files,
       } as unknown as DataTransfer,
     } as unknown as ClipboardEvent;
@@ -448,5 +590,65 @@ describe('handlePaste 逃生舱（Layer 3：仅图片处理）', () => {
     );
     // 文字应被同步插入（图片走异步，测试不验证落盘细节）
     expect(v.state.doc.textContent).toContain('caption text');
+  });
+
+  // ── 来源嗅探（text/plain + text/html 同时存在，text/plain 含专有语法）──
+  it('text/plain 含 callout + text/html 同时存在 → 接管走 markdown 管道', () => {
+    const v = mountEmpty();
+    const handled = firePaste(
+      v,
+      pasteEvent({
+        'text/plain': '> [!NOTE]\n> 注意这里',
+        'text/html': '<p>注意这里</p>',
+      }),
+    );
+    expect(handled).toBe(true);
+    // doc 应包含 callout 节点（HTML 路径会丢 callout，嗅探救回）
+    let hasCallout = false;
+    v.state.doc.descendants((node) => {
+      if (node.type.name === 'callout') hasCallout = true;
+      return true;
+    });
+    expect(hasCallout).toBe(true);
+  });
+
+  it('text/plain 含 wikilink + text/html 同时存在 → 接管走 markdown 管道', () => {
+    const v = mountEmpty();
+    const handled = firePaste(
+      v,
+      pasteEvent({
+        'text/plain': '链接 [[Obsidian]]',
+        'text/html': '<p>链接 Obsidian</p>',
+      }),
+    );
+    expect(handled).toBe(true);
+    let hasWikilink = false;
+    v.state.doc.descendants((node) => {
+      if (node.type.name === 'wikilink') hasWikilink = true;
+      return true;
+    });
+    expect(hasWikilink).toBe(true);
+  });
+
+  it('text/plain + text/html 同时存在但无专有语法 → 放行默认流程', () => {
+    const v = mountEmpty();
+    const handled = firePaste(
+      v,
+      pasteEvent({
+        'text/plain': '普通文字',
+        'text/html': '<p>普通文字</p>',
+      }),
+    );
+    expect(handled).toBe(false);
+  });
+
+  it('仅 text/plain 含专有语法（无 text/html）→ 不接管（走 clipboardTextParser）', () => {
+    const v = mountEmpty();
+    const handled = firePaste(
+      v,
+      pasteEvent({ 'text/plain': '> [!NOTE]\n> 注意这里' }),
+    );
+    // handlePaste 不嗅探（无 text/html），放行给默认流程 → clipboardTextParser 兜底
+    expect(handled).toBe(false);
   });
 });
