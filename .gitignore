@@ -66,6 +66,9 @@ docs/solo-tour.html
 
 # v2 prototype (separate project copy)
 solo-v2/
+
+# UI design mockups (keep local-only, not part of the repo)
+design-samples/
 # 外层辅助/私有文件（搬迁后留在仓库根，不提交）
 .trash-垃圾站/
 .write-the-fuck-link-index.json
