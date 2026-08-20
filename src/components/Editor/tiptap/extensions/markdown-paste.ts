@@ -24,9 +24,11 @@
  *          - 职责：图片异步落盘、markdown 专有语法嗅探接管
  *
  * Layer 4  handlePaste 异步系统剪贴板 fallback（占位升级模式）
- *          - 触发：text/html 不可用（WebView2 常见），text/plain 存在且非 markdown
- *          - 模式：同步插纯文本 → 异步读 Rust 系统剪贴板 → 成功则升级为富格式
- *          - 失败降级：保留纯文本（下限=现状，绝不降级）
+ *          - 触发：text/html 不可用（WebView2 常见），text/plain 存在且非 markdown，
+ *            且非代码块上下文（code 上下文默认流程已按纯文本处理）
+ *          - 模式：复刻默认插入（PM 预解析 slice，多行=多段落）→ 异步读 Rust 系统剪贴板
+ *            → 成功则把占位内容原地升级为富格式
+ *          - 失败降级：保留占位（= 默认粘贴结果，绝不降级）
  */
 import { Extension } from '@tiptap/vue-3';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
@@ -269,6 +271,45 @@ export function hasInlineMarkdownSyntax(text: string): boolean {
 }
 
 /**
+ * 纯文本粘贴的 Markdown 解析链（表格 → 结构化 → 专有语法 → 整段 URL → 行内标记）。
+ * clipboardTextParser（Layer 1）与 Layer 4 的占位升级守卫共用同一判定，
+ * 保证「Layer 1 会转换的文本，Layer 4 绝不拦截」——两处判定永不漂移。
+ * 返回 null 表示纯文本，交给默认流程 / Layer 4 占位升级。
+ */
+function tryParseClipboardMarkdown(schema: Schema, text: string): Slice | null {
+  // GFM 表格识别
+  if (looksLikeMarkdownTable(text)) {
+    const tableSlice = parseMarkdownTablePaste(schema, text);
+    if (tableSlice) return tableSlice;
+  }
+
+  // 结构化 Markdown 识别（标题/引用/代码围栏/列表/frontmatter）
+  if (looksLikeMarkdownSource(text)) {
+    const generalSlice = parseGeneralMarkdownPaste(schema, text);
+    if (generalSlice) return generalSlice;
+  }
+
+  // 专有语法识别（数学块 / wikilink / callout / frontmatter）——
+  // 允许单行（如 `[[wikilink]]`、单独 `$$x$$`）无块级语法也走 markdown 解析
+  if (hasMarkdownOnlySyntax(text)) {
+    const proprietarySlice = parseProprietaryMarkdownPaste(schema, text);
+    if (proprietarySlice) return proprietarySlice;
+  }
+
+  // 整段 URL → 自动转链接（仅粘贴路径，不开全局 linkify）
+  const urlSlice = parseUrlPaste(schema, text);
+  if (urlSlice) return urlSlice;
+
+  // 单段落行内标记（**bold** / `code` / ~~strike~~）→ 走 markdown 解析保留格式
+  if (hasInlineMarkdownSyntax(text)) {
+    const inlineSlice = parseInlineMarkdownPaste(schema, text);
+    if (inlineSlice) return inlineSlice;
+  }
+
+  return null;
+}
+
+/**
  * 将「含行内标记、但无块级语法」的纯文本解析为 Slice。
  * 校验：解析结果必须全部是段落，且至少一个段落含行内 mark（否则说明上层块级
  * 启发式漏了块级语法，或标记是误判——两种情况都返回 null 交给默认流程）。
@@ -340,7 +381,8 @@ export function hasMsoHtml(html: string): boolean {
  *
  * 清理项：
  * - `<o:p>` 标签（仅删标签，保留内容）
- * - `mso-*` 内联样式声明
+ * - `style` 属性内的 `mso-*` 声明（只动 style 属性，不碰正文——
+ *   正文里讨论 "mso-xxx: 1" 的文字不属于垃圾，必须原样保留）
  * - `MsoNormal`/`MsoList*` 等 class
  * - `<!--[if ...]>` 条件注释
  * - XML namespace 声明
@@ -351,8 +393,12 @@ function stripMsoMarkup(html: string): string {
   html = html.replace(/<!--\[if[\s\S]*?<!\[endif\]-->/g, '');
   // <o:p> 标签（保留内容）
   html = html.replace(/<\/?o:p[^>]*>/gi, '');
-  // mso-* CSS 属性（从 style 属性值中移除整条声明）
-  html = html.replace(/(\s+)mso-[^:;]+:[^;]*;?/gi, '');
+  // mso-* CSS 声明——限定在 style 属性值内移除，正文文字不受影响。
+  // 内层字符类必须排除引号：否则「属性值里最后一条声明无分号」时
+  // [^;]* 会连闭合引号一起吃掉，产出 style="> 的残缺 HTML。
+  html = html.replace(/style\s*=\s*"[^"]*"/gi, (attr) =>
+    attr.replace(/\s*mso-[^:;"]+:[^;"]*;?/gi, ''),
+  );
   // Mso 类名
   html = html.replace(/\sclass="Mso[^"]*"/gi, '');
   // XML namespace
@@ -390,9 +436,11 @@ export function markdownPastePlugin(opts?: {
   return new Plugin({
     key: markdownPastePluginKey,
     props: {
-      // ── Layer 3: handlePaste 逃生舱（仅图片/异步系统剪贴板） ──────
+      // ── Layer 3: handlePaste 逃生舱（图片 + 来源嗅探 + Layer 4 占位升级） ──────
       // 非图片场景优先 return false，放行给默认流程（上下文感知：代码块自动纯文本、列表自动合并）
-      handlePaste(view, event) {
+      // 注意：PM 管线是 parseFromClipboard（先跑 Layer 1）→ handlePaste → 默认插入，
+      // 第三个参数 slice 即「默认流程将插入的内容」——Layer 4 复用它复刻默认插入行为。
+      handlePaste(view, event, slice) {
         const clipboard = event.clipboardData;
         if (!clipboard) return false;
 
@@ -405,35 +453,51 @@ export function markdownPastePlugin(opts?: {
         if (!hasImage && (clipboard.types?.includes('text/html') ?? false)) {
           const text = clipboard.getData('text/plain');
           if (text && hasMarkdownOnlySyntax(text)) {
-            const slice = parseProprietaryMarkdownPaste(view.state.schema, text);
-            if (slice) {
-              view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
+            const mdSlice = parseProprietaryMarkdownPaste(view.state.schema, text);
+            if (mdSlice) {
+              view.dispatch(view.state.tr.replaceSelection(mdSlice).scrollIntoView());
               return true;
             }
           }
         }
 
         // ── Layer 4: 异步系统剪贴板 fallback（占位升级模式） ──────────
-        // 触发：text/html 不可用（WebView2 常见），text/plain 存在且非 markdown
-        // 模式：同步插纯文本（用户立即看到内容）→ 异步读系统剪贴板 → 成功则升级为富格式
-        // 三条防线：isDestroyed 守卫 + 文本内容未变 + 请求序号防乱序
-        // 失败/超时 → 保留纯文本（下限=现状，绝不降级）
+        // 触发：text/html 不可用（WebView2 常见），text/plain 存在且满足全部守卫：
+        //   1. 非代码块上下文（code 上下文默认流程已按纯文本插入，升级反而会破坏代码块）
+        //   2. markdown 解析链不命中（命中则 return false 放行默认流程插入 Layer 1 的 slice，
+        //      否则会吞掉表格/URL/行内标记转换）
+        //   3. PM 预解析 slice 可用（保证占位=默认插入内容，多行=多段落而非单个含 \n 的文本节点）
+        // 模式：复刻默认插入（占位）→ 异步读系统剪贴板 → 成功则原地升级为富格式
+        // 三条防线：isDestroyed 守卫 + 占位文本未变 + 请求序号防乱序
+        // 失败/超时 → 保留占位（下限=默认粘贴结果，绝不降级）
         if (!hasImage && !(clipboard.types?.includes('text/html') ?? false)) {
           const text = clipboard.getData('text/plain');
-          if (text && text.trim() && !looksLikeMarkdownSource(text) && !hasMarkdownOnlySyntax(text)) {
-            const { from } = view.state.selection;
-            view.dispatch(view.state.tr.insertText(text).scrollIntoView());
+          const inCode = Boolean(view.state.selection.$from.parent.type.spec.code);
+          if (text && text.trim() && !inCode && slice && slice.size > 0
+            && !tryParseClipboardMarkdown(view.state.schema, text)) {
+            const from = view.state.selection.from;
+            // 复刻 doPaste 默认插入（prosemirror-view paste 事件处理）：
+            // 单节点闭环 slice 用 replaceSelectionWith，其余用 replaceSelection
+            const singleNode = slice.openStart === 0 && slice.openEnd === 0
+              && slice.content.childCount === 1
+              ? slice.content.firstChild
+              : null;
+            const tr = singleNode
+              ? view.state.tr.replaceSelectionWith(singleNode)
+              : view.state.tr.replaceSelection(slice);
+            view.dispatch(tr.scrollIntoView().setMeta('paste', true).setMeta('uiEvent', 'paste'));
             const to = view.state.selection.from;
+            // 占位插入后的实际文本（含块分隔符），作为「用户未编辑」的比对基准
+            const expected = view.state.doc.textBetween(from, to, '\n');
             const requestId = ++nextPasteId;
 
             void readClipboardHtml().then((html) => {
               if (!html || view.isDestroyed) return;
               if (requestId !== nextPasteId) return; // 防乱序
-              const currentText = view.state.doc.textBetween(from, to);
-              if (currentText !== text) return; // 用户已编辑
-              const slice = parseHtmlSlice(view.state.schema, html);
-              if (!slice) return;
-              view.dispatch(view.state.tr.replaceWith(from, to, slice.content).scrollIntoView());
+              if (view.state.doc.textBetween(from, to, '\n') !== expected) return; // 用户已编辑
+              const rich = parseHtmlSlice(view.state.schema, html);
+              if (!rich) return;
+              view.dispatch(view.state.tr.replaceWith(from, to, rich.content).scrollIntoView());
             });
             return true;
           }
@@ -449,43 +513,13 @@ export function markdownPastePlugin(opts?: {
 
       // ── Layer 1: clipboardTextParser 钩子 ─────────────────────────
       // 触发：走纯文本路径时（text/html 缺失或不可用，如 WebView2 常见场景）
-      // 职责：识别结构化 Markdown 源 → 解析为 Slice
+      // 职责：识别结构化 Markdown 源 → 解析为 Slice（链在 tryParseClipboardMarkdown，
+      // 与 Layer 4 占位升级守卫共用同一判定）
       // 返回 null → ProseMirror fallback 到默认纯文本处理（逐行成段）
       // 类型断言：ProseMirror 类型签名要求返回 Slice，但运行时 someProp 支持 null fallback
       clipboardTextParser: ((text: string, $context: { doc: { type: { schema: Schema } } }) => {
-        const schema = $context.doc.type.schema;
-
-        // GFM 表格识别
-        if (looksLikeMarkdownTable(text)) {
-          const slice = parseMarkdownTablePaste(schema, text);
-          if (slice) return slice;
-        }
-
-        // 结构化 Markdown 识别（标题/引用/代码围栏/列表/frontmatter）
-        if (looksLikeMarkdownSource(text)) {
-          const slice = parseGeneralMarkdownPaste(schema, text);
-          if (slice) return slice;
-        }
-
-        // 专有语法识别（数学块 / wikilink / callout / frontmatter）——
-        // 允许单行（如 `[[wikilink]]`、单独 `$$x$$`）无块级语法也走 markdown 解析
-        if (hasMarkdownOnlySyntax(text)) {
-          const slice = parseProprietaryMarkdownPaste(schema, text);
-          if (slice) return slice;
-        }
-
-        // 整段 URL → 自动转链接（仅粘贴路径，不开全局 linkify）
-        const urlSlice = parseUrlPaste(schema, text);
-        if (urlSlice) return urlSlice;
-
-        // 单段落行内标记（**bold** / `code` / ~~strike~~）→ 走 markdown 解析保留格式
-        if (hasInlineMarkdownSyntax(text)) {
-          const inlineSlice = parseInlineMarkdownPaste(schema, text);
-          if (inlineSlice) return inlineSlice;
-        }
-
         // 兜底：纯文本，让 ProseMirror 用默认逻辑逐行成段
-        return null;
+        return tryParseClipboardMarkdown($context.doc.type.schema, text);
       }) as any,
 
       // ── Layer 2: transformPasted 钩子 ─────────────────────────────

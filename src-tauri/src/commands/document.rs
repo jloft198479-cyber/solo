@@ -576,7 +576,7 @@ mod tests {
     };
     use crate::error::AppError;
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::thread;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -846,6 +846,43 @@ mod tests {
         assert!(other_tmp.exists(), "non-matching tmp should be kept");
 
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn cleanup_stale_tmp_deletes_stale_and_keeps_fresh() {
+        let dir = test_dir();
+        let doc_path = dir.join("demo.md");
+        fs::write(&doc_path, b"# hello").unwrap();
+
+        // stale 残留：mtime 设为 2 小时前 → 应删除
+        let stale_tmp = dir.join(".demo.1000000.tmp");
+        fs::write(&stale_tmp, b"stale").unwrap();
+        set_modified_hours_ago(&stale_tmp, 2);
+
+        // fresh 残留：mtime 当前 → 应保留（双开进程可能正在写入）
+        let fresh_tmp = dir.join(".demo.1000001.tmp");
+        fs::write(&fresh_tmp, b"fresh").unwrap();
+
+        // 匹配前后缀但中间非纯数字 → 应保留
+        let bad_num_tmp = dir.join(".demo.abc.tmp");
+        fs::write(&bad_num_tmp, b"bad").unwrap();
+
+        super::cleanup_stale_tmp_files(&doc_path);
+
+        assert!(!stale_tmp.exists(), "stale tmp (mtime > 1h) should be deleted");
+        assert!(fresh_tmp.exists(), "fresh tmp should be kept");
+        assert!(bad_num_tmp.exists(), "non-numeric middle part should be kept");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    /// 把文件 mtime 设为 N 小时前（FileTimes 稳定于 Rust 1.75+）。
+    fn set_modified_hours_ago(path: &Path, hours: u64) {
+        use std::fs::FileTimes;
+
+        let file = fs::File::options().write(true).open(path).unwrap();
+        let old = SystemTime::now() - Duration::from_secs(hours * 3600);
+        file.set_times(FileTimes::new().set_modified(old)).unwrap();
     }
 
     #[test]

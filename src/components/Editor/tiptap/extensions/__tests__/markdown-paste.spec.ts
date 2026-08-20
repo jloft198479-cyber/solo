@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { EditorView } from '@tiptap/pm/view';
+import * as pmViewLib from '@tiptap/pm/view';
 import { Slice } from '@tiptap/pm/model';
 import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model';
 
@@ -26,6 +27,11 @@ const imageMocks = vi.hoisted(() => ({
   authorizeImageAsset: vi.fn().mockResolvedValue(undefined),
 }));
 
+// 系统剪贴板 HTML 读取依赖 Tauri runtime（Layer 4 异步升级），默认无 HTML。
+const clipboardMocks = vi.hoisted(() => ({
+  readClipboardHtml: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock('../../../../../services/tauri/document', () => ({
   saveClipboardImage: imageMocks.saveClipboardImage,
   authorizeImageAsset: imageMocks.authorizeImageAsset,
@@ -35,6 +41,10 @@ vi.mock('../../../../../services/tauri/document', () => ({
 
 vi.mock('../../../../../services/tauri/dialog', () => ({
   confirm: vi.fn().mockResolvedValue(true),
+}));
+
+vi.mock('../../../../../services/tauri/clipboard', () => ({
+  readClipboardHtml: clipboardMocks.readClipboardHtml,
 }));
 
 // ────────────────────────────────────────────────────────────
@@ -544,6 +554,20 @@ describe('handlePaste 逃生舱（Layer 3：仅图片处理）', () => {
     return view;
   }
 
+  function mountCodeBlock(): EditorView {
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.codeBlock.create(null, schema.text('// code')),
+    ]);
+    const state = EditorState.create({
+      schema,
+      doc,
+      selection: TextSelection.create(doc, 2),
+      plugins: [markdownPastePlugin()],
+    });
+    view = new EditorView(mount!, { state });
+    return view;
+  }
+
   function pasteEvent(parts: Record<string, string>, files: File[] = []): ClipboardEvent {
     return {
       clipboardData: {
@@ -554,18 +578,168 @@ describe('handlePaste 逃生舱（Layer 3：仅图片处理）', () => {
     } as unknown as ClipboardEvent;
   }
 
+  /**
+   * 复刻 PM 真实粘贴管线（prosemirror-view doPaste）：
+   * parseFromClipboard（先跑 clipboardTextParser）→ handlePaste（拿到预解析 slice）。
+   * 直接用 PM 内部的 __parseFromClipboard 保证 slice 与生产环境一致。
+   */
   function firePaste(v: EditorView, event: ClipboardEvent): boolean {
+    const clipboard = event.clipboardData;
+    const text = clipboard ? clipboard.getData('text/plain') : '';
+    const html = clipboard ? clipboard.getData('text/html') || null : null;
+    const parse = (
+      pmViewLib as unknown as {
+        __parseFromClipboard(
+          view: EditorView,
+          text: string,
+          html: string | null,
+          plainText: boolean,
+          $context: ResolvedPos,
+        ): Slice | null;
+      }
+    ).__parseFromClipboard;
+    const slice = parse(v, text, html, false, v.state.selection.$from);
     return Boolean(
-      v.someProp('handlePaste', (handler) => handler(v, event, Slice.empty)),
+      v.someProp('handlePaste', (handler) => handler(v, event, slice || Slice.empty)),
     );
   }
 
-  it('无图片（纯文字，无 text/html）→ 接管并同步插入纯文本（异步 fallback 升级）', () => {
+  /** flush 微任务队列（Layer 4 异步升级在 readClipboardHtml 的 .then 里） */
+  const flushAsync = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+  beforeEach(() => {
+    clipboardMocks.readClipboardHtml.mockReset().mockResolvedValue(null);
+  });
+
+  it('无图片（纯文字，无 text/html）→ 接管并复刻默认插入（占位）', () => {
     const v = mountEmpty();
     const handled = firePaste(v, pasteEvent({ 'text/plain': 'just text' }));
-    // Layer 4 异步 fallback 接管，同步插入纯文本
+    // Layer 4 接管：占位=默认插入内容（单行并入当前段落）
     expect(handled).toBe(true);
     expect(v.state.doc.textContent).toBe('just text');
+  });
+
+  it('多行纯文本（无 text/html）→ 占位为多个段落（复刻默认逐行成段）', () => {
+    const v = mountEmpty();
+    const handled = firePaste(v, pasteEvent({ 'text/plain': 'line one\nline two' }));
+    expect(handled).toBe(true);
+    // 结构守卫：默认流程把多行拆成多段落；旧实现 insertText 会压成
+    // 单个含 \n 的文本节点（无法逐行编辑）——此测试防回归
+    const paragraphs: string[] = [];
+    v.state.doc.forEach((block) => {
+      if (block.type.name === 'paragraph') paragraphs.push(block.textContent);
+    });
+    expect(paragraphs).toEqual(['line one', 'line two']);
+    let sawNewlineInText = false;
+    v.state.doc.descendants((node) => {
+      if (node.isText && node.text?.includes('\n')) sawNewlineInText = true;
+      return true;
+    });
+    expect(sawNewlineInText).toBe(false);
+  });
+
+  it('GFM 表格文本（无 text/html）→ 放行默认流程（不吞 Layer 1 表格转换）', () => {
+    const v = mountEmpty();
+    const handled = firePaste(
+      v,
+      pasteEvent({ 'text/plain': '| A | B |\n| --- | --- |\n| 1 | 2 |' }),
+    );
+    // 表格文本由 clipboardTextParser（Layer 1）转成 table slice，
+    // Layer 4 不得拦截覆盖——否则粘贴结果退化为原始文本
+    expect(handled).toBe(false);
+  });
+
+  it('整段 URL（无 text/html）→ 放行默认流程（不吞 URL 转链接）', () => {
+    const v = mountEmpty();
+    const handled = firePaste(v, pasteEvent({ 'text/plain': 'https://example.com' }));
+    expect(handled).toBe(false);
+  });
+
+  it('行内标记文本（无 text/html）→ 放行默认流程（不吞行内格式转换）', () => {
+    const v = mountEmpty();
+    const handled = firePaste(v, pasteEvent({ 'text/plain': '**bold** and `code`' }));
+    expect(handled).toBe(false);
+  });
+
+  it('代码块内粘贴纯文本（无 text/html）→ 放行默认流程（不接管不升级）', () => {
+    const v = mountCodeBlock();
+    const handled = firePaste(v, pasteEvent({ 'text/plain': 'plain code line' }));
+    // code 上下文默认流程按原始文本插入；Layer 4 接管反而会破坏代码块
+    expect(handled).toBe(false);
+  });
+
+  it('占位升级：系统剪贴板有 HTML → 异步原地升级为富格式', async () => {
+    clipboardMocks.readClipboardHtml.mockResolvedValue('<p>rich <strong>bold</strong> text</p>');
+    const v = mountEmpty();
+    const handled = firePaste(v, pasteEvent({ 'text/plain': 'rich bold text' }));
+    expect(handled).toBe(true);
+    // 占位先同步出现
+    expect(v.state.doc.textContent).toBe('rich bold text');
+
+    await flushAsync();
+
+    // 异步升级后带 bold mark
+    let hasBold = false;
+    v.state.doc.descendants((node) => {
+      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
+      return true;
+    });
+    expect(hasBold).toBe(true);
+  });
+
+  it('占位升级：系统剪贴板无 HTML → 保留占位（默认粘贴结果，不降级）', async () => {
+    const v = mountEmpty();
+    const handled = firePaste(v, pasteEvent({ 'text/plain': 'just text' }));
+    expect(handled).toBe(true);
+
+    await flushAsync();
+
+    expect(v.state.doc.textContent).toBe('just text');
+  });
+
+  it('占位后占位范围被编辑 → 放弃升级（防覆盖用户输入）', async () => {
+    clipboardMocks.readClipboardHtml.mockResolvedValue('<p>rich <strong>bold</strong></p>');
+    const v = mountEmpty();
+    const handled = firePaste(v, pasteEvent({ 'text/plain': 'plain' }));
+    expect(handled).toBe(true);
+
+    // 用户在占位范围内插入字符 → 内容已变，升级应放弃
+    // 占位 'plain' 占位置 1-6，位置 2 = 'p' 之后（占位中间）
+    v.dispatch(v.state.tr.insertText('!', 2));
+
+    await flushAsync();
+
+    let hasBold = false;
+    v.state.doc.descendants((node) => {
+      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
+      return true;
+    });
+    expect(hasBold).toBe(false);
+    expect(v.state.doc.textContent).toBe('p!lain');
+  });
+
+  it('连续两次粘贴 → 前一次请求作废（请求序号防乱序）', async () => {
+    clipboardMocks.readClipboardHtml.mockResolvedValue('<p>x <strong>bold</strong></p>');
+    const v = mountEmpty();
+    firePaste(v, pasteEvent({ 'text/plain': 'aaa' }));
+    firePaste(v, pasteEvent({ 'text/plain': 'bbb' }));
+
+    await flushAsync();
+
+    // 第一次粘贴（aaa）的升级请求已过期：不被升级
+    let aaaMarked = false;
+    v.state.doc.descendants((node) => {
+      if (node.isText && node.text?.includes('aaa') && node.marks.length > 0) aaaMarked = true;
+      return true;
+    });
+    expect(aaaMarked).toBe(false);
+    // 第二次粘贴（bbb）的升级请求有效：被升级
+    let hasBold = false;
+    v.state.doc.descendants((node) => {
+      if (node.isText && node.marks.some((m) => m.type.name === 'bold')) hasBold = true;
+      return true;
+    });
+    expect(hasBold).toBe(true);
   });
 
   it('无 clipboardData → return false', () => {
@@ -686,6 +860,24 @@ describe('parseHtmlSlice 体积熔断', () => {
     const slice = parseHtmlSlice(schema, wordHtml);
     expect(slice).not.toBeNull();
     expect(slice!.content.textBetween(0, slice!.content.size)).toBe('Hello');
+  });
+
+  it('正文文字含 mso- 属性名（非 style 属性）→ 清理不吞正文', () => {
+    const schema = createMarkdownCompatSchema();
+    // 文档正文讨论 Word CSS 属性：文字里的 "mso-xxx: 1" 不是垃圾，必须保留
+    const html = '<p>配置 mso-line-height: 12pt 即可生效</p>';
+    expect(hasMsoHtml(html)).toBe(true); // 嗅探命中（含 mso-），会走清理
+    const slice = parseHtmlSlice(schema, html);
+    expect(slice).not.toBeNull();
+    expect(slice!.content.textBetween(0, slice!.content.size)).toContain('mso-line-height: 12pt');
+  });
+
+  it('style 属性以 mso- 开头 → 正常移除该声明', () => {
+    const schema = createMarkdownCompatSchema();
+    const wordHtml = '<p style="mso-spacerun: yes; color: red">Colored</p>';
+    const slice = parseHtmlSlice(schema, wordHtml);
+    expect(slice).not.toBeNull();
+    expect(slice!.content.textBetween(0, slice!.content.size)).toBe('Colored');
   });
 
   it('普通 HTML 不受影响', () => {
