@@ -577,6 +577,37 @@ describe('Round-trip: parse → serialize', () => {
     it('callout with info type', () => {
       expect(roundTrip('> [!info]\n> some info\n')).toBe(normalize('> [!INFO]\n> some info\n'));
     });
+
+    it('callout with nested bullet list', () => {
+      const md = '> [!NOTE]\n> - item 1\n> - item 2\n';
+      expect(roundTrip(md)).toBe(normalize(md));
+    });
+
+    it('callout with nested code block', () => {
+      const md = '> [!TIP]\n> ```js\n> console.log("hello");\n> ```\n';
+      expect(roundTrip(md)).toBe(normalize(md));
+    });
+
+    it('callout with nested table', () => {
+      const md = '> [!WARNING]\n> | a   | b   |\n> | --- | --- |\n> | 1   | 2   |\n';
+      expect(roundTrip(md)).toBe(normalize(md));
+    });
+
+    it('callout with horizontal rule', () => {
+      const md = '> [!TIP]\n> text before\n> \n> ---\n';
+      expect(roundTrip(md)).toBe(normalize(md));
+    });
+
+    it('callout with multi-paragraph content', () => {
+      const md = '> [!NOTE]\n> first para\n> \n> second para\n';
+      expect(roundTrip(md)).toBe(normalize(md));
+    });
+
+    it('callout double roundtrip is idempotent', () => {
+      const md = '> [!NOTE]\n> - item 1\n> - item 2\n';
+      const once = roundTrip(md);
+      expect(roundTrip(once)).toBe(once);
+    });
   });
 
   describe('frontmatter', () => {

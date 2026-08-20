@@ -14,10 +14,19 @@ export class MarkdownSerializerState {
   private closed: PMNode | null = null;
   private inTightList = false;
   private listDepth = 0;
-  private readonly clipboard: boolean;
+  readonly clipboard: boolean;
 
   constructor(options?: { clipboard?: boolean }) {
     this.clipboard = options?.clipboard ?? false;
+  }
+
+  /**
+   * 创建共享配置的子 state（用于先渲染内层再整体加前缀的节点，如 blockquote/callout）。
+   * 子 state 继承 clipboard 模式，保证内层转义策略与整体一致。
+   * 做成实例方法而非直接 new，避免插件模块运行时 import 本类造成循环依赖。
+   */
+  createChild(): MarkdownSerializerState {
+    return new MarkdownSerializerState({ clipboard: this.clipboard });
   }
 
   /** 写入文本 */
