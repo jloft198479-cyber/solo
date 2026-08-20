@@ -36,10 +36,12 @@ const presetThemeMap = new Map<string, Theme>(PRESET_THEMES.map((theme) => [them
 
 /**
  * 共享默认配色（亮/暗各一套）——「真理源自一处」：
- * 非性格 token（圆角/功能色/标记底色/幽灵按钮/遮罩/callout 色板）只定义一次，
+ * 非性格 token（功能色/标记底色/幽灵按钮/遮罩/callout 色板）只定义一次，
  * 主题 JSON 只写性格差异，缺失字段由 resolveTheme 在此补齐。
  * 主题若需定制某个共享值，在其 JSON 中显式声明即可覆盖。
  * 色值均经 WCAG 实测（对比度 ≥4.5 或有意为之，见 .sandbox-theme-audit/verify.py）。
+ * 注：圆角（--radius-*）不是主题 token（不随主题变化，属 UI 直角范式），
+ * 仅定义在 main.css :root 一份，此处不重复（2026-08-21 简化）。
  */
 const SHARED_LIGHT_COLORS: Partial<ThemeColors> = {
   successColor: '#15803d',
@@ -53,10 +55,6 @@ const SHARED_LIGHT_COLORS: Partial<ThemeColors> = {
   markBg: '#fef08a',
   btnGhostBg: 'transparent',
   modalOverlay: 'rgba(0, 0, 0, 0.45)',
-  radiusSm: '3px',
-  radiusMd: '4px',
-  radiusLg: '8px',
-  radiusXl: '10px',
   calloutNote: '#6b5a3e',
   calloutNoteBg: 'rgba(107, 90, 62, 0.08)',
   calloutAbstract: '#155e75',
@@ -95,10 +93,6 @@ const SHARED_DARK_COLORS: Partial<ThemeColors> = {
   markBg: 'rgba(254, 240, 138, 0.35)',
   btnGhostBg: 'transparent',
   modalOverlay: 'rgba(0, 0, 0, 0.65)',
-  radiusSm: '3px',
-  radiusMd: '4px',
-  radiusLg: '8px',
-  radiusXl: '10px',
   calloutNote: '#b0a080',
   calloutNoteBg: 'rgba(176, 160, 128, 0.1)',
   calloutAbstract: '#67e8f9',

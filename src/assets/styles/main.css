@@ -239,12 +239,6 @@ html.dark {
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.35);
 
-  /* 圆角 — 直角语言（3/4/8/10），与 manager.ts SHARED 一致 */
-  --radius-sm: 3px;
-  --radius-md: 4px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-
   /* 弹窗/模态框 */
   --modal-bg: #14181d;
   --modal-border: #2a3440;
