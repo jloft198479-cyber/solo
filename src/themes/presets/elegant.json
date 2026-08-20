@@ -14,7 +14,7 @@
     "bgSecondary": "#f2f3f5",
     "textColor": "#1a2a35",
     "textSecondary": "#3a5565",
-    "mutedColor": "#7e8f9c",
+    "mutedColor": "#5f707c",
     "borderColor": "#dfe3e8",
     "borderLight": "#e8ecf0",
     "sidebarBg": "#f2f3f5",
@@ -26,8 +26,8 @@
     "selectedBg": "rgba(90, 122, 138, 0.1)",
     "quoteBg": "rgba(90, 122, 138, 0.05)",
     "tagBg": "rgba(90, 122, 138, 0.1)",
-    "tagColor": "#5a7a8a",
-    "dirtyColor": "#b8763a",
+    "tagColor": "#4a6878",
+    "dirtyColor": "#8f5a1e",
     "shadowSm": "0 1px 2px rgba(26, 42, 53, 0.04)",
     "shadowMd": "0 4px 6px -1px rgba(26, 42, 53, 0.06), 0 2px 4px -2px rgba(26, 42, 53, 0.04)",
     "shadowLg": "0 10px 15px -3px rgba(26, 42, 53, 0.08), 0 4px 6px -4px rgba(26, 42, 53, 0.04)",
@@ -39,7 +39,7 @@
     "inputBorder": "#dfe3e8",
     "inputFocusBorder": "#5a7a8a",
     "inputFocusShadow": "0 0 0 3px rgba(90, 122, 138, 0.12)",
-    "inputPlaceholder": "#a0aab5",
+    "inputPlaceholder": "#8a949c",
     "btnPrimaryBg": "#5a7a8a",
     "btnPrimaryHover": "#4a6878",
     "btnPrimaryText": "#ffffff",
@@ -51,6 +51,7 @@
     "popoverBorder": "#dfe3e8",
     "popoverShadow": "0 10px 15px -3px rgba(26, 42, 53, 0.1)",
     "calloutNote": "#5a7a8a",
-    "calloutNoteBg": "rgba(90, 122, 138, 0.11)"
+    "calloutNoteBg": "rgba(90, 122, 138, 0.11)",
+    "accentColor": "#4a6878"
   }
 }
