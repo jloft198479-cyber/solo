@@ -164,6 +164,7 @@ import {
 import { resolveWikilinkTarget } from './tiptap/extensions/wikilink';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch, pulseJumpTarget } from './tiptap/useEditorSearch';
+import { getBlockElFromPos, scrollElementIntoView } from './tiptap/editor-dom';
 import { resolveImageDisplay } from '../../services/tauri/document';
 import { message } from '../../services/tauri/dialog';
 import { toAssetUrl } from '../../services/tauri/asset';
@@ -637,11 +638,13 @@ defineExpose({
     if (!editor.value) return;
     const docSize = editor.value.state.doc.content.size;
     const target = Math.max(0, Math.min(pos, docSize));
-    editor.value.commands.focus(target);
-    // 滚动到视图
-    const dom = editor.value.view.domAtPos(target);
-    const el = dom.node instanceof HTMLElement ? dom.node : dom.node.parentElement;
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // 关掉 focus 附带的「最小滚动」，只保留下面唯一一次平滑滚动，避免两次滚动抢跑
+    editor.value.commands.focus(target, { scrollIntoView: false });
+    // 用块节点 DOM 定位：domAtPos 在块边界会拿到编辑根，导致 scrollIntoView 静默失效
+    const el = getBlockElFromPos(editor.value.view, target);
+    if (!el) return;
+    // 标题平滑停到视口上方约 1/4 处（Obsidian/Typora 风格），见 editor-dom.ts
+    scrollElementIntoView(editor.value.view, el);
     // 大纲跳转也给一次命中脉冲，体感和搜索「下一个」一致
     pulseJumpTarget(el);
   },
