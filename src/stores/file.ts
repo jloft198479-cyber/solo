@@ -16,7 +16,6 @@ export interface FileState {
 
 interface FileStoreState {
   currentFile: FileState;
-  hasUserEdit: boolean;
   isLoading: boolean;
 }
 
@@ -34,8 +33,6 @@ function createEmptyFileState(): FileState {
 export const useFileStore = defineStore('file', {
   state: (): FileStoreState => ({
     currentFile: createEmptyFileState(),
-    // 标记用户是否有过编辑操作
-    hasUserEdit: false,
     isLoading: false,
   }),
 
@@ -45,17 +42,14 @@ export const useFileStore = defineStore('file', {
     },
 
     setContent(content: string) {
+      // 同步基线：仅更新内容、不标脏（A1 后脏标记由 syncEditedContent 判定）
       this.currentFile.content = content;
-      // 只有用户有编辑操作时才标记为脏
-      if (this.hasUserEdit) {
-        this.currentFile.isDirty = true;
-      }
     },
 
     /**
      * 编辑序列化结果回写（A1 改造）。
-     * 与 setContent 的「同步基线、不标脏」不同，本方法以「内容与基线是否语义变化」为脏标记的唯一真相源：
-     * 内容与基线不同 → 更新内容并标脏（不再依赖 hasUserEdit 门控）；内容未变 → 不改动、不标脏。
+     * 以「内容与基线是否语义变化」为脏标记的唯一真相源：
+     * 内容与基线不同 → 更新内容并标脏；内容未变 → 不改动、不标脏。
      * 由此同时根治「漏标脏」（拖入图片等非键盘交互）与「误标脏」（Mermaid 等后台事务不改内容）。
      * 调用前保证 content 是编辑器当前的序列化 markdown。
      * @returns 是否发生了语义变化（即是否标为脏）
@@ -71,12 +65,6 @@ export const useFileStore = defineStore('file', {
       return true;
     },
 
-    // 用户编辑操作时调用
-    markUserEdit() {
-      this.hasUserEdit = true;
-      this.currentFile.isDirty = true;
-    },
-
     setFile(content: string, path: string | null, lastModifiedTime: number | null = null) {
       const baseName = path
         ? (path.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
@@ -89,15 +77,12 @@ export const useFileStore = defineStore('file', {
         displayName: baseName,
         originalBaseName: baseName,
       };
-      // 重置编辑标志
-      this.hasUserEdit = false;
     },
 
     setDisplayName(name: string) {
       const trimmed = name.trim();
       this.currentFile.displayName = trimmed || DEFAULT_DISPLAY_NAME;
       this.currentFile.isDirty = true;
-      this.hasUserEdit = true;
     },
 
     renamePath(newPath: string) {
@@ -111,7 +96,6 @@ export const useFileStore = defineStore('file', {
 
     markSaved(lastModifiedTime: number | null = null) {
       this.currentFile.isDirty = false;
-      this.hasUserEdit = false;
       this.currentFile.displayName = this.currentFile.originalBaseName;
       if (lastModifiedTime !== null) {
         this.currentFile.lastModifiedTime = lastModifiedTime;
@@ -120,7 +104,6 @@ export const useFileStore = defineStore('file', {
 
     reset() {
       this.currentFile = createEmptyFileState();
-      this.hasUserEdit = false;
     },
   },
 });

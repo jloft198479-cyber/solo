@@ -16,31 +16,18 @@ describe('useFileStore', () => {
       expect(store.currentFile.isDirty).toBe(false);
       expect(store.currentFile.lastModifiedTime).toBeNull();
       expect(store.currentFile.displayName).toBe('未命名');
-      expect(store.hasUserEdit).toBe(false);
       expect(store.isLoading).toBe(false);
     });
   });
 
   describe('setContent', () => {
-    it('未发生过用户编辑时，setContent 不会标记为脏', () => {
+    it('仅同步基线，不标脏', () => {
       const store = useFileStore();
 
       store.setContent('新内容');
 
       expect(store.currentFile.content).toBe('新内容');
       expect(store.currentFile.isDirty).toBe(false);
-      expect(store.hasUserEdit).toBe(false);
-    });
-
-    it('用户编辑后，setContent 会同步标记为脏', () => {
-      const store = useFileStore();
-
-      store.markUserEdit();
-      store.setContent('编辑后内容');
-
-      expect(store.currentFile.content).toBe('编辑后内容');
-      expect(store.currentFile.isDirty).toBe(true);
-      expect(store.hasUserEdit).toBe(true);
     });
   });
 
@@ -79,28 +66,14 @@ describe('useFileStore', () => {
       expect(store.currentFile.isDirty).toBe(false);
     });
 
-    it('不依赖 hasUserEdit 门控：非键盘交互（如拖入图片）也能正确标脏', () => {
+    it('非键盘交互（如拖入图片）导致内容变化时也能正确标脏', () => {
       const store = useFileStore();
       store.setContent('基线');
       store.markSaved();
 
-      // 未发生任何 markUserEdit（hasUserEdit 仍未 false）
-      expect(store.hasUserEdit).toBe(false);
-
       const changed = store.syncEditedContent('拖入图片后的内容');
 
       expect(changed).toBe(true);
-      expect(store.currentFile.isDirty).toBe(true);
-    });
-  });
-
-  describe('markUserEdit', () => {
-    it('同时设置 hasUserEdit 与 isDirty', () => {
-      const store = useFileStore();
-
-      store.markUserEdit();
-
-      expect(store.hasUserEdit).toBe(true);
       expect(store.currentFile.isDirty).toBe(true);
     });
   });
@@ -142,16 +115,16 @@ describe('useFileStore', () => {
       expect(store.currentFile.displayName).toBe('未命名');
     });
 
-    it('加载新文件后重置脏标记与用户编辑标志', () => {
+    it('加载新文件后重置内容与脏标记', () => {
       const store = useFileStore();
-      store.markUserEdit();
       store.setContent('脏内容');
+      store.syncEditedContent('更脏内容');
       expect(store.currentFile.isDirty).toBe(true);
 
       store.setFile('新内容', '/path/file.md');
 
+      expect(store.currentFile.content).toBe('新内容');
       expect(store.currentFile.isDirty).toBe(false);
-      expect(store.hasUserEdit).toBe(false);
     });
 
     it('路径仅含文件名时也能正确派生 displayName', () => {
@@ -179,7 +152,6 @@ describe('useFileStore', () => {
 
       expect(store.currentFile.displayName).toBe('新标题');
       expect(store.currentFile.isDirty).toBe(true);
-      expect(store.hasUserEdit).toBe(true);
     });
 
     it('空白名称回退为"未命名"', () => {
@@ -208,15 +180,17 @@ describe('useFileStore', () => {
   });
 
   describe('markSaved', () => {
-    it('清除脏标记与用户编辑标志', () => {
+    it('清除脏标记并重置 displayName 为原始文件名', () => {
       const store = useFileStore();
-      store.markUserEdit();
+      store.setFile('内容', '/path/file.md');
+      store.syncEditedContent('编辑内容');
+      store.setDisplayName('新标题');
       expect(store.currentFile.isDirty).toBe(true);
 
       store.markSaved();
 
       expect(store.currentFile.isDirty).toBe(false);
-      expect(store.hasUserEdit).toBe(false);
+      expect(store.currentFile.displayName).toBe('file');
     });
 
     it('可选更新 lastModifiedTime', () => {
@@ -226,6 +200,7 @@ describe('useFileStore', () => {
       store.markSaved(2000);
 
       expect(store.currentFile.lastModifiedTime).toBe(2000);
+      expect(store.currentFile.isDirty).toBe(false);
     });
 
     it('不传 lastModifiedTime 时保留原值', () => {
@@ -251,7 +226,6 @@ describe('useFileStore', () => {
     it('恢复为初始未命名空文件', () => {
       const store = useFileStore();
       store.setFile('内容', '/path/file.md', 1000);
-      store.markUserEdit();
       store.setDisplayName('新名字');
 
       store.reset();
@@ -261,7 +235,6 @@ describe('useFileStore', () => {
       expect(store.currentFile.isDirty).toBe(false);
       expect(store.currentFile.lastModifiedTime).toBeNull();
       expect(store.currentFile.displayName).toBe('未命名');
-      expect(store.hasUserEdit).toBe(false);
     });
   });
 
@@ -278,30 +251,29 @@ describe('useFileStore', () => {
   });
 
   describe('dirty 状态机回归测试', () => {
-    it('加载文件 → 用户编辑 → 保存 → 再次编辑 的脏状态流转', () => {
+    it('加载文件 → 编辑（内容变化）→ 保存 → 再次编辑 的脏状态流转', () => {
       const store = useFileStore();
 
       // 1. 加载文件，应无脏标记
       store.setFile('初始内容', '/path/file.md', 1000);
       expect(store.currentFile.isDirty).toBe(false);
-      expect(store.hasUserEdit).toBe(false);
 
-      // 2. setContent 在未发生用户编辑时不应触发脏（避免加载后 round-trip 误判）
+      // 2. setContent 仅同步基线，不触发脏（避免加载后 round-trip 误判）
       store.setContent('初始内容');
       expect(store.currentFile.isDirty).toBe(false);
 
-      // 3. 用户编辑触发脏
-      store.markUserEdit();
-      store.setContent('修改后内容');
+      // 3. syncEditedContent 内容变化触发脏
+      const changed = store.syncEditedContent('修改后内容');
+      expect(changed).toBe(true);
       expect(store.currentFile.isDirty).toBe(true);
 
       // 4. 保存后清除脏
       store.markSaved(2000);
       expect(store.currentFile.isDirty).toBe(false);
-      expect(store.hasUserEdit).toBe(false);
 
-      // 5. 保存后再次 setContent 不应触发脏（除非再次 markUserEdit）
-      store.setContent('再次修改');
+      // 5. 保存后内容未变时 syncEditedContent 不再触发脏
+      const unchanged = store.syncEditedContent('修改后内容');
+      expect(unchanged).toBe(false);
       expect(store.currentFile.isDirty).toBe(false);
     });
 
@@ -313,7 +285,6 @@ describe('useFileStore', () => {
       store.setDisplayName('新名字');
 
       expect(store.currentFile.isDirty).toBe(true);
-      expect(store.hasUserEdit).toBe(true);
     });
   });
 });
