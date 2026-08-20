@@ -44,6 +44,56 @@ describe('useFileStore', () => {
     });
   });
 
+  describe('syncEditedContent', () => {
+    it('内容相对基线有变化时，更新内容并标脏，返回 true', () => {
+      const store = useFileStore();
+      store.setContent('基线');
+      store.markSaved();
+
+      const changed = store.syncEditedContent('编辑后内容');
+
+      expect(changed).toBe(true);
+      expect(store.currentFile.content).toBe('编辑后内容');
+      expect(store.currentFile.isDirty).toBe(true);
+    });
+
+    it('内容相对基线未变化时，不改动、不标脏，返回 false', () => {
+      const store = useFileStore();
+      store.setContent('基线');
+      store.markSaved();
+
+      const changed = store.syncEditedContent('基线');
+
+      expect(changed).toBe(false);
+      expect(store.currentFile.isDirty).toBe(false);
+    });
+
+    it('忽略尾部换行差异（序列化器总是追加 \\n）', () => {
+      const store = useFileStore();
+      store.setContent('基线');
+      store.markSaved();
+
+      const changed = store.syncEditedContent('基线\n');
+
+      expect(changed).toBe(false);
+      expect(store.currentFile.isDirty).toBe(false);
+    });
+
+    it('不依赖 hasUserEdit 门控：非键盘交互（如拖入图片）也能正确标脏', () => {
+      const store = useFileStore();
+      store.setContent('基线');
+      store.markSaved();
+
+      // 未发生任何 markUserEdit（hasUserEdit 仍未 false）
+      expect(store.hasUserEdit).toBe(false);
+
+      const changed = store.syncEditedContent('拖入图片后的内容');
+
+      expect(changed).toBe(true);
+      expect(store.currentFile.isDirty).toBe(true);
+    });
+  });
+
   describe('markUserEdit', () => {
     it('同时设置 hasUserEdit 与 isDirty', () => {
       const store = useFileStore();
