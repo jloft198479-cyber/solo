@@ -4,7 +4,7 @@
       v-show="visible"
       ref="menuRef"
       class="bubble-menu"
-      :style="{ left: `${pos.left}px`, top: `${pos.top}px`, transform: 'translate(8px, -130%)' }"
+      :style="{ left: `${pos.left}px`, top: `${pos.top}px`, transform: menuTransform }"
       @mousedown.prevent
       @click.stop
     >
@@ -74,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, nextTick } from 'vue';
+import { ref, reactive, nextTick, computed } from 'vue';
 
 type BubbleMenuActionData = {
   href?: string;
@@ -95,6 +95,13 @@ const props = defineProps<{
 
 const visible = ref(false);
 const pos = reactive({ left: 0, top: 0 });
+
+// 顶部菜单栏高度（CustomTitlebar 48px）+ 菜单自身高度约 44px + 缓冲，低于此阈值时向下翻转
+const TOP_FLIP_THRESHOLD = 100;
+
+const menuTransform = computed(() =>
+  pos.top < TOP_FLIP_THRESHOLD ? 'translate(8px, 16px)' : 'translate(8px, -130%)',
+);
 const activeMarks = reactive({
   bold: false,
   italic: false,
@@ -175,7 +182,8 @@ defineExpose({
 <style scoped>
 .bubble-menu {
   position: fixed;
-  z-index: 50;
+  /* 高于 CustomTitlebar(z-index:200)，避免第一行编辑时被顶部菜单栏遮挡 */
+  z-index: 300;
   display: flex;
   flex-direction: column;
   padding: 4px;
