@@ -227,6 +227,92 @@ export function parseGeneralMarkdownPaste(schema: Schema, text: string): Slice |
   return new Slice(doc.content, openStart, openEnd);
 }
 
+/**
+ * 解析含 markdown 专有语法的纯文本为 Slice（数学块 / wikilink / callout / frontmatter）。
+ * 与 parseGeneralMarkdownPaste 的区别：不要求 looksLikeMarkdownSource 命中——专有语法
+ * 可能不满足块级启发式（如单行 `[[wikilink]]`、单独 `$$x$$`），只要解析出有效 doc 即返回。
+ * 调用方必须先过 hasMarkdownOnlySyntax 闸门，本函数只负责解析，不承担误判防护。
+ */
+export function parseProprietaryMarkdownPaste(schema: Schema, text: string): Slice | null {
+  let doc;
+  try {
+    doc = parseMarkdown(schema, text);
+  } catch {
+    return null;
+  }
+  if (!doc || doc.childCount === 0) return null;
+
+  const first = doc.firstChild;
+  const last = doc.lastChild;
+  const openStart = first && MERGEABLE_TYPES.has(first.type.name) ? 1 : 0;
+  const openEnd = last && MERGEABLE_TYPES.has(last.type.name) ? 1 : 0;
+
+  return new Slice(doc.content, openStart, openEnd);
+}
+
+/**
+ * 粗判文本是否含行内 Markdown 标记（**加粗** / `代码` / ~~删除线~~）。
+ * 仅匹配双字符包裹的标记，排除单 `*`（`a*b*c`、`5 * 3` 等不误判）。
+ * 用于 clipboardTextParser 兜底前的「单段落行内标记转换」，弥补纯文本路径不保留
+ * 行内格式的缺口（从 Markdown 编辑器复制单段落、HTML 缺失时）。
+ */
+export function hasInlineMarkdownSyntax(text: string): boolean {
+  return /(\*\*[^*]+\*\*|`[^`\n]+`|~~[^~]+~~)/.test(text);
+}
+
+/**
+ * 将「含行内标记、但无块级语法」的纯文本解析为 Slice。
+ * 校验：解析结果必须全部是段落，且至少一个段落含行内 mark（否则说明上层块级
+ * 启发式漏了块级语法，或标记是误判——两种情况都返回 null 交给默认流程）。
+ * openStart/openEnd 用 1，让 ProseMirror 把结果合并进当前段落。
+ */
+function parseInlineMarkdownPaste(schema: Schema, text: string): Slice | null {
+  let doc;
+  try {
+    doc = parseMarkdown(schema, text);
+  } catch {
+    return null;
+  }
+  if (!doc || doc.childCount === 0) return null;
+
+  let allParagraph = true;
+  let hasMark = false;
+  doc.forEach((block) => {
+    if (block.type.name !== 'paragraph') {
+      allParagraph = false;
+      return;
+    }
+    block.descendants((node) => {
+      if (node.isText && node.marks.length > 0) hasMark = true;
+      return !hasMark;
+    });
+  });
+  if (!allParagraph || !hasMark) return null;
+
+  return new Slice(doc.content, 1, 1);
+}
+
+/**
+ * 将「整段就是一个 URL」的纯文本粘贴转成链接（仅粘贴路径，不做全文 linkify）。
+ * 匹配：trim 后整体是 http(s):// 开头的无空白连续串，允许结尾带中英文标点。
+ * 命中后去掉句末标点，手动构建 link mark + 段落返回 Slice。
+ * 返回 null 表示不含「整段 URL」，交给后续行内标记/默认流程。
+ */
+export function parseUrlPaste(schema: Schema, text: string): Slice | null {
+  const trimmed = text.trim();
+  if (!/^https?:\/\/\S+$/i.test(trimmed)) return null;
+  if (!schema.marks.link || !schema.nodes.paragraph) return null;
+
+  const url = trimmed.replace(/[.,;:!?，。；：！？、]+$/, '');
+  if (!url) return null;
+
+  const linkMark = schema.marks.link.create({ href: url });
+  const textNode = schema.text(url, [linkMark]);
+  const paragraph = schema.nodes.paragraph.create(null, textNode);
+  const doc = schema.nodes.doc.create(null, paragraph);
+  return new Slice(doc.content, 1, 1);
+}
+
 const markdownPastePluginKey = new PluginKey('markdownPaste');
 
 export function markdownPastePlugin(opts?: {
@@ -244,6 +330,22 @@ export function markdownPastePlugin(opts?: {
         if (!clipboard) return false;
 
         const hasImage = hasClipboardImage(clipboard);
+
+        // 来源嗅探：text/plain 与 text/html 同时存在，且 text/plain 含 markdown 专有语法
+        //（数学块 / wikilink / callout / frontmatter）。这些标记经 HTML 渲染后必然丢失，
+        // 只可能来自 markdown 编辑器（Obsidian / Typora 等）——此时 HTML 路径会丢扩展语法，
+        // 强制改走纯文本 Markdown 管道。不命中则放行默认流程（HTML 路径格式更完整）。
+        if (!hasImage && (clipboard.types?.includes('text/html') ?? false)) {
+          const text = clipboard.getData('text/plain');
+          if (text && hasMarkdownOnlySyntax(text)) {
+            const slice = parseProprietaryMarkdownPaste(view.state.schema, text);
+            if (slice) {
+              view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
+              return true;
+            }
+          }
+        }
+
         if (!hasImage) return false;
 
         // 图片处理：异步落盘 + 插入 image 节点，同时手动插入文字
@@ -266,10 +368,27 @@ export function markdownPastePlugin(opts?: {
           if (slice) return slice;
         }
 
-        // 结构化 Markdown 识别（标题/引用/代码围栏/列表/frontmatter/数学块/wikilink/callout）
-        if (looksLikeMarkdownSource(text) || hasMarkdownOnlySyntax(text)) {
+        // 结构化 Markdown 识别（标题/引用/代码围栏/列表/frontmatter）
+        if (looksLikeMarkdownSource(text)) {
           const slice = parseGeneralMarkdownPaste(schema, text);
           if (slice) return slice;
+        }
+
+        // 专有语法识别（数学块 / wikilink / callout / frontmatter）——
+        // 允许单行（如 `[[wikilink]]`、单独 `$$x$$`）无块级语法也走 markdown 解析
+        if (hasMarkdownOnlySyntax(text)) {
+          const slice = parseProprietaryMarkdownPaste(schema, text);
+          if (slice) return slice;
+        }
+
+        // 整段 URL → 自动转链接（仅粘贴路径，不开全局 linkify）
+        const urlSlice = parseUrlPaste(schema, text);
+        if (urlSlice) return urlSlice;
+
+        // 单段落行内标记（**bold** / `code` / ~~strike~~）→ 走 markdown 解析保留格式
+        if (hasInlineMarkdownSyntax(text)) {
+          const inlineSlice = parseInlineMarkdownPaste(schema, text);
+          if (inlineSlice) return inlineSlice;
         }
 
         // 兜底：纯文本，让 ProseMirror 用默认逻辑逐行成段

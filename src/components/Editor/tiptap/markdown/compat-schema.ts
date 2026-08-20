@@ -171,6 +171,13 @@ export function createMarkdownCompatSchema(): Schema {
         parseDOM: [{ tag: 'span[data-wikilink]' }],
         toDOM: () => ['span', { 'data-wikilink': '' }, 0],
       },
+      callout: {
+        group: 'block',
+        content: 'block+',
+        attrs: { calloutType: { default: 'note' } },
+        parseDOM: [{ tag: 'div.mk-callout' }],
+        toDOM: () => ['div', { 'data-type': 'callout' }, 0],
+      },
       text: { group: 'inline' },
     },
     marks: {
