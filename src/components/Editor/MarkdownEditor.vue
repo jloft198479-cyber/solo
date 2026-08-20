@@ -14,119 +14,24 @@
     <EmojiMenu ref="emojiMenuRef" :items="emojiMenuItems" :command="emojiMenuCommand" />
 
     <!-- 搜索替换面板 -->
-    <Transition name="search-panel" :appear="true">
-      <div v-show="isSearchVisible" class="search-panel" @keydown.escape.stop="handleSearchEscape">
-        <div class="search-row">
-          <svg
-            class="search-icon"
-            width="14"
-            height="14"
-            viewBox="0 0 15 15"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="6" cy="6" r="4.5" />
-            <line x1="9.5" y1="9.5" x2="14" y2="14" />
-          </svg>
-          <input
-            ref="searchInputRef"
-            v-model="searchQuery"
-            type="text"
-            placeholder="搜索…"
-            class="search-input"
-            spellcheck="false"
-            @input="onSearchQuery(searchQuery)"
-            @keydown.enter.exact.prevent="onSearchNext()"
-            @keydown.shift.enter.prevent="onSearchPrev()"
-          />
-          <div class="search-meta">
-            <button
-              class="search-btn-meta"
-              :class="{ active: caseSensitive }"
-              title="区分大小写"
-              @click="toggleCaseSensitive"
-            >
-              Aa
-            </button>
-            <span v-if="searchMatchCount > 0" class="search-count"
-              >{{ searchCurrentIndex }}/{{ searchMatchCount }}</span
-            >
-          </div>
-          <button class="search-btn-nav" title="上一个 (Shift+Enter)" @click="onSearchPrev()">
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-              <path d="M5 2l4 6H1z" />
-            </svg>
-          </button>
-          <button class="search-btn-nav" title="下一个 (Enter)" @click="onSearchNext()">
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-              <path d="M1 2h8l-4 6z" />
-            </svg>
-          </button>
-          <button class="search-btn-close" title="关闭 (Esc)" @click="closeSearch()">
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.2"
-              stroke-linecap="round"
-            >
-              <line x1="1" y1="1" x2="9" y2="9" />
-              <line x1="9" y1="1" x2="1" y2="9" />
-            </svg>
-          </button>
-        </div>
-
-        <div v-if="showReplace" class="search-row search-replace-row">
-          <svg
-            class="search-icon"
-            width="14"
-            height="14"
-            viewBox="0 0 15 15"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M4.5 2v10M2.5 9.5l2 2 2-2M10.5 13V3M8.5 5.5l2-2 2 2" />
-          </svg>
-          <input
-            v-model="replaceText"
-            type="text"
-            placeholder="替换为…"
-            class="search-input"
-            spellcheck="false"
-            @keydown.enter.prevent="onSearchReplace(replaceText)"
-          />
-          <div class="search-actions">
-            <button
-              class="search-action-btn"
-              :disabled="searchMatchCount === 0"
-              @click="onSearchReplace(replaceText)"
-            >
-              替换
-            </button>
-            <button
-              class="search-action-btn"
-              :disabled="searchMatchCount === 0"
-              @click="onSearchReplaceAll(replaceText)"
-            >
-              全部替换
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
+    <SearchPanel
+      :visible="isSearchVisible"
+      :match-count="searchMatchCount"
+      :current-index="searchCurrentIndex"
+      :show-replace-on-open="searchShowReplace"
+      @query="onSearchQuery"
+      @next="onSearchNext"
+      @prev="onSearchPrev"
+      @replace="onSearchReplace"
+      @replace-all="onSearchReplaceAll"
+      @case-sensitive="onSearchCaseSensitive"
+      @close="closeSearch"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref, shallowRef, onBeforeUnmount, watch } from 'vue';
+import { onMounted, ref, shallowRef, onBeforeUnmount, watch } from 'vue';
 import { Editor as TiptapEditor, EditorContent } from '@tiptap/vue-3';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
@@ -167,6 +72,7 @@ import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
 import BubbleMenuComponent from './views/BubbleMenu.vue';
 import SlashMenu from './views/SlashMenu.vue';
 import EmojiMenu from './views/EmojiMenu.vue';
+import SearchPanel from './views/SearchPanel.vue';
 import './tiptap/editor.css';
 
 type EditorUpdatePayload = EditorSyncPayload;
@@ -226,36 +132,8 @@ const {
   closeSearch,
 } = useEditorSearch(editor);
 
-const searchQuery = ref('');
-const replaceText = ref('');
-const showReplace = ref(false);
-const caseSensitive = ref(false);
-const searchInputRef = ref<HTMLInputElement | null>(null);
-
-watch(isSearchVisible, (visible) => {
-  if (visible) {
-    nextTick(() => searchInputRef.value?.focus());
-  } else {
-    // 关闭时重置状态
-    searchQuery.value = '';
-    replaceText.value = '';
-    showReplace.value = false;
-  }
-});
-
-function toggleCaseSensitive() {
-  caseSensitive.value = !caseSensitive.value;
-  onSearchCaseSensitive(caseSensitive.value);
-  if (searchQuery.value) onSearchQuery(searchQuery.value);
-}
-
-function handleSearchEscape() {
-  if (showReplace.value) {
-    showReplace.value = false;
-  } else {
-    closeSearch();
-  }
-}
+// 查找（false）/ 查找替换（true）两种入口，传给 SearchPanel 决定是否预展开替换行
+const searchShowReplace = ref(false);
 
 /** 互链点击：解析目标路径并请求父组件打开；未保存文档时提示先保存。 */
 async function handleWikilinkNavigate(target: string) {
@@ -600,8 +478,8 @@ defineExpose({
   executeCommand: (commandId: string) => executeEditorCommand(editor.value, commandId),
   undo: () => editor.value?.commands.undo(),
   redo: () => editor.value?.commands.redo(),
-  openSearch: (_showReplace = false) => {
-    showReplace.value = _showReplace;
+  openSearch: (showReplace = false) => {
+    searchShowReplace.value = showReplace;
     openSearch();
   },
   closeSearch,
@@ -611,191 +489,6 @@ defineExpose({
 <style scoped>
 .editor-shell {
   background-color: var(--bg-color);
-}
-
-/* ── 搜索面板 ──────────────────────────────────────────── */
-.search-panel {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 300;
-  min-width: 420px;
-  max-width: 520px;
-  background: color-mix(in srgb, var(--bg-color) 92%, transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--border-color);
-  border-top: none;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  box-shadow: var(--popover-shadow);
-  overflow: hidden;
-}
-
-/* search-panel 进出场动画：仅用 opacity，避免覆盖 translateX(-50%) 居中 */
-.search-panel-enter-active,
-.search-panel-leave-active {
-  transition: opacity 0.15s ease;
-}
-.search-panel-enter-from,
-.search-panel-leave-to {
-  opacity: 0;
-}
-
-.search-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-}
-
-.search-replace-row {
-  border-top: 1px solid var(--border-color);
-  padding-top: 6px;
-}
-
-.search-icon {
-  flex-shrink: 0;
-  color: var(--muted-color);
-  opacity: 0.6;
-}
-
-.search-input {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--text-color);
-  font-size: 13px;
-  font-family: inherit;
-  outline: none;
-  caret-color: var(--primary-color);
-}
-
-.search-input::placeholder {
-  color: var(--muted-color);
-  opacity: 0.5;
-}
-
-.search-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.search-btn-meta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 22px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted-color);
-  font-family: var(--font-mono, monospace);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background-color 0.15s,
-    color 0.15s;
-}
-
-.search-btn-meta:hover {
-  background: var(--hover-bg);
-  color: var(--text-color);
-}
-
-.search-btn-meta.active {
-  color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
-}
-
-.search-count {
-  color: var(--muted-color);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  min-width: 2.8em;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.search-btn-nav {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition:
-    background-color 0.15s,
-    color 0.15s;
-}
-
-.search-btn-nav:hover {
-  background: var(--hover-bg);
-  color: var(--text-color);
-}
-
-.search-btn-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--muted-color);
-  cursor: pointer;
-  transition:
-    background-color 0.15s,
-    color 0.15s;
-}
-
-.search-btn-close:hover {
-  background: var(--hover-bg);
-  color: var(--text-color);
-}
-
-.search-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-.search-action-btn {
-  height: 24px;
-  padding: 0 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-  transition:
-    background-color 0.15s,
-    border-color 0.15s,
-    color 0.15s;
-  white-space: nowrap;
-}
-
-.search-action-btn:hover:not(:disabled) {
-  background: var(--hover-bg);
-  border-color: var(--primary-color);
-  color: var(--text-color);
-}
-
-.search-action-btn:disabled {
-  opacity: 0.35;
-  cursor: default;
 }
 </style>
 
