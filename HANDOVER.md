@@ -50,7 +50,7 @@ bun install                      # 装依赖
 bun run dev                      # 纯前端 dev
 bun run dev:tauri                # 全栈（含 Rust）
 bun run dev:tauri:inspect        # 全栈 + 打开 DevTools（SOLO_OPEN_DEVTOOLS=1）
-bun run test                     # Vitest 全量（当前 27 文件 / 974 测试，以实际输出为准）
+bun run test                     # Vitest 全量（当前 32 spec 文件，以实际输出为准）
 bun run build:tauri              # 打安装包
 ```
 
@@ -65,9 +65,9 @@ bun run build:tauri              # 打安装包
 | 字体**清单** | [src/constants/fonts.ts](./src/constants/fonts.ts) |
 | 字体**栈** | [src/utils/fontStack.ts](./src/utils/fontStack.ts) |
 | 主题**色彩映射** | [src/themes/types.ts](./src/themes/types.ts)（`CSS_VAR_MAP`） |
-| Rust **命令总数/注册** | [src-tauri/src/lib.rs](./src-tauri/src/lib.rs) 的 `generate_handler!`（当前 **21** 个） |
+| Rust **命令总数/注册** | [src-tauri/src/lib.rs](./src-tauri/src/lib.rs) 的 `generate_handler!`（当前 **22** 个） |
 | Markdown **保真安全网** | [src/components/Editor/tiptap/markdown/__tests__/roundtrip.spec.ts](./src/components/Editor/tiptap/markdown/__tests__/roundtrip.spec.ts) + [commonmark.spec.ts](./src/components/Editor/tiptap/markdown/__tests__/commonmark.spec.ts) |
-| **脏态**机制 | [src/stores/file.ts](./src/stores/file.ts)（`setContent` vs `markUserEdit`） |
+| **脏态**机制（A1 语义比对） | [src/stores/file.ts](./src/stores/file.ts)（`setContent` 仅基线 / `syncEditedContent` 语义比对为唯一脏真相源） |
 | 保存**冲突检测** | [src-tauri/src/commands/document.rs](./src-tauri/src/commands/document.rs)（`save_document`，mtime 校验） |
 | 启动开打**竞态** | [src-tauri/src/state.rs](./src-tauri/src/state.rs) + [src-tauri/src/lib.rs](./src-tauri/src/lib.rs) |
 | 图片**资产安全** | [src-tauri/src/commands/document.rs](./src-tauri/src/commands/document.rs)（`validate_image_asset_path`） |

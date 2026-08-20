@@ -77,3 +77,10 @@ design-samples/
 .archive/
 .reltmp/
 solo_1.2.22_x64-setup.sig
+
+# 本地沙盒 / 审查工具产物（不进仓库）
+.dumate/
+.sandbox-theme-audit/
+
+# Windows 系统文件
+desktop.ini

@@ -1,7 +1,7 @@
 # solo 架构文档
 
 > **目标**：让任何开发者（人或 AI）在 15 分钟内建立完整、准确的心智模型，并能定位到任意功能的改动入口。
-> **写作基准**：一切以**实际代码行为**为准，不依据注释或历史文档。版本对应 `package.json` v1.2.24。
+> **写作基准**：一切以**实际代码行为**为准，不依据注释或历史文档。版本对应 `package.json` v1.2.39。
 
 ---
 
@@ -28,11 +28,11 @@
 三层结构：
 
 ```
-Rust 核心 (src-tauri/)   ──21 个命令 + 2 类事件──▶  文件/图片/窗口/字体/剪贴板/注册表
+Rust 核心 (src-tauri/)   ──22 个命令 + 2 类事件──▶  文件/图片/窗口/字体/剪贴板/注册表/代理
         ▲ invoke / emit
 IPC 服务层 (src/services/tauri/)  ──契约封装，前端不直接碰 invoke
         ▲
-Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 10 个 composables + 2 个 Pinia store + TipTap 编辑器
+Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables + 2 个 Pinia store + TipTap 编辑器
 ```
 
 > ⚠️ 仓库内同时存在 `README.md` 及 `.trae/documents/` 下的早期文档，它们描述了**文件树、workspace watcher、`fs.rs`/`watch.rs`/`config.rs`** 等结构——**这些在当前代码中已不存在**。请一律以**本文档 + 实际代码**为准（差异清单见附录 C）。新入手的 AI 开发者先读 `AGENTS.md`（工作手册）+ `.opencode/PROFILE.md`（技术档案）。
@@ -69,12 +69,12 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 10 个 composables +
 ┌─────────────────────────────────────────────────────────────────┐
 │                       Vue 前端 (src/)                            │
 │                                                                  │
-│   main.ts ──createApp──▶ App.vue (协调层，~370 行，无业务逻辑)    │
+│   main.ts ──createApp──▶ App.vue (协调层，无业务逻辑)              │
 │                              │                                  │
 │              ┌───────────────┼───────────────┐                  │
 │              ▼               ▼               ▼                  │
 │         composables      Pinia stores     组件树                │
-│         (10 个，按       ┌─ file.ts       App ▸ Editor           │
+│         (12 个，按       ┌─ file.ts       App ▸ Editor           │
 │          关注点拆分)     └─ settings.ts   ▸ Settings(15)         │
 │                                                ▸ Layout 等       │
 └──────────────────────┬──────────────────────────────────────────┘
@@ -85,7 +85,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 10 个 composables +
 │                                                                  │
 │   client.ts ── invokeCommand<T>() ── 唯一入口                    │
 │   command-names.ts ── TAURI_COMMANDS ── 命令名集中表              │
-│   document/window/dialog/clipboard/... ── 按领域封装              │
+│   document/window/dialog/clipboard/font/asset/events/store ── 按领域封装 │
 │   normalizeTauriError() ── 把 Rust AppError 解析成 {code,message} │
 └──────────────────────┬──────────────────────────────────────────┘
                        │ Tauri IPC 边界
@@ -94,7 +94,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 10 个 composables +
 │                   Rust 核心 (src-tauri/src/)                     │
 │                                                                  │
 │   lib.rs ── run() ── 插件注册 / 启动开打 / 菜单 / 关闭拦截        │
-│   commands/ ── document/font/clipboard/window/desktop ── 21 个 #[command]  │
+│   commands/ ── document/font/clipboard/window/desktop ── 22 个 #[command]  │
 │   models.rs ── DTO（camelCase 序列化）                            │
 │   error.rs ── AppError 枚举（5 变体 + 结构化序列化）              │
 │   events.rs ── 2 个事件常量                                      │
@@ -142,7 +142,7 @@ md-editor/
 │   │   ├── file.ts               #     文档状态：path/content/脏标记/displayName
 │   │   └── settings.ts           #     全局设置：主题/字体/快捷键/迁移/防抖持久化
 │   │
-│   ├── composables/              #   业务逻辑封装（10 个）
+│   ├── composables/              #   业务逻辑封装（12 个）
 │   │   ├── useDocumentSession.ts #     新建/打开/保存/自动保存（含互斥锁）
 │   │   ├── useCommandDispatcher.ts #   命令分发：菜单/快捷键/UI → 动作
 │   │   ├── useAppDomEvents.ts    #     全局键盘事件 → 命令
@@ -152,11 +152,12 @@ md-editor/
 │   │   ├── useMenuShortcutsSync.ts#    快捷键变更 → 同步到原生菜单
 │   │   ├── useImagePreview.ts    #     图片预览视图模式状态机
 │   │   ├── useFloatingListMenu.ts#     SlashMenu/EmojiMenu 共享的浮动菜单
+│   │   ├── useOutline.ts         #     大纲提取/导航
+│   │   ├── useEditorSync.ts      #     编辑器↔store 同步（脏态 A1 核心，4 档防抖）
 │   │   └── useClickOutside.ts    #     点击外部检测（通用）
 │   │
 │   ├── commands/
 │   │   └── registry.ts           #   命令集中注册表（定义/查找/快捷键/冲突检测）
-│   ├── utils/shortcuts.ts        #   registry 的薄封装（re-export）
 │   │
 │   ├── components/
 │   │   ├── Editor/               #   编辑器核心
@@ -180,37 +181,30 @@ md-editor/
 │   │   └── StatusbarQuickActions.vue
 │   │
 │   ├── services/
-│   │   ├── tauri/                #   IPC 服务层
+│   │   ├── tauri/                #   IPC 服务层（10 个文件）
 │   │   │   ├── client.ts         #     invokeCommand<T> + normalizeTauriError
 │   │   │   ├── command-names.ts  #     TAURI_COMMANDS 常量表
-│   │   │   ├── event-names.ts    #     事件名常量
-│   │   │   ├── document.ts / window.ts / webview.ts / events.ts
-│   │   │   ├── dialog.ts / clipboard.ts / opener.ts / os.ts
-│   │   │   ├── store.ts          #     tauri-plugin-store 封装
-│   │   │   └── window-state.ts
-│   │   └── fontLoader.ts         #   内嵌字体按需加载（FontFace）
+│   │   │   ├── document.ts       #     打开/保存/图片 API 封装
+│   │   │   ├── window.ts         #     窗口控制封装
+│   │   │   ├── dialog.ts         #     系统对话框封装
+│   │   │   ├── clipboard.ts      #     剪贴板封装
+│   │   │   ├── events.ts         #     menu-event / window-close 事件监听封装
+│   │   │   ├── font.ts           #     字体 IPC 封装（fetch/getCache/save/readBytes）
+│   │   │   ├── asset.ts          #     图片资产协议作用域封装
+│   │   │   └── store.ts          #     tauri-plugin-store 封装
+│   │   └── fontLoader.ts         #   内嵌字体按需加载（FontFace 字节通道）
 │   │
 │   ├── themes/                   #   主题系统
 │   │   ├── types.ts              #   Theme / ThemeColors / ThemeTypography
 │   │   ├── manager.ts            #   applyTheme：注入颜色 + 排版变量
-│   │   └── presets/              #   7 套预设 JSON
+│   │   └── presets/              #   6 套预设 JSON（见 §10.1）
 │   │
 │   ├── utils/
-│   │   ├── export/               #   导出管线（见 §10）
-│   │   │   ├── index.ts          #     统一出口
-│   │   │   ├── build-export-tree.ts #  ProseMirror → ExportDocument IR
-│   │   │   ├── model.ts          #     IR 类型定义
-│   │   │   ├── theme.ts          #     主题 → 导出色彩 tokens
-│   │   │   ├── renderers/html.ts #     HTML 渲染器
-│   │   │   ├── renderers/wechat.ts#    微信渲染器
-│   │   │   └── utils.ts
-│   │   ├── export-renderer.ts    #   导出管线对外门面（re-export）
-│   │   ├── wechat-themes.ts      #   微信 4 套文学风主题
-│   │   ├── wechat-renderer.ts    #   微信渲染入口（兼容旧路径）
 │   │   ├── fontStack.ts          #   buildFontStack：统一字体栈（编辑器+导出共享）
+│   │   ├── markdown-to-html.ts   #   复制为 HTML 渲染（StatusbarQuickActions 调用）
 │   │   └── platform.ts           #   isMac 检测
 │   │
-│   ├── constants/fonts.ts        #   FONT_OPTIONS：7 种字体清单
+│   ├── constants/fonts.ts        #   FONT_OPTIONS：7 种字体清单（见 §10.3）
 │   └── assets/styles/main.css    #   全局样式 + CSS 变量默认值
 │
 ├── src-tauri/
@@ -231,6 +225,7 @@ md-editor/
 │   │       ├── window.rs         #     print/reveal/背景色/关闭拦截
 │   │       └── desktop.rs        #     register/unregister_shell_new（Windows）
 │   ├── capabilities/             #   权限配置
+│   │   ├── default.json          #     默认权限基座
 │   │   ├── main-window.json      #     主窗口权限白名单
 │   │   └── secondary-window.json #     多窗口（main-* label）权限
 │   ├── tauri.conf.json           #   Tauri 配置（productName=solo）
@@ -252,14 +247,15 @@ md-editor/
 
 按顺序做四件事：
 
-1. **注册插件**：opener、dialog、clipboard-manager、cli、store、window-state（持久化 SIZE/POSITION/MAXIMIZED）。
+1. **注册插件**：opener、dialog、clipboard-manager、cli、store、window-state（持久化 SIZE/POSITION/MAXIMIZED）、updater（自动更新，见 `autoCheckForUpdate`）。
 2. **`setup()`**：管理 state → 回收早期开打请求 → 解析 CLI/raw args → 建菜单 → 挂关闭拦截 →（macOS）设置窗口背景。
-3. **`invoke_handler`**：注册 **21 个命令**（以 `lib.rs` 实际 `generate_handler!` 为准）。
+3. **`invoke_handler`**：注册 **22 个命令**（以 `lib.rs` 实际 `generate_handler!` 为准）。
 4. **`run()` 回调**：macOS/iOS 的 `Opened { urls }` 事件转成开打请求。
 
-### 4.2 命令清单（实际 21 个）
+### 4.2 命令清单（实际 22 个）
 
 > 以 `src-tauri/src/lib.rs` 的 `generate_handler!` 宏为唯一真相源。新增/改名必须同步更新此表。
+> 注：`detect_proxy_for_update` 定义在 `lib.rs`（**不存在 `proxy.rs`**，勿被旧文档误导）。
 
 | 命令 | 文件 | 职责 |
 |---|---|---|
@@ -275,6 +271,7 @@ md-editor/
 | `fetch_font_data` | font.rs | 远程字体下载（返回 base64） |
 | `get_cached_font_path` | font.rs | 字体缓存路径查询 |
 | `save_font_cache` | font.rs | 字体缓存写入磁盘 |
+| `read_font_bytes` | font.rs | 读取字体字节（经 IPC 取字节 → FontFace 同源加载，绕开 asset:// CORS 静默拦截） |
 | `set_window_background_color` | window.rs | macOS 窗口背景（NSColor） |
 | `register_shell_new` | desktop.rs | Windows 右键"新建 Markdown"注册表 |
 | `unregister_shell_new` | desktop.rs | Windows 右键"新建 Markdown"注销 |
@@ -283,16 +280,18 @@ md-editor/
 | `new_editor_window` | lib.rs | 创建新编辑器窗口（原子递增 label） |
 | `reveal_startup_open_log` | lib.rs | 返回 startup-open.log 路径（调试启动开打竞态） |
 | `exit_app` | lib.rs | 退出整个应用（多窗口场景） |
-| `detect_proxy_for_update` | proxy.rs | 检测系统代理（给自动更新用） |
+| `detect_proxy_for_update` | lib.rs | 检测系统代理（给自动更新用，见 `autoCheckForUpdate`） |
 
-> **共 21 个命令**。
+> **共 22 个命令**。
 
 ### 4.3 事件（2 个）
 
 | 事件名 | 方向 | 载荷 |
 |---|---|---|
-| `menu-event` | Rust→前端 | 菜单项 id 字符串 |
+| `menu-event` | Rust→前端（**定向到当前焦点窗口**） | 菜单项 id 字符串 |
 | `window-close-requested` | Rust→前端 | `()`（关闭被拦截，交前端确认） |
+
+> `menu-event` 由 `menu.rs` 经 `app.emit(MENU_EVENT, id)` 广播，但**仅当前 `FocusedWindow` 对应窗口的前端会消费**——前端侧按窗口各自监听，避免多窗口重复执行同一菜单动作（见 §4.5 的 `FocusedWindow`）。
 
 ### 4.4 错误模型 `AppError`
 
@@ -300,12 +299,14 @@ md-editor/
 
 ### 4.5 启动文件开打的竞态处理（`state.rs` + `lib.rs`）
 
-"前端还没 ready 就来了开文件请求"是真实竞态。两层缓冲兜底：
-- **`StartupOpenRequests`**（managed state）：setup 阶段解析 CLI args 后存入。
-- **`PendingWindowPaths`**（managed state）：`create_editor_window` 创建新窗口时存入，按 window label 索引。
+"前端还没 ready 就来了开文件请求"是真实竞态。**四类 managed state** 兜底（均在 `state.rs` 定义）：
+- **`StartupOpenRequests`**：setup 阶段解析 CLI args / OS-open 后存入（单 payload，可合并去重）。
+- **`PendingWindowPaths`**：`create_editor_window` 创建新窗口时存入，按 window label 索引（HashMap）。
+- **`LoadedWindows`**：已加载完成的窗口 label 集合（标记窗口已就绪）。
+- **`FocusedWindow`**：当前焦点窗口 label（用于 `menu-event` 定向分发，见 §4.3）。
 
 `startup_ready()` 先查 `PendingWindowPaths`（新窗口专属），无则回退 `StartupOpenRequests`（主窗口启动请求）。请求来源三类：`Cli`/`OsOpen`/`NewWindow`。
-所有过程写 `startup-open.log`（`reveal_startup_open_log` 命令可定位此文件）。
+所有过程写 `startup-open.log`（`reveal_startup_open_log` 命令可定位此文件）。窗口先 `visible(false)` 后由前端 `startup_ready` 触发 `show()` 避免黑闪。
 
 ---
 
@@ -326,7 +327,9 @@ invokeCommand<T>(command: TauriCommandName, args?): Promise<T>
 
 ### 5.3 按领域封装
 
-`document.ts`（open/save/图片）、`window.ts`、`dialog.ts`、`clipboard.ts`、`opener.ts`、`os.ts`、`store.ts`（tauri-plugin-store）、`webview.ts`、`events.ts`。每个文件只调 `invokeCommand`，对上层隐藏 IPC 细节。
+`document.ts`（open/save/图片）、`window.ts`、`dialog.ts`、`clipboard.ts`、`font.ts`（字体 IPC）、`asset.ts`（图片资产作用域）、`events.ts`（菜单/关闭事件监听）、`store.ts`（tauri-plugin-store）。每个文件只调 `invokeCommand`，对上层隐藏 IPC 细节。
+
+> 旧文档提到的 `opener.ts` / `os.ts` / `webview.ts` / `window-state.ts` / `event-names.ts` **均不存在**——Tauri 官方插件（opener/dialog/clipboard/window-state）已由各封装文件直接调用，无需额外薄封装层。
 
 ### 5.4 能力权限（`capabilities/`）
 
@@ -355,11 +358,11 @@ app.mount('#app');
 
 视图模式 `activeViewMode`：`'editor'` | `'image'`，外加独立的 `isFullscreenPreview`。
 
-### 6.3 Composables 职责表（10 个）
+### 6.3 Composables 职责表（12 个）
 
 | composable | 职责 | 关键点 |
 |---|---|---|
-| `useDocumentSession` | 文档生命周期 | 自动保存递归调度 + `isSaving` 互斥锁 + 标题改名走另存为 |
+| `useDocumentSession` | 文档生命周期 | 自动保存递归调度 + `_savePromise` 互斥锁 + 标题改名走另存为 |
 | `useCommandDispatcher` | 命令分发 | scope=editor 转发编辑器，scope=app 走 switch |
 | `useAppDomEvents` | 全局键盘 | `findCommandByShortcut` → dispatcher |
 | `useAppEditorState` | 编辑器状态桥接 | 字数/大纲/光标/选区 stats |
@@ -368,7 +371,11 @@ app.mount('#app');
 | `useMenuShortcutsSync` | 快捷键同步 | 自定义快捷键变更 → Rust 菜单 diff 更新（仅 set_accelerator，不重建） |
 | `useImagePreview` | 图片预览 | 视图模式状态机 |
 | `useFloatingListMenu` | 浮动菜单 | SlashMenu/EmojiMenu 共享逻辑 |
+| `useOutline` | 大纲 | 大纲提取与导航（OutlinePanel） |
+| `useEditorSync` | 编辑器↔store 同步 | **脏态 A1 核心**，4 档防抖（字数150/大纲500/序列化500/光标100），`onUpdate` 单出口 → `fileStore.syncEditedContent` |
 | `useClickOutside` | 点击外部 | 通用 composable |
+
+> 旧文档提到的 `utils/shortcuts.ts` **已删除**：registry 内联 `getShortcut`/`getShortcutCommands`，全仓无 `shortcuts` 引用。命令源 `CommandSource` 含 `shortcut`/`menu`/`palette`/`titlebar`/`ui`，`CommandScope` 为 `app`/`editor`。
 
 ---
 
@@ -378,22 +385,32 @@ app.mount('#app');
 
 ```
 currentFile: { path, content, isDirty, lastModifiedTime, displayName, originalBaseName }
-hasUserEdit: boolean   # 内部标志
 ```
 
-**核心机制：脏态分离**（这是整个文档流的安全基石，详见 §11.1）：
-- `setContent(content)` —— 编辑器把规范化内容写回时调用；**只在 `hasUserEdit` 为真时才置脏**。
-- `markUserEdit()` —— 用户真实编辑时调用；置 `hasUserEdit = true` 且置脏。
+**核心机制：脏态以"语义比对"为唯一真相源（A1 改造，详见 §11.1）**：
+- `setContent(content)` —— **仅同步基线内容，不标脏**。编辑器加载后建立规范化基线时调用。
+- `syncEditedContent(content)` —— **脏标记唯一真相源**：先把内容与基线都 `replace(/\n+$/, '')` 规范化，若**语义不同** → 更新内容并置 `isDirty=true`；若相同 → 直接 `return false`，不改动不标脏。
+  - 由此同时根治**漏标脏**（拖入图片等非键盘交互，过去 `markUserEdit` 收不到）与**误标脏**（Mermaid 等后台事务触发序列化但内容未变）。
+  - 不再区分"程序性写回 vs 用户编辑"——通过语义比对判定，消除 `hasUserEdit` 标志的歧义。
+- `setDisplayName(name)` —— 置脏（标题被改）。
+- `markSaved(lastModifiedMs)` —— 清脏，并把 `displayName` 重置回 `originalBaseName`。
+- `renamePath(newPath)` —— 重置 `displayName` 与 `originalBaseName`（实际文件重命名在保存时经 save-as 流程完成，见 `useDocumentSession.handleRename`）。
+- `reset()` —— 回到空文件状态。
 
-为什么分开？因为编辑器加载后会立即序列化回 store 建立"规范化基线"（见 §8），那是一次**程序性**写回，不是用户编辑，不能误判为脏。
-
-`displayName` / `originalBaseName`：`setDisplayName()` 会置脏；保存时若 `displayName !== originalBaseName`（标题被改过）→ 走另存为（这是最近一次提交 `af292cb` 的逻辑）。
+> 旧文档的 `markUserEdit()` + `hasUserEdit` 双函数模型**已于 A1 重构中废弃**，切勿再按旧模型理解或改动。
 
 ### 7.2 `stores/settings.ts` —— 全局设置（长生命周期）
 
-13 个设置项（activeThemeId / customThemes / fontSize / fontFamily / autoSave / autoSaveInterval / spellCheck / titlebarAutoHide / lineHeight / customShortcuts / alwaysOnTop / imageStoragePath / shellIntegration / enableAutoUpdateCheck / configVersion）。
+**15 个字段**（全部 true 真理源，改任何设置前先读此 store）：
 
-实际共 **15 个字段**（含上述 13 + `customThemes` 与 `customShortcuts` 细分）。
+`activeThemeId`（默认 `scholar-light`）/ `customThemes` / `fontSize`（null=用主题默认）/ `fontFamily`（`Microsoft YaHei UI`）/ `autoSave` / `autoSaveInterval`（默认 30s，下限 5s）/ `spellCheck` / `titlebarAutoHide` / `lineHeight`（null=用主题默认）/ `customShortcuts` / `alwaysOnTop` / `imageStoragePath` / `shellIntegration` / `enableAutoUpdateCheck` / `configVersion`（固定 **12**）。
+
+- **持久化**：tauri-plugin-store（经 `services/tauri/store.ts`）。焦点模式用 `focus-mode` class（`<html>` 上 toggle）。
+- **迁移**：`configVersion`（当前 **12**）。加载时若存储版本 ≠ 当前 → 规范化后回写，一次性升级。v12 迁移把 `fontSize`/`lineHeight` 从硬编码（16/1.6）改为 `null` 用主题默认。
+- **防抖写入**：设置变更后 300ms 防抖落盘。
+- **`normalizeSettings()`**：合并默认值 + 强制 `autoSaveInterval ≥ 5s` + 刷版本号（`CURRENT`）。
+- **主题回退**：`ensureThemeId()` 在主题 id 失效时按当前外观回退到 `scholar-dark`/`default-light`。
+- **启动两阶段**（见 `App.vue` `onMounted`）：`initThemeOnly`（只读 `activeThemeId` 并 `applyCurrentTheme`，不触发 watcher，避免黑闪）→ `initFull`（读全部设置 + focusMode，版本不符则回写）。`startWatchers` 精确 watch 13 个顶层字段 + `activeThemeId` watcher（重注入 CSS）+ focusMode watcher。
 
 - **持久化**：tauri-plugin-store（经 `services/tauri/store.ts`）。焦点模式用 `focus-mode` class（`<html>` 上 toggle）。
 - **迁移**：`configVersion`（当前 **12**）。加载时若存储的版本 ≠ 当前版本 → 规范化后**回写**，一次性升级。
@@ -405,9 +422,11 @@ hasUserEdit: boolean   # 内部标志
 
 ## 8. 编辑器核心
 
-### 8.1 TipTap 实例复用
+### 8.1 TipTap 实例复用 + 懒初始化
 
 `MarkdownEditor.vue` 创建**单个** TipTap 实例（`shallowRef`），切文件时只 `setContent`，**不 destroy 重建**——这是响应快的关键。
+
+**懒初始化**：编辑器不在挂载时立即创建——无焦点不建，等获得焦点 / `solo:editor-focus` 事件 / 50ms 兜底后才初始化，避免后台标签页空耗资源。切换文件时若序列化结果相同则跳过 `setContent`，避免无谓重渲染。
 
 ### 8.2 文档加载→编辑→保存 数据流
 
@@ -415,27 +434,37 @@ hasUserEdit: boolean   # 内部标志
 加载: openDocument(Rust) → fileStore.setFile()
     → parseMarkdown() → ProseMirror Doc
     → editor.commands.setContent(doc)
-    → ★立即 serializeMarkdown() 写回 store 建立规范化基线（消除脏态闪烁）
+    → fileStore.setContent(serializeMarkdown())  // 建立规范化基线（A1 后不标脏）
 
 编辑: keystroke → ProseMirror Schema 变更
-    → editor update 事件
-    → 50ms 防抖：字数/大纲/光标 stats 更新
-    → 100ms 节流：光标行号
-    → 500ms 防抖：serializeMarkdown() → fileStore.setContent()（触发 markUserEdit 置脏）
+    → editor update 事件（useEditorSync 单出口 onUpdate）
+    → 防抖分层：
+        150ms 防抖：字数 stats
+        100ms 防抖：光标行号
+        500ms 防抖：大纲更新
+        500ms 防抖：serializeMarkdown() → fileStore.syncEditedContent()（语义比对置脏，见 §7.1）
+    → emitImmediateStats 手动补发（切换文件等场景）
 
 保存: fileStore.markSaved(result.lastModifiedMs)
-    → 自动保存：递归 setTimeout（间隔 ≥5s），保存完才排下一次，避免并发
+    → 自动保存：递归 setTimeout（保存完才排下一次，避免并发/跳过），immediate:true，下限 ≥5s
+    → 关窗前 useDocumentSession.evaluateDirtyFromEditor() 强制用编辑器实时内容评估脏态（绕开 500ms 序列化防抖，避免编辑后 <500ms 关窗误判已保存）
 ```
 
-> 三档防抖分离是刻意的：统计要"几乎实时"（50ms），序列化要"停顿后"（500ms）。**改任何防抖值前先理解这个分层**。
+> 防抖分层是刻意的：统计要"几乎实时"（150ms），序列化要"停顿后"（500ms）。**改任何防抖值前先理解这个分层**（详见 §6.3 `useEditorSync`）。
 
-### 8.3 扩展（14 个，`editor-extensions.ts`）
+### 8.3 扩展（`editor-extensions.ts` 注册 **21 个**，`extensions/` 目录 21 个文件）
 
-`SemanticHeading` / `CustomCodeBlock` / `CustomTable(+Row/Header/Cell)` / `CustomImage` / `MathBlock` / `MathInline` / `MermaidBlock` / `MarkdownInput`(InputRule) / `MarkdownPaste` / `Superscript` / `Subscript` / `Wikilink` / `SlashCommands` / `EmojiSuggest`。
+注册列表（按 `editor-extensions.ts` `createEditorExtensions` 实际顺序）：
+
+`StarterKit`(禁用内置 `codeBlock`/`link`/`heading`) / `Frontmatter` / `FootnoteRef` / `FootnoteSection` / `FootnoteDef` / `SemanticHeading` / `CustomCodeBlock` / `CustomTable`(+`CustomTableRow`/`CustomTableHeader`/`CustomTableCell`) / `CustomImage` / `Callout` / `Highlight`(multicolor:false) / `ParagraphFocus` / `SearchHighlight` / `Link`(openOnClick:false) / `LinkOpen` / `TaskList` / `TaskItem`(nested) / `Placeholder` / `MathBlock` / `MathInline` / `MermaidBlock` / `MarkdownInput` / `MarkdownPaste` / `Superscript` / `Subscript` / `Dim` / `Wikilink` / `SlashCommands` / `EmojiSuggest`。
+
+> 共 **21 个扩展**（旧文档写的 14 个已过时——漏计了 Frontmatter/Footnote×3/Callout/ParagraphFocus/SearchHighlight/Link/LinkOpen/Dim 及 Table 拆分的 3 个子节点）。
 
 StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定义版以保 Markdown 保真度与 IME 行为。
 
-复杂渲染用 `addNodeView()` **内联在扩展文件里**，不拆独立 Vue 文件。
+**IME 友好细节**：`SlashCommands` 与 `EmojiSuggest` 的 suggestion 均设 `allowedPrefixes: null`（支持中文「你好/」「标题/」后唤出菜单，默认 `allowedPrefixes:[' ']` 会过滤掉无空格前缀，对中文场景致命）。
+
+复杂渲染用 `addNodeView()` **内联在扩展文件里**，不拆独立 Vue 文件。浮动菜单定位抽成纯函数 `computeMenuPosition`（`editor-extensions.ts`，`MENU_MAX_HEIGHT=340` / `MENU_MIN_WIDTH=240` / `VIEWPORT_MARGIN=8`）。
 
 ### 8.4 Markdown 解析链（`tiptap/markdown/`）
 
@@ -453,7 +482,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 所有命令在此**声明式定义**：`{ id, title, scope, group, defaultShortcut, menuSection, palette }`。提供查找/快捷键计算/冲突检测/Tauri accelerator 转换等纯函数。`WINDOW_TITLEBAR_MENUS` 也引用这里的 id。
 
-`utils/shortcuts.ts` 是 registry 的薄 re-export（保持旧导入路径兼容）。
+（旧文档称 `utils/shortcuts.ts` 是 registry 的薄 re-export——**该文件已删除**，registry 内联了 `getShortcut`/`getShortcutCommands`。）
 
 ### 9.2 分发 `useCommandDispatcher`
 
@@ -473,13 +502,18 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 `themes/manager.ts::applyTheme(theme)` 做三件事：
 
-1. **外观**：`applyDarkClass` 切 `<html>.dark`；同步原生窗口主题/背景色（macOS）。
-2. **色彩**：`injectColors` —— 按 `CSS_VAR_MAP`（types.ts）把 `ThemeColors` 的 68 个颜色字段写进 `--bg-color` / `--text-color` 等 CSS 变量。
-3. **排版**：`injectTypography` —— 先清空再注入 `--mk-*` 变量（`--mk-line-height` / `--mk-font-size` / `--mk-heading1~6-size` / `--mk-paragraph-spacing` / `--mk-letter-spacing` / `--mk-quote-border-width`）。
+1. **外观**：`applyDarkClass` 切 `<html>.dark`；同步原生窗口主题/背景色（失败静默）。
+2. **色彩**：`injectColors` —— 按 `CSS_VAR_MAP`（types.ts）把 `ThemeColors` 字段写进 `--bg-color` / `--text-color` 等 CSS 变量。
+3. **排版**：`injectTypography` —— **先全部 `removeProperty` 再注入** `--mk-*` 变量（`--mk-line-height` / `--mk-font-size-in-...` 等：`--mk-line-height` / `--mk-font-size` / `--mk-heading1~6-size` / `--mk-paragraph-spacing` / `--mk-letter-spacing` / `--mk-quote-border-width`）。
 
 `editor.css` **已全部 `var(--mk-*)` 消费**（13 处）。所以"不同主题可定制不同排版"**已支持**——加一个主题只需在 JSON 里填 `typography` 字段。
 
-预设 7 套（`presets/`）：scholar / scholar-dark / elegant / cinnabar / cinnabar-dark / default / gray-domain。支持自定义主题 CRUD、导入导出、旧格式（light/dark 双色）迁移。
+**主题三层结构（2026-08-21 确立）**：
+- **范式层**：`types.ts::CSS_VAR_MAP`（token 全集）+ `manager.ts::SHARED_LIGHT/DARK_COLORS`（共享默认值：功能色/圆角/markBg/btnGhostBg/modalOverlay）+ `editor.css :root` 排版默认值。
+- **实例层**：**6 套 preset JSON**（`presets/`）：`scholar-light` / `scholar-dark` / `elegant` / `cinnabar` / `cinnabar-dark` / `default`（**无 `gray-domain`**——旧文档列 7 套已过时）。每套**只写性格差异字段**，共享值一律收进 `SHARED_LIGHT/DARK_COLORS`，禁止复制进各主题。
+- **消费层**：所有渲染层只引用 `var(--x)`。
+
+支持自定义主题 CRUD、导入导出、旧格式（light/dark 双色文件）迁移（`importTheme` 兼容现代与 legacy）。`applyTheme` 附带 `.theme-transitioning` 200ms + 编辑区 `triggerContentCrossfade` 220ms 淡入 + 透传到 localStorage `solo-theme-paint`。
 
 ### 10.2 复制为 HTML（v1.2.18 减法重构后）
 
@@ -487,7 +521,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 ### 10.3 字体系统
 
-- `constants/fonts.ts`：`FONT_OPTIONS`（7 种：思源宋体/微软雅黑 UI/朱雀仿宋/小赖字体/霞鹜文楷 Lite/汇文明朝/系统默认）。注意「霞鹜文楷 Lite」文件名标 `Regular` 但内部是 Lite 轻便版，`value` 必须对齐文件内部真实 family 名（详见字体手册）。
+- `constants/fonts.ts`：`FONT_OPTIONS`（**7 项**）：系统默认（`system-ui`）/ 微软雅黑 UI / 思源宋体(`NotoSerifSC-Regular.otf`) / 朱雀仿宋(`ZhuqueFangsong-Regular.ttf`) / 小赖字体(`XiaolaiSC-Regular.ttf`) / 霞鹜文楷 Lite(`LXGWWenKai-Regular.ttf`) / 汇文明朝(`Huiwen-mincho-Regular.otf`)。**有 `fileName` = 下载型字体；`undefined` = 系统字体**（`FontPopover` 与 `SettingsFontSelect` 共用此清单）。
 - `utils/fontStack.ts`：`buildFontStack(primary)` —— 按字体类型生成带中文 fallback 的完整 font-family 栈，**编辑器与导出端共享**，消除两端不一致。
 - `services/fontLoader.ts`：远程字体按需下载 + 文件系统缓存 + **字节通道** FontFace 注册（经 IPC `readFontBytes` 取字节 → `new FontFace(family, bytes)` 同源加载，**绕开 asset:// 协议的 CORS 静默拦截**），系统字体跳过，已加载缓存复用，加载中去重。
 - 字体系统深度专题与踩坑总结见 [`docs/font-handling.md`](./docs/font-handling.md)（含 CORS 陷阱、资源错配、验证方法论、排查决策树）。
@@ -500,21 +534,26 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 | # | 敏感区 | 关键文件 | 详解 |
 |---|--------|----------|------|
-| 1 | 脏态机制 | [`src/stores/file.ts`](./src/stores/file.ts) | §11.1 |
+| 1 | 脏态机制（A1 语义比对） | [`src/stores/file.ts`](./src/stores/file.ts)（`setContent`/`syncEditedContent`） | §11.1 |
 | 2 | 保存冲突检测 | [`src-tauri/src/commands/document.rs`](./src-tauri/src/commands/document.rs) + [`useDocumentSession.ts`](./src/composables/useDocumentSession.ts) | §11.2 |
 | 3 | 序列化尾换行 | [`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts) | §11.3 |
 | 4 | 图片资产安全 | [`src-tauri/src/commands/document.rs`](./src-tauri/src/commands/document.rs) | §11.4 |
 | 5 | 启动开打竞态 | [`src-tauri/src/state.rs`](./src-tauri/src/state.rs) + [`lib.rs`](./src-tauri/src/lib.rs) | §11.5 |
-| 6 | 三档防抖分层 | [`MarkdownEditor.vue`](./src/components/Editor/MarkdownEditor.vue) | — |
+| 6 | 防抖分层（字数150/光标100/大纲500/序列化500） | [`useEditorSync.ts`](./src/composables/useEditorSync.ts) | §6.3 |
 | 7 | 命令名 / 定义真理源 | [`command-names.ts`](./src/services/tauri/command-names.ts) + [`registry.ts`](./src/commands/registry.ts) | 附录 B |
-| 8 | 主题色彩/排版注入 | [`themes/manager.ts`](./src/themes/manager.ts) + [`types.ts`](./src/themes/types.ts) | — |
+| 8 | 主题色彩/排版注入（三层结构） | [`themes/manager.ts`](./src/themes/manager.ts) + [`types.ts`](./src/themes/types.ts) | §10.1 |
 | 9 | 多窗口进程模型 | [`lib.rs`](./src-tauri/src/lib.rs) | — |
 | 10 | 构建环境 | 见 [`docs/debugging.md`](./docs/debugging.md) + [`HANDOVER.md`](./HANDOVER.md) | — |
 | 11 | 字体渲染 CORS + 资源错配 | [`fontLoader.ts`](./src/services/fontLoader.ts) + [`font.rs`](./src-tauri/src/commands/font.rs) | [字体手册](./docs/font-handling.md) |
 
-### 11.1 脏态机制不可随意改动
+### 11.1 脏态机制不可随意改动（A1 语义比对模型）
 
-`file.ts` 的 `setContent()` vs `markUserEdit()` 分离是**有意的**（见 §7.1）。编辑器加载后立即序列化写回是**建立规范化基线**，消除 parser/serializer 归一化差异导致的假脏态。**动了它就会重新引入脏态闪烁。**
+`file.ts` 的 `setContent()`（仅同步基线，不标脏）与 `syncEditedContent()`（语义比对为唯一脏真相源）分离是**有意的**（见 §7.1）。编辑器加载后立即 `setContent(serializeMarkdown())` 建立**规范化基线**，消除 parser/serializer 归一化差异导致的假脏态。
+
+**改动铁律**：
+- 不要把基线写回（程序性）误判为脏——必须用 `syncEditedContent` 的语义比对，而非 `hasUserEdit` 式标志。
+- 不要在 `syncEditedContent` 里对 `normalizedNew === normalizedBase` 分支做任何"标脏"动作，否则 Mermaid 后台事务会误标脏、拖入图片会漏标脏。
+- **动了它就会重新引入脏态闪烁。**
 
 ### 11.2 保存冲突检测在 Rust 侧
 
@@ -546,7 +585,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
   - 代码语法高亮：`editor.css` 的 `.hljs-*` → 主题 token 映射（**禁止**加载 highlight.js 外部配色，见 `useEditorAppearance.ts`）。
   - Mermaid 图表：`mermaid-block.ts::buildMermaidConfig` 用 `getComputedStyle` 读当前主题 CSS 变量注入 `themeVariables`（theme: 'base'，**禁止** mermaid 内置 default/dark 主题与硬编码提亮）。
   - 新增任何"带颜色的格式"时先回答：它的颜色进 token 全集了吗？进不了就拒绝实现或收编。
-  - 主题 JSON 只允许存在"性格差异"字段，共享值（radius/功能色/markBg/遮罩/幽灵按钮）一律进共享默认层，禁止复制进各主题。
+  - 主题 JSON 只允许存在"性格差异"字段，共享值（radius/功能色/markBg/遮罩/幽灵按钮）一律进共享默认层（SHARED_LIGHT/DARK_COLORS），禁止复制进各主题。
 
 ---
 
@@ -588,20 +627,28 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 ## 附录 C：文档与代码差异（防止被旧文档误导）
 
-下列内容在 `.trae/documents/` 中被描述为存在/未解决，但**当前代码实际状态**如下：
+下列内容在 `.trae/documents/` 或**本文档旧版本**中被描述为存在/未解决，但**当前代码实际状态**如下：
 
 | 旧文档说法 | 实际现状 |
 |---|---|
 | 存在文件树 / workspace watcher / `useFileTree.ts` / `useFileOperations.ts` | **已移除**。`useDocumentSession.ts` 内有 `// workspace 功能已移除` 注释 |
 | `fs.rs` / `watch.rs` / `config.rs` | **不存在**。文件操作在 `commands/document.rs`，无 watcher，设置用 tauri-plugin-store |
-| 6 个字体 | **7 个**（系统默认 + 微软雅黑 UI + 5 款远程下载字体） |
+| 6 个字体 | **7 个**（系统默认 + 微软雅黑 UI + 5 款远程下载字体），见 §10.3 |
 | emoji 补全未实现 | **已实现**（`emoji-suggest.ts` + `EmojiMenu.vue`，`:` 触发） |
 | 编辑区排版硬编码、不随主题切换 | **已解决**。主题 `typography` → `--mk-*` 变量 → `editor.css` 消费 |
 | 字体依赖本地安装 | **已解决**。改为按需远程下载 + 文件系统缓存，安装包不再内嵌字体文件 |
 | 字体栈分散 | **已收口**到 `fontStack.ts::buildFontStack`，编辑器+导出共享 |
-| 序列化防抖 300ms | **实际 500ms**（序列化）/ 50ms（统计）/ 100ms（光标）三档 |
-| Rust 命令 ~20 个 | **实际 22 个**（见 `lib.rs::invoke_handler!`，v1.2.23 含 `resolve_image_display`，后又加 `read_clipboard_html`、`read_font_bytes`） |
-| 快捷键表 / 发布清单列有「导出 HTML / PDF / 微信」 | **已移除**（v1.2.18）。复制为 HTML 用状态栏「复制为 HTML」按钮，无导出命令 |
+| 序列化防抖 300ms | **实际分层**：150ms（字数）/ 100ms（光标）/ 500ms（大纲+序列化），见 §8.2 / §6.3 |
+| Rust 命令 ~20 个 | **实际 22 个**（见 `lib.rs::generate_handler!`，含 `resolve_image_display`/`read_clipboard_html`/`read_font_bytes`/`detect_proxy_for_update`） |
+| 快捷键表 / 发布清单列有「导出 HTML / PDF / 微信」 | **已移除**（v1.2.18）。复制为 HTML 用状态栏「复制为 HTML」按钮，无导出命令；`utils/export/` 整个目录已删除 |
+| 脏态用 `setContent` + `markUserEdit` 双函数（按 hasUserEdit 标志判定） | **A1 重构**：改为 `setContent`（仅基线）+ `syncEditedContent`（语义比对唯一真相源），`hasUserEdit`/`markUserEdit` 已废弃，见 §7.1 / §11.1 |
+| composables 10 个 / `utils/shortcuts.ts` 存在 | **实际 12 个**；`utils/shortcuts.ts` **已删除**（registry 内联 `getShortcut`/`getShortcutCommands`） |
+| `services/tauri/` 含 `event-names.ts`/`webview.ts`/`opener.ts`/`os.ts`/`window-state.ts` | **均不存在**。实际 10 个文件：`client`/`command-names`/`document`/`window`/`dialog`/`clipboard`/`events`/`font`/`asset`/`store`，见 §3 / §5.3 |
+| 主题 7 套（含 `gray-domain`） | **实际 6 套**：`scholar-light`/`scholar-dark`/`elegant`/`cinnabar`/`cinnabar-dark`/`default`，见 §10.1 |
+| 编辑器扩展 14 个 | **实际 21 个**（含 Frontmatter/Footnote×3/Callout/ParagraphFocus/SearchHighlight/Link/LinkOpen/Dim 等），见 §8.3 |
+| Tauri 插件 6 个 | **实际 7 个**（多 `updater`，见 `autoCheckForUpdate`） |
+| `proxy.rs` 定义 `detect_proxy_for_update` | **不存在 `proxy.rs`**；该命令定义在 `lib.rs`，见 §4.2 |
+| 启动竞态两层缓冲 | **实际四类 managed state**：`StartupOpenRequests`/`PendingWindowPaths`/`LoadedWindows`/`FocusedWindow`，见 §4.5 |
 
 > 若你发现本附录与代码不符，**以代码为准并更新本表**——这是这份文档保持可信的唯一方式。
 
