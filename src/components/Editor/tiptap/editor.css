@@ -600,7 +600,7 @@
 }
 
 .tiptap-editor .column-resize-handle:hover {
-  background-color: var(--primary-color, #adf);
+  background-color: var(--primary-color, #8b7355);
 }
 
 .tiptap-editor.resize-cursor {
@@ -1048,7 +1048,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: rgba(0, 0, 0, 0.75);
+  background-color: var(--modal-overlay);
   /* 渐入动画：抹平「突然全黑」的突兀感 */
   animation: mk-mermaid-lightbox-in var(--motion-fast, 120ms) var(--ease-out, ease-out);
 }
@@ -1137,21 +1137,13 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
 }
 
 .mk-deco-code {
-  color: #e879a0;
+  color: var(--info-color);
   opacity: 0.7;
-}
-
-html.dark .mk-deco-code {
-  color: #f0a0b8;
 }
 
 .mk-deco-highlight {
-  color: #d97706;
+  color: var(--warning-color);
   opacity: 0.7;
-}
-
-html.dark .mk-deco-highlight {
-  color: #fbbf24;
 }
 
 .mk-deco-sup,
