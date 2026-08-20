@@ -9,22 +9,10 @@ import { refreshParagraphFocus } from './extensions/paragraph-focus';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 import type { EditorView } from '@tiptap/pm/view';
 
-const hljsCssId = 'hljs-theme';
-const hljsLightUrl = new URL('highlight.js/styles/github.css', import.meta.url).href;
-const hljsDarkUrl = new URL('highlight.js/styles/github-dark.css', import.meta.url).href;
-
-function syncHljsTheme() {
-  const isDark = document.documentElement.classList.contains('dark');
-  let el = document.getElementById(hljsCssId) as HTMLLinkElement | null;
-  if (!el) {
-    el = document.createElement('link');
-    el.id = hljsCssId;
-    el.rel = 'stylesheet';
-    document.head.appendChild(el);
-  }
-  el.href = isDark ? hljsDarkUrl : hljsLightUrl;
-
-  // 同步 Mermaid 主题
+// 设计体系规则：代码语法高亮不再加载 highlight.js 外部配色
+// （github / github-dark），颜色统一由 editor.css 的 .hljs-* → 主题 token
+// 映射提供，切主题时随主题整体变化。此处仅负责 Mermaid 主题同步重渲。
+function syncMermaidTheme() {
   reinitializeMermaidTheme().catch(() => {});
 }
 
@@ -47,7 +35,7 @@ export function useEditorAppearance(editorRef?: Ref<TiptapEditor | null>) {
     if (_themeRafId != null) return;
     _themeRafId = requestAnimationFrame(() => {
       _themeRafId = null;
-      syncHljsTheme();
+      syncMermaidTheme();
       const view: EditorView | undefined = editorRef?.value?.view;
       if (view) refreshParagraphFocus(view);
     });
@@ -82,7 +70,7 @@ export function useEditorAppearance(editorRef?: Ref<TiptapEditor | null>) {
   );
 
   onMounted(() => {
-    syncHljsTheme();
+    syncMermaidTheme();
     themeObserver.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ['class'],

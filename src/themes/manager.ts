@@ -63,7 +63,7 @@ const SHARED_DARK_COLORS: Partial<ThemeColors> = {
   errorBg: 'rgba(248, 113, 113, 0.15)',
   infoColor: '#93c5fd',
   infoBg: 'rgba(147, 197, 253, 0.15)',
-  markBg: 'rgba(254, 240, 138, 0.45)',
+  markBg: 'rgba(254, 240, 138, 0.35)',
   btnGhostBg: 'transparent',
   modalOverlay: 'rgba(0, 0, 0, 0.65)',
   radiusSm: '3px',

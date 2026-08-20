@@ -541,6 +541,12 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 - 命令定义只在 `registry.ts`。
 - 字体清单只在 `fonts.ts`，字体栈只在 `fontStack.ts`。
 - 主题色彩映射只在 `types.ts::CSS_VAR_MAP`：**任何要跟随主题切换的颜色，必须同时在 `ThemeColors` 接口与 `CSS_VAR_MAP` 登记，禁止只在 `main.css` 写死某个颜色**——否则切预设主题时该色不随主题变化（参考 2026-07-21「状态栏未保存指示不随主题」bug：`--dirty-color` 漏登记导致始终回退书卷气默认值）。
+- **设计体系规则（2026-08-21 确立，全格式覆盖）**：solo 之内的一切视觉颜色都必须来自主题 token（`--*` CSS 变量），**按产品设计定义，不按依赖关系**——外部依赖（highlight.js / mermaid / KaTeX 等）只要渲染在 solo 界面内，其颜色同样必须走 token 映射，禁止加载外部主题或硬编码色值：
+  - 主题三层结构：范式（token 全集，`types.ts::CSS_VAR_MAP` + `editor.css :root` 排版默认 + `manager.ts::SHARED_LIGHT/DARK_COLORS` 共享默认）→ 实例（6 个 preset JSON，只写性格 token）→ 消费（渲染层只引用 `var(--x)`）。
+  - 代码语法高亮：`editor.css` 的 `.hljs-*` → 主题 token 映射（**禁止**加载 highlight.js 外部配色，见 `useEditorAppearance.ts`）。
+  - Mermaid 图表：`mermaid-block.ts::buildMermaidConfig` 用 `getComputedStyle` 读当前主题 CSS 变量注入 `themeVariables`（theme: 'base'，**禁止** mermaid 内置 default/dark 主题与硬编码提亮）。
+  - 新增任何"带颜色的格式"时先回答：它的颜色进 token 全集了吗？进不了就拒绝实现或收编。
+  - 主题 JSON 只允许存在"性格差异"字段，共享值（radius/功能色/markBg/遮罩/幽灵按钮）一律进共享默认层，禁止复制进各主题。
 
 ---
 

@@ -557,6 +557,58 @@
   border-radius: 0;
 }
 
+/* ── 代码语法高亮（hljs）→ 主题 token 映射 ─────────────────────
+   设计体系规则：solo 之内的一切颜色都必须来自主题 token，不加载
+   highlight.js 外部配色（github / github-dark）。切主题时语法
+   高亮随主题整体变化。 */
+.tiptap-editor .hljs {
+  color: var(--text-color);
+}
+.tiptap-editor .hljs-keyword,
+.tiptap-editor .hljs-selector-tag,
+.tiptap-editor .hljs-built_in,
+.tiptap-editor .hljs-literal,
+.tiptap-editor .hljs-section,
+.tiptap-editor .hljs-doctag {
+  color: var(--primary-color);
+}
+.tiptap-editor .hljs-string,
+.tiptap-editor .hljs-regexp,
+.tiptap-editor .hljs-addition {
+  color: var(--success-color);
+}
+.tiptap-editor .hljs-comment,
+.tiptap-editor .hljs-quote {
+  color: var(--muted-color);
+  font-style: italic;
+}
+.tiptap-editor .hljs-number,
+.tiptap-editor .hljs-symbol {
+  color: var(--warning-color);
+}
+.tiptap-editor .hljs-title,
+.tiptap-editor .hljs-title.function_,
+.tiptap-editor .hljs-type,
+.tiptap-editor .hljs-class .hljs-title {
+  color: var(--info-color);
+}
+.tiptap-editor .hljs-attr,
+.tiptap-editor .hljs-attribute,
+.tiptap-editor .hljs-variable,
+.tiptap-editor .hljs-template-variable,
+.tiptap-editor .hljs-property {
+  color: var(--text-secondary);
+}
+.tiptap-editor .hljs-meta,
+.tiptap-editor .hljs-tag .hljs-name,
+.tiptap-editor .hljs-selector-id,
+.tiptap-editor .hljs-selector-class {
+  color: var(--primary-hover);
+}
+.tiptap-editor .hljs-deletion {
+  color: var(--error-color);
+}
+
 /* ── 表格 ── 遵循 prosemirror-tables 官方设计，仅替换主题色 ────── */
 .tiptap-editor .tableWrapper {
   overflow-x: auto;

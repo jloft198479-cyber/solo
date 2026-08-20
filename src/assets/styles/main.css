@@ -389,11 +389,6 @@ html.theme-transitioning *::after {
   transition: background-color var(--motion-base) var(--ease-out), color var(--motion-base) var(--ease-out), border-color var(--motion-base) var(--ease-out) !important;
 }
 
-/* ── 深色模式下 highlight.js 代码高亮 ─────────────────────── */
-html.dark .hljs {
-  background: transparent;
-}
-
 /* ── 打印样式 ──────────────────────────────────────────────── */
 @media print {
   .toolbar-container,
