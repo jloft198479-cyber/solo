@@ -146,7 +146,7 @@ const windowTitle = computed(() => {
 const windowSession = useAppWindowSession({
   openDocument: handleOpenFile,
   saveDocument: documentSession.saveCurrentDocument,
-  isDirty: () => fileStore.currentFile.isDirty,
+  isDirty: () => documentSession.evaluateDirtyFromEditor(),
   windowTitle,
   shellIntegration: () => settingsStore.settings.shellIntegration,
   stopAutoSave: documentSession.stopAutoSave,

@@ -106,10 +106,20 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     fileStore.setFile(document.content, document.path, document.lastModifiedMs);
   }
 
+  /** 闸口前强制用编辑器实时内容评估脏态（坑2）：绕开 500ms 序列化防抖，
+   * 避免「编辑后 <500ms 就关窗/切换」时 store 还是旧基线而误判未修改、丢最后半秒编辑。 */
+  function evaluateDirtyFromEditor() {
+    const live = options.getContent?.();
+    if (live == null) return fileStore.currentFile.isDirty;
+    fileStore.syncEditedContent(live);
+    return fileStore.currentFile.isDirty;
+  }
+
   async function confirmDiscardUnsavedChanges() {
     if (!fileStore.currentFile.path && !fileStore.currentFile.content.trim()) {
       return true;
     }
+    evaluateDirtyFromEditor();
     if (!fileStore.currentFile.isDirty) {
       return true;
     }
@@ -367,5 +377,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     saveCurrentDocument,
     saveCurrentDocumentAs,
     stopAutoSave,
+    evaluateDirtyFromEditor,
   };
 }
