@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>solo · 顶栏概念设计（真实元素版）</title>
+<style>
+  /* ============================================================
+     设计令牌 · 全量（配色方案 × 亮/暗 双档）
+     ============================================================ */
+
+  /* —— 驼 · 暖陶土（solo 原味提炼）· 亮 —— */
+  :root {
+    --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+      Menlo, monospace;
+    --page-bg: #eceae5;
+    --page-bg-2: #e2dfd8;
+    --canvas: #faf8f5;
+    --surface-solid: #f1efea;
+    --titlebar-surface: #ece4d8;
+    --code-bg: rgba(138, 111, 79, 0.07);
+    --hairline: rgba(138, 111, 79, 0.16);
+    --hairline-strong: rgba(138, 111, 79, 0.28);
+    --text: #2b2620;
+    --text-muted: #8c8375;
+    --text-faint: #b3ab9e;
+    --accent: #8a6f4f;
+    --hover: rgba(138, 111, 79, 0.08);
+    --hover-strong: rgba(138, 111, 79, 0.15);
+    --selection: rgba(138, 111, 79, 0.18);
+    --danger: #c0504a;
+    --warn: #b07c2c;
+    --shadow: 0 1px 2px rgba(40, 30, 20, 0.05), 0 18px 50px rgba(60, 48, 36, 0.10);
+  }
+
+  /* —— 驼 · 暗 —— */
+  [data-theme="dark"] {
+    --page-bg: #0c0b09;
+    --page-bg-2: #070605;
+    --canvas: #17150f;
+    --surface-solid: #1d1a14;
+    --titlebar-surface: #100e09;
+    --code-bg: rgba(176, 160, 128, 0.06);
+    --hairline: rgba(176, 160, 128, 0.14);
+    --hairline-strong: rgba(176, 160, 128, 0.24);
+    --text: #ece7df;
+    --text-muted: #847b6e;
+    --text-faint: #5d574c;
+    --accent: #b0a080;
+    --hover: rgba(176, 160, 128, 0.10);
+    --hover-strong: rgba(176, 160, 128, 0.18);
+    --selection: rgba(176, 160, 128, 0.22);
+    --danger: #d96a5f;
+    --warn: #d2a24e;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 24px 60px rgba(0, 0, 0, 0.55);
+  }
+
+  /* —— 墨 · 石板灰 · 亮 —— */
+  [data-palette="ink"][data-theme="light"] {
+    --page-bg: #e9eaec; --page-bg-2: #e0e1e4; --canvas: #f7f8f9;
+    --surface-solid: #eef0f2; --titlebar-surface: #e7e9ec;
+    --code-bg: rgba(92, 101, 115, 0.06);
+    --hairline: rgba(92, 101, 115, 0.16); --hairline-strong: rgba(92, 101, 115, 0.28);
+    --text: #23262b; --text-muted: #767c85; --text-faint: #aab0b8;
+    --accent: #5c6573; --hover: rgba(92, 101, 115, 0.08);
+    --hover-strong: rgba(92, 101, 115, 0.15); --selection: rgba(92, 101, 115, 0.18);
+    --shadow: 0 1px 2px rgba(30, 35, 45, 0.05), 0 18px 50px rgba(30, 40, 55, 0.10);
+  }
+  /* —— 墨 · 暗 —— */
+  [data-palette="ink"][data-theme="dark"] {
+    --page-bg: #0a0b0d; --page-bg-2: #060708; --canvas: #141518;
+    --surface-solid: #1a1c20; --titlebar-surface: #0d0f11;
+    --code-bg: rgba(152, 162, 179, 0.06);
+    --hairline: rgba(152, 162, 179, 0.14); --hairline-strong: rgba(152, 162, 179, 0.24);
+    --text: #e7e9ec; --text-muted: #767d87; --text-faint: #545b64;
+    --accent: #98a2b3; --hover: rgba(152, 162, 179, 0.10);
+    --hover-strong: rgba(152, 162, 179, 0.18); --selection: rgba(152, 162, 179, 0.22);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 24px 60px rgba(0, 0, 0, 0.55);
+  }
+
+  /* —— 黛 · 雾蓝 · 亮 —— */
+  [data-palette="mist"][data-theme="light"] {
+    --page-bg: #e8ecf0; --page-bg-2: #dfe4ea; --canvas: #f6f8fa;
+    --surface-solid: #edf1f5; --titlebar-surface: #e4eaf1;
+    --code-bg: rgba(79, 115, 144, 0.06);
+    --hairline: rgba(79, 115, 144, 0.16); --hairline-strong: rgba(79, 115, 144, 0.28);
+    --text: #1f2630; --text-muted: #6f7c8a; --text-faint: #a6b2bf;
+    --accent: #4f7390; --hover: rgba(79, 115, 144, 0.08);
+    --hover-strong: rgba(79, 115, 144, 0.15); --selection: rgba(79, 115, 144, 0.18);
+    --shadow: 0 1px 2px rgba(82, 35, 50, 0.05), 0 18px 50px rgba(20, 40, 60, 0.10);
+  }
+  /* —— 黛 · 暗 —— */
+  [data-palette="mist"][data-theme="dark"] {
+    --page-bg: #080b0f; --page-bg-2: #05080b; --canvas: #10151b;
+    --surface-solid: #161d25; --titlebar-surface: #0b1117;
+    --code-bg: rgba(127, 163, 192, 0.06);
+    --hairline: rgba(127, 163, 192, 0.14); --hairline-strong: rgba(127, 163, 192, 0.24);
+    --text: #e4eaf0; --text-muted: #6e7e8d; --text-faint: #4f5b67;
+    --accent: #7fa3c0; --hover: rgba(127, 163, 192, 0.10);
+    --hover-strong: rgba(127, 163, 192, 0.18); --selection: rgba(127, 163, 192, 0.22);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 24px 60px rgba(0, 0, 0, 0.55);
+  }
+
+  /* —— 松 · 苔绿 · 亮 —— */
+  [data-palette="sage"][data-theme="light"] {
+    --page-bg: #e9ece8; --page-bg-2: #e0e4de; --canvas: #f7f8f6;
+    --surface-solid: #eef1ec; --titlebar-surface: #e6ebe2;
+    --code-bg: rgba(94, 117, 86, 0.07);
+    --hairline: rgba(94, 117, 86, 0.18); --hairline-strong: rgba(94, 117, 86, 0.30);
+    --text: #222823; --text-muted: #717a70; --text-faint: #a7afa4;
+    --accent: #5e7556; --hover: rgba(94, 117, 86, 0.08);
+    --hover-strong: rgba(94, 117, 86, 0.15); --selection: rgba(94, 117, 86, 0.18);
+    --shadow: 0 1px 2px rgba(25, 35, 25, 0.05), 0 18px 50px rgba(25, 40, 30, 0.10);
+  }
+  /* —— 松 · 暗 —— */
+  [data-palette="sage"][data-theme="dark"] {
+    --page-bg: #080a08; --page-bg-2: #080a08; --canvas: #13160f;
+    --surface-solid: #191d14; --titlebar-surface: #0c0f09;
+    --code-bg: rgba(147, 168, 136, 0.06);
+    --hairline: rgba(147, 168, 136, 0.14); --hairline-strong: rgba(147, 168, 136, 0.24);
+    --text: #e6eae0; --text-muted: #727b6c; --text-faint: #525a4b;
+    --accent: #93a888; --hover: rgba(147, 168, 136, 0.10);
+    --hover-strong: rgba(147, 168, 136, 0.18); --selection: rgba(147, 168, 136, 0.22);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 24px 60px rgba(0, 0, 0, 0.55);
+  }
+
+  /* —— 赭 · 陶红 · 亮 —— */
+  [data-palette="ochre"][data-theme="light"] {
+    --page-bg: #ece7e2; --page-bg-2: #e3ddd5; --canvas: #faf6f1;
+    --surface-solid: #f1ebe3; --titlebar-surface: #efe6db;
+    --code-bg: rgba(156, 95, 60, 0.07);
+    --hairline: rgba(156, 95, 60, 0.18); --hairline-strong: rgba(156, 95, 60, 0.30);
+    --text: #2c2620; --text-muted: #8c7e72; --text-faint: #b8aea2;
+    --accent: #9c5f3c; --hover: rgba(156, 95, 60, 0.08);
+    --hover-strong: rgba(156, 95, 60, 0.15); --selection: rgba(156, 95, 60, 0.18);
+    --shadow: 0 1px 2px rgba(40, 25, 15, 0.05), 0 18px 50px rgba(50, 30, 15, 0.10);
+  }
+  /* —— 赭 · 暗 —— */
+  [data-palette="ochre"][data-theme="dark"] {
+    --page-bg: #0c0907; --page-bg-2: #080503; --canvas: #18130f;
+    --surface-solid: #1f1812; --titlebar-surface: #110c08;
+    --code-bg: rgba(201, 138, 94, 0.06);
+    --hairline: rgba(201, 138, 94, 0.14); --hairline-strong: rgba(201, 138, 94, 0.24);
+    --text: #efe7df; --text-muted: #8a7a6c; --text-faint: #5e5347;
+    --accent: #c98a5e; --hover: rgba(201, 138, 94, 0.10);
+    --hover-strong: rgba(201, 138, 94, 0.18); --selection: rgba(201, 138, 94, 0.22);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 24px 60px rgba(0, 0, 0, 0.55);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--font-sans);
+    background:
+      radial-gradient(120% 120% at 50% 0%, var(--page-bg) 0%, var(--page-bg-2) 100%);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 48px 24px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection { background: var(--selection); }
+
+  /* ============ 演示控制（不属于 App） ============ */
+  .stage {
+    position: fixed;
+    top: 22px;
+    right: 26px;
+    display: flex;
+    gap: 10px;
+    z-index: 50;
+  }
+  .seg {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--hairline);
+    background: var(--surface-solid);
+  }
+  .seg button {
+    font: inherit;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    background: transparent;
+    border: 0;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: color 0.18s, background 0.18s;
+  }
+  .seg button:hover { color: var(--text); }
+  .seg button.on { color: var(--canvas); background: var(--accent); }
+
+  .hint {
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    z-index: 50;
+  }
+
+  /* ============ 应用窗口 ============ */
+  .window {
+    width: min(960px, 100%);
+    height: min(640px, 86vh);
+    background: var(--canvas);
+    box-shadow: var(--shadow);
+    border-radius: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  /* ============ 顶栏（真实元素） ============ */
+  /* 终稿：纯统一——顶栏与画布同色，无分隔线，靠字标与激活细线区分 */
+  .titlebar {
+    height: 48px;
+    flex: 0 0 48px;
+    display: flex;
+    align-items: stretch;
+    background: var(--canvas);
+    position: relative;
+    z-index: 10;
+  }
+
+  .bar-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding-left: 20px;
+    height: 100%;
+    min-width: 0;
+    flex: 1;
+  }
+  .bar-right {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    padding-right: 8px;
+    height: 100%;
+    flex-shrink: 0;
+  }
+
+  /* 品牌字标 —— 字重 + 字距，主色点睛，不靠色块 */
+  .wordmark {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 2.2px;
+    color: var(--accent);
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .divider {
+    width: 1px;
+    height: 16px;
+    background: var(--hairline-strong);
+    flex-shrink: 0;
+  }
+  .doc-title {
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    color: var(--text);
+    opacity: 0.78;
+    cursor: text;
+    padding: 2px 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 320px;
+    transition: opacity 0.15s;
+    border-radius: 0;
+  }
+  .doc-title:hover { opacity: 1; }
+
+  /* 图标按钮 —— 直角、满高、极淡 hover、激活用底部 2px 主色细线 */
+  .icon-btn {
+    width: 44px;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 0;
+    color: var(--text-muted);
+    cursor: pointer;
+    position: relative;
+    transition: color 0.16s ease, background 0.16s ease;
+  }
+  .icon-btn svg { width: 17px; height: 17px; display: block; }
+  .icon-btn:hover { color: var(--text); background: var(--hover); }
+  .icon-btn.active { color: var(--accent); background: var(--hover); }
+  .icon-btn.active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: var(--accent);
+  }
+
+  /* 真实组件动效：焦点瞳孔填充 / 置顶旋转 35° + 填充 */
+  .eye-pupil { fill: transparent; transition: fill 0.25s ease; }
+  .icon-btn.active .eye-pupil { fill: currentColor; }
+  .pin-shape { transition: fill 0.15s ease; }
+  .pin-icon {
+    transform-origin: 7.5px 7.5px;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .icon-btn.active .pin-shape { fill: currentColor; }
+  .icon-btn.active .pin-icon { transform: rotate(35deg); }
+
+  /* 窗口控制 */
+  .win-sep {
+    width: 1px;
+    height: 16px;
+    align-self: center;
+    background: var(--hairline);
+    margin: 0 4px;
+  }
+  .win-btn {
+    width: 44px;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 0;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.16s ease, background 0.16s ease;
+  }
+  .win-btn svg { width: 13px; height: 13px; display: block; }
+  .win-btn:hover { color: var(--text); background: var(--hover-strong); }
+  .win-btn--close:hover {
+    background: var(--danger);
+    color: #fff;
+  }
+
+  /* 键盘可达性（WCAG） */
+  .icon-btn:focus-visible,
+  .win-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  /* ============ 编辑区 ============ */
+  .editor {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 56px 32px 96px;
+    scroll-behavior: smooth;
+  }
+  .editor::-webkit-scrollbar { width: 10px; }
+  .editor::-webkit-scrollbar-thumb {
+    background: var(--hairline-strong);
+    border: 3px solid var(--canvas);
+    border-radius: 0;
+  }
+  .editor::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+  .doc { max-width: 660px; margin: 0 auto; }
+  .doc h1 {
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+  .doc .subtitle {
+    font-size: 15.5px;
+    color: var(--text-muted);
+    margin-bottom: 30px;
+  }
+  .doc h2 {
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    margin: 40px 0 14px;
+    color: var(--text);
+  }
+  .doc p {
+    font-size: 15.5px;
+    line-height: 1.95;
+    color: var(--text);
+    margin-bottom: 20px;
+    font-weight: 400;
+  }
+  .doc ul { list-style: none; margin: 0 0 8px; padding: 0; }
+  .doc li {
+    font-size: 15px;
+    line-height: 1.85;
+    color: var(--text-muted);
+    padding-left: 20px;
+    position: relative;
+    margin-bottom: 9px;
+  }
+  .doc li::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: 12px;
+    width: 5px;
+    height: 5px;
+    background: var(--accent);
+  }
+  .doc li strong { color: var(--text); font-weight: 600; }
+  .doc blockquote {
+    border-left: 2px solid var(--accent);
+    padding: 4px 0 4px 20px;
+    margin: 26px 0;
+    color: var(--text-muted);
+    font-size: 15px;
+    line-height: 1.9;
+  }
+
+  /* 代码块 —— 真实 README 里的 bash 代码 */
+  .codeblock {
+    margin: 20px 0 28px;
+    background: var(--code-bg);
+    border: 1px solid var(--hairline);
+    border-radius: 0;
+  }
+  .codeblock .lang {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--text-faint);
+    padding: 10px 18px 0;
+    user-select: none;
+  }
+  .codeblock pre {
+    padding: 10px 18px 16px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text);
+    white-space: pre;
+  }
+
+  /* ============ 底部状态栏（真实元素 · 终稿统一色） ============ */
+  /* 设计语言：与画布同色、直角、图标按钮 32×32、静默 opacity 0.6 */
+  .statusbar {
+    height: 36px;
+    flex: 0 0 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px 0 20px;
+    background: var(--canvas);
+    position: relative;
+    z-index: 10;
+  }
+  .statusbar-left,
+  .statusbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 100%;
+  }
+  .statusbar-right { gap: 4px; }
+
+  /* 品牌字标 —— 与顶栏同款字距语言，小一号 */
+  .sb-brand {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    color: var(--accent);
+    text-transform: lowercase;
+    user-select: none;
+  }
+  .sb-divider {
+    width: 1px;
+    height: 14px;
+    background: var(--hairline-strong);
+    margin: 0 2px;
+  }
+  .sb-stat {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .sb-stat--accent {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .sb-stat--warn {
+    color: var(--warn);
+    font-weight: 600;
+  }
+
+  /* 保存状态按钮：圆点 + 文字，状态色克制 */
+  .sb-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 32px;
+    padding: 0 10px;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+  }
+  .sb-save:hover { background: var(--hover); }
+  .sb-save-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 0;
+  }
+  .sb-save.is-clean { color: var(--accent); }
+  .sb-save.is-clean .sb-save-dot { background: var(--accent); }
+  .sb-save.is-dirty { color: var(--warn); }
+  .sb-save.is-dirty .sb-save-dot { background: var(--warn); }
+
+  /* 快捷操作 / 设置：直角图标按钮，静默 0.6 → hover 实色 */
+  .sb-btn {
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    background: transparent;
+    border: 0;
+    color: var(--text-muted);
+    opacity: 0.6;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, opacity 0.15s;
+  }
+  .sb-btn svg { width: 15px; height: 15px; display: block; }
+  .sb-btn:hover {
+    background: var(--hover);
+    color: var(--text);
+    opacity: 1;
+  }
+  .sb-btn.active {
+    color: var(--accent);
+    opacity: 1;
+  }
+  .sb-btn.is-copied {
+    color: var(--accent);
+    opacity: 1;
+  }
+  .sb-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+  .sb-sep {
+    width: 1px;
+    height: 16px;
+    background: var(--hairline);
+    margin: 0 6px;
+    align-self: center;
+  }
+</style>
+</head>
+<body data-theme="light" data-palette="camel">
+  <div class="stage">
+    <div class="seg" role="group" aria-label="配色">
+      <button id="btn-camel" class="on" onclick="setPalette('camel')">驼</button>
+      <button id="btn-ink" onclick="setPalette('ink')">墨</button>
+      <button id="btn-mist" onclick="setPalette('mist')">黛</button>
+      <button id="btn-sage" onclick="setPalette('sage')">松</button>
+      <button id="btn-ochre" onclick="setPalette('ochre')">赭</button>
+    </div>
+    <div class="seg" role="group" aria-label="主题">
+      <button id="btn-light" class="on" onclick="setTheme('light')">亮</button>
+      <button id="btn-dark" onclick="setTheme('dark')">暗</button>
+    </div>
+  </div>
+
+  <div class="window">
+    <!-- 顶栏：真实 solo 元素 -->
+    <header class="titlebar">
+      <div class="bar-left">
+        <span class="wordmark">solo</span>
+        <span class="divider"></span>
+        <span class="doc-title" title="F:\fzz-Project\md-editor\README.zh-CN.md · 点击重命名">README.zh-CN.md</span>
+      </div>
+
+      <div class="bar-right">
+        <!-- 焦点模式（真实：眼睛图标，激活时瞳孔填充） -->
+        <button class="icon-btn focus-btn" title="焦点模式" aria-label="焦点模式">
+          <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path class="eye-outline" d="M1 7.5s3-5 6.5-5 6.5 5 6.5 5-3 5-6.5 5S1 7.5 1 7.5z" />
+            <circle class="eye-pupil" cx="7.5" cy="7.5" r="2" />
+          </svg>
+        </button>
+        <!-- 大纲（真实：列表图标，Ctrl+/） -->
+        <button class="icon-btn outline-btn" title="大纲 (Ctrl+/)" aria-label="大纲 (Ctrl+/)">
+          <svg viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2.5 4h10M2.5 7.5h10M2.5 11h10" />
+            <path d="M5 4v0M5 7.5v0M5 11v0" stroke-width="2.4" />
+          </svg>
+        </button>
+        <!-- 置顶（真实：图钉图标，激活时旋转 35° + 填充） -->
+        <button class="icon-btn pin-btn" title="置顶" aria-label="置顶">
+          <svg class="pin-icon" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path class="pin-shape" d="M7.5 11v3M5.7 7a1.2 1.2 0 0 1-.67 1.08l-1.07.54A1.2 1.2 0 0 0 3.3 9.6v.4a.5.5 0 0 0 .5.5h7.4a.5.5 0 0 0 .5-.5v-.4a1.2 1.2 0 0 0-.67-1.08l-1.07-.54A1.2 1.2 0 0 1 9.3 7V4.5a.5.5 0 0 1 .5-.5 1.2 1.2 0 0 0 0-2.4H5.2a1.2 1.2 0 0 0 0 2.4.5.5 0 0 1 .5.5z" />
+          </svg>
+        </button>
+
+        <span class="win-sep"></span>
+        <!-- 窗口控制（真实：最小化 / 最大化 / 关闭） -->
+        <button class="win-btn" title="最小化" aria-label="最小化">
+          <svg viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor" /></svg>
+        </button>
+        <button class="win-btn" title="最大化" aria-label="最大化">
+          <svg viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.2" /></svg>
+        </button>
+        <button class="win-btn win-btn--close" title="关闭" aria-label="关闭">
+          <svg viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2" /><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2" /></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- 编辑区：真实 README.zh-CN.md 内容 -->
+    <main class="editor">
+      <article class="doc">
+        <h1>solo</h1>
+        <div class="subtitle">本地优先、极简沉浸的 Markdown 编辑器</div>
+
+        <h2>产品定位</h2>
+        <p>solo 是一把「专为文字而生的手术刀」——秒开秒关、书卷气质、本地文件、不作生态。不是笔记软件，不是知识库。</p>
+
+        <h2>核心特性</h2>
+        <ul>
+          <li><strong>所见即所得</strong> — 基于 TipTap / ProseMirror，输入即渲染，告别分栏预览。</li>
+          <li><strong>多窗口</strong> — 同时打开多个文件，每窗口独立会话。切窗口内容不丢失，并排对照无压力。</li>
+          <li><strong>扩展语法</strong> — KaTeX 数学公式、Mermaid 图表、GFM 表格、脚注、Frontmatter YAML、Callout（12 色）、WikiLink、高亮、上下标。</li>
+          <li><strong>文艺版面</strong> — 3 套书卷气主题（纸白 / 墨黑 / 砚青），字体按需下载，精心调校行距与留白。</li>
+          <li><strong>桌面原生</strong> — 无边框窗口、系统菜单、右键新建 .md、双击标题栏最大化、置顶、自动保存。</li>
+          <li><strong>内存克制</strong> — 多窗口下 WebView2 MemoryUsageTargetLevel 自动降级，编辑器懒初始化，轻量安装包。</li>
+        </ul>
+
+        <h2>技术架构</h2>
+        <p>Tauri 2（Rust）→ Vue 3 + Pinia + TipTap/ProseMirror + Tailwind CSS 4。前端业务层统一通过 services/tauri/ 封装调用 Rust 命令，Rust 侧返回结构化 DTO + AppError。</p>
+
+        <h2>安装</h2>
+        <p>从 Releases 下载最新安装包，支持自定义安装路径。首次启动后可在设置中开启 Windows 文件关联（右键新建 .md）。</p>
+
+        <h2>开发</h2>
+        <div class="codeblock">
+          <span class="lang">bash</span>
+          <pre>bun install
+bun run dev          # 纯前端
+bun run dev:tauri    # 全栈开发
+bun run build:tauri  # 构建安装包
+bun run test         # 运行测试</pre>
+        </div>
+
+        <blockquote>需要 Rust 1.96+ 和 MSVC Build Tools。项目提供 launch-dev.bat 一键启动开发模式。</blockquote>
+      </article>
+    </main>
+
+    <!-- 底部状态栏：真实元素（solo 字标 / 字数 / 保存 / 主题·字体·复制 / 设置） -->
+    <footer class="statusbar">
+      <div class="statusbar-left">
+        <span class="sb-stat" id="sb-wordcount">412 字</span>
+      </div>
+
+      <div class="statusbar-right">
+        <!-- 保存状态（真实：圆点 + 文字，点击可切 未保存/已保存） -->
+        <button id="sb-save" class="sb-save is-clean" title="已保存 · 点击演示切换状态">
+          <span class="sb-save-dot"></span>
+          <span id="sb-save-text">已保存</span>
+        </button>
+
+        <span class="sb-sep"></span>
+
+        <!-- 快捷操作（真实：主题 / 字体 / 复制 Markdown） -->
+        <button class="sb-btn sb-qa" id="sb-theme" title="主题" aria-label="主题">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="8" r="3.2"/>
+            <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4"/>
+          </svg>
+        </button>
+        <button class="sb-btn sb-qa" id="sb-font" title="字体" aria-label="字体">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3.5h10M3 6.5h6.5M8 3.5v9M8 12.5h-2.5"/>
+          </svg>
+        </button>
+        <button class="sb-btn sb-qa" id="sb-copy" title="复制 Markdown" aria-label="复制 Markdown">
+          <svg id="sb-copy-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="4" width="8.5" height="8.5" opacity="0.35"/>
+            <rect x="6.5" y="6.5" width="8.5" height="8.5"/>
+          </svg>
+        </button>
+
+        <span class="sb-sep"></span>
+
+        <!-- 设置（真实：齿轮，Ctrl+,） -->
+        <button class="sb-btn" title="设置 (Ctrl+,)" aria-label="设置 (Ctrl+,)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="8" r="2.4"/>
+            <path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M12.4 3.6L11 5M5 11l-1.4 1.4"/>
+          </svg>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <div class="hint">点顶栏/底栏图标可试真实交互 · 右上角切换 配色 / 亮暗</div>
+
+  <script>
+    function setTheme(t) {
+      document.body.setAttribute("data-theme", t);
+      document.getElementById("btn-light").classList.toggle("on", t === "light");
+      document.getElementById("btn-dark").classList.toggle("on", t === "dark");
+    }
+    function setPalette(p) {
+      document.body.setAttribute("data-palette", p);
+      ["camel", "ink", "mist", "sage", "ochre"].forEach((k) => {
+        document.getElementById("btn-" + k).classList.toggle("on", k === p);
+      });
+    }
+    // 真实交互：点击图标切换激活态（图钉旋转 / 瞳孔填充由 CSS 驱动）
+    document.querySelectorAll(".bar-right .icon-btn").forEach((b) => {
+      b.addEventListener("click", () => {
+        if (b.classList.contains("win-btn")) return;
+        document.querySelectorAll(".bar-right .icon-btn").forEach((x) => x.classList.remove("active"));
+        b.classList.add("active");
+      });
+    });
+
+    // 底部状态栏交互（演示）
+    // 1) 保存状态 未保存/已保存 切换
+    const sbSave = document.getElementById("sb-save");
+    sbSave.addEventListener("click", () => {
+      const dirty = sbSave.classList.toggle("is-dirty");
+      sbSave.classList.toggle("is-clean", !dirty);
+      document.getElementById("sb-save-text").textContent = dirty ? "未保存" : "已保存";
+      sbSave.title = dirty ? "未保存 · 点击保存 (Ctrl+S)" : "已保存 · 点击演示切换状态";
+    });
+    // 2) 复制 Markdown → 变对勾「已复制」，1.5s 复原
+    const sbCopy = document.getElementById("sb-copy");
+    const copyIcon = document.getElementById("sb-copy-icon");
+    sbCopy.addEventListener("click", () => {
+      sbCopy.classList.add("is-copied");
+      copyIcon.innerHTML =
+        '<path d="M3 8.5l3 3 7-7" stroke-width="1.8"/>';
+      sbCopy.title = "已复制";
+      setTimeout(() => {
+        sbCopy.classList.remove("is-copied");
+        copyIcon.innerHTML =
+          '<rect x="4" y="4" width="8.5" height="8.5" opacity="0.35"/><rect x="6.5" y="6.5" width="8.5" height="8.5"/>';
+        sbCopy.title = "复制 Markdown";
+      }, 1500);
+    });
+    // 3) 主题 / 字体 弹层：点击切换激活态（演示）
+    document.querySelectorAll(".sb-qa").forEach((b) => {
+      b.addEventListener("click", () => {
+        if (b.id === "sb-copy") return;
+        b.classList.toggle("active");
+      });
+    });
+  </script>
+</body>
+</html>
