@@ -170,21 +170,51 @@ function openMermaidLightbox(sourceSvg: SVGSVGElement | null) {
   };
 }
 
-/** 构造 Mermaid 初始化配置：跟随系统主题，暗色主题下显式提亮 subgraph 标题/边框 */
+/**
+ * 构造 Mermaid 初始化配置——设计体系规则：图表配色一律从当前主题
+ * 的 CSS 变量派生（主色/文字/边框/背景），不加载 Mermaid 内置主题。
+ * theme: 'base' + themeVariables 全量注入，切 solo 主题时图表随主题
+ * 整体变化（reinitializeMermaidTheme 重渲已生效）。
+ */
 function buildMermaidConfig() {
-  const isDark = document.documentElement.classList.contains('dark');
+  const cssVar = (name: string): string =>
+    getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#888888';
+  const primary = cssVar('--primary-color');
+  const primaryLight = cssVar('--primary-light');
+  const text = cssVar('--text-color');
+  const bg = cssVar('--bg-color');
+  const bgSecondary = cssVar('--bg-secondary');
+  const border = cssVar('--border-color');
+  const muted = cssVar('--muted-color');
   return {
     startOnLoad: false,
-    theme: (isDark ? 'dark' : 'default') as 'dark' | 'default',
+    theme: 'base' as const,
     securityLevel: 'loose' as const,
-    // 暗色主题下 subgraph 标题默认深色与背景对比度不足、边框过暗，显式提亮
-    themeVariables: isDark
-      ? {
-          clusterBkg: 'rgba(255, 255, 255, 0.08)',
-          clusterBorder: 'rgba(255, 255, 255, 0.2)',
-          titleColor: '#ffffff',
-        }
-      : undefined,
+    themeVariables: {
+      // 背景透明：图表容器底色由编辑器主题（code-bg / sidebar-bg）提供
+      background: 'transparent',
+      // 节点
+      primaryColor: primaryLight,
+      primaryBorderColor: primary,
+      primaryTextColor: text,
+      // 备用节点色（决策/分叉等）
+      secondaryColor: primaryLight,
+      secondaryBorderColor: muted,
+      secondaryTextColor: text,
+      // 连线与标签
+      lineColor: muted,
+      textColor: text,
+      edgeLabelBackground: bg,
+      // 子图（subgraph / 群组）
+      clusterBkg: bgSecondary,
+      clusterBorder: border,
+      titleColor: text,
+      // 其它派生
+      mainBkg: bgSecondary,
+      nodeBorder: primary,
+      nodeTextColor: text,
+      fontFamily: 'inherit',
+    },
   };
 }
 
