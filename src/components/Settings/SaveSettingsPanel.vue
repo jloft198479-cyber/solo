@@ -126,7 +126,7 @@ function clearStoragePath() {
 .storage-path-value {
   padding: 8px 12px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 13px;
   color: var(--muted-color);
   background: var(--sidebar-bg);
@@ -148,7 +148,7 @@ function clearStoragePath() {
   padding: 6px 14px;
   font-size: 13px;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
