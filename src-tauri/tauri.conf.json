@@ -21,7 +21,7 @@
         "visible": false,
         "resizable": true,
         "decorations": false,
-        "transparent": false,
+        "transparent": true,
         "shadow": true,
         "dragDropEnabled": true
       }
