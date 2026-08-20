@@ -65,10 +65,6 @@ export interface ThemeColors {
   shadowMd: string;
   shadowLg: string;
   shadowXl: string;
-  radiusSm: string;
-  radiusMd: string;
-  radiusLg: string;
-  radiusXl: string;
   modalBg: string;
   modalBorder: string;
   modalOverlay: string;
@@ -226,10 +222,6 @@ export const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
   shadowMd: '--shadow-md',
   shadowLg: '--shadow-lg',
   shadowXl: '--shadow-xl',
-  radiusSm: '--radius-sm',
-  radiusMd: '--radius-md',
-  radiusLg: '--radius-lg',
-  radiusXl: '--radius-xl',
   modalBg: '--modal-bg',
   modalBorder: '--modal-border',
   modalOverlay: '--modal-overlay',

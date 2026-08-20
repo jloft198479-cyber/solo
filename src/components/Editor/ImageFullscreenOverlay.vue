@@ -28,7 +28,7 @@ const emit = defineEmits<{
           <CloseIcon class="w-6 h-6" />
         </button>
         <button
-          class="absolute bottom-6 right-6 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/80 hover:text-white text-xs transition-colors backdrop-blur-sm"
+          class="overlay-action-btn absolute bottom-6 right-6 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 hover:text-white text-xs transition-colors backdrop-blur-sm"
           @click.stop="emit('open-in-viewer')"
         >
           在图片视图中打开
@@ -46,5 +46,9 @@ const emit = defineEmits<{
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+.overlay-action-btn {
+  /* 直角语言：与项目 token 一致（替代 Tailwind rounded-lg 硬编码） */
+  border-radius: var(--radius-md);
 }
 </style>
