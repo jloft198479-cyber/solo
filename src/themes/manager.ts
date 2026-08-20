@@ -16,16 +16,16 @@ import elegantLightTheme from './presets/elegant.json';
 import cinnabarLightTheme from './presets/cinnabar.json';
 import cinnabarDarkTheme from './presets/cinnabar-dark.json';
 import defaultLightTheme from './presets/default.json';
-import grayDomainTheme from './presets/gray-domain.json';
 
 const PRESET_THEMES: Theme[] = [
+  // 浅色组（暖 → 冷）
   scholarLightTheme as Theme,
-  scholarDarkTheme as Theme,
   elegantLightTheme as Theme,
   cinnabarLightTheme as Theme,
-  cinnabarDarkTheme as Theme,
   defaultLightTheme as Theme,
-  grayDomainTheme as Theme,
+  // 深色组（暖 → 冷）
+  scholarDarkTheme as Theme,
+  cinnabarDarkTheme as Theme,
 ];
 
 const presetThemeMap = new Map<string, Theme>(PRESET_THEMES.map((theme) => [theme.id, theme]));
@@ -49,7 +49,8 @@ function injectColors(colors: ThemeColors) {
   for (const [key, cssVar] of Object.entries(CSS_VAR_MAP)) {
     const colorKey = key as keyof ThemeColors;
     const value = colors[colorKey];
-    if (value) {
+    // diff 注入：仅当值与当前生效值不同才写，避免无谓的样式重算（性能）
+    if (value && style.getPropertyValue?.(cssVar) !== value) {
       style.setProperty(cssVar, value);
     }
   }
