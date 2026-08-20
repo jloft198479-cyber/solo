@@ -15,12 +15,12 @@
 }
 
 .mk-editor-inner {
-  max-width: 720px;
+  max-width: 680px;
   margin: 0 auto;
   padding: 0 48px;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 680px) {
   .mk-editor-inner {
     padding: 0 24px;
   }
@@ -34,7 +34,7 @@
   --mk-font-size: 16px;
   --mk-letter-spacing: 0;
   --mk-paragraph-spacing: 1em;
-  --mk-heading1-size: 1.5em;
+  --mk-heading1-size: 1.6em;
   --mk-heading2-size: 1.3em;
   --mk-heading3-size: 1.2em;
   --mk-heading4-size: 1.05em;
@@ -321,8 +321,8 @@
   margin: var(--mk-paragraph-spacing) 0;
   color: var(--text-secondary);
   background-color: var(--quote-bg, transparent);
-  border-radius: 0 4px 4px 0;
-  font-style: italic;
+  /* 全 app 直角色标：无圆角；中文无斜体，去 italic 避免机械倾斜 */
+  border-radius: 0;
 }
 
 .tiptap-editor blockquote > *:first-child {
