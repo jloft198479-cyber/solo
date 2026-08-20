@@ -104,7 +104,7 @@ function onKeyDown(e: KeyboardEvent) {
         @keydown="onKeyDown"
       >
         <div
-          class="settings-modal__dialog rounded-xl shadow-2xl w-[1040px] max-w-[94vw] max-h-[84vh] overflow-hidden flex flex-col"
+          class="settings-modal__dialog rounded-lg shadow-2xl w-[1040px] max-w-[94vw] max-h-[84vh] overflow-hidden flex flex-col"
           @click.stop
         >
           <!-- 头部 -->
@@ -263,7 +263,7 @@ function onKeyDown(e: KeyboardEvent) {
 
 .settings-close-btn {
   padding: 4px;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-md);
   color: var(--muted-color);
   transition:
     background-color 0.15s,

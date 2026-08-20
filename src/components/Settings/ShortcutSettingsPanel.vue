@@ -165,7 +165,7 @@ defineEmits<{
   height: 24px;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--muted-color);
   font-size: 12px;
   transition:
@@ -189,7 +189,7 @@ defineEmits<{
   font-family: var(--font-mono);
   background: var(--bg-color);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--text-color);
   text-align: center;
   white-space: nowrap;
