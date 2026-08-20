@@ -280,6 +280,7 @@ function updateBubbleMenu(ed: TiptapEditor) {
     code: ed.isActive('code'),
     link: ed.isActive('link'),
     bulletList: ed.isActive('bulletList'),
+    dim: ed.isActive('dim'),
   };
 
   const linkAttributes = ed.getAttributes('link') as { href?: unknown };

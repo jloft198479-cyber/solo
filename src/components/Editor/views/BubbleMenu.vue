@@ -19,6 +19,9 @@
       <button :class="btnClass(activeMarks.code)" title="行内代码" @click="exec('code')">
         <span class="font-mono text-sm">&lt;/&gt;</span>
       </button>
+      <button :class="btnClass(activeMarks.dim)" title="文字变浅" @click="exec('dim')">
+        <span class="dim-icon">A</span>
+      </button>
       <button :class="btnClass(activeMarks.link)" title="链接" @click="toggleLinkInput">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M6.5 9.5a2.5 2.5 0 0 0 3.54 0l2.12-2.12a2.5 2.5 0 0 0-3.54-3.54l-1.06 1.06" />
@@ -83,6 +86,7 @@ type ActiveMarks = {
   code: boolean;
   link: boolean;
   bulletList: boolean;
+  dim: boolean;
 };
 
 const props = defineProps<{
@@ -97,6 +101,7 @@ const activeMarks = reactive({
   code: false,
   link: false,
   bulletList: false,
+  dim: false,
 });
 
 // 链接输入相关
@@ -208,6 +213,14 @@ defineExpose({
 .bubble-menu-btn--active {
   background-color: var(--primary-light);
   color: var(--primary-color);
+}
+
+/* 文字变浅图标：未激活时用次要文字色（变浅语义），激活时随按钮变主色 */
+.dim-icon {
+  color: var(--muted-color);
+}
+.bubble-menu-btn--active .dim-icon {
+  color: inherit;
 }
 
 .bubble-menu-divider {

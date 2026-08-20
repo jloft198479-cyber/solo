@@ -48,6 +48,36 @@ function createMarkdownIt(): MarkdownIt {
 
   md.use(markdownItFootnote);
 
+  // 自定义 inline ruler：识别 <span class="mk-dim">…</span> → dim_open/dim_close token。
+  // html:false 下 markdown-it 的 html_inline rule 被禁用（整段标签被当纯 text），
+  // 故不能靠 html_inline handler，这里在 text 规则前手动匹配。
+  // 仅当「已打开 mk-dim」时才匹配 </span>，避免吞掉用户手打的裸 </span> 文本。
+  md.inline.ruler.before('text', 'mk_dim', (sState, silent) => {
+    const src = sState.src;
+    const openMatch = /^<span class="mk-dim">/.exec(src.slice(sState.pos));
+    if (openMatch) {
+      if (!silent) {
+        sState.push('dim_open', 'span', 1);
+        (sState as unknown as Record<string, number>).mkDimBalance =
+          ((sState as unknown as Record<string, number>).mkDimBalance ?? 0) + 1;
+      }
+      sState.pos += openMatch[0].length;
+      return true;
+    }
+    if (((sState as unknown as Record<string, number>).mkDimBalance ?? 0) > 0) {
+      const closeMatch = /^<\/span>/.exec(src.slice(sState.pos));
+      if (closeMatch) {
+        if (!silent) {
+          (sState as unknown as Record<string, number>).mkDimBalance -= 1;
+          sState.push('dim_close', 'span', -1);
+        }
+        sState.pos += closeMatch[0].length;
+        return true;
+      }
+    }
+    return false;
+  });
+
   return md;
 }
 
@@ -347,6 +377,16 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     };
     handlers.sub_close = (state) => {
       state.closeMark(schema.marks.subscript);
+    };
+  }
+
+  // 文字变浅 (<span class="mk-dim">…</span>)
+  if (schema.marks.dim) {
+    handlers.dim_open = (state) => {
+      state.openMark(schema.marks.dim);
+    };
+    handlers.dim_close = (state) => {
+      state.closeMark(schema.marks.dim);
     };
   }
 

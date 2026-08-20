@@ -22,6 +22,7 @@ import { MermaidBlock } from './extensions/mermaid-block';
 import { MarkdownInput } from './extensions/markdown-input';
 import { MarkdownPaste } from './extensions/markdown-paste';
 import { Superscript, Subscript } from './extensions/sub-sup';
+import { Dim } from './extensions/dim';
 import { Frontmatter } from './extensions/frontmatter';
 import { FootnoteRef, FootnoteSection, FootnoteDef } from './extensions/footnote';
 import { Wikilink } from './extensions/wikilink';
@@ -168,6 +169,7 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     }),
     Superscript,
     Subscript,
+    Dim,
     Wikilink.configure({
       onNavigate: options.onWikilinkNavigate,
     }),

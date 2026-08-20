@@ -201,6 +201,7 @@ export class MarkdownSerializerState {
       case 'highlight': return '==';
       case 'superscript': return '^';
       case 'subscript': return '~';
+      case 'dim': return _opening ? '<span class="mk-dim">' : '</span>';
       case 'link': {
         if (_opening) return '[';
         const href = (mark.attrs.href as string).replace(/\(/g, '\\(').replace(/\)/g, '\\)');
