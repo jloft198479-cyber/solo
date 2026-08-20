@@ -15,6 +15,8 @@
     @mouseleave="onMouseLeave"
   >
     <div data-tauri-drag-region class="titlebar-title-area">
+      <span data-tauri-drag-region class="titlebar-brand">solo</span>
+      <span class="titlebar-brand-sep" />
       <input
         v-if="isEditingTitle"
         ref="titleInputRef"
@@ -161,21 +163,19 @@ onUnmounted(() => {
   top: 0;
   left: 0;
   right: 0;
-  height: 36px;
+  height: 48px;
   display: flex;
   align-items: center;
   z-index: 200;
   background-color: var(--bg-color);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s ease;
-  border-bottom: 1px solid transparent;
+  transition: opacity var(--motion-fast) var(--ease-out);
 }
 
 .custom-titlebar--visible {
   opacity: 1;
   pointer-events: auto;
-  border-bottom-color: var(--border-color);
 }
 
 .titlebar-title-area {
@@ -187,27 +187,45 @@ onUnmounted(() => {
   min-width: 0;
 }
 
+/* 品牌字标 —— 字重 + 字距，主色点睛（与 design-samples 概念稿一致） */
+.titlebar-brand {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 2.2px;
+  color: var(--primary-color);
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.titlebar-brand-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 14px 0 15px;
+  background-color: var(--border-color);
+  flex-shrink: 0;
+}
+
 .titlebar-title-text {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-color);
-  opacity: 0.45;
+  opacity: 0.78;
   cursor: text;
   padding: 2px 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: opacity 0.15s;
+  transition: opacity var(--motion-fast) ease;
   user-select: none;
 }
 
 .titlebar-title-text:hover {
-  opacity: 0.75;
+  opacity: 1;
 }
 
 .titlebar-title-input {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-color);
-  opacity: 0.45;
+  opacity: 0.78;
   background: transparent;
   border: none;
   padding: 0;
@@ -231,13 +249,13 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
+  width: 44px;
   height: 100%;
   border: none;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-fast) ease, color var(--motion-fast) ease;
 }
 
 .titlebar-btn:hover {
@@ -245,15 +263,33 @@ onUnmounted(() => {
   color: var(--text-color);
 }
 
+.titlebar-btn:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+}
+
 .titlebar-btn--close:hover {
   background-color: var(--error-color);
   color: var(--btn-primary-text);
 }
 
+/* 激活态：主色 + 底部 2px 细线（克制、栏底锚定） */
+.titlebar-focus-btn--active::after,
+.titlebar-outline-btn--active::after,
+.titlebar-pin-btn--active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--primary-color);
+}
+
 .titlebar-pin-btn {
   position: relative;
   color: var(--text-secondary);
-  transition: color 0.15s ease;
+  transition: color var(--motion-fast) ease;
 }
 
 .titlebar-pin-btn:hover {
@@ -262,12 +298,12 @@ onUnmounted(() => {
 
 .pin-shape {
   transform-origin: center;
-  transition: fill 0.15s ease;
+  transition: fill var(--motion-fast) ease;
 }
 
 .titlebar-pin-icon {
   transform-origin: 7.5px 7.5px;
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform var(--motion-base) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .titlebar-pin-btn--active {
@@ -286,7 +322,7 @@ onUnmounted(() => {
 .titlebar-focus-btn {
   position: relative;
   color: var(--text-secondary);
-  transition: color 0.15s ease;
+  transition: color var(--motion-fast) ease;
 }
 
 .titlebar-focus-btn:hover {
@@ -295,12 +331,12 @@ onUnmounted(() => {
 
 .focus-eye-icon {
   transform-origin: center;
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform var(--motion-base) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .eye-pupil {
   fill: transparent;
-  transition: fill 0.25s ease;
+  transition: fill var(--motion-base) ease;
 }
 
 .titlebar-focus-btn--active {
@@ -315,7 +351,7 @@ onUnmounted(() => {
 .titlebar-outline-btn {
   position: relative;
   color: var(--text-secondary);
-  transition: color 0.15s ease;
+  transition: color var(--motion-fast) ease;
 }
 
 .titlebar-outline-btn:hover {

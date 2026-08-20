@@ -317,7 +317,6 @@ onUnmounted(() => {
     >
       <div class="minimal-statusbar">
         <div class="statusbar-left">
-          <span class="statusbar-brand">solo</span>
           <span v-if="focusModeNotice" class="statusbar-stat statusbar-stat--accent">{{ focusModeNotice.message }}</span>
           <span v-else-if="stats.selectionText" class="statusbar-stat statusbar-stat--accent">{{ stats.selectionText.length }} 字选中</span>
           <span v-else-if="externalFileWarning" class="statusbar-stat statusbar-stat--warn">{{ externalFileWarning }}</span>
@@ -444,11 +443,10 @@ onUnmounted(() => {
 }
 
 /* ── 极简状态栏 ──────────────────────────────────────────────
-   设计标准：38px 高度，上下留白充足，图标按钮 32×32 命中区，
-   描边 1.4 保持清晰，hover 态有微妙背景反馈。
-   参考线性：Linear / Raycast 状态栏的呼吸感与克制配色。 */
+   设计标准：36px 高度，与画布同色一体（纯统一），图标按钮 32×32
+   命中区，描边 1.4 保持清晰，hover 态有微妙背景反馈。 */
 .minimal-statusbar {
-  height: 42px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -456,13 +454,7 @@ onUnmounted(() => {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
-  opacity: 0.9;
-  transition: opacity 0.25s ease;
   user-select: none;
-}
-
-.minimal-statusbar:hover {
-  opacity: 1;
 }
 
 .statusbar-left,
@@ -470,15 +462,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.statusbar-brand {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--primary-color);
-  letter-spacing: 0.06em;
-  opacity: 0.7;
-  text-transform: lowercase;
 }
 
 .statusbar-stat {

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>solo 顶栏重设计 v2 · 无圆角 / 克制高级</title>
+<style>
+  /* ════════════════════════════════════════════════
+     solo 真实主题 Token（取自 src/assets/styles/main.css）
+     亮色：暖驼系  暗色：深炭棕
+     ════════════════════════════════════════════════ */
+  :root,
+  .theme-light {
+    --primary-color: #8b7355;
+    --primary-soft: rgba(139, 115, 85, 0.10);
+    --bg-color: #faf8f5;
+    --text-color: #2c2416;
+    --text-secondary: #5c5040;
+    --muted-color: #8a7f70;
+    --border-color: #e4ddd2;
+    --hairline: rgba(44, 36, 22, 0.08);
+    --hover-bg: rgba(139, 115, 85, 0.05);
+    --error-color: #c0392b;
+    --glass-bg: color-mix(in srgb, var(--bg-color) 80%, transparent);
+    --glass-shadow: rgba(44, 36, 22, 0.12);
+    --card-bg: #ffffff;
+    --code-bg: #f1ece4;
+  }
+  .theme-dark {
+    --primary-color: #b0a080;
+    --primary-soft: rgba(176, 160, 128, 0.14);
+    --bg-color: #1a1815;
+    --text-color: #e4ddd2;
+    --text-secondary: #b0a898;
+    --muted-color: #8a8174;
+    --border-color: #322e28;
+    --hairline: rgba(255, 255, 255, 0.07);
+    --hover-bg: rgba(255, 255, 255, 0.05);
+    --error-color: #e06b5e;
+    --glass-bg: color-mix(in srgb, var(--bg-color) 74%, transparent);
+    --glass-shadow: rgba(0, 0, 0, 0.55);
+    --card-bg: #221f1b;
+    --code-bg: #262320;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    background: #d9d2c7;
+    color: var(--text-color);
+    -webkit-font-smoothing: antialiased;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 28px 20px 48px; gap: 18px;
+  }
+  .theme-dark body { background: #100f0d; }
+
+  /* ── 演示控制条（直角，统一克制） ─────────────── */
+  .demo-bar {
+    width: min(1040px, 100%);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 22px;
+    padding: 0 20px; height: 52px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+  }
+  .demo-bar .group { display: flex; align-items: center; gap: 10px; }
+  .demo-bar .label {
+    font-size: 11px; font-weight: 600; color: var(--muted-color);
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  .seg { display: inline-flex; border: 1px solid var(--border-color); border-radius: 0; }
+  .seg button {
+    border: none; border-right: 1px solid var(--border-color);
+    background: transparent; cursor: pointer;
+    font-size: 13px; font-weight: 500; color: var(--text-secondary);
+    padding: 8px 16px; border-radius: 0; transition: all .18s ease;
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button.active { background: var(--primary-color); color: #fff; }
+
+  .note {
+    width: min(1040px, 100%);
+    font-size: 13px; line-height: 1.75; color: var(--text-secondary);
+    background: var(--card-bg); border: 1px solid var(--border-color);
+    border-left: 2px solid var(--primary-color);
+    border-radius: 0; padding: 14px 18px;
+  }
+  .note b { color: var(--text-color); font-weight: 600; }
+  .note code { background: var(--code-bg); padding: 1px 6px; color: var(--primary-color); font-size: 12px; }
+
+  /* ── 模拟应用窗口（仅外壳带圆角，内部全直角） ── */
+  .app-window {
+    width: min(1040px, 100%); height: 660px;
+    background: var(--bg-color);
+    border-radius: 14px; overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 30px 80px -40px var(--glass-shadow), 0 0 0 1px var(--border-color);
+    position: relative;
+  }
+
+  /* ╔═══════════════════════════════════════════════╗
+     ║  顶栏 — 当前版（36px 平条，纯色无层次）        ║
+     ╚═══════════════════════════════════════════════╝ */
+  .titlebar {
+    flex-shrink: 0; height: 36px; display: flex; align-items: center;
+    background: var(--bg-color); border-bottom: 1px solid var(--border-color);
+    position: sticky; top: 0; z-index: 10; user-select: none;
+  }
+  .titlebar .title-area { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; padding: 0 16px; }
+  .titlebar .file-name { font-size: 12px; color: var(--text-color); opacity: .45; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .titlebar .btn-group { display: flex; height: 100%; }
+  .titlebar .tbtn {
+    width: 46px; height: 100%; border: none; background: transparent;
+    color: var(--text-secondary); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s, color .15s;
+  }
+  .titlebar .tbtn:hover { background: var(--hover-bg); color: var(--text-color); }
+  .titlebar .tbtn.active { color: var(--primary-color); }
+  .titlebar .tbtn.close:hover { background: var(--error-color); color: #fff; }
+  .titlebar .sep { width: 1px; height: 16px; margin: 0 4px; align-self: center; background: var(--border-color); }
+
+  /* ╔═══════════════════════════════════════════════╗
+     ║  顶栏 — 优化版 v2（52px · 无圆角 · 毛玻璃 · 克制）║
+     ╚═══════════════════════════════════════════════╝ */
+  .variant-redesign .titlebar {
+    height: 52px;
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+    backdrop-filter: blur(22px) saturate(150%);
+    border-bottom: 1px solid var(--hairline);
+    box-shadow: 0 1px 0 var(--hairline), 0 12px 32px -26px var(--glass-shadow);
+  }
+
+  /* 品牌：直角主色方块标记 + 字标 */
+  .titlebar .brand {
+    display: none; width: 26px; height: 26px; border-radius: 0;
+    background: var(--primary-color); color: #fff;
+    align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; letter-spacing: -0.02em;
+    margin-right: 16px; flex-shrink: 0;
+  }
+  .variant-redesign .titlebar .brand { display: flex; }
+  .variant-redesign .titlebar .file-name {
+    opacity: .85; font-size: 13.5px; font-weight: 500; letter-spacing: .01em;
+  }
+  .variant-redesign .titlebar .title-area { padding: 0 24px; }
+
+  /* 图标按钮：占满高度、直角、hover 整块淡色、克制 */
+  .variant-redesign .titlebar .tbtn {
+    width: 46px; height: 100%; align-self: stretch; border-radius: 0; margin: 0;
+    border-right: 1px solid transparent;
+  }
+  .variant-redesign .titlebar .tbtn:hover { background: var(--hover-bg); color: var(--text-color); }
+  /* 激活态：主色图标 + 底部 2px 细线指示器（克制高级，无 pill） */
+  .variant-redesign .titlebar .tbtn.active {
+    color: var(--primary-color);
+    background: var(--primary-soft);
+    box-shadow: inset 0 -2px 0 var(--primary-color);
+  }
+  .variant-redesign .titlebar .tbtn.close:hover { background: var(--error-color); color: #fff; box-shadow: none; }
+  .variant-redesign .titlebar .sep { height: 22px; margin: 0 8px; background: var(--hairline); }
+
+  /* ── 编辑区（提供玻璃透出的语境） ──────────────── */
+  .editor {
+    flex: 1; overflow-y: auto; padding: 44px 60px 80px;
+    font-family: "Georgia", "Songti SC", "STSong", "SimSun", serif;
+    line-height: 1.85; font-size: 16px; color: var(--text-color);
+  }
+  .editor h1 { font-size: 30px; font-weight: 700; margin: 0 0 14px; letter-spacing: -.01em; }
+  .editor h2 { font-size: 21px; font-weight: 700; margin: 32px 0 10px; }
+  .editor p { margin: 0 0 16px; }
+  .editor .muted { color: var(--text-secondary); }
+  .editor ul { margin: 0 0 16px; padding-left: 22px; }
+  .editor li { margin: 6px 0; }
+  .editor blockquote {
+    margin: 0 0 16px; padding: 4px 18px; border-left: 2px solid var(--primary-color);
+    color: var(--text-secondary); background: var(--hover-bg);
+  }
+  .editor code {
+    font-family: "SFMono-Regular", Consolas, monospace; font-size: 14px;
+    background: var(--code-bg); padding: 2px 7px; color: var(--primary-color);
+  }
+  .editor pre { background: var(--code-bg); border-radius: 0; padding: 16px 18px; overflow-x: auto; margin: 0 0 16px; line-height: 1.6; }
+  .editor pre code { background: none; padding: 0; color: var(--text-color); }
+  .editor hr { border: none; border-top: 1px solid var(--border-color); margin: 28px 0; }
+
+  /* ── 极简状态栏 ────────────────────────────────── */
+  .statusbar {
+    flex-shrink: 0; height: 42px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 24px; font-size: 12px;
+    border-top: 1px solid var(--border-color); color: var(--text-secondary); user-select: none;
+  }
+  .statusbar .left, .statusbar .right { display: flex; align-items: center; gap: 12px; }
+  .statusbar .brand-mark { font-weight: 700; color: var(--primary-color); opacity: .7; text-transform: lowercase; }
+  .statusbar .dot { width: 6px; height: 6px; background: var(--primary-color); display: inline-block; }
+
+  .tag { font-size: 11px; font-weight: 600; padding: 2px 8px; letter-spacing: .03em; }
+  .tag.current { background: var(--hover-bg); color: var(--muted-color); }
+  .tag.redesign { background: var(--primary-soft); color: var(--primary-color); }
+</style>
+</head>
+<body class="theme-light variant-current">
+
+  <div class="demo-bar">
+    <div class="group">
+      <span class="label">顶栏版本</span>
+      <div class="seg" id="seg-variant">
+        <button data-variant="current" class="active">当前 · 36px</button>
+        <button data-variant="redesign">优化 v2 · 52px</button>
+      </div>
+    </div>
+    <div class="group">
+      <span class="label">主题</span>
+      <div class="seg" id="seg-theme">
+        <button data-theme="light" class="active">亮</button>
+        <button data-theme="dark">暗</button>
+      </div>
+    </div>
+    <div class="group"><span class="tag current" id="badge">当前：生产现状</span></div>
+  </div>
+
+  <div class="note">
+    <b>v2 · 按新要求重做。</b> 去掉所有圆角（全直角硬朗），顶栏从 36px 拉高到 <code>52px</code>，
+    配 <code>毛玻璃</code> 让它「浮」在文档上；左侧直角 <code>solo 品牌方块</code> + 提亮文件名；
+    激活态（焦点·大纲·置顶）用 <code>底部 2px 主色细线</code> 指示，而非圆角高亮块——更克制、更专业。
+    留白来自更大间距、字距与对齐，而非装饰。代价：多吃约 16px 编辑高度（已如实呈现）。
+  </div>
+
+  <div class="app-window">
+    <header class="titlebar">
+      <div class="title-area">
+        <span class="brand">S</span>
+        <span class="file-name">我的写作灵感 · 极简主义随笔.md</span>
+      </div>
+      <div class="btn-group">
+        <button class="tbtn active" title="焦点模式">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 7.5s3-5 6.5-5 6.5 5 6.5 5-3 5-6.5 5S1 7.5 1 7.5z"/><circle cx="7.5" cy="7.5" r="2"/>
+          </svg>
+        </button>
+        <button class="tbtn" title="大纲 (Ctrl+/)">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2.5 4h10M2.5 7.5h10M2.5 11h10"/><path d="M5 4v0M5 7.5v0M5 11v0" stroke-width="2.4"/>
+          </svg>
+        </button>
+        <button class="tbtn" title="置顶">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7.5 11v3M5.7 7a1.2 1.2 0 0 1-.67 1.08l-1.07.54A1.2 1.2 0 0 0 3.3 9.6v.4a.5.5 0 0 0 .5.5h7.4a.5.5 0 0 0 .5-.5v-.4a1.2 1.2 0 0 0-.67-1.08l-1.07-.54A1.2 1.2 0 0 1 9.3 7V4.5a.5.5 0 0 1 .5-.5 1.2 1.2 0 0 0 0-2.4H5.2a1.2 1.2 0 0 0 0 2.4.5.5 0 0 1 .5.5z"/>
+          </svg>
+        </button>
+        <span class="sep"></span>
+        <button class="tbtn" title="最小化">
+          <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+        </button>
+        <button class="tbtn" title="最大化">
+          <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+        <button class="tbtn close" title="关闭">
+          <svg width="10" height="10" viewBox="0 0 10 10"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="editor">
+      <h1>极简，是一种克制的自由</h1>
+      <p class="muted">写于一个安静的午后 · 关于 solo 与写作本身</p>
+      <p>好的编辑器应该像一张干净的纸：你几乎感觉不到它的存在，却又在每一个需要的瞬间，恰好出现在手边。solo 想做的，就是这样的东西。</p>
+      <h2>为什么是「顶栏」</h2>
+      <p>顶栏是窗口的脸面，也是你每天抬头十几次会看到的地方。它不该喧宾夺主，但也不该寡淡到没有存在感。当前这版太「隐形」了——36px 的平条，和背景几乎融为一体。</p>
+      <blockquote>质感不是堆砌，而是让每一处细节都「说得通」。</blockquote>
+      <h2>优化想解决什么</h2>
+      <ul>
+        <li><b>无圆角</b>：全直角硬朗，统一克制</li>
+        <li><b>拉高</b>：36px → 52px，上下更舒展</li>
+        <li><b>材质</b>：毛玻璃让顶栏「浮」在文档之上</li>
+        <li><b>识别</b>：直角品牌标记 + 提亮的文件名</li>
+        <li><b>反馈</b>：激活态用底部细线指示，而非色块</li>
+      </ul>
+      <h2>一段示例代码</h2>
+      <pre><code>function greet(name: string) {
+  // 极简，但不简单
+  return `你好，${name}。开始写吧。`;
+}</code></pre>
+      <p>向下滚动，留意顶栏的玻璃质感——半透明的它，会透出你正写到的文字边缘。这正是「浮起来」的感觉。</p>
+      <hr/>
+      <p class="muted">（演示内容仅为占位示例，不影响真实产品逻辑。）</p>
+    </main>
+
+    <footer class="statusbar">
+      <div class="left"><span class="brand-mark">solo</span><span>312 字</span></div>
+      <div class="right"><span><span class="dot"></span> 已保存</span></div>
+    </footer>
+  </div>
+
+<script>
+  const body = document.body;
+  const badge = document.getElementById('badge');
+  document.getElementById('seg-variant').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const v = b.dataset.variant;
+    body.classList.toggle('variant-redesign', v === 'redesign');
+    body.classList.toggle('variant-current', v === 'current');
+    [...e.currentTarget.children].forEach(c => c.classList.toggle('active', c === b));
+    badge.textContent = v === 'redesign' ? '当前：优化方案 v2' : '当前：生产现状';
+    badge.className = 'tag ' + (v === 'redesign' ? 'redesign' : 'current');
+  });
+  document.getElementById('seg-theme').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const t = b.dataset.theme;
+    body.classList.toggle('theme-dark', t === 'dark');
+    body.classList.toggle('theme-light', t === 'light');
+    [...e.currentTarget.children].forEach(c => c.classList.toggle('active', c === b));
+  });
+</script>
+</body>
+</html>
