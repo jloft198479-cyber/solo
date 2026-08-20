@@ -148,23 +148,10 @@ async function handleWikilinkNavigate(target: string) {
   emit('navigate-wikilink', resolved);
 }
 
-// ── 加载门控：文档加载后暂停标脏，直到首个真实用户交互 ──
-// 免疫一切插件后台事务（Mermaid 异步渲染 / forceCheck 等），不依赖定位触发源。
-let userInteracted = false;
-
 // ── 图片路径解析缓存：同一 src + docPath + storagePath 的解析结果不会变，缓存避免重复 IPC ──
 const resolvedImageCache = new Map<string, string>();
 
-function armInteractionGate() {
-  userInteracted = false;
-}
-
-function releaseInteractionGate() {
-  userInteracted = true;
-}
-
 function createEditor(content: string) {
-  armInteractionGate();
   if (editor.value) {
     editor.value.destroy();
   }
@@ -199,8 +186,7 @@ function createEditor(content: string) {
     },
     onUpdate: ({ editor: ed }) => {
       const t = ed as unknown as TiptapEditor;
-      // 交互门控：只有用户真实交互过才标脏，免疫插件后台事务（Mermaid 异步渲染等）
-      if (userInteracted) fileStore.markUserEdit();
+      // 脏标记由 useEditorSync → syncEditedContent 按「内容是否变化」判定，不再依赖交互门控
       handleDocChange(t);
     },
     onSelectionUpdate: ({ editor: ed }) => {
@@ -231,7 +217,6 @@ function createEditor(content: string) {
 watch(
   () => fileStore.currentFile.path,
   () => {
-    armInteractionGate();
     resolvedImageCache.clear();
     if (!editor.value || editor.value.isDestroyed) return;
     const content = fileStore.currentFile.content;
@@ -383,15 +368,7 @@ onMounted(async () => {
   // 图片双击 → 全屏预览（从 CustomImage NodeView 冒泡上来的自定义事件）
   editorWrapRef.value?.addEventListener('editor:image-dblclick', handleImageDblClick);
 
-  // 交互门控：capture 阶段监听用户事件，首个事件放行标脏
-  const gateEl = editorWrapRef.value;
-  if (gateEl) {
-    gateEl.addEventListener('keydown', releaseInteractionGate, true);
-    gateEl.addEventListener('pointerdown', releaseInteractionGate, true);
-    gateEl.addEventListener('beforeinput', releaseInteractionGate, true);
-    gateEl.addEventListener('compositionstart', releaseInteractionGate, true);
-  }
-});
+  });
 
 onBeforeUnmount(() => {
   // 1. 先断开 focus 事件，防止销毁期间回调触发
@@ -417,10 +394,6 @@ onBeforeUnmount(() => {
   const gateEl = editorWrapRef.value;
   if (gateEl) {
     gateEl.removeEventListener('editor:image-dblclick', handleImageDblClick);
-    gateEl.removeEventListener('keydown', releaseInteractionGate, true);
-    gateEl.removeEventListener('pointerdown', releaseInteractionGate, true);
-    gateEl.removeEventListener('beforeinput', releaseInteractionGate, true);
-    gateEl.removeEventListener('compositionstart', releaseInteractionGate, true);
   }
 
   // 6. 释放远程图片 Blob 缓存
