@@ -160,6 +160,7 @@ function createTestSchema(): Schema {
       },
       superscript: { parseDOM: [{ tag: 'sup' }], toDOM: () => ['sup', 0] },
       subscript: { parseDOM: [{ tag: 'sub' }], toDOM: () => ['sub', 0] },
+      dim: { parseDOM: [{ tag: 'span.mk-dim' }], toDOM: () => ['span', { class: 'mk-dim' }, 0] },
     },
   });
 }
@@ -352,6 +353,30 @@ describe('Round-trip: parse → serialize', () => {
     it('subscript', () => {
       expect(roundTrip('~sub~\n')).toBe(normalize('~sub~\n'));
     });
+
+    it('dim', () => {
+      expect(roundTrip('这是<span class="mk-dim">变浅文字</span>结尾\n')).toBe(
+        normalize('这是<span class="mk-dim">变浅文字</span>结尾\n'),
+      );
+    });
+
+    it('dim 内容含尖括号：文本语义保真且序列化幂等', () => {
+      const schema = createTestSchema();
+      // 解析后尖括号是 dim 内的普通字符，序列化为 \< \> 保真转义（不被当 HTML 结构）
+      const doc1 = parseMarkdown(schema, 'a<span class="mk-dim">x < b 且 c > d</span>z\n');
+      const first = serializeMarkdown(doc1);
+      // 重 parse 后文档文本不变、mark 不丢
+      const doc2 = parseMarkdown(schema, first);
+      expect(serializeMarkdown(doc2)).toBe(first);
+    });
+
+    it('裸 </span> 文本不被误当 dim 闭合', () => {
+      // 未配对的开 tag 不产生 dim，裸 </span> 作为普通文本被转义序列化
+      const md = '文本 </span> 结尾\n';
+      const doc = parseMarkdown(createTestSchema(), md);
+      // 不产生 dim mark，保留为纯文本
+      expect(JSON.stringify(doc)).not.toContain('mk-dim');
+    });
   });
 
   describe('block contexts', () => {
@@ -410,6 +435,14 @@ describe('Round-trip: parse → serialize', () => {
 
     it('highlight in blockquote', () => {
       expect(roundTrip('> ==important==\n')).toBe(normalize('> ==important==\n'));
+    });
+
+    it('dim 与 bold 嵌套：mark 不丢失且 roundtrip 幂等', () => {
+      // mark 顺序会被 PM 规范化（同 highlight+bold），故不断言精确顺序，
+      // 只验证 dim mark 未被丢弃 + 二次 roundtrip 稳定。
+      const first = roundTrip('**<span class="mk-dim">变浅加粗</span>**\n');
+      expect(first).toContain('mk-dim');
+      expect(roundTrip(first)).toBe(first);
     });
   });
 

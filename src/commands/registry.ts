@@ -149,6 +149,14 @@ export const COMMANDS: CommandDefinition[] = [
     palette: true,
   },
   {
+    id: 'editor.dim',
+    title: '文字变浅',
+    description: '切换文字变浅格式',
+    scope: 'editor',
+    group: 'format',
+    palette: true,
+  },
+  {
     id: 'editor.code',
     title: '行内代码',
     description: '切换行内代码格式',

@@ -30,6 +30,9 @@ export function runBubbleMenuAction(
     case 'unlink':
       chain.unsetLink().run();
       break;
+    case 'dim':
+      chain.toggleMark('dim').run();
+      break;
     case 'h1':
       chain.toggleHeading({ level: 1 }).run();
       break;
@@ -65,6 +68,8 @@ export function executeEditorCommand(editor: TiptapEditor | null, commandId: str
       return chain.toggleStrike().run();
     case 'editor.highlight':
       return chain.toggleHighlight().run();
+    case 'editor.dim':
+      return chain.toggleMark('dim').run();
     case 'editor.code':
       return chain.toggleCode().run();
     case 'editor.heading1':

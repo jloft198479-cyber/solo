@@ -190,6 +190,7 @@ export function createMarkdownCompatSchema(): Schema {
       },
       superscript: { parseDOM: [{ tag: 'sup' }], toDOM: () => ['sup', 0] },
       subscript: { parseDOM: [{ tag: 'sub' }], toDOM: () => ['sub', 0] },
+      dim: { parseDOM: [{ tag: 'span.mk-dim' }], toDOM: () => ['span', { class: 'mk-dim' }, 0] },
     },
   });
 }

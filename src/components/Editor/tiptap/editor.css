@@ -425,6 +425,11 @@
   -webkit-box-decoration-break: clone;
 }
 
+/* 文字变浅：次要文字色（--muted-color 为编辑器统一 muted token），不加透明度，亮暗主题各自适配 */
+.tiptap-editor .mk-dim {
+  color: var(--muted-color);
+}
+
 /* ── 链接 ──────────────────────────────────────────────────── */
 /* LinkOpen 扩展处理 Ctrl/Cmd+Click 跳转，单击留给光标定位/编辑。
    hover 显示 pointer 是视觉提示（用户看到指针知道是链接可点），
