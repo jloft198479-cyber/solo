@@ -4,7 +4,7 @@
  * 设计原则：信任 ProseMirror 默认粘贴流程（上下文感知、Slice 合并），
  * 只在必要环节加管道钩子做增量改写，避免 handlePaste 全接管。
  *
- * 三层架构：
+ * 四层架构：
  * Layer 0  默认管道（ProseMirror 内置）
  *          - HTML 路径：clipboardParser (DOMParser, schema 感知)
  *          - 纯文本路径：clipboardTextParser 钩子（Layer 1）
@@ -19,10 +19,14 @@
  *          - 触发：所有粘贴路径（HTML 和纯文本都会过）
  *          - 职责：装饰性 HTML 塌方时，从 slice.textContent 反查 Markdown 源救回
  *
- * Layer 3  handlePaste 逃生舱（仅图片）
- *          - 触发：剪贴板含图片文件
- *          - 职责：异步落盘 + 插入 image 节点
- *          - 其他场景 return false 放行默认流程
+ * Layer 3  handlePaste 逃生舱（图片 + 来源嗅探）
+ *          - 触发：剪贴板含图片文件 或 text/plain + text/html 同时存在时嗅探专有语法
+ *          - 职责：图片异步落盘、markdown 专有语法嗅探接管
+ *
+ * Layer 4  handlePaste 异步系统剪贴板 fallback（占位升级模式）
+ *          - 触发：text/html 不可用（WebView2 常见），text/plain 存在且非 markdown
+ *          - 模式：同步插纯文本 → 异步读 Rust 系统剪贴板 → 成功则升级为富格式
+ *          - 失败降级：保留纯文本（下限=现状，绝不降级）
  */
 import { Extension } from '@tiptap/vue-3';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
@@ -32,6 +36,10 @@ import type { Schema } from '@tiptap/pm/model';
 import { parseMarkdown } from '../markdown/parser';
 import { authorizeImageAsset, saveClipboardImage } from '../../../../services/tauri/document';
 import { confirm } from '../../../../services/tauri/dialog';
+import { readClipboardHtml } from '../../../../services/tauri/clipboard';
+
+// 递增粘贴请求 ID，用于防 async 后发先至乱序
+let nextPasteId = 0;
 
 /** 检测剪贴板中是否包含图片文件 */
 function hasClipboardImage(clipboard: DataTransfer): boolean {
@@ -313,6 +321,66 @@ export function parseUrlPaste(schema: Schema, text: string): Slice | null {
   return new Slice(doc.content, 1, 1);
 }
 
+// ── Word HTML 清理 ─────────────────────────────────────────────────
+// 体积熔断：超过 2MB 的 HTML 直接降级（防超大粘贴卡死）
+const HTML_VOLUME_LIMIT = 2_000_000;
+
+/**
+ * 嗅探是否为 Word HTML（含 mso 垃圾）。
+ * 正则匹配：mso- CSS 属性、MsoNormal 类、<o:p> 标签。
+ * 成本 <0.1ms，不命中即原样放行，零负优化。
+ */
+export function hasMsoHtml(html: string): boolean {
+  return /mso-|MsoNormal|<o:p/i.test(html);
+}
+
+/**
+ * 字符串级预清理 Word HTML 垃圾（比 DOMParser + DOM 遍历快一个量级）。
+ * 只删不掉留——非 Word HTML 不命中 hasMsoHtml，不走此函数。
+ *
+ * 清理项：
+ * - `<o:p>` 标签（仅删标签，保留内容）
+ * - `mso-*` 内联样式声明
+ * - `MsoNormal`/`MsoList*` 等 class
+ * - `<!--[if ...]>` 条件注释
+ * - XML namespace 声明
+ * - `<xml>` 标签及其内容
+ */
+function stripMsoMarkup(html: string): string {
+  // 条件注释
+  html = html.replace(/<!--\[if[\s\S]*?<!\[endif\]-->/g, '');
+  // <o:p> 标签（保留内容）
+  html = html.replace(/<\/?o:p[^>]*>/gi, '');
+  // mso-* CSS 属性（从 style 属性值中移除整条声明）
+  html = html.replace(/(\s+)mso-[^:;]+:[^;]*;?/gi, '');
+  // Mso 类名
+  html = html.replace(/\sclass="Mso[^"]*"/gi, '');
+  // XML namespace
+  html = html.replace(/ xmlns:\w+="[^"]*"/g, '');
+  // <xml> 及其内容
+  html = html.replace(/<xml[^>]*>[\s\S]*?<\/xml>/gi, '');
+  return html;
+}
+
+/**
+ * 体积熔断 + Word HTML 预清理。
+ * >2MB 返回 null（降级为纯文本）；Word HTML 嗅探命中后先瘦身再解析。
+ */
+export function parseHtmlSlice(schema: Schema, htmlString: string): Slice | null {
+  if (!htmlString || !htmlString.trim()) return null;
+  if (htmlString.length > HTML_VOLUME_LIMIT) return null; // 体积熔断
+
+  const cleaned = hasMsoHtml(htmlString) ? stripMsoMarkup(htmlString) : htmlString;
+  try {
+    const dom = new DOMParser().parseFromString(cleaned, 'text/html');
+    const doc = PMDOMParser.fromSchema(schema).parse(dom.body);
+    if (!doc || doc.childCount === 0) return null;
+    return new Slice(doc.content, 0, 0);
+  } catch {
+    return null;
+  }
+}
+
 const markdownPastePluginKey = new PluginKey('markdownPaste');
 
 export function markdownPastePlugin(opts?: {
@@ -322,9 +390,8 @@ export function markdownPastePlugin(opts?: {
   return new Plugin({
     key: markdownPastePluginKey,
     props: {
-      // ── Layer 3: handlePaste 逃生舱（仅图片） ─────────────────────
-      // 非图片场景一律 return false，放行给 ProseMirror 默认流程
-      // （默认流程已上下文感知：代码块自动纯文本、列表自动合并）
+      // ── Layer 3: handlePaste 逃生舱（仅图片/异步系统剪贴板） ──────
+      // 非图片场景优先 return false，放行给默认流程（上下文感知：代码块自动纯文本、列表自动合并）
       handlePaste(view, event) {
         const clipboard = event.clipboardData;
         if (!clipboard) return false;
@@ -343,6 +410,32 @@ export function markdownPastePlugin(opts?: {
               view.dispatch(view.state.tr.replaceSelection(slice).scrollIntoView());
               return true;
             }
+          }
+        }
+
+        // ── Layer 4: 异步系统剪贴板 fallback（占位升级模式） ──────────
+        // 触发：text/html 不可用（WebView2 常见），text/plain 存在且非 markdown
+        // 模式：同步插纯文本（用户立即看到内容）→ 异步读系统剪贴板 → 成功则升级为富格式
+        // 三条防线：isDestroyed 守卫 + 文本内容未变 + 请求序号防乱序
+        // 失败/超时 → 保留纯文本（下限=现状，绝不降级）
+        if (!hasImage && !(clipboard.types?.includes('text/html') ?? false)) {
+          const text = clipboard.getData('text/plain');
+          if (text && text.trim() && !looksLikeMarkdownSource(text) && !hasMarkdownOnlySyntax(text)) {
+            const { from } = view.state.selection;
+            view.dispatch(view.state.tr.insertText(text).scrollIntoView());
+            const to = view.state.selection.from;
+            const requestId = ++nextPasteId;
+
+            void readClipboardHtml().then((html) => {
+              if (!html || view.isDestroyed) return;
+              if (requestId !== nextPasteId) return; // 防乱序
+              const currentText = view.state.doc.textBetween(from, to);
+              if (currentText !== text) return; // 用户已编辑
+              const slice = parseHtmlSlice(view.state.schema, html);
+              if (!slice) return;
+              view.dispatch(view.state.tr.replaceWith(from, to, slice.content).scrollIntoView());
+            });
+            return true;
           }
         }
 
@@ -463,24 +556,6 @@ function handleClipboardImagePaste(
       '请先保存文档，或设置图片存储位置，才能粘贴图片。',
       { title: '粘贴图片', kind: 'warning', okLabel: '我知道了' },
     );
-  }
-}
-
-/**
- * 将 HTML 字符串解析为可插入当前选区的 Slice（schema 感知）。
- * 用于粘贴富文本：直接用 ProseMirror DOMParser 解析剪贴板 HTML，
- * 而非依赖 `return false` 把活甩回默认粘贴——默认粘贴同样依赖
- * `text/html` 送达，且不可控、不可测。显式解析让格式还原可控且可单测。
- */
-export function parseHtmlSlice(schema: Schema, htmlString: string): Slice | null {
-  if (!htmlString || !htmlString.trim()) return null;
-  try {
-    const dom = new DOMParser().parseFromString(htmlString, 'text/html');
-    const doc = PMDOMParser.fromSchema(schema).parse(dom.body);
-    if (!doc || doc.childCount === 0) return null;
-    return new Slice(doc.content, 0, 0);
-  } catch {
-    return null;
   }
 }
 

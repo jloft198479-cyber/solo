@@ -7,7 +7,7 @@ use base64::{engine::general_purpose, Engine as _};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
 // 图片扩展名白名单（用于显示授权校验 validate_image_asset_path）。
@@ -21,6 +21,8 @@ pub async fn open_document(path: String) -> Result<DocumentOpenResult, AppError>
     let (content, last_modified_ms) = tauri::async_runtime::spawn_blocking(move || {
         let content = fs::read_to_string(&path_for_io)?;
         let last_modified_ms = read_modified_time_ms(Path::new(&path_for_io))?;
+        // 兜底清理：同目录下 solo 崩溃残留的 .tmp 文件（静默，不阻塞）
+        cleanup_stale_tmp_files(Path::new(&path_for_io));
         Ok::<_, AppError>((content, last_modified_ms))
     })
     .await
@@ -451,6 +453,51 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), AppError> 
     Ok(())
 }
 
+/// 兜底清理：同目录下 solo 崩溃残留的 .tmp 文件。
+/// 匹配模式 `.{原文件名}.{纯数字}.tmp`，只删 mtime 超过 1h 的残留，
+/// 避免误伤双开进程正在写入的 .tmp。
+/// 清理失败静默跳过，不阻塞主流程。
+fn cleanup_stale_tmp_files(path: &Path) {
+    let parent = match path.parent() {
+        Some(p) => p,
+        None => return,
+    };
+    let file_name = match path.file_name().and_then(|n| n.to_str()) {
+        Some(n) => n,
+        None => return,
+    };
+    let prefix = format!(".{}.", file_name);
+    let now = SystemTime::now();
+    let stale_age = Duration::from_secs(3600);
+
+    if let Ok(entries) = fs::read_dir(parent) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            // 快速前缀/后缀过滤，跳过不匹配的文件
+            if !name.starts_with(&prefix) || !name.ends_with(".tmp") {
+                continue;
+            }
+            // 提取中间的数字部分：.{file_name}.{millis}.tmp
+            let middle = &name[prefix.len()..];
+            if let Some(dot_pos) = middle.rfind('.') {
+                let num_part = &middle[..dot_pos];
+                if !num_part.is_empty() && num_part.bytes().all(|b| b.is_ascii_digit()) {
+                    let is_stale = entry
+                        .metadata()
+                        .and_then(|m| m.modified())
+                        .ok()
+                        .and_then(|modified| now.duration_since(modified).ok())
+                        .map(|age| age > stale_age)
+                        .unwrap_or(false);
+                    if is_stale {
+                        let _ = fs::remove_file(entry.path());
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn validate_image_asset_path(path: &Path) -> Result<PathBuf, AppError> {
     // 先 canonicalize 解析符号链接和 .. 路径，防止通过符号链接绕过扩展名检查
     // （例如 evil.png -> /etc/passwd 会在 canonicalize 后暴露真实扩展名）
@@ -780,6 +827,32 @@ mod tests {
         assert!(filename.ends_with(".tmp"));
 
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn cleanup_stale_tmp_skips_non_matching_files() {
+        let dir = test_dir();
+        let doc_path = dir.join("demo.md");
+        fs::write(&doc_path, b"# hello").unwrap();
+
+        // 创建一个不匹配模式的 .tmp 文件（不同文件名）
+        let other_tmp = dir.join(".other.2000000.tmp");
+        fs::write(&other_tmp, b"other").unwrap();
+
+        // 执行清理
+        super::cleanup_stale_tmp_files(&doc_path);
+
+        // 不匹配模式的 .tmp 文件不会被删
+        assert!(other_tmp.exists(), "non-matching tmp should be kept");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn cleanup_stale_tmp_does_not_crash_on_missing_parent() {
+        // 路径不存在时应静默跳过
+        super::cleanup_stale_tmp_files(Path::new(""));
+        super::cleanup_stale_tmp_files(Path::new("\\\\?\\C:\\nonexistent\\path\\file.md"));
     }
 
     #[test]
