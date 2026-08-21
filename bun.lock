@@ -12,7 +12,7 @@
         "@tauri-apps/plugin-store": "^2.4.3",
         "@tauri-apps/plugin-updater": "^2.10.0",
         "@tauri-apps/plugin-window-state": "^2.4.1",
-        "@tiptap/extension-code-block-lowlight": "^3.26.1",
+        "@tiptap/extension-code-block": "^3.26.1",
         "@tiptap/extension-highlight": "^3.26.1",
         "@tiptap/extension-image": "^3.26.1",
         "@tiptap/extension-link": "^3.26.1",
@@ -368,8 +368,6 @@
     "@tiptap/extension-code": ["@tiptap/extension-code@3.27.1", "", { "peerDependencies": { "@tiptap/core": "3.27.1" } }, "sha512-epOUpFfEmBzjvnqvjv2qHX7NAuLo5dlOGV690lWu+sAYMjibuJBeVvAiKPyFCfRCCTUxdbDB3jbaOA1yEcEJ7w=="],
 
     "@tiptap/extension-code-block": ["@tiptap/extension-code-block@3.27.1", "", { "peerDependencies": { "@tiptap/core": "3.27.1", "@tiptap/pm": "3.27.1" } }, "sha512-pHlzmZx2OlHfyQ0yRlT5UL4mGokz947DthZuYefN1OleVqOkHpWBG+2JQwqoNq6bmzMne92zbH32rhcJUEYSjA=="],
-
-    "@tiptap/extension-code-block-lowlight": ["@tiptap/extension-code-block-lowlight@3.27.1", "", { "peerDependencies": { "@tiptap/core": "3.27.1", "@tiptap/extension-code-block": "3.27.1", "@tiptap/pm": "3.27.1", "highlight.js": "^11", "lowlight": "^2 || ^3" } }, "sha512-rDZYDwKpV3Uw8xjI5pzSQTLJ7pEyJkDrVhnzdh9mBY3sHVwP1maYh+0kRUrHi5N3EhiNp/GXG1kPjysPIQ4nqQ=="],
 
     "@tiptap/extension-document": ["@tiptap/extension-document@3.27.1", "", { "peerDependencies": { "@tiptap/core": "3.27.1" } }, "sha512-8FbBTkfnRP4iVaoj+2h3iWa+H0eGDD3yTyVCwrmue/sQTkqUNUoSuAZa3GDG4Sd41xdPwTJxl9nUWGgM1qDCnw=="],
 
