@@ -3,6 +3,8 @@ import Suggestion from '@tiptap/suggestion';
 import type { SuggestionOptions } from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 
+import { guardedFindSuggestionMatch } from './suggestion-guard';
+
 const emojiPluginKey = new PluginKey('emojiSuggest');
 
 export interface EmojiItem {
@@ -152,6 +154,8 @@ export const EmojiSuggest = Extension.create<EmojiSuggestOptions>({
       Suggestion({
         editor: this.editor,
         pluginKey: emojiPluginKey,
+        // P4-04：守卫版匹配，避免每次事务对整段文本 matchAll
+        findSuggestionMatch: guardedFindSuggestionMatch,
         ...this.options.suggestion,
       }),
     ];
