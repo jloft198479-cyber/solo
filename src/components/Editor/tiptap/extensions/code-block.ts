@@ -1,14 +1,19 @@
 /**
- * 代码块扩展 — 基于 CodeBlockLowlight
+ * 代码块扩展 — 基于 CodeBlock + 自研增量高亮插件
  *
  * 特性：
- * - 语法高亮（lowlight + highlight.js）
+ * - 语法高亮（lowlight + highlight.js），增量更新：只重渲内容变化的代码块
+ *   （原 CodeBlockLowlight 插件每事务对 old/new doc 各全文档 findChildren，
+ *   且命中门控时重渲全部代码块，大文档连续打字卡顿——P4-01）
  * - 直接在渲染态编辑代码
  * - 支持语言标识
  */
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import { CodeBlock } from '@tiptap/extension-code-block';
 import type { Editor } from '@tiptap/core';
 import type { Node as PMNode } from '@tiptap/pm/model';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
+import type { Transaction } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import { createLowlight } from 'lowlight';
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
@@ -57,6 +62,136 @@ export function getCodeBlockLanguageLabel(language: string | null | undefined): 
   return normalizeCodeBlockLanguage(language) || 'plain text';
 }
 
+// ── 增量语法高亮（P4-01）──────────────────────────────────────────
+//
+// 原理：PM 文档不可变，同一 node 引用 = 内容未变。
+// 插件 state 存 DecorationSet，每事务：
+//   1. 未变更的代码块装饰经 tr.mapping 平移复用（O(装饰数)，无高亮计算）
+//   2. 只对「变更区间命中的代码块」重新高亮（nodesBetween 只走区间子树）
+// 对比原插件：不再每事务 2× 全文档 findChildren，也不再把所有代码块整体重渲。
+// 注：setNodeMarkup 的属性变更走 replaceWith → ReplaceStep，step map 覆盖整个块
+// 区间，变更区间检测天然命中，无需额外通知机制（曾误判为空 step map 而引入
+// tr meta 方案，测试证伪后移除）。
+
+interface HastNode {
+  value?: string;
+  properties?: { className?: unknown };
+  children?: HastNode[];
+}
+
+interface HighlightSpan {
+  text: string;
+  classes: string[];
+}
+
+function parseNodes(nodes: HastNode[], className: string[] = []): HighlightSpan[] {
+  return nodes.flatMap((node) => {
+    const classes = [...className, ...(Array.isArray(node.properties?.className) ? (node.properties.className as string[]) : [])];
+    if (node.children) return parseNodes(node.children, classes);
+    return [{ text: node.value ?? '', classes }];
+  });
+}
+
+function highlightBlock(
+  block: PMNode,
+  blockPos: number,
+  defaultLanguage: string | null,
+  lowlightInstance: typeof lowlight,
+): Decoration[] {
+  const language = normalizeCodeBlockLanguage(
+    typeof block.attrs.language === 'string' ? block.attrs.language : null,
+  );
+  const effective = language || defaultLanguage;
+  const result = effective && lowlightInstance.registered(effective)
+    ? lowlightInstance.highlight(effective, block.textContent)
+    : lowlightInstance.highlightAuto(block.textContent);
+
+  const spans = parseNodes((result.children ?? []) as HastNode[]);
+  const decorations: Decoration[] = [];
+  let from = blockPos + 1;
+  for (const span of spans) {
+    const to = from + span.text.length;
+    if (span.classes.length > 0 && to > from) {
+      decorations.push(Decoration.inline(from, to, { class: span.classes.join(' ') }));
+    }
+    from = to;
+  }
+  return decorations;
+}
+
+function highlightAllBlocks(
+  doc: PMNode,
+  name: string,
+  defaultLanguage: string | null,
+  lowlightInstance: typeof lowlight,
+): Decoration[] {
+  const decorations: Decoration[] = [];
+  doc.descendants((node, pos) => {
+    if (node.type.name === name) {
+      decorations.push(...highlightBlock(node, pos, defaultLanguage, lowlightInstance));
+    }
+    return true;
+  });
+  return decorations;
+}
+
+export function createIncrementalLowlightPlugin(
+  name: string,
+  defaultLanguage: string | null,
+  lowlightInstance: typeof lowlight = lowlight,
+) {
+  // 显式注解：props.decorations 里引用 plugin 自身，无注解会形成循环推断（TS7022）
+  const plugin: Plugin<DecorationSet> = new Plugin<DecorationSet>({
+    key: new PluginKey('codeBlockHighlight'),
+    state: {
+      init: (_, { doc }) =>
+        DecorationSet.create(doc, highlightAllBlocks(doc, name, defaultLanguage, lowlightInstance)),
+      apply(tr: Transaction, decoSet: DecorationSet) {
+        if (!tr.docChanged) return decoSet;
+
+        const mapped = decoSet.map(tr.mapping, tr.doc);
+        const docSize = tr.doc.content.size;
+        const affected = new Map<number, PMNode>();
+
+        // 从各 step 的变更区间收集受影响代码块。
+        // step map 给出的是「该 step 前」的坐标，统一经 tr.mapping 换算到最终文档：
+        // from 用 assoc=-1（钉在插入内容之前）、to 用 assoc=+1（覆盖插入内容之后），
+        // 纯插入才能得到非空区间（assoc 反向时插入会算成 from > to 而被跳过——实测踩坑）。
+        for (const step of tr.steps) {
+          step.getMap().forEach((fromA, toA) => {
+            const from = Math.min(Math.max(tr.mapping.map(fromA, -1), 0), docSize);
+            const to = Math.min(Math.max(tr.mapping.map(toA, 1), 0), docSize);
+            if (to < from) return;
+            tr.doc.nodesBetween(from, to, (node, pos) => {
+              if (node.type.name === name) affected.set(pos, node);
+              return true;
+            });
+          });
+        }
+
+        if (affected.size === 0) return mapped;
+
+        let result = mapped;
+        for (const [pos, node] of affected) {
+          // 相邻块的装饰不可能触碰本块边界（块间至少隔 1 个 token 位置），
+          // 按块范围 find + remove 不会误删他人装饰
+          const stale = result.find(pos, pos + node.nodeSize);
+          if (stale.length > 0) result = result.remove(stale);
+          const fresh = highlightBlock(node, pos, defaultLanguage, lowlightInstance);
+          if (fresh.length > 0) result = result.add(tr.doc, fresh);
+        }
+        return result;
+      },
+    },
+    props: {
+      decorations(state) {
+        return plugin.getState(state);
+      },
+    },
+  });
+  return plugin;
+}
+
 function updateCodeBlockLanguage(
   editor: Editor,
   node: PMNode,
@@ -74,7 +209,7 @@ function updateCodeBlockLanguage(
   editor.view.dispatch(tr);
 }
 
-export const CustomCodeBlock = CodeBlockLowlight.extend({
+export const CustomCodeBlock = CodeBlock.extend({
   addAttributes() {
     const parent = this.parent?.() ?? {};
 
@@ -231,8 +366,14 @@ export const CustomCodeBlock = CodeBlockLowlight.extend({
       };
     };
   },
+
+  addProseMirrorPlugins() {
+    return [
+      ...(this.parent?.() ?? []),
+      createIncrementalLowlightPlugin(this.name, this.options.defaultLanguage ?? null),
+    ];
+  },
 }).configure({
-  lowlight,
   defaultLanguage: null,
   HTMLAttributes: {
     class: 'mk-code-block',
