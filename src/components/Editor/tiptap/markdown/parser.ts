@@ -23,6 +23,7 @@ import {
   getPluginTokenInterceptors,
 } from './plugins';
 import type { Preprocessor, TokenInterceptor } from './plugins';
+import { extractDimsFromAlt } from '../extensions/image';
 
 // ── markdown-it 实例 ───────────────────────────────────────────
 
@@ -34,8 +35,10 @@ const dummyKatexEngine = {
 };
 
 function createMarkdownIt(): MarkdownIt {
-  const md = new MarkdownIt('commonmark', { html: false, linkify: false })
-    .enable(['table', 'strikethrough']);
+  const md = new MarkdownIt('commonmark', { html: false, linkify: false }).enable([
+    'table',
+    'strikethrough',
+  ]);
 
   md.use(markdownItTaskLists, { enabled: true, label: false });
   md.use(markdownItMark);
@@ -151,7 +154,10 @@ export class MarkdownParseState {
 
   buildDoc(): PMNode {
     while (this.stack.length > 1) this.closeNode();
-    return this.top.type.createAndFill(this.top.attrs, this.top.content) || this.schema.nodes.doc.create();
+    return (
+      this.top.type.createAndFill(this.top.attrs, this.top.content) ||
+      this.schema.nodes.doc.create()
+    );
   }
 }
 
@@ -259,7 +265,11 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
       }
     }
 
-    state.addNode(schema.nodes.codeBlock, { language: lang }, content ? [schema.text(content)] : undefined);
+    state.addNode(
+      schema.nodes.codeBlock,
+      { language: lang },
+      content ? [schema.text(content)] : undefined,
+    );
   };
 
   handlers.hr = (state) => {
@@ -275,7 +285,9 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.closeNode();
   };
 
-  handlers.thead_open = () => { /* skip, rows handled directly */ };
+  handlers.thead_open = () => {
+    /* skip, rows handled directly */
+  };
   handlers.thead_close = () => {};
   handlers.tbody_open = () => {};
   handlers.tbody_close = () => {};
@@ -309,23 +321,10 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
 
   handlers.image = (state, token) => {
     const src = token.attrGet('src') || '';
-    const rawAlt = token.content || token.children?.map(t => t.content).join('') || '';
+    const rawAlt = token.content || token.children?.map((t) => t.content).join('') || '';
     const title = token.attrGet('title') || null;
-    // 从 alt 提取 `|WxH` 尺寸后缀（solo 扩展语法）
-    const dimMatch = rawAlt.match(/^(.*?)\|(\d+)x(\d+)$/);
-    if (dimMatch) {
-      const width = parseInt(dimMatch[2], 10);
-      const height = parseInt(dimMatch[3], 10);
-      state.addNode(schema.nodes.image, {
-        src,
-        alt: dimMatch[1],
-        title,
-        width: width || null,
-        height: height || null,
-      });
-    } else {
-      state.addNode(schema.nodes.image, { src, alt: rawAlt, title, width: null, height: null });
-    }
+    const { alt, width, height } = extractDimsFromAlt(rawAlt);
+    state.addNode(schema.nodes.image, { src, alt, title, width, height });
   };
 
   // ── 行内标记 ──

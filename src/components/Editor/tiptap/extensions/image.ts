@@ -24,7 +24,7 @@ export interface ImageMarkdownAttrs {
  * 这是 solo 的扩展语法，不依赖 markdown-it 解析层改动——markdown-it 会把
  * `![alt|WxH](src)` 的 alt 解析为 `alt|WxH`（`|` 非特殊字符），在此提取。
  */
-function extractDimsFromAlt(alt: string): {
+export function extractDimsFromAlt(alt: string): {
   alt: string;
   width: number | null;
   height: number | null;
@@ -43,9 +43,7 @@ export function formatImageMarkdown(attrs: ImageMarkdownAttrs): string {
   const title = attrs.title?.replace(/"/g, '\\"') ?? '';
   // 有尺寸时输出 `![alt|WxH](src)`，无尺寸时输出 `![alt](src)`
   const altWithDims =
-    attrs.width != null && attrs.height != null
-      ? `${alt}|${attrs.width}x${attrs.height}`
-      : alt;
+    attrs.width != null && attrs.height != null ? `${alt}|${attrs.width}x${attrs.height}` : alt;
 
   if (title) {
     return `![${altWithDims}](${src} "${title}")`;
@@ -322,12 +320,18 @@ export const CustomImage = Image.extend({
       ...this.parent?.(),
       width: {
         default: null,
-        parseHTML: (el) => (el as HTMLImageElement).getAttribute('width') ? Number((el as HTMLImageElement).getAttribute('width')) : null,
+        parseHTML: (el) =>
+          (el as HTMLImageElement).getAttribute('width')
+            ? Number((el as HTMLImageElement).getAttribute('width'))
+            : null,
         renderHTML: (attrs) => (attrs.width != null ? { width: attrs.width } : {}),
       },
       height: {
         default: null,
-        parseHTML: (el) => (el as HTMLImageElement).getAttribute('height') ? Number((el as HTMLImageElement).getAttribute('height')) : null,
+        parseHTML: (el) =>
+          (el as HTMLImageElement).getAttribute('height')
+            ? Number((el as HTMLImageElement).getAttribute('height'))
+            : null,
         renderHTML: (attrs) => (attrs.height != null ? { height: attrs.height } : {}),
       },
     };
