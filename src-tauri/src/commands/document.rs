@@ -36,6 +36,16 @@ pub async fn open_document(path: String) -> Result<DocumentOpenResult, AppError>
 }
 
 #[tauri::command]
+pub async fn get_file_mtime(path: String) -> Result<u64, AppError> {
+    let path_for_io = path.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        read_modified_time_ms(Path::new(&path_for_io))
+    })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?
+}
+
+#[tauri::command]
 pub async fn save_document(
     path: String,
     content: String,

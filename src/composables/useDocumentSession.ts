@@ -3,6 +3,7 @@ import {
   openDocument,
   saveDocument,
   renameFile,
+  getFileMtime,
   type DocumentOpenResult,
 } from '../services/tauri/document';
 import { normalizeTauriError } from '../services/tauri/client';
@@ -326,6 +327,35 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     externalFileWarning.value = null;
   }
 
+  /**
+   * 检查当前文件是否被外部修改。
+   * 在窗口获得焦点时调用，对比磁盘 mtime 与上次保存/加载时记录的 mtime。
+   * - 有未保存编辑（脏态）：提示用户存在外部修改，让用户决定保留自己的还是丢弃重加载。
+   * - 无未保存编辑：静默重新加载（避免用户看到陈旧内容）。
+   */
+  async function checkExternalModification(): Promise<void> {
+    const path = fileStore.currentFile.path;
+    if (!path) return;
+    // 正在保存/打开时跳过，避免与自身保存触发的 mtime 变化冲突
+    if (isSaving || isOpeningFile) return;
+
+    try {
+      const diskMtime = await getFileMtime(path);
+      const baseline = fileStore.currentFile.lastModifiedTime;
+      if (baseline !== null && diskMtime === baseline) return;
+
+      // mtime 不同 → 外部修改了文件，统一提示用户决定是否重新加载
+      // （无脏态也提示——静默重载会丢失光标/滚动位置，打断阅读）
+      externalFileWarning.value = '文件已被外部修改，点击重新加载';
+      if (externalWarningTimer) clearTimeout(externalWarningTimer);
+      externalWarningTimer = setTimeout(() => {
+        externalFileWarning.value = null;
+      }, 30_000);
+    } catch {
+      // 获取 mtime 失败（文件可能被删除/移动），静默跳过
+    }
+  }
+
   function updateAutoSaveStatus(messageText: string) {
     if (autoSaveStatusTimer) {
       clearTimeout(autoSaveStatusTimer);
@@ -404,5 +434,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     saveCurrentDocumentAs,
     stopAutoSave,
     evaluateDirtyFromEditor,
+    checkExternalModification,
+    clearExternalWarning,
   };
 }

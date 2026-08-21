@@ -11,18 +11,47 @@ export interface ImageMarkdownAttrs {
   src: string;
   alt: string;
   title: string | null;
+  /** 图片宽度（px），来自 `![alt|WxH](src)` 语法的可选尺寸标注 */
+  width: number | null;
+  /** 图片高度（px），来自 `![alt|WxH](src)` 语法的可选尺寸标注 */
+  height: number | null;
+}
+
+/**
+ * 从 alt 文本中提取 `|WxH` 尺寸后缀。
+ * 支持 `![alt|640x480](src)` 语法——alt 后跟 `|WxH` 表示宽高（px）。
+ * 返回 { alt, width, height }；无尺寸后缀时 width/height 为 null。
+ * 这是 solo 的扩展语法，不依赖 markdown-it 解析层改动——markdown-it 会把
+ * `![alt|WxH](src)` 的 alt 解析为 `alt|WxH`（`|` 非特殊字符），在此提取。
+ */
+function extractDimsFromAlt(alt: string): {
+  alt: string;
+  width: number | null;
+  height: number | null;
+} {
+  const match = alt.match(/^(.*?)\|(\d+)x(\d+)$/);
+  if (!match) return { alt, width: null, height: null };
+  const width = parseInt(match[2], 10);
+  const height = parseInt(match[3], 10);
+  if (!width || !height) return { alt, width: null, height: null };
+  return { alt: match[1], width, height };
 }
 
 export function formatImageMarkdown(attrs: ImageMarkdownAttrs): string {
   const alt = attrs.alt || '';
   const src = attrs.src || '';
   const title = attrs.title?.replace(/"/g, '\\"') ?? '';
+  // 有尺寸时输出 `![alt|WxH](src)`，无尺寸时输出 `![alt](src)`
+  const altWithDims =
+    attrs.width != null && attrs.height != null
+      ? `${alt}|${attrs.width}x${attrs.height}`
+      : alt;
 
   if (title) {
-    return `![${alt}](${src} "${title}")`;
+    return `![${altWithDims}](${src} "${title}")`;
   }
 
-  return `![${alt}](${src})`;
+  return `![${altWithDims}](${src})`;
 }
 
 export function parseImageMarkdown(markdown: string): ImageMarkdownAttrs | null {
@@ -33,7 +62,7 @@ export function parseImageMarkdown(markdown: string): ImageMarkdownAttrs | null 
     return null;
   }
 
-  const alt = match.groups.alt ?? '';
+  const rawAlt = match.groups.alt ?? '';
   const body = match.groups.body.trim();
   const titleMatch = body.match(/^(?<src>.+?)(?:\s+"(?<title>(?:[^"\\]|\\.)*)")?$/);
 
@@ -46,10 +75,15 @@ export function parseImageMarkdown(markdown: string): ImageMarkdownAttrs | null 
     return null;
   }
 
+  // 从 alt 提取 `|WxH` 尺寸后缀
+  const { alt, width, height } = extractDimsFromAlt(rawAlt);
+
   return {
     src,
     alt,
     title: titleMatch.groups.title == null ? null : titleMatch.groups.title.replace(/\\"/g, '"'),
+    width,
+    height,
   };
 }
 
@@ -283,6 +317,21 @@ export function resetLocalSrcResolver() {
 }
 
 export const CustomImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (el) => (el as HTMLImageElement).getAttribute('width') ? Number((el as HTMLImageElement).getAttribute('width')) : null,
+        renderHTML: (attrs) => (attrs.width != null ? { width: attrs.width } : {}),
+      },
+      height: {
+        default: null,
+        parseHTML: (el) => (el as HTMLImageElement).getAttribute('height') ? Number((el as HTMLImageElement).getAttribute('height')) : null,
+        renderHTML: (attrs) => (attrs.height != null ? { height: attrs.height } : {}),
+      },
+    };
+  },
   addNodeView() {
     return ({ node, getPos, editor }) => {
       const dom = document.createElement('span');
@@ -314,6 +363,8 @@ export const CustomImage = Image.extend({
         src: (node.attrs.src as string) || '',
         alt: (node.attrs.alt as string) || '',
         title: (node.attrs.title as string | null) ?? null,
+        width: (node.attrs.width as number | null) ?? null,
+        height: (node.attrs.height as number | null) ?? null,
       });
 
       let displayRequestId = 0;
@@ -330,6 +381,16 @@ export const CustomImage = Image.extend({
 
         image.alt = attrs.alt;
         image.title = attrs.title ?? '';
+
+        // 有尺寸标注时设置 width/height 属性，浏览器预留空间避免 layout shift
+        if (attrs.width != null && attrs.height != null) {
+          image.width = attrs.width;
+          image.height = attrs.height;
+        } else {
+          // 无尺寸标注时移除属性，让图片按自然尺寸渲染
+          image.removeAttribute('width');
+          image.removeAttribute('height');
+        }
 
         // caption：仅在非编辑模式且有 alt 文字时显示
         if (!isEditing && attrs.alt) {

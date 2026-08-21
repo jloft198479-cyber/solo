@@ -354,6 +354,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_document,
             save_document,
+            get_file_mtime,
             rename_file,
             import_document_image,
             save_clipboard_image,

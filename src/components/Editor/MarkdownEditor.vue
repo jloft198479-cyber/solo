@@ -105,10 +105,17 @@ const emojiMenuCommand = ref<(item: EmojiItem) => void>(() => {});
 const editor = shallowRef<TiptapEditor | null>(null);
 useEditorAppearance(editor);
 
+// 序列化缓存：doc 引用未变时复用上次结果，避免自动保存重复序列化。
+// useEditorSync 的空闲序列化回调会通过 updateSerializeCache 复用结果。
+let cachedSerialize: { doc: PMNode; content: string } | null = null;
+
 // ── 编辑器 → 下层状态同步中枢（字数 / 大纲 / 光标 / 序列化，防抖后单出口）──
 const { handleDocChange, handleSelectionChange, emitImmediateStats, cancelPending } = useEditorSync(
   {
     onUpdate: (data) => emit('update', data),
+    onSerialize: (content, doc) => {
+      cachedSerialize = { doc, content };
+    },
   },
 );
 
@@ -454,7 +461,15 @@ defineExpose({
   },
   getContent: () => {
     if (!editor.value) return null;
-    return serializeMarkdown(editor.value.state.doc);
+    const doc = editor.value.state.doc;
+    // 序列化缓存：doc 引用未变时复用上次结果，避免自动保存重复序列化。
+    // useEditorSync 的空闲序列化回调也会更新此缓存（复用结果）。
+    if (cachedSerialize && cachedSerialize.doc === doc) {
+      return cachedSerialize.content;
+    }
+    const content = serializeMarkdown(doc);
+    cachedSerialize = { doc, content };
+    return content;
   },
   getDoc: () => editor.value?.state.doc ?? null,
   getEditorView: () => editor.value?.view ?? null,

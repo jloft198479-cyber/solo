@@ -75,7 +75,7 @@ async function handleRename(name: string) {
   fileStore.setDisplayName(trimmed);
 }
 
-const { autoSaveStatus, externalFileWarning } = documentSession;
+const { autoSaveStatus, externalFileWarning, checkExternalModification, clearExternalWarning } = documentSession;
 
 const focusModeNotice = ref<{ message: string; timestamp: number } | null>(null);
 const _focusNoticeTimer = ref<ReturnType<typeof setTimeout> | null>(null);
@@ -232,6 +232,16 @@ onMounted(async () => {
     // 阶段4：窗口已可见，后台加载完整配置、初始化主题列表、启动 watcher
     await Promise.all([settingsStore.init(), syncMenuShortcuts()]);
     autoCheckForUpdate();
+
+    // 窗口获得焦点时检查外部修改
+    try {
+      const appWindow = getCurrentWindow();
+      unlistenEditorFocus = await appWindow.listen('solo:editor-focus', () => {
+        checkExternalModification();
+      });
+    } catch {
+      // 事件系统不可用时跳过
+    }
   } catch (e) {
     console.error('[App] onMounted init failed:', e);
   }
@@ -249,9 +259,23 @@ async function autoCheckForUpdate() {
   }
 }
 
+/** 用户点击状态栏外部修改警告 → 重新加载文件 */
+async function handleReloadFromExternal() {
+  const path = fileStore.currentFile.path;
+  if (!path) {
+    clearExternalWarning();
+    return;
+  }
+  await documentSession.loadDocumentFromPath(path, true);
+  clearExternalWarning();
+}
+
+let unlistenEditorFocus: (() => void) | null = null;
+
 onUnmounted(() => {
   windowSession.cleanup();
   stopWatchingMenuShortcuts();
+  unlistenEditorFocus?.();
 });
 </script>
 
@@ -323,9 +347,14 @@ onUnmounted(() => {
           <span v-else-if="stats.selectionText" class="statusbar-stat statusbar-stat--accent"
             >{{ stats.selectionText.length }} 字选中</span
           >
-          <span v-else-if="externalFileWarning" class="statusbar-stat statusbar-stat--warn">{{
-            externalFileWarning
-          }}</span>
+          <button
+            v-else-if="externalFileWarning"
+            class="statusbar-stat statusbar-stat--warn statusbar-stat--clickable"
+            @click="handleReloadFromExternal"
+            :title="externalFileWarning"
+          >
+            {{ externalFileWarning }}
+          </button>
           <span v-else class="statusbar-stat">{{ stats.wordCount }} 字</span>
         </div>
         <div class="statusbar-right">
@@ -496,6 +525,18 @@ onUnmounted(() => {
 
 .statusbar-stat--warn {
   color: var(--warning-color);
+}
+
+.statusbar-stat--clickable {
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: inherit;
+  font: inherit;
+  text-align: inherit;
+}
+.statusbar-stat--clickable:hover {
+  opacity: 0.8;
 }
 
 .statusbar-stat--success {
