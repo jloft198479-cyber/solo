@@ -43,12 +43,18 @@ fn startup_ready(
         return Ok(Some(payload));
     }
 
-    let payload = startup_requests.take()?;
-    append_startup_log(
-        Some(&window.app_handle()),
-        format!("startup_ready: label={}, payload={:?}", window.label(), payload),
-    );
-    Ok(payload)
+    // 只有主窗口能从全局 startup_requests 取值——新窗口的路径通过
+    // pending_paths（按 label 索引）投递，避免多窗口同时启动时争抢。
+    if window.label() == "main" {
+        let payload = startup_requests.take()?;
+        append_startup_log(
+            Some(&window.app_handle()),
+            format!("startup_ready: label={}, payload={:?}", window.label(), payload),
+        );
+        Ok(payload)
+    } else {
+        Ok(None)
+    }
 }
 
 /// 创建一个新的编辑器窗口。

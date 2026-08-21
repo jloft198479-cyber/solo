@@ -184,10 +184,22 @@ pub fn attach_menu_events(app: &tauri::AppHandle) {
                 match target {
                     Some(window) => emit_menu_event(&window, &menu_id),
                     None => {
-                        // 兜底：无法确定焦点窗口时回退到全局广播（不应发生）
-                        eprintln!("[menu] 无法确定焦点窗口，回退全局广播: {menu_id}");
-                        if let Err(e) = app.emit(crate::events::MENU_EVENT, &menu_id) {
-                            eprintln!("[menu] 全局广播也失败: {e}");
+                        // 兜底：无法确定焦点窗口时，发给第一个已加载窗口而非全局广播
+                        eprintln!("[menu] 无法确定焦点窗口，回退到首个已加载窗口: {menu_id}");
+                        let fallback = app
+                            .webview_windows()
+                            .into_iter()
+                            .find(|(label, _)| {
+                                app.try_state::<crate::state::LoadedWindows>()
+                                    .and_then(|state| state.contains(label).ok())
+                                    .unwrap_or(false)
+                            })
+                            .map(|(_, w)| w);
+                        match fallback {
+                            Some(window) => emit_menu_event(&window, &menu_id),
+                            None => {
+                                eprintln!("[menu] 无可用窗口接收菜单事件: {menu_id}");
+                            }
                         }
                     }
                 }
