@@ -1,13 +1,11 @@
-import { onBeforeUnmount, onMounted, type Ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, watch, type Ref } from 'vue';
 
 import { useSettingsStore } from '../../../stores/settings';
 import { buildFontStack } from '../../../utils/fontStack';
 import { ensureFontLoaded } from '../../../services/fontLoader';
 import { triggerContentCrossfade } from '../../../themes/manager';
 import { reinitializeMermaidTheme } from './extensions/mermaid-block';
-import { refreshParagraphFocus } from './extensions/paragraph-focus';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
-import type { EditorView } from '@tiptap/pm/view';
 
 // 设计体系规则：代码语法高亮不再加载 highlight.js 外部配色
 // （github / github-dark），颜色统一由 editor.css 的 .hljs-* → 主题 token
@@ -25,19 +23,20 @@ function applyFontFamily(fontFamily: string) {
   triggerContentCrossfade();
 }
 
-export function useEditorAppearance(editorRef?: Ref<TiptapEditor | null>) {
+export function useEditorAppearance(_editorRef?: Ref<TiptapEditor | null>) {
   const settingsStore = useSettingsStore();
 
   // 主题切换时 applyTheme 会依次触发多次 class 变化（theme-transitioning / dark），
-  // 用 RAF 合流到一帧，避免重复执行 syncHljsTheme + refreshParagraphFocus
+  // 用 RAF 合流到一帧，避免重复执行 syncMermaidTheme + refreshParagraphFocus
+  // 注：主题切换不改变 focus mode 装饰内容（active/dimmed class 不随主题变化），
+  // 所以不需要 refreshParagraphFocus——跳过它省掉一次全量装饰重建（大文档下开销）。
   let _themeRafId: number | null = null;
   const themeObserver = new MutationObserver(() => {
     if (_themeRafId != null) return;
     _themeRafId = requestAnimationFrame(() => {
       _themeRafId = null;
+      // 只同步 Mermaid 主题色（SVG 颜色在渲染时固化，必须重渲）
       syncMermaidTheme();
-      const view: EditorView | undefined = editorRef?.value?.view;
-      if (view) refreshParagraphFocus(view);
     });
   });
 

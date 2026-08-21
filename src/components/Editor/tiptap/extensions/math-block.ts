@@ -7,6 +7,7 @@
  */
 import { Node, mergeAttributes } from '@tiptap/vue-3';
 import type { Node as PMNode } from '@tiptap/pm/model';
+import { scheduleIdleRender } from './idle-render-scheduler';
 
 // 异步加载 KaTeX（懒加载，减少首屏 bundle 体积）
 let katexPromise: Promise<typeof import('katex')> | null = null;
@@ -209,8 +210,12 @@ export const MathBlock = Node.create({
         }
       }, { signal: eventController.signal });
 
-      // 初始渲染
-      renderKatex(node.textContent);
+      // 初始渲染：用空闲调度器延迟执行，避免大文档打开时 50+ math 块
+      // 同时渲染阻塞主线程。与 mermaid-block 共享调度器队列。
+      scheduleIdleRender(() => {
+        if (destroyed) return;
+        renderKatex(node.textContent);
+      });
 
       return {
         dom,
