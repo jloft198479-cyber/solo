@@ -87,6 +87,61 @@
   margin-top: 0;
 }
 
+/* ── 大文档渲染跳过：视口外块元素不渲染（P5-02）──────────────────
+ *
+ * 原理：content-visibility:auto 让浏览器跳过「不在视口内」元素的渲染、
+ * 布局、绘制，只保留盒模型尺寸（由 contain-intrinsic-size 提供占位）。
+ * 滚动进入视口时按需渲染，离开后保留渲染结果（不会重复渲染）。
+ *
+ * 为什么只应用在 .tiptap-editor > *（顶层块）：
+ *   - ProseMirror 假设所有节点都在 DOM 中（domAtPos / nodeDOM / 选区）
+ *   - 顶层块是影响滚动性能的最大单元，内部 inline 内容不需要再分层
+ *   - 对 inline 内容加 content-visibility 会破坏 contentEditable 选区
+ *
+ * contain-intrinsic-size：给每个块预估高度，避免滚动条跳变。
+ * 用 CSS 变量参数化，不同块类型给不同估值。
+ *
+ * 关键兼容性：
+ *   - scroll-spy：getBoundingClientRect 仍返回正确位置（浏览器知道占位尺寸） ✅
+ *   - 搜索高亮跳转：ProseMirror scrollIntoView 只设 scrollTop，目标进入视口后渲染 ✅
+ *   - focus mode：Decoration.node 加 class 不依赖元素是否渲染 ✅
+ *   - 打印：@media print 中显式覆盖 content-visibility:visible（见 main.css） ✅
+ *   - 自定义搜索：search-highlight 插件走 ProseMirror 装饰，不依赖 DOM 渲染 ✅
+ */
+.tiptap-editor > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--mk-civ-placeholder, 2rem);
+}
+
+/* 段落 / 标题 / 引用：默认 2rem 已够，不单独覆写 */
+
+/* 列表：高度可能很大，给更保守的占位 */
+.tiptap-editor > ol,
+.tiptap-editor > ul {
+  contain-intrinsic-size: auto 8rem;
+}
+
+/* 代码块：通常 6–20 行，给 10rem */
+.tiptap-editor > pre {
+  contain-intrinsic-size: auto 10rem;
+}
+
+/* 表格：高度不确定，给 8rem */
+.tiptap-editor > table {
+  contain-intrinsic-size: auto 8rem;
+}
+
+/* math / mermaid 块：有头部栏 + 内容区，给 6rem */
+.tiptap-editor > .mk-math-block,
+.tiptap-editor > .mk-mermaid-block {
+  contain-intrinsic-size: auto 6rem;
+}
+
+/* hr 不占空间，不需要跳过渲染 */
+.tiptap-editor > hr {
+  content-visibility: visible;
+}
+
 /* ── 段落 ──────────────────────────────────────────────────── */
 .tiptap-editor p {
   margin: var(--mk-paragraph-spacing) 0;

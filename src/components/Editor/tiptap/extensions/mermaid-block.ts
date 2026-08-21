@@ -7,6 +7,7 @@
  */
 import { Node, mergeAttributes } from '@tiptap/vue-3';
 import type { Node as PMNode } from '@tiptap/pm/model';
+import { scheduleIdleRender } from './idle-render-scheduler';
 
 // 异步加载 mermaid
 let mermaidPromise: Promise<typeof import('mermaid')> | null = null;
@@ -480,8 +481,13 @@ export const MermaidBlock = Node.create({
         }
       }, { signal: eventController.signal });
 
-      // 初始渲染
-      renderMermaid(node.textContent);
+      // 初始渲染：用空闲调度器延迟执行，避免大文档打开时 50+ Mermaid 块
+      // 同时渲染阻塞主线程。浏览器先画文档结构，再在空闲时逐步填充图表。
+      // 后续渲染（update / rerender / exitEdit）走同步路径，保证用户操作即时反馈。
+      scheduleIdleRender(() => {
+        if (destroyed) return;
+        renderMermaid(node.textContent);
+      });
 
       // 登记到全局 Set，供 reinitializeMermaidTheme 主题切换时重渲
       const handle = {

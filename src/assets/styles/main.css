@@ -379,13 +379,21 @@ html.focus-mode .statusbar-container:hover {
   pointer-events: auto !important;
 }
 
-/* ── 主题切换过渡：background-color + color + border-color，避开昂贵的 box-shadow ──
-   边框颜色瞬切会与背景/文字的平滑过渡形成视觉错位（用户感知到的「轻微闪一下」），
-   补上 border-color 让边框也平滑过渡；box-shadow 仍避开（性能代价高）。 */
-html.theme-transitioning,
-html.theme-transitioning *,
-html.theme-transitioning *::before,
-html.theme-transitioning *::after {
+/* ── 主题切换过渡：只给会随主题变色的「壳」加过渡，不再用 `*` 通配符 ──
+   原实现 `html.theme-transitioning *` 会让大文档下 N 个元素同时跑过渡，
+   每帧对全文档做样式重算，浏览器失去「只重绘脏元素」的优化机会。
+   收敛到编辑器外壳 + 侧边栏 + 标题栏 + 状态栏 + 面板：这些元素数量固定，
+   主题切换时只需重绘这几个壳，内部内容随 CSS 变量自然重绘，无需逐元素过渡。
+   box-shadow 仍避开（性能代价高）。 */
+html.theme-transitioning .mk-editor,
+html.theme-transitioning .mk-editor-inner,
+html.theme-transitioning .custom-titlebar,
+html.theme-transitioning aside,
+html.theme-transitioning .statusbar-container,
+html.theme-transitioning .toolbar-container,
+html.theme-transitioning .outline-panel,
+html.theme-transitioning .settings-panel,
+html.theme-transitioning .sidebar {
   transition: background-color var(--motion-base) var(--ease-out), color var(--motion-base) var(--ease-out), border-color var(--motion-base) var(--ease-out) !important;
 }
 
@@ -452,6 +460,13 @@ html.theme-transitioning *::after {
   html.focus-mode .paragraph-dimmed,
   html.focus-mode .is-dimmed {
     opacity: 1 !important;
+  }
+
+  /* P5-02：打印时关闭 content-visibility:auto，确保所有内容被渲染到打印页。
+     原因：content-visibility:auto 会跳过「不在视口内」元素的渲染，
+     打印时浏览器需要一次性渲染所有页面，跳过会导致打印内容丢失。 */
+  .tiptap-editor > * {
+    content-visibility: visible !important;
   }
 
   /* 打印时去掉编辑态 chrome：代码块语言按钮、heading gutter、

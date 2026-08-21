@@ -17,9 +17,19 @@ const emit = defineEmits<{
 // ── 当前激活项（scroll-spy）────────────────────────────
 // 监听编辑器滚动容器，取「视口顶部往下 25% 阈值线之上、最后一个标题」作为激活项。
 // 阈值与跳转目标（scrollToPos 的 OUTLINE_SCROLL_RATIO）一致，保证跳转后高亮不跳回。
+//
+// P5-03 优化：缓存 scrollContainer 的视口 top 位置（cachedContainerRect），
+// 避免每帧滚动调 getBoundingClientRect() 强制布局。该 top 在滚动中不变，
+// 只在 resize / 窗口布局变化时需更新——用 ResizeObserver 监听。
 const activePos = ref<number | null>(null);
 let scrollContainer: HTMLElement | null = null;
 let rafId: number | null = null;
+let cachedContainerRect: number | null = null;
+let containerResizeObserver: ResizeObserver | null = null;
+
+function invalidateContainerRect() {
+  cachedContainerRect = null;
+}
 
 function updateActive() {
   const view = props.editorRef?.getEditorView?.();
@@ -27,9 +37,15 @@ function updateActive() {
     activePos.value = null;
     return;
   }
-  const top =
-    scrollContainer.getBoundingClientRect().top +
-    scrollContainer.clientHeight * OUTLINE_SCROLL_RATIO;
+  // 优化（P5-03）：避免每帧调 scrollContainer.getBoundingClientRect() 强制布局。
+  // 原实现每次滚动帧调 scrollContainer.getBoundingClientRect()，与滚动事件同步触发强制布局。
+  // 新实现：缓存 scrollContainer 的 rect（top 位置在滚动中不变，只在 resize / 布局变化时更新），
+  // 滚动帧中只读 scrollTop（浏览器缓存的布局属性，不触发强制布局）。
+  const containerTop = cachedContainerRect ?? scrollContainer.getBoundingClientRect().top;
+  if (cachedContainerRect == null) {
+    cachedContainerRect = containerTop;
+  }
+  const threshold = containerTop + scrollContainer.clientHeight * OUTLINE_SCROLL_RATIO;
 
   // 二分查找：标题按文档序排列，top 单调递增
   // 找「top <= 阈值」的最后一个标题
@@ -44,7 +60,7 @@ function updateActive() {
       lo = mid + 1;
       continue;
     }
-    if (el.getBoundingClientRect().top <= top) {
+    if (el.getBoundingClientRect().top <= threshold) {
       current = props.items[mid].pos;
       lo = mid + 1;
     } else {
@@ -68,6 +84,12 @@ function attachScroll() {
   scrollContainer = (view.dom as HTMLElement).closest('.mk-editor') as HTMLElement | null;
   if (scrollContainer) {
     scrollContainer.addEventListener('scroll', onScroll, { passive: true });
+    // P5-03：用 ResizeObserver 监听滚动容器布局变化，失效缓存。
+    // 滚动中 top 不变，但 resize / 窗口移动 / 侧栏开合会改 top。
+    containerResizeObserver = new ResizeObserver(() => invalidateContainerRect());
+    containerResizeObserver.observe(scrollContainer);
+    // 窗口 resize 也会影响（ResizeObserver 监听元素自身尺寸变化，不包含窗口移动）
+    window.addEventListener('resize', invalidateContainerRect, { passive: true });
     updateActive();
   }
 }
@@ -86,7 +108,11 @@ watch(
 onBeforeUnmount(() => {
   if (rafId != null) cancelAnimationFrame(rafId);
   scrollContainer?.removeEventListener('scroll', onScroll);
+  window.removeEventListener('resize', invalidateContainerRect);
+  containerResizeObserver?.disconnect();
+  containerResizeObserver = null;
   scrollContainer = null;
+  cachedContainerRect = null;
 });
 
 // ── 交互 ─────────────────────────────────────────────

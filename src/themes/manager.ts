@@ -259,9 +259,25 @@ export function applyTheme(theme: Theme) {
  * 给编辑区 .mk-editor 加一次 200ms 透明度淡入。
  * 主题 / 字体切换时调用：CSS 变量重绘会让内容闪一下，crossfade 抹平这个闪烁感。
  * 容器不存在时安全跳过。
+ * 用 requestAnimationFrame 延迟一帧触发：让 injectColors 的 CSS 变量先生效，
+ * 避免动画首帧与 CSS 变量重绘同帧发生导致首帧卡顿（大文档下明显）。
  */
 let _crossfadeTimer: ReturnType<typeof setTimeout> | null = null;
+let _crossfadeRaf: number | null = null;
 export function triggerContentCrossfade() {
+  // 测试环境（happy-dom stub）可能没有 requestAnimationFrame，退回同步执行
+  if (typeof requestAnimationFrame === 'undefined') {
+    runCrossfade();
+    return;
+  }
+  if (_crossfadeRaf != null) return; // 已排队，不重复
+  _crossfadeRaf = requestAnimationFrame(() => {
+    _crossfadeRaf = null;
+    runCrossfade();
+  });
+}
+
+function runCrossfade() {
   const el = document.querySelector('.mk-editor');
   if (!el) return;
   if (_crossfadeTimer) {
