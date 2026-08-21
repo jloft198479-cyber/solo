@@ -33,25 +33,46 @@ import php from 'highlight.js/lib/languages/php';
 import ruby from 'highlight.js/lib/languages/ruby';
 import diff from 'highlight.js/lib/languages/diff';
 
-const lowlight = createLowlight({
-  javascript,
-  typescript,
-  python,
-  bash,
-  json,
-  markdown,
-  xml,
-  yaml,
-  sql,
-  css,
-  rust,
-  go,
-  java,
-  cpp,
-  php,
-  ruby,
-  diff,
-});
+let lowlightInstance: ReturnType<typeof createLowlight> | null = null;
+
+/**
+ * 懒加载 lowlight 单例（P5-04：消除模块求值与窗口显示的竞争）。
+ *
+ * 原 实现：模块顶层 `const lowlight = createLowlight({...})` 同步执行，
+ * 在编辑器 chunk 加载时即注册 17 种 highlight.js 语言。
+ * 如果 chunk 从 WebView2 缓存秒到，顶层求值会在 `window.show()` 之前的
+ * IPC 间隙同步执行，挤占主线程，延迟窗口显示。
+ *
+ * 新实现：延迟到首次使用（createIncrementalLowlightPlugin 默认值调用）时才执行。
+ * 此时窗口已显示、编辑器已创建（走 RAF 延迟初始化），不在窗口显示关键路径上。
+ *
+ * 17 种语言的静态 import 保留——它们是纯数据（语言语法定义对象），
+ * 模块求值开销 < 5ms，不是瓶颈。重活是 createLowlight() 调用本身
+ * （构建 parser、注册语法），延迟到首次使用。
+ */
+function getLowlight(): ReturnType<typeof createLowlight> {
+  if (lowlightInstance) return lowlightInstance;
+  lowlightInstance = createLowlight({
+    javascript,
+    typescript,
+    python,
+    bash,
+    json,
+    markdown,
+    xml,
+    yaml,
+    sql,
+    css,
+    rust,
+    go,
+    java,
+    cpp,
+    php,
+    ruby,
+    diff,
+  });
+  return lowlightInstance;
+}
 
 export function normalizeCodeBlockLanguage(language: string | null | undefined): string | null {
   const normalized = language?.trim().toLowerCase() ?? '';
@@ -96,7 +117,7 @@ function highlightBlock(
   block: PMNode,
   blockPos: number,
   defaultLanguage: string | null,
-  lowlightInstance: typeof lowlight,
+  lowlightInstance: ReturnType<typeof createLowlight>,
 ): Decoration[] {
   const language = normalizeCodeBlockLanguage(
     typeof block.attrs.language === 'string' ? block.attrs.language : null,
@@ -123,7 +144,7 @@ function highlightAllBlocks(
   doc: PMNode,
   name: string,
   defaultLanguage: string | null,
-  lowlightInstance: typeof lowlight,
+  lowlightInstance: ReturnType<typeof createLowlight>,
 ): Decoration[] {
   const decorations: Decoration[] = [];
   doc.descendants((node, pos) => {
@@ -138,7 +159,7 @@ function highlightAllBlocks(
 export function createIncrementalLowlightPlugin(
   name: string,
   defaultLanguage: string | null,
-  lowlightInstance: typeof lowlight = lowlight,
+  lowlightInstance: ReturnType<typeof createLowlight> = getLowlight(),
 ) {
   // 显式注解：props.decorations 里引用 plugin 自身，无注解会形成循环推断（TS7022）
   const plugin: Plugin<DecorationSet> = new Plugin<DecorationSet>({
