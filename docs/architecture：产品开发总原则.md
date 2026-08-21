@@ -1,3 +1,13 @@
+---
+title: 产品开发总原则
+type: principle
+audience: dev
+status: active
+tags: [原则, 技术决策, 决策阶梯]
+summary: 技术设计原则：SSOT/高内聚低耦合/决策阶梯/绝不硬编码/退化安全
+updates: [ARCHITECTURE.md, docs/project_rules：工作原则和纪律.md, src/]
+---
+
 # 产品开发总原则
 
 > 本文档定义代码和系统设计的基本原则。专注技术决策。

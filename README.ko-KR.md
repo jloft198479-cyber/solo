@@ -1,3 +1,13 @@
+---
+title: solo — 로컬 우선 Markdown 에디터
+type: product
+audience: user
+status: active
+tags: [产品导览, README]
+summary: 제품 소개/설치/개발 시작 (한국어)
+updates: [README.md, README.zh-CN.md, README.ja-JP.md, docs/solo产品精神.md]
+---
+
 <p align="center">
   <img src="./public/icon.png" width="160" alt="solo Logo" />
 </p>

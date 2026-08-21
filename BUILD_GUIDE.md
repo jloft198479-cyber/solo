@@ -1,3 +1,13 @@
+---
+title: solo 系统编译说明书
+type: core
+audience: dev
+status: active
+tags: [核心文档, 构建, 工具链, 环境变量]
+summary: 构建手册唯一真理源：工具链版本/环境变量/编译命令/故障排查
+updates: [ARCHITECTURE.md, package.json, src-tauri/Cargo.toml]
+---
+
 # solo 系统编译说明书
 
 > **目标**：任何开发者（人或 AI）按此文档操作，均可在干净 Windows 环境下成功编译 solo。
@@ -21,17 +31,7 @@
 
 ## 1. 技术栈速览
 
-| 层 | 技术 | 版本 | 说明 |
-|---|---|---|---|
-| 桌面框架 | Tauri | 2.11.2 | 无边框窗口、插件体系 |
-| 原生核心 | Rust | 1.96.0 | edition 2021, release profile opt-level=3 |
-| 前端框架 | Vue 3 | 3.5 | Composition API + `<script setup>` |
-| 构建 | Vite | 7.x | |
-| 类型检查 | vue-tsc | 3.3.4 | |
-| 包管理器 | Bun | 1.3.14 | 也兼容 npm |
-| 样式 | Tailwind CSS 4 | 4.3 | |
-| 编辑器 | TipTap / ProseMirror | 3.26 | |
-| 包格式 | NSIS | — | 安装包产出 `.exe` |
+> **完整技术栈与精确依赖版本以 [ARCHITECTURE.md §1（技术栈实测表）](./ARCHITECTURE.md) 为唯一真理源**，本文不重复罗列版本，避免两处漂移。下方仅列本机构建所需的「最低版本」与安装入口（见 §2）。
 
 **项目路径**：`F:\fzz-Project\md-editor`
 
@@ -41,12 +41,12 @@
 
 ### 2.1 必需工具
 
-| 工具 | 最低版本 | 获取方式 |
-|---|---|---|
-| Rust toolchain | 1.96.0 | `rustup-init.exe` |
-| MSVC Build Tools | v14.44+ | Visual Studio Build Tools 2022 |
-| WebView2 | — | Windows 10+ 内置，无需单独安装 |
-| Bun | 1.3.14 | `powershell -c "irm bun.sh/install.ps1 | iex"` |
+| 工具             | 最低版本 | 获取方式                               |
+| ---------------- | -------- | -------------------------------------- | ----- |
+| Rust toolchain   | 1.96.0   | `rustup-init.exe`                      |
+| MSVC Build Tools | v14.44+  | Visual Studio Build Tools 2022         |
+| WebView2         | —        | Windows 10+ 内置，无需单独安装         |
+| Bun              | 1.3.14   | `powershell -c "irm bun.sh/install.ps1 | iex"` |
 
 ### 2.2 Rust 工具链安装
 
@@ -96,6 +96,7 @@ set PATH=M:\rust\.cargo\bin;%PATH%
 ```
 
 > 如果 Rust 安装在默认路径，上述路径应调整为：
+>
 > ```
 > set CARGO_HOME=C:\Users\<用户名>\.cargo
 > set RUSTUP_HOME=C:\Users\<用户名>\.rustup
@@ -109,6 +110,7 @@ set PATH=M:\rust\.cargo\bin;%PATH%
 例如 `cmd /c "set RUSTUP_HOME=M:\rust\.rustup"` 在 PowerShell 中执行后，变量值可能变为 `"M:\rust\.rustup "`（末尾多一个空格），导致 `rustup` 找不到工具链。
 
 **解决方案**：
+
 - 直接在 `.bat` 文件中设置变量（不要通过 `cmd /c`）。
 - 或者使用本仓库提供的 `launch-dev.bat` / `build_solo_tauri.bat`。
 
@@ -172,12 +174,12 @@ bunx tauri build                                       # Rust 编译 + NSIS 打�
 
 ### 4.5 关键参数说明
 
-| 参数 | 说明 |
-|---|---|
-| `--release` | 启用优化（opt-level=3），编译更慢但产物更快 |
-| `--manifest-path` | 指定 `Cargo.toml` 路径，避免在 `src-tauri/` 目录下执行 |
-| `bunx tauri build` | Tauri CLI 的完整打包命令，含 Rust 编译 + NSIS 打包 |
-| `bun run build` | 前端构建，等价于 `vue-tsc --noEmit && vite build` |
+| 参数               | 说明                                                   |
+| ------------------ | ------------------------------------------------------ |
+| `--release`        | 启用优化（opt-level=3），编译更慢但产物更快            |
+| `--manifest-path`  | 指定 `Cargo.toml` 路径，避免在 `src-tauri/` 目录下执行 |
+| `bunx tauri build` | Tauri CLI 的完整打包命令，含 Rust 编译 + NSIS 打包     |
+| `bun run build`    | 前端构建，等价于 `vue-tsc --noEmit && vite build`      |
 
 ---
 
@@ -267,9 +269,9 @@ echo ===== Done =====
 
 ### 5.4 构建产出
 
-| 文件 | 路径 | 说明 |
-|---|---|---|
-| `solo.exe` | `src-tauri\target\release\solo.exe` | 绿色可执行文件（约 15MB） |
+| 文件                           | 路径                                    | 说明                                 |
+| ------------------------------ | --------------------------------------- | ------------------------------------ |
+| `solo.exe`                     | `src-tauri\target\release\solo.exe`     | 绿色可执行文件（约 15MB）            |
 | `solo_{version}_x64-setup.exe` | `src-tauri\target\release\bundle\nsis\` | NSIS 安装包（版本号取自 Cargo.toml） |
 
 > **注意**：若指定了自定义 target triple（如 `x86_64-pc-windows-msvc`），产物路径变为 `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\`。
@@ -285,9 +287,11 @@ echo ===== Done =====
 **原因**：PowerShell 中执行 `cmd /c "set RUSTUP_HOME=M:\rust\.rustup" `可能引入尾部空格。
 
 **解决**：始终在 `.bat` 文件中设置变量，或在 PowerShell 中使用：
+
 ```powershell
 $env:RUSTUP_HOME = "M:\rust\.rustup"
 ```
+
 （确保引号闭合后无空格）
 
 ### 6.2 `bunx tauri build` 必须在项目根目录执行
@@ -297,6 +301,7 @@ $env:RUSTUP_HOME = "M:\rust\.rustup"
 **原因**：Tauri CLI 需要从 `tauri.conf.json` 所在目录（项目根目录）运行，因为它需要读取 `beforeBuildCommand`、`frontendDist` 等配置。
 
 **解决**：任何 Tauri CLI 命令（`dev` / `build`）都从项目根目录执行：
+
 ```bash
 cd F:\fzz-Project\md-editor
 bunx tauri build
@@ -315,6 +320,7 @@ bunx tauri build
 **原因**：Cargo 需要 MSVC 的链接器，必须先执行 `vcvars64.bat` 激活环境。
 
 **解决**：每次打开新终端或启动新进程时，都要先执行：
+
 ```batch
 call M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat
 ```
@@ -343,7 +349,7 @@ call M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat
 
 **原因**：Tauri v2 中 `exit()` 不能从主线程调用。
 
-**解决**：通过 `#[tauri::command]` 暴露 `exit_app` 命令，在 IPC 异步线程中执行 `app.exit(0)`。前端 `handleQuit` 在窗口 destroyed 事件后调用。
+**解决**：`exit()` 必须放在 `#[tauri::command]`（IPC 线程）中调用，历史上为 `exit_app` 命令。当前版本应用退出已改为 `request_app_quit`——向所有窗口定向发送 `window-close-requested`，各窗口确认/保存后自行关闭，全部关闭后进程自然退出，不再直接调 `app.exit(0)`。若未来重新引入强制退出，仍须遵守本条。
 
 ### 6.8 `StateFlags::FULLSCREEN` 导致窗口尺寸错乱
 
@@ -401,15 +407,15 @@ call M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat
 
 ### 7.1 构建失败速查表
 
-| 症状 | 原因 | 解决 |
-|---|---|---|
-| `vue-tsc` 类型错误 | TypeScript 类型不匹配 | 根据错误信息修正类型 |
-| `vite build` 报模块未找到 | `bun install` 未执行或失败 | 重跑 `bun install` |
-| `link.exe` 找不到 | MSVC 环境未激活 | 执行 `vcvars64.bat` |
-| `rustup` 找不到工具链 | `RUSTUP_HOME` 路径错误或尾随空格 | 检查环境变量（见 6.1） |
-| `cargo` 下载依赖失败 | 网络问题或 cargo 注册表不可达 | 设置代理或使用 `--offline` |
-| `makensis` 找不到 | NSIS 未安装（bunx tauri build 自带） | 确保 `bunx tauri build` 完整执行 |
-| WASM 相关错误 | 项目中不使用 WASM，忽略异常源 | 检查 `cargo build` 而非 `wasm-pack` |
+| 症状                      | 原因                                 | 解决                                |
+| ------------------------- | ------------------------------------ | ----------------------------------- |
+| `vue-tsc` 类型错误        | TypeScript 类型不匹配                | 根据错误信息修正类型                |
+| `vite build` 报模块未找到 | `bun install` 未执行或失败           | 重跑 `bun install`                  |
+| `link.exe` 找不到         | MSVC 环境未激活                      | 执行 `vcvars64.bat`                 |
+| `rustup` 找不到工具链     | `RUSTUP_HOME` 路径错误或尾随空格     | 检查环境变量（见 6.1）              |
+| `cargo` 下载依赖失败      | 网络问题或 cargo 注册表不可达        | 设置代理或使用 `--offline`          |
+| `makensis` 找不到         | NSIS 未安装（bunx tauri build 自带） | 确保 `bunx tauri build` 完整执行    |
+| WASM 相关错误             | 项目中不使用 WASM，忽略异常源        | 检查 `cargo build` 而非 `wasm-pack` |
 
 ### 7.2 干净构建步骤
 
@@ -435,13 +441,13 @@ bunx tauri build
 
 ### 7.3 增量构建速度参考
 
-| 阶段 | 首次 | 增量 |
-|---|---|---|
-| `bun install` | ~30s | ~5s |
-| `vue-tsc --noEmit` | ~10s | ~8s |
-| `vite build` | ~13s | ~13s |
-| `cargo build --release` | ~1m54s | ~47s |
-| `makensis` | ~10s | ~10s |
+| 阶段                    | 首次       | 增量       |
+| ----------------------- | ---------- | ---------- |
+| `bun install`           | ~30s       | ~5s        |
+| `vue-tsc --noEmit`      | ~10s       | ~8s        |
+| `vite build`            | ~13s       | ~13s       |
+| `cargo build --release` | ~1m54s     | ~47s       |
+| `makensis`              | ~10s       | ~10s       |
 | **总计（tauri build）** | **~2m30s** | **~1m20s** |
 
 ---
@@ -449,6 +455,8 @@ bunx tauri build
 ## 8. 附录
 
 ### 8.1 环境配置清单
+
+> 本清单是本机实际安装环境的**快照**（含具体安装路径），用于快速核对本地环境是否就位；依赖的**精确版本以 [ARCHITECTURE.md §1](./ARCHITECTURE.md) 为准**（本文 §1 已指向该真理源）。
 
 ```
 Rust:
@@ -478,6 +486,7 @@ Bun:
 ```
 
 工具链磁盘占用：
+
 - Rust 工具链（rustup + cargo）：~1.4GB
 - MSVC Build Tools：~3.4GB
 
@@ -519,29 +528,29 @@ pinia: ^3.0.4
 
 ### 8.4 项目关键文件索引
 
-| 用途 | 路径 |
-|---|---|
-| Rust 入口 | `src-tauri/src/lib.rs` |
-| Rust 命令（窗口） | `src-tauri/src/commands/window.rs` |
-| Rust 命令（文档） | `src-tauri/src/commands/document.rs` |
-| Rust 状态管理 | `src-tauri/src/state.rs` |
-| Rust 菜单 | `src-tauri/src/menu.rs` |
-| Rust 错误模型 | `src-tauri/src/error.rs` |
-| Tauri 配置 | `src-tauri/tauri.conf.json` |
-| NSIS 安装钩子 | `src-tauri/nsis-hooks.nsh` |
-| Cargo 配置 | `src-tauri/Cargo.toml` |
-| 前端入口 | `src/main.ts` |
-| 前端协调层 | `src/App.vue` |
-| 编辑器组件 | `src/components/Editor/MarkdownEditor.vue` |
-| 文档生命周期 | `src/composables/useDocumentSession.ts` |
-| 窗口会话管理 | `src/composables/useAppWindowSession.ts` |
-| IPC 服务层 | `src/services/tauri/` |
-| 命令名登记 | `src/services/tauri/command-names.ts` |
-| Tailwind 配置 | `tailwind.config.js` |
-| Vite 配置 | `vite.config.ts` |
-| 架构文档 | `ARCHITECTURE.md` |
-| 运行故障排查 | `TROUBLESHOOTING.md` |
-| **正式发布流程** | **`RELEASE_PROCESS.md`** |
+| 用途              | 路径                                       |
+| ----------------- | ------------------------------------------ |
+| Rust 入口         | `src-tauri/src/lib.rs`                     |
+| Rust 命令（窗口） | `src-tauri/src/commands/window.rs`         |
+| Rust 命令（文档） | `src-tauri/src/commands/document.rs`       |
+| Rust 状态管理     | `src-tauri/src/state.rs`                   |
+| Rust 菜单         | `src-tauri/src/menu.rs`                    |
+| Rust 错误模型     | `src-tauri/src/error.rs`                   |
+| Tauri 配置        | `src-tauri/tauri.conf.json`                |
+| NSIS 安装钩子     | `src-tauri/nsis-hooks.nsh`                 |
+| Cargo 配置        | `src-tauri/Cargo.toml`                     |
+| 前端入口          | `src/main.ts`                              |
+| 前端协调层        | `src/App.vue`                              |
+| 编辑器组件        | `src/components/Editor/MarkdownEditor.vue` |
+| 文档生命周期      | `src/composables/useDocumentSession.ts`    |
+| 窗口会话管理      | `src/composables/useAppWindowSession.ts`   |
+| IPC 服务层        | `src/services/tauri/`                      |
+| 命令名登记        | `src/services/tauri/command-names.ts`      |
+| Tailwind 配置     | `tailwind.config.js`                       |
+| Vite 配置         | `vite.config.ts`                           |
+| 架构文档          | `ARCHITECTURE.md`                          |
+| 运行故障排查      | `docs/TROUBLESHOOTING.md`                  |
+| **正式发布流程**  | **`docs/RELEASE_PROCESS.md`**              |
 
 ### 8.5 常用命令速查
 
@@ -557,7 +566,7 @@ bun run build:tauri             # Tauri 全量构建（含 Rust + 打包）
 M:\temp\build_solo_full.bat     # 前端 + Rust 编译
 M:\temp\build_solo_tauri.bat    # 完整打包（含安装包）
 
-# 发布（新增 — 详见 RELEASE_PROCESS.md）
+# 发布（新增 — 详见 docs/RELEASE_PROCESS.md）
 git tag v1.x.x && git push origin v1.x.x   # 触发 CI 发布
 bun run test                    # 运行 Vitest 测试
 bun run lint                    # ESLint 检查
@@ -592,4 +601,3 @@ Project: 1.3.14
 ---
 
 > **最后提醒**：编译环境最大的敌人是**环境变量和目录**。每次报错先确认：当前在哪个目录、环境变量设对了没有、`vcvars64.bat` 执行了没有。保持冷静，按文档一步步来，你一定能编译成功。
-

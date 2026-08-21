@@ -1,3 +1,13 @@
+---
+title: UI 改造交接文档
+type: guide
+audience: agent
+status: active
+tags: [UI, 交接, 红线, 回滚]
+summary: UI 改造交接（活跃分支 refactor/editor-decouple）：结构红线/回滚点/盲区
+updates: [ARCHITECTURE.md §11, design-samples/]
+---
+
 # UI 改造交接文档（给 workbuddy）
 
 > 目的：让接手方改 UI 时既能自由发挥设计，又不触断本轮重构建立的结构红线。
@@ -12,15 +22,15 @@
 - `useEditorSync`（编辑器 → 字数/大纲/光标/序列化的同步中枢）
 - `SearchPanel`（搜索面板从 MarkdownEditor 拆出为独立组件）
 
-这两个 commit 是"能回滚的干净点"：
+这两个 commit 是"能回滚的干净点"（refactor 起点的稳定地基；HEAD 已在其后继续推进，但它仍是有效回滚点）：
 
 ```
 3b3edf8  基线
 05499ce  useEditorSync 同步中枢
-3c3ea17  搜索面板拆为独立组件  ← 当前地基
+3c3ea17  搜索面板拆为独立组件  ← refactor 干净地基（可回滚点）
 ```
 
-**如果 UI 改崩了，`git reset --hard 3c3ea17` 能退回这个稳定地基从头再来。放心大胆画，画崩了能退。**
+**如果 UI 改崩了，`git reset --hard 3c3ea17` 能退回这个稳定地基从头再来（注意：这会丢弃 3c3ea17 之后的所有提交，仅在你自己搞崩 UI 时使用，勿随意执行）。放心大胆画，画崩了能退。**
 
 ---
 
@@ -96,7 +106,7 @@
 
 ```
 bunx vue-tsc --noEmit
-bun run test        # 31 文件 1029 用例
+bun run test        # 测试数随用例增减，以实际输出为准（勿硬编码）
 bun run build
 ```
 

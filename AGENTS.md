@@ -1,3 +1,20 @@
+---
+title: solo 项目工作手册
+type: core
+audience: agent
+status: active
+tags: [核心文档, 纪律, 导航, 文档地图]
+summary: AI/开发者必读第一站：工作纪律、文档地图、SSOT 规范、历史经验沉淀
+updates:
+  [
+    ARCHITECTURE.md,
+    BUILD_GUIDE.md,
+    docs/KNOWN-ISSUES.md,
+    docs/INDEX.md,
+    docs/project_rules：工作原则和纪律.md,
+  ]
+---
+
 # solo 项目工作手册
 
 > 给 AI 和开发者的快速入门 + 纪律约束 + 文档地图。
@@ -36,7 +53,7 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 1. **先升版本号**（3 个文件：[package.json](./package.json) / [Cargo.toml](./src-tauri/Cargo.toml) / [tauri.conf.json](./src-tauri/tauri.conf.json)）
 2. **检查 `replaceAll`**：TS target ES2020，用 `.split().join()` 替代
 3. 确认 tag 名与版本号一致（`v1.x.x`）
-4. 完整流程见 [RELEASE_PROCESS.md](./RELEASE_PROCESS.md)
+4. 完整流程见 [docs/RELEASE_PROCESS.md](./docs/RELEASE_PROCESS.md)
 
 ### 提交前
 
@@ -64,7 +81,7 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 ### 一、单一真实源（SSOT）
 
 - 每个事实只在一处写（真理源），别处只放「一句指向它的话 + 链接」，不抄内容。
-- 已知真理源地图：技术栈/版本 → `ARCHITECTURE.md`；发版流程 → `RELEASE_PROCESS.md`；bug 易发区 → `ARCHITECTURE.md §11`；问题排查 → `docs/debugging.md` + `docs/KNOWN-ISSUES.md`；文档索引 → `docs/INDEX.md`；版本历史 → `CHANGELOG.md`；代码真相 → 以代码为准（不以注释/文档/记忆）。
+- 已知真理源地图：技术栈/版本 → `ARCHITECTURE.md`；发版流程 → `docs/RELEASE_PROCESS.md`；bug 易发区 → `ARCHITECTURE.md §11`；问题排查 → `docs/debugging.md` + `docs/KNOWN-ISSUES.md`；文档索引 → `docs/INDEX.md`；版本历史 → `docs/CHANGELOG.md`；代码真相 → 以代码为准（不以注释/文档/记忆）。
 - 代码层面的 SSOT 细则（命令名/定义/字体/主题等真理源）见 `ARCHITECTURE.md` §11.6。
 
 ### 二、不要重复自己（DRY）
@@ -92,19 +109,58 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 
 - 每改一处，立刻复查语法、逻辑、交叉引用（死链）——不止改完才查。
 
+### 六、frontmatter 标准（每份文档必带，AI 识别第一道门）
+
+> 全仓库 markdown 文档（README 系列除外——它们是对外产品页）顶部必须有 YAML frontmatter，字段如下：
+
+```yaml
+---
+title: 文档名（人类可读）
+type: core | guide | principle | proposal | archive | product
+audience: user | dev | agent | maintainer
+status: active | proposal | archive | deprecated
+tags: [主题标签，小写英文，逗号分隔]
+summary: 一句话摘要（≤40 字，说明本文是什么、给谁用）
+updates: [本文事实来源 / 联动对象——改这些代码或文档必须回查本文]
+---
+```
+
+- `type` 取值：**core**（全项目真理源：ARCHITECTURE/BUILD_GUIDE/AGENTS/KNOWN-ISSUES/CHANGELOG/RELEASE_PROCESS/INDEX）· **guide**（指南/手册）· **principle**（原则/理念）· **proposal**（未执行提案）· **archive**（历史快照/归档）· **product**（对外产品导览）
+- `audience`：**user**（终端用户）· **dev**（开发者）· **agent**（AI 代理）· **maintainer**（维护者/发布者）
+- 标准定义真理源在本节；文档全量清单、每份的 tag/摘要见 [docs/INDEX.md](./docs/INDEX.md)。
+
+### 七、文档联动纪律（每次修改必走，保证信息同步）
+
+> 目标：改一处，牵一发动全身的文档自动跟上，不再出现"代码改了文档没改"。
+
+1. **改代码前**：查目标文件相关的文档 frontmatter `updates` 字段——凡是 `updates` 里列了本文档/代码的，必须一起检查是否需要同步更新。
+2. **改完跑死链扫描**：`grep -rn "<改动文件名>" 仓库 --include="*.md"`，确认所有引用仍然有效；删文件走 §三 L2 纪律（先改引用再删）。
+3. **事实变化时**：更新对应文档 frontmatter 的 `status`（如 active→archive）与 `summary`，不硬撑过期内容。
+4. **新增文档**：必须带完整 frontmatter + 在 `docs/INDEX.md` 登记一行 + 在本文档地图（如需）加一行。
+5. **最小联动矩阵**（改 X 必查 Y）：
+
+| 改什么                       | 必查/必改                                                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Tauri 命令（新增/改名/删除） | `src/services/tauri/command-names.ts`（命令名真理源）→ `ARCHITECTURE.md`（命令清单 22）→ `docs/HANDOVER.md` 真理源表 |
+| 字体/主题/排版 CSS           | `ARCHITECTURE.md`（技术栈/目录）→ `docs/font-handling.md` → `docs/ui-typography-eval.md`                             |
+| parser/serializer            | roundtrip 测试 + `docs/cjk-boundary.md`（CJK 边界）                                                                  |
+| 发版相关（版本号/tag/CI）    | `CHANGELOG.md` → `docs/RELEASE_PROCESS.md` → `docs/PUBLISH_GUIDE.md` → `docs/发布流程科普*.md`                       |
+| 设置项/面板                  | `docs/archive/settings-audit-report.md`（历史审计结论）→ `KNOWN-ISSUES.md`                                           |
+| 版本号变更                   | `package.json` / `Cargo.toml` / `tauri.conf.json` 三处同步 → `CHANGELOG.md` → `docs/SECURITY.md`（当前版本字段）     |
+
 ---
 
 ## 文档地图
 
 | 读者                  | 先读这个                                                 | 再看这个                                                                                                                                                                                                            |
 | --------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **新接手**            | [HANDOVER.md](./HANDOVER.md)                             | [AGENTS.md](./AGENTS.md) → [ARCHITECTURE.md](./ARCHITECTURE.md)                                                                                                                                                     |
+| **新接手**            | [docs/HANDOVER.md](./docs/HANDOVER.md)                   | [AGENTS.md](./AGENTS.md) → [ARCHITECTURE.md](./ARCHITECTURE.md)                                                                                                                                                     |
 | **找 bug / 定位问题** | [ARCHITECTURE.md §11](./ARCHITECTURE.md)（敏感区速查表） | [docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md) → [docs/debugging.md](./docs/debugging.md)                                                                                                                           |
 | **查技术决策**        | [.opencode/PROFILE.md](./.opencode/PROFILE.md)           | [ARCHITECTURE.md](./ARCHITECTURE.md)                                                                                                                                                                                |
 | **改 CJK 边界**       | [docs/cjk-boundary.md](./docs/cjk-boundary.md)           | [src/components/Editor/tiptap/markdown/parser.ts](./src/components/Editor/tiptap/markdown/parser.ts) / [src/components/Editor/tiptap/markdown/serializer.ts](./src/components/Editor/tiptap/markdown/serializer.ts) |
-| **发新版本**          | [docs/PLAYBOOK.md](./docs/PLAYBOOK.md)                   | [RELEASE_PROCESS.md](./RELEASE_PROCESS.md) → [.github/workflows/release.yml](./.github/workflows/release.yml)                                                                                                       |
-| **编译不通过**        | [BUILD_GUIDE.md](./BUILD_GUIDE.md) §7 故障排查           | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md)                                                                                                                                                                          |
-| **想贡献代码**        | [CONTRIBUTING.md](./CONTRIBUTING.md)                     | [SECURITY.md](./SECURITY.md) / [.github/](./.github/) 模板                                                                                                                                                          |
+| **发新版本**          | [docs/PLAYBOOK.md](./docs/PLAYBOOK.md)                   | [docs/RELEASE_PROCESS.md](./docs/RELEASE_PROCESS.md) → [.github/workflows/release.yml](./.github/workflows/release.yml)                                                                                             |
+| **编译不通过**        | [BUILD_GUIDE.md](./BUILD_GUIDE.md) §7 故障排查           | [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)                                                                                                                                                                |
+| **想贡献代码**        | [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md)           | [docs/SECURITY.md](./docs/SECURITY.md) / [.github/](./.github/) 模板                                                                                                                                                |
 
 ### 快速链接
 
@@ -112,12 +168,9 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 
 ## 关键约束速查
 
-- **TS target**: ES2020（禁止 `replaceAll`）
-- **构建**: `bun run build`（vue-tsc + vite）→ `bunx tauri build`
-- **测试**: `bun run test`（Vitest + happy-dom），测试数随用例增减，以实际输出为准
-- **Rust**: 1.96.0，edition 2021，`CARGO_HOME=M:\rust\.cargo`
-- **MSVC**: Build Tools v14.44，路径 `M:\VS\BuildTools`
-- **Bun**: 1.3.14（工具链版本 / 环境变量 / 编译命令以 [BUILD_GUIDE.md](./BUILD_GUIDE.md) 为唯一真理源，本文仅摘要点）
+- **TS target**: ES2020（禁止 `replaceAll`，用 `.split().join()` 替代）—— 编码纪律，详见 `tsconfig.json`
+- **构建 / 测试 / 工具链版本 / 环境变量 / 编译命令**：以 [BUILD_GUIDE.md](./BUILD_GUIDE.md)（构建手册唯一真理源）为准，本文不重复罗列
+- **技术栈与精确依赖版本**：以 [ARCHITECTURE.md §1](./ARCHITECTURE.md)（技术栈实测表）为准
 
 ## 积压待办
 
@@ -126,7 +179,7 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 
 当前待办（2026-08-14 更新）：
 
-- **（已修复）打开含 Mermaid 的文档，未作任何修改却显示「未保存」**：交互门控方案已落地（2026-08-14），`onUpdate` 改为只有用户真实交互过才标脏，免疫插件后台事务。详情见 [KNOWN-ISSUES.md §二 #4](./docs/KNOWN-ISSUES.md)。**注**：A1 重构后脏态统一由 `file.ts` 的 `syncEditedContent()` 语义比对抗源（不再依赖 `markUserEdit`/交互门控），旧方案已成历史实现——现状以 [ARCHITECTURE.md §7.1/§11.1](./ARCHITECTURE.md) 为准。
+- **（已修复）打开含 Mermaid 的文档，未作任何修改却显示「未保存」**：交互门控方案已落地（2026-08-14），`onUpdate` 改为只有用户真实交互过才标脏，免疫插件后台事务。详情见 [KNOWN-ISSUES.md §一 #8](./docs/KNOWN-ISSUES.md)。**注**：A1 重构后脏态统一由 `file.ts` 的 `syncEditedContent()` 语义比对抗源（不再依赖 `markUserEdit`/交互门控），旧方案已成历史实现——现状以 [ARCHITECTURE.md §7.1/§11.1](./ARCHITECTURE.md) 为准。
 - **字体 @font-face 优化的 prod CSP 验证**：CSS @font-face + asset URL 方案已落地（2026-08-14），有 `readFontBytes` fallback 兜底，但 prod CSP 验证待发版时做。
 
 ## 历史经验沉淀
@@ -165,7 +218,7 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
   3. **v1.2.38 才修对真正根因**：Tauri 在 `tauri build` 时自动往 CSP 的 `style-src` 注入随机 nonce。按浏览器规范，一旦 `style-src` 含 nonce，`'unsafe-inline'` 被忽略。mermaid `render()` 时通过 innerHTML 注入 `<style>` 到 SVG，没带 nonce → 被 CSP 静默拦截 → 所有形状回退到黑色填充。
      **为什么三版才修对**：① **Tauri dev 不附加 CSP，prod 才附加**——`tauri dev` 走 localhost 不附加 CSP，`tauri build` 走 `tauri://localhost` 才附加含 nonce 的 CSP。所以 dev 永远验证不了 CSP 问题，这是"dev 正常 prod 黑"的根本机制。② **又在猜原因而非看报错**——1.2.37 修 manualChunks 是基于"chunk 加载失败"的推测，没在 prod 开 DevTools 看 Console。CSP 违规会有明确报错，看了直接就能定位。AGENTS.md 已有"连续两版都没修对因为都在猜"的教训（字体问题），本次又犯一次。
      **教训**：① **CSP 相关问题不能用 `tauri dev` 验证**，必须 `tauri build` 后跑真实 release 二进制。② **任何"运行时 innerHTML 注入 `<style>`"的库**（mermaid/lit/KaTeX 等）在 Tauri prod 下都会踩 CSP nonce 的坑，解法是 `dangerousDisableAssetCspModification: ["style-src"]`（`script-src` 的 nonce 保留，XSS 防护不降级）。③ **prod-only 问题必须在 prod 开 DevTools 看真实报错**，不能靠猜。证据：frenetik.mdlite PR #68（完全相同现象）+ Tauri 官方 issue #3831（lit 库同类问题，促成了 `dangerousDisableAssetCspModification` 选项）+ Tauri CSP 文档。
-- **性能优化批量修复（2026-08-14）**：对照两轮排查出的 12 项性能问题清单逐项落地，9 项已修复、3 项经评估跳过。完整方案见 `.dumate/inbox/性能优化修复方案.md`。
+- **性能优化批量修复（2026-08-14）**：对照两轮排查出的 12 项性能问题清单逐项落地，9 项已修复、3 项经评估跳过。完整方案见 git 历史（性能优化修复方案文档已退役删除，9 项修复均已落地）。
   1. **#1 Mermaid 误标脏 → 交互门控（已被 A1 取代）**：早期 `onUpdate` 里 `markUserEdit()` 无条件标脏，Mermaid 异步渲染等插件后台事务触发误标。当时的修复：文档加载/切换时武装门控（`userInteracted = false`），capture 阶段监听 keydown/pointerdown/beforeinput/compositionstart，首个用户事件放行后才允许标脏。**教训**：不去纠结后台事务从哪来，换个判定标准（用户是否真实交互过）更彻底——对触发源免疫，不依赖定位那个"幽灵事务"。KNOWN-ISSUES 给的修法①（判断 preventUpdate meta）无效，因为 TipTap 在 emit update 之前已过滤掉带 preventUpdate 的事务，`onUpdate` 回调里拿到的事务必然不带 preventUpdate。
      **现状（A1 重构）**：脏态已统一改由 `file.ts::syncEditedContent()` 语义比对（规范化尾换行后比较）作为唯一真相源，`markUserEdit`/`userInteracted` 交互门控均已废弃——A1 同时根治漏标脏（拖入图片）与误标脏（Mermaid 后台事务），比交互门控更彻底。详见 [ARCHITECTURE.md §7.1/§11.1](./ARCHITECTURE.md)。
   2. **#2 Rust 同步命令阻塞 → async + spawn_blocking**：9 个同步命令（open/save/rename/import/clipboard/authorize/resolve）全在 Tauri 主线程跑，大文件 IO 卡死 UI。修复：全部改 `async fn`，IO 逻辑进 `tauri::async_runtime::spawn_blocking`，校验逻辑（trim/非法字符/stem 剥离/parse_data_url）留主线程，9 个测试改 `#[tokio::test]`。**教训**：Tauri 同步命令跑在主线程，异步命令才跑在 tokio 线程池——大文件读写必须异步化；`generate_handler!` 和 `commands/mod.rs` re-export 不用改（函数名不变，Tauri 自动识别 async）。

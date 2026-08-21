@@ -1,6 +1,16 @@
+---
+title: solo 发布剧本
+type: guide
+audience: maintainer
+status: active
+tags: [发布, 剧本, 工作流]
+summary: 发布全生命周期剧本（A–F 六阶段总纲）
+updates: [docs/RELEASE_PROCESS.md, .github/workflows/release.yml]
+---
+
 # solo 发布剧本（Release Playbook）
 
-> **全生命周期总纲。** 发布机制的细节见 [`RELEASE_PROCESS.md`](../RELEASE_PROCESS.md)（本剧本的 Phase E/F 子文档）。
+> **全生命周期总纲。** 发布机制的细节见 [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md)（本剧本的 Phase E/F 子文档）。
 > **受众**：人 + AI agent。两者都要能照着走、不漏步、不踩已知坑。
 > **目标**：流程清晰、执行规范、效率更高。
 > **核心原则**：**判断归人，机械归脚本。** 前半段（梳理/讨论/决策）靠人；后半段（校验/构建/发布）交给 `scripts/release-gate.ps1`。
@@ -45,7 +55,7 @@ A 文档梳理 ──▶ B 问题盘点 ──▶ C 优化提案 ──▶ D 提
 
 ## Phase C — 优化提案（判断 → 执行）
 
-> 这是 7-20 验证过的好模式（`ui-optimization-proposal.md` 提案 → 批准 → 分步执行 → 每步自检）。固化下来。
+> 这是 7-20 验证过的好模式（UI/交互优化提案 → 批准 → 分步执行 → 每步自检；提案原文已退役，落地全貌见 git 历史）。固化下来。
 
 1. **写提案文档**（`docs/<主题>-proposal.md`）：目标、方案、影响面、分步计划。
 2. **用户批准后才动手**（共识前置，见 SOUL.md 工作纪律）。
@@ -71,7 +81,7 @@ A 文档梳理 ──▶ B 问题盘点 ──▶ C 优化提案 ──▶ D 提
 
 ## Phase E — 发布（机械 · 脚本化）
 
-> 机制细节见 [`RELEASE_PROCESS.md`](../RELEASE_PROCESS.md)。本阶段用 `scripts/release-gate.ps1` 跑两道闸门，消灭手滑与易忘。
+> 机制细节见 [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md)。本阶段用 `scripts/release-gate.ps1` 跑两道闸门，消灭手滑与易忘。
 
 ### PreTag 闸门（打 tag 前）
 
@@ -107,7 +117,7 @@ pwsh scripts/release-gate.ps1 -Stage PostCI
 - **入口**：E 完成（已 `published`）。
 - **动作**：
   - 已安装旧版 → 设置/通用/检查更新 → 确认弹新版 → 下载/安装/重启成功。
-  - 走 [`RELEASE_PROCESS.md`](../RELEASE_PROCESS.md) §10.4 手动回归（图片/路径/边界/升级）。
+  - 走 [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md) §10.4 手动回归（图片/路径/边界/升级）。
 - **出口关卡**：✅ 自动更新实测通过 + 回归清单全勾。
 - **收尾**：CHANGELOG 版本记录（已在 D 的 doc 提交里做）、CHANGELOG 对齐。
 

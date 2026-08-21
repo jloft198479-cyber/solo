@@ -1,3 +1,13 @@
+---
+title: solo 架构文档
+type: core
+audience: dev
+status: active
+tags: [核心文档, 架构, 技术栈, 命令清单, 敏感区]
+summary: 代码真相权威地图：技术栈版本/命令清单/目录树/§11 敏感区速查表
+updates: [package.json, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tauri/src/lib.rs, BUILD_GUIDE.md, docs/font-handling.md, docs/KNOWN-ISSUES.md]
+---
+
 # solo 架构文档
 
 > **目标**：让任何开发者（人或 AI）在 15 分钟内建立完整、准确的心智模型，并能定位到任意功能的改动入口。
@@ -43,8 +53,8 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables +
 
 | 层 | 技术 | 版本 | 备注 |
 |---|---|---|---|
-| 桌面框架 | Tauri | 2.x | 无边框窗口、自定义标题栏、CLI（多进程）、OS-open |
-| 原生核心 | Rust | — | thiserror + serde + reqwest + winreg(Windows) |
+| 桌面框架 | Tauri | 2.11.2 | 无边框窗口、自定义标题栏、CLI（多进程）、OS-open |
+| 原生核心 | Rust | 1.96.0 | edition 2021, opt-level=3；thiserror + serde + reqwest + winreg(Windows) |
 | 前端框架 | Vue 3 | 3.5 | Composition API + `<script setup>` |
 | 语言 | TypeScript | ~6.0 | strict 模式 |
 | 状态管理 | Pinia | 3.x | 2 个 store：file / settings |
@@ -172,7 +182,7 @@ md-editor/
 │   │   │       ├── useEditorAppearance.ts# 字体/主题/代码高亮注入
 │   │   │       ├── useEditorSearch.ts    # 编辑器内搜索替换
 │   │   │       ├── editor.css            # 编辑区排版（消费 --mk-* 变量）
-│   │   │       ├── extensions/           # 14 个自定义扩展
+│   │   │       ├── extensions/           # 21 个自定义扩展（详见 §8.3）
 │   │   │       └── markdown/             # parser / serializer / plugins
 │   │   ├── Settings/             #   设置面板（15 个 .vue）
 │   │   ├── Layout/               #   CustomTitlebar / WindowResizeHandles / ErrorBoundary
@@ -197,7 +207,7 @@ md-editor/
 │   ├── themes/                   #   主题系统
 │   │   ├── types.ts              #   Theme / ThemeColors / ThemeTypography
 │   │   ├── manager.ts            #   applyTheme：注入颜色 + 排版变量
-│   │   └── presets/              #   6 套预设 JSON（见 §10.1）
+│   │   └── presets/              #   8 套预设 JSON（见 §10.1）
 │   │
 │   ├── utils/
 │   │   ├── fontStack.ts          #   buildFontStack：统一字体栈（编辑器+导出共享）
@@ -214,7 +224,7 @@ md-editor/
 │   │   ├── state.rs              #   StartupOpenRequests / LoadedWindows
 │   │   ├── models.rs             #   所有 DTO
 │   │   ├── error.rs              #   AppError + 结构化序列化
-│   │   ├── events.rs             #   3 个事件常量 + emit 函数
+│   │   ├── events.rs             #   2 个事件常量 + emit 函数
 │   │   ├── menu.rs               #   原生菜单构建 + attach_menu_events
 │   │   └── commands/
 │   │       ├── mod.rs            #     命令汇总导出
@@ -231,12 +241,11 @@ md-editor/
 │   ├── tauri.conf.json           #   Tauri 配置（productName=solo）
 │   └── Cargo.toml
 │
-├── docs/                         # 项目文档（CJK/网络代理/重构报告等）
+├── docs/                         # 项目文档（CJK/网络代理/重构报告/发版流程等）
 ├── AGENTS.md                      # 工作手册（AI 快速入门 + 纪律约束）
 ├── ARCHITECTURE.md                # ← 本文档（代码真相，权威）
-├── RELEASE_PROCESS.md             # 正式发布流程
 ├── BUILD_GUIDE.md                 # 编译手册
-├── TROUBLESHOOTING.md             # 故障排查
+├── docs/TROUBLESHOOTING.md        # 故障排查（用户侧，已归 docs/）
 ```
 
 ---
@@ -271,7 +280,7 @@ md-editor/
 | `fetch_font_data` | font.rs | 远程字体下载（返回 base64） |
 | `get_cached_font_path` | font.rs | 字体缓存路径查询 |
 | `save_font_cache` | font.rs | 字体缓存写入磁盘 |
-| `read_font_bytes` | font.rs | 读取字体字节（经 IPC 取字节 → FontFace 同源加载，绕开 asset:// CORS 静默拦截） |
+| `read_font_bytes` | font.rs | 读取字体字节（经 IPC 取字节 → FontFace 同源加载；**字节通道兜底**，首选 CSS @font-face 注入 asset:// URL，见 §10.3） |
 | `set_window_background_color` | window.rs | macOS 窗口背景（NSColor） |
 | `register_shell_new` | desktop.rs | Windows 右键"新建 Markdown"注册表 |
 | `unregister_shell_new` | desktop.rs | Windows 右键"新建 Markdown"注销 |
@@ -279,7 +288,7 @@ md-editor/
 | `startup_ready` | lib.rs | 前端 ready 信号，触发窗口显示 + 启动开打请求回放（原 `consume_startup_open_request`） |
 | `new_editor_window` | lib.rs | 创建新编辑器窗口（原子递增 label） |
 | `reveal_startup_open_log` | lib.rs | 返回 startup-open.log 路径（调试启动开打竞态） |
-| `exit_app` | lib.rs | 退出整个应用（多窗口场景） |
+| `request_app_quit` | window.rs | 应用级退出：向所有已加载窗口定向发 `window-close-requested`，各窗口自行确认/保存后关闭，全部关闭后进程自然退出（原 `exit_app` 强杀进程，多窗口丢未保存内容） |
 | `detect_proxy_for_update` | lib.rs | 检测系统代理（给自动更新用，见 `autoCheckForUpdate`） |
 
 > **共 22 个命令**。
@@ -510,7 +519,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 **主题三层结构（2026-08-21 确立）**：
 - **范式层**：`types.ts::CSS_VAR_MAP`（token 全集）+ `manager.ts::SHARED_LIGHT/DARK_COLORS`（共享默认值：功能色/圆角/markBg/btnGhostBg/modalOverlay）+ `editor.css :root` 排版默认值。
-- **实例层**：**6 套 preset JSON**（`presets/`）：`scholar-light` / `scholar-dark` / `elegant` / `cinnabar` / `cinnabar-dark` / `default`（**无 `gray-domain`**——旧文档列 7 套已过时）。每套**只写性格差异字段**，共享值一律收进 `SHARED_LIGHT/DARK_COLORS`，禁止复制进各主题。
+- **实例层**：**8 套 preset JSON**（`presets/`）：`scholar-light` / `scholar-dark` / `elegant` / `cinnabar` / `cinnabar-dark` / `default` / `jade` / `orchid`（**无 `gray-domain`**——旧文档列 7 套已过时）。每套**只写性格差异字段**，共享值一律收进 `SHARED_LIGHT/DARK_COLORS`，禁止复制进各主题。
 - **消费层**：所有渲染层只引用 `var(--x)`。
 
 支持自定义主题 CRUD、导入导出、旧格式（light/dark 双色文件）迁移（`importTheme` 兼容现代与 legacy）。`applyTheme` 附带 `.theme-transitioning` 200ms + 编辑区 `triggerContentCrossfade` 220ms 淡入 + 透传到 localStorage `solo-theme-paint`。
@@ -523,7 +532,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 - `constants/fonts.ts`：`FONT_OPTIONS`（**7 项**）：系统默认（`system-ui`）/ 微软雅黑 UI / 思源宋体(`NotoSerifSC-Regular.otf`) / 朱雀仿宋(`ZhuqueFangsong-Regular.ttf`) / 小赖字体(`XiaolaiSC-Regular.ttf`) / 霞鹜文楷 Lite(`LXGWWenKai-Regular.ttf`) / 汇文明朝(`Huiwen-mincho-Regular.otf`)。**有 `fileName` = 下载型字体；`undefined` = 系统字体**（`FontPopover` 与 `SettingsFontSelect` 共用此清单）。
 - `utils/fontStack.ts`：`buildFontStack(primary)` —— 按字体类型生成带中文 fallback 的完整 font-family 栈，**编辑器与导出端共享**，消除两端不一致。
-- `services/fontLoader.ts`：远程字体按需下载 + 文件系统缓存 + **字节通道** FontFace 注册（经 IPC `readFontBytes` 取字节 → `new FontFace(family, bytes)` 同源加载，**绕开 asset:// 协议的 CORS 静默拦截**），系统字体跳过，已加载缓存复用，加载中去重。
+- `services/fontLoader.ts`：远程字体按需下载 + 文件系统缓存 + **CSS @font-face 注入（首选）** + 字节通道（兜底）。首选 `registerFontViaCss` 调 `toAssetUrl` 注入 `@font-face{src:url(asset://...)}`（浏览器内核直读磁盘，不走 CORS）；失败回退 `readFontBytes` IPC 取字节 → `new FontFace(family, bytes)` 同源加载。系统字体跳过，已加载缓存复用，加载中去重。
 - 字体系统深度专题与踩坑总结见 [`docs/font-handling.md`](./docs/font-handling.md)（含 CORS 陷阱、资源错配、验证方法论、排查决策树）。
 
 ---
@@ -543,7 +552,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 7 | 命令名 / 定义真理源 | [`command-names.ts`](./src/services/tauri/command-names.ts) + [`registry.ts`](./src/commands/registry.ts) | 附录 B |
 | 8 | 主题色彩/排版注入（三层结构） | [`themes/manager.ts`](./src/themes/manager.ts) + [`types.ts`](./src/themes/types.ts) | §10.1 |
 | 9 | 多窗口进程模型 | [`lib.rs`](./src-tauri/src/lib.rs) | — |
-| 10 | 构建环境 | 见 [`docs/debugging.md`](./docs/debugging.md) + [`HANDOVER.md`](./HANDOVER.md) | — |
+| 10 | 构建环境 | 见 [`docs/debugging.md`](./docs/debugging.md) + [`docs/HANDOVER.md`](./docs/HANDOVER.md) | — |
 | 11 | 字体渲染 CORS + 资源错配 | [`fontLoader.ts`](./src/services/fontLoader.ts) + [`font.rs`](./src-tauri/src/commands/font.rs) | [字体手册](./docs/font-handling.md) |
 
 ### 11.1 脏态机制不可随意改动（A1 语义比对模型）
@@ -581,7 +590,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 - 字体清单只在 `fonts.ts`，字体栈只在 `fontStack.ts`。
 - 主题色彩映射只在 `types.ts::CSS_VAR_MAP`：**任何要跟随主题切换的颜色，必须同时在 `ThemeColors` 接口与 `CSS_VAR_MAP` 登记，禁止只在 `main.css` 写死某个颜色**——否则切预设主题时该色不随主题变化（参考 2026-07-21「状态栏未保存指示不随主题」bug：`--dirty-color` 漏登记导致始终回退书卷气默认值）。
 - **设计体系规则（2026-08-21 确立，全格式覆盖）**：solo 之内的一切视觉颜色都必须来自主题 token（`--*` CSS 变量），**按产品设计定义，不按依赖关系**——外部依赖（highlight.js / mermaid / KaTeX 等）只要渲染在 solo 界面内，其颜色同样必须走 token 映射，禁止加载外部主题或硬编码色值：
-  - 主题三层结构：范式（token 全集，`types.ts::CSS_VAR_MAP` + `editor.css :root` 排版默认 + `manager.ts::SHARED_LIGHT/DARK_COLORS` 共享默认）→ 实例（6 个 preset JSON，只写性格 token）→ 消费（渲染层只引用 `var(--x)`）。
+  - 主题三层结构：范式（token 全集，`types.ts::CSS_VAR_MAP` + `editor.css :root` 排版默认 + `manager.ts::SHARED_LIGHT/DARK_COLORS` 共享默认）→ 实例（8 个 preset JSON，只写性格 token）→ 消费（渲染层只引用 `var(--x)`）。
   - 代码语法高亮：`editor.css` 的 `.hljs-*` → 主题 token 映射（**禁止**加载 highlight.js 外部配色，见 `useEditorAppearance.ts`）。
   - Mermaid 图表：`mermaid-block.ts::buildMermaidConfig` 用 `getComputedStyle` 读当前主题 CSS 变量注入 `themeVariables`（theme: 'base'，**禁止** mermaid 内置 default/dark 主题与硬编码提亮）。
   - 新增任何"带颜色的格式"时先回答：它的颜色进 token 全集了吗？进不了就拒绝实现或收编。
@@ -644,7 +653,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 脏态用 `setContent` + `markUserEdit` 双函数（按 hasUserEdit 标志判定） | **A1 重构**：改为 `setContent`（仅基线）+ `syncEditedContent`（语义比对唯一真相源），`hasUserEdit`/`markUserEdit` 已废弃，见 §7.1 / §11.1 |
 | composables 10 个 / `utils/shortcuts.ts` 存在 | **实际 12 个**；`utils/shortcuts.ts` **已删除**（registry 内联 `getShortcut`/`getShortcutCommands`） |
 | `services/tauri/` 含 `event-names.ts`/`webview.ts`/`opener.ts`/`os.ts`/`window-state.ts` | **均不存在**。实际 10 个文件：`client`/`command-names`/`document`/`window`/`dialog`/`clipboard`/`events`/`font`/`asset`/`store`，见 §3 / §5.3 |
-| 主题 7 套（含 `gray-domain`） | **实际 6 套**：`scholar-light`/`scholar-dark`/`elegant`/`cinnabar`/`cinnabar-dark`/`default`，见 §10.1 |
+| 主题 7 套（含 `gray-domain`） | **实际 8 套**：`scholar-light`/`scholar-dark`/`elegant`/`cinnabar`/`cinnabar-dark`/`default`/`jade`/`orchid`，见 §10.1 |
 | 编辑器扩展 14 个 | **实际 21 个**（含 Frontmatter/Footnote×3/Callout/ParagraphFocus/SearchHighlight/Link/LinkOpen/Dim 等），见 §8.3 |
 | Tauri 插件 6 个 | **实际 7 个**（多 `updater`，见 `autoCheckForUpdate`） |
 | `proxy.rs` 定义 `detect_proxy_for_update` | **不存在 `proxy.rs`**；该命令定义在 `lib.rs`，见 §4.2 |
@@ -656,16 +665,6 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 ## 开发命令速查
 
-```bash
-bun install              # 装依赖
-bun run dev              # 纯前端 dev
-bun run dev:tauri        # Tauri 全栈 dev（含 Rust）
-bun run build            # 前端构建（含 vue-tsc 类型检查）
-bun run build:tauri      # 打安装包
-bun run test             # Vitest
-bun run lint             # ESLint
-bun run format           # Prettier
-cargo check --manifest-path src-tauri/Cargo.toml   # Rust 编译检查
-```
+> 所有构建 / 开发 / 测试 / 清理命令以 **BUILD_GUIDE.md §8.5（常用命令速查）** 为唯一真理源，本文不再复述，避免命令与参数在两处漂移。
 
 代码风格：Prettier（单引号/分号/尾逗号/2 空格/100 列/LF），ESLint（`no-explicit-any` 与 `no-unused-vars` 为 warn，`_` 前缀参数豁免，禁 `console.log` 但允许 `warn`/`error`）。

@@ -1,3 +1,13 @@
+---
+title: solo 字体处理经验手册
+type: guide
+audience: agent
+status: active
+tags: [字体, CORS, 经验]
+summary: 字体处理手册：asset:// @font-face 首选 + 字节兜底/资源错配/排查树
+updates: [src/services/fontLoader.ts, src-tauri/src/commands/font.rs, ARCHITECTURE.md]
+---
+
 # docs/font-handling.md — solo 字体处理经验手册
 
 > **受众**：接手者 / agent / 未来排查字体问题的任何人。
@@ -41,7 +51,7 @@
 |---|---|---|
 | I1 | **`value` 必须严格等于字体文件内部的真实 family 名** | FontFace 注册名 = 文件内部 name 表里的 family。`value` 配错 → 注册失败 / 显示 fallback。文件名（`fileName`）可随意，与 `value` 解耦。 |
 | I2 | `fileName` 用于缓存落盘 + 下载 URL，与 `value` 解耦 | 改 `value`（如对齐 Lite 真名）**不要**动 `fileName`，否则旧缓存 / release 链接全部失效。 |
-| I3 | 渲染只走字节通道：`readFontBytes` → `new FontFace(family, bytes)` | **禁止**在渲染层用 `asset://` 的 `@font-face src:url()`（见 §2.1）。 |
+| I3 | 渲染优先 `asset://` `@font-face`（浏览器内核直读盘，IPC 零字节传输）；该路径失败才回退 `readFontBytes` → `new FontFace(family, bytes)` 字节通道（见 §2.1）。prod CSP 验证通过前不得移除字节 fallback。 | 2026-08-14 起 `asset://` @font-face 为首选路径，字节通道为兜底。 |
 | I4 | 下载通道固定为 GitHub release `fonts-v1` tag | `DOWNLOAD_BASE` 写在 `fontLoader.ts`，与 app 版本号解耦——app 升版无需动字体链接。 |
 | I5 | 缓存目录 = `app_local_data_dir()/font-cache` | 真实路径 `C:\Users\<user>\AppData\Local\com.solomarkdown\font-cache`。 |
 | I6 | 下载/读取必经 `validate_font_bytes` | magic bytes（OTTO/TTF）+ 表目录 offset+length ≤ 文件大小，拒绝截断文件入缓存。 |
@@ -51,8 +61,8 @@
 1. 用户在设置选「思源宋体」→ 前端存 `value = "Noto Serif SC"`。
 2. 编辑器渲染时调用 `ensureFontLoaded("Noto Serif SC")`。
 3. `readCache` → `getCachedFontPath(family, fileName)` 问 Rust 缓存路径。
-4. 命中 → `readFontBytes(family, fileName)` 经 IPC 取回字节数组（同源，绕 CORS）。
-5. `registerFontFromBytes`：`new FontFace("Noto Serif SC", bytes)` → `await face.load()` → `document.fonts.add(face)`。
+4. 命中 → `readCache` **优先**用 `asset://` `@font-face` 注入（浏览器内核直读盘，零字节传输，`registerFontViaCss`）；注入失败才走 `readFontBytes(family, fileName)` 经 IPC 取回字节数组（同源，绕 CORS）。
+5. `registerFontFromBytes`：`new FontFace("Noto Serif SC", bytes)` → `await face.load()` → `document.fonts.add(face)`。（仅 `asset://` 路径失败时的兜底）
 6. `document.fonts.check('16px "Noto Serif SC"')` 应返回 `true`，正文即显示该字体。
 7. 未命中缓存 → `downloadAndCache`：Rust `fetch_font_data`（reqwest 走系统代理）→ 落盘 → 回到 3。
 
@@ -64,13 +74,13 @@
 
 > 每条都带「为什么错 / 表现 / 正确做法」。这些都是真金白银试出来的。
 
-### 2.1 asset:// 协议 CORS 静默拦截（最阴，核心元凶）
+### 2.1 asset:// 协议 CORS 静默拦截（历史元凶，现状已变）
 
-- **错误做法**：`@font-face { src: url("asset://...") }` + `document.fonts.load()`。
-- **为什么错**：Tauri 的 asset protocol **不返回 `Access-Control-Allow-Origin` 头**；而 CSS 字体是 CORS 保护资源，浏览器据此**静默拒收**，且 `fontFace.load()` **不抛异常**、`document.fonts.check()` 只悄悄返回 `false`。
-- **表现**：缓存文件大小完整、magic 正确（字节好好躺在磁盘），但字体**死活显示不出来**；没有任何报错可追。这就是「下载完成却显示不出来」的真身。
-- **正确做法**：`readFontBytes`（IPC 取字节）→ `new FontFace(family, bytes)` 同源加载（见 §1.3）。
-- **历史教训**：`read_font_bytes` 这个 Rust 命令 + IPC 封装早在 v1.2.33 就写好了（基础设施齐备），但**渲染层一直没接上**，长期是死代码。下次看到「有现成正确通道却没人用」，优先怀疑渲染层是不是还走老路。
+- **错误做法（旧）**：`@font-face { src: url("asset://...") }` + `document.fonts.load()`，且 asset 协议未正确配置 CORS。
+- **为什么错（旧）**：Tauri 的 asset protocol **不返回 `Access-Control-Allow-Origin` 头**；而 CSS 字体是 CORS 保护资源，浏览器据此**静默拒收**，且 `fontFace.load()` **不抛异常**、`document.fonts.check()` 只悄悄返回 `false`。
+- **表现（旧）**：缓存文件大小完整、magic 正确（字节好好躺在磁盘），但字体**死活显示不出来**；没有任何报错可追。这就是「下载完成却显示不出来」的真身。
+- **现状（2026-08-14 起）**：`asset://` `@font-face` 已重新启用为**首选加载路径**——前提是 Tauri asset 协议已正确配置（capability 授权 + 同源）。当前 `fontLoader.ts` 的 `registerFontViaCss` 即走此路径（IPC 零字节传输，浏览器内核直读盘）；**该路径失败才回退** `readFontBytes` → `new FontFace` 字节通道（见 §1.3）。原 §2.1 描述的是协议未正确配置时期的失效表现，作为历史教训保留——别再把它当成「禁用 asset://」的铁律。
+- **历史教训**：`read_font_bytes` 这个 Rust 命令 + IPC 封装早在 v1.2.33 就写好了（基础设施齐备），但**渲染层长期只接了一半**；2026-08-14 才把 asset:// 直读 + 字节兜底两条路都接上。下次看到「有现成正确通道却没人用」，优先怀疑渲染层是不是还走老路。
 
 ### 2.2 字体文件资源错配（霞鹜文楷 = Lite 轻便版）
 
@@ -170,7 +180,7 @@ bun run dev:tauri:inspect
 
 ### 4.3 绝对红线
 
-- **绝不在渲染层用 `asset://` 的 `@font-face src:url()` 加载字体**（§2.1）。
+- **`asset://` `@font-face` 可作首选加载路径（2026-08-14 起），但必须保留 `readFontBytes` 字节 fallback 兜底**；prod CSP 验证通过前不得移除 fallback（见 §2.1）。原「禁用 asset://」为协议未配置时期的结论，现已推翻。
 - **绝不在 `value` 里写文件名 / 中文 label**（FontFace 注册名必须是文件内部真实 family 名，I1）。
 - **绝不为「字体不显示」盲目加内置 80MB 资源**（§2.6），先查渲染层 CORS。
 

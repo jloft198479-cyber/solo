@@ -1,3 +1,13 @@
+---
+title: solo 外部文件监听（Agent Sync）技术方案
+type: proposal
+audience: maintainer
+status: proposal
+tags: [提案, 文件监听, watcher, 待拍板]
+summary: 外部文件监听技术方案——未执行，待拍板（加 notify 依赖需确认）
+updates: [src-tauri/src/commands/document.rs, src/composables/useDocumentSession.ts, docs/KNOWN-ISSUES.md]
+---
+
 # solo 外部文件监听（Agent Sync）技术方案
 
 > 目标：当外部程序（Claude Code / Cursor / Copilot 等 AI 工具，或任何编辑器）改了 solo 当前打开的那个 `.md` 文件时，solo 能**主动察觉**并优雅地把新内容同步进来——**不卡、不闪、不丢光标、不覆盖用户未保存的改动**。

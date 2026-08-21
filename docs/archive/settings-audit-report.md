@@ -1,3 +1,13 @@
+---
+title: Solo 设置面板深度排查报告
+type: archive
+audience: agent
+status: archive
+tags: [历史, 设置面板, 审计, 快照]
+summary: 设置面板排查历史报告（P0 死代码已清理，历史快照）
+updates: [src/components/Settings/, src/stores/settings.ts, docs/KNOWN-ISSUES.md]
+---
+
 # Solo 设置面板深度排查报告
 
 > 排查范围：`src/components/Settings/`（22 个 Vue + 3 个 TS = 25 个文件） + `src/stores/settings.ts` 13 个配置项

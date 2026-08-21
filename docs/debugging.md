@@ -1,15 +1,23 @@
+---
+title: 调试指南
+type: guide
+audience: agent
+status: active
+tags: [调试, DevTools, 本机坑]
+summary: 开发者侧调试指南（DevTools/cargo/bun 兜底/快捷键拦截层）
+updates: [TROUBLESHOOTING.md, BUILD_GUIDE.md, src-tauri/src]
+---
+
 # docs/debugging.md — 调试指南（人 + agent 共用）
 
 ## 一、前端运行时调试
 - **DevTools**：`bun run dev:tauri:inspect`（设 `SOLO_OPEN_DEVTOOLS=1` 打开 WebView2 DevTools）。
 - 日志约定：项目禁 `console.log`，仅允许 `warn`/`error`（[`AGENTS.md`](../AGENTS.md)）。排查时看 DevTools Console 的 warn/error。
-- 编辑器懒加载：窗口未获焦点时 TipTap 实例不创建 → 编辑器空白，单击编辑区触发 `lazyInitEditor`（非 bug，见 [`TROUBLESHOOTING.md`](../TROUBLESHOOTING.md) §4）。
+- 编辑器懒加载：窗口未获焦点时 TipTap 实例不创建 → 编辑器空白，单击编辑区触发 `lazyInitEditor`（非 bug，见 [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) §4）。
 
-## 二、Markdown 解析调试（草稿脚本 [`_diag.ts`](../_diag.ts)）
+## 二、Markdown 解析调试（草稿脚本 `_diag.ts`，已退役）
 - 用途：单独验证 markdown-it 的 token 流（排查加粗/中文边界等解析问题）。
-- 注意：脚本用 CommonJS `require('jsdom')`，且项目 `type:module`。**jsdom 不在 `package.json` 依赖里**，直接跑会缺模块。复用方式（二选一）：
-  - `bun add -d jsdom` 后用 `bun _diag.ts`；或
-  - 临时改 `.mjs` + 装 jsdom 后用 `node _diag.ts`。
+- 状态：该草稿脚本已于 2026-07-21 移出工作区（现位于 `.trash-垃圾站/2026-07-21/_diag.ts`）。如需复用，从回收站取回；它用 CommonJS `require('jsdom')` 且项目 `type:module`，`jsdom` 不在依赖里，需 `bun add -d jsdom` 后用 `bun _diag.ts` 跑。
 - 这是**未接入构建的草稿**，仅供手动排查，不要依赖它做 CI。
 
 ## 三、启动开打竞态调试
@@ -22,10 +30,10 @@
 - Windows 文件关联注册表（出问题时清理）：
   - `HKCU\Software\Classes\.md\ShellNew`（NullFile）
   - `HKCU\Software\Classes\solo.markdown`（ProgID / DefaultIcon 须 `,0` 结尾）
-  - 详见 [`TROUBLESHOOTING.md`](../TROUBLESHOOTING.md) 注册表表。
+  - 详见 [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) 注册表表。
 
 ## 五、Rust / 构建调试
-- `cargo check` 必须先注入 MSVC 环境（PATH/INCLUDE/LIB 指向 `M:\VS\BuildTools` + Windows SDK `10.0.26100.0`，`CARGO_HOME=M:\rust\.cargo`）。完整命令见 [`HANDOVER.md`](../HANDOVER.md) 环境段。
+- `cargo check` 必须先注入 MSVC 环境（PATH/INCLUDE/LIB 指向 `M:\VS\BuildTools` + Windows SDK `10.0.26100.0`，`CARGO_HOME=M:\rust\.cargo`）。完整命令见 [`HANDOVER.md`](./HANDOVER.md) 环境段。
 - **bun 下 segfault 的兜底**（本机 bun 1.3.14 / Windows）：
   - 类型检查：`node node_modules/vue-tsc/bin/vue-tsc.js --noEmit`
   - 构建：`node node_modules/vite/bin/vite.js build`
@@ -75,7 +83,7 @@ IME(输入法) → 原生菜单加速器(Tauri) → WebView2浏览器控件 → 
 - [bug 易发区地图（ARCHITECTURE §11）](../ARCHITECTURE.md)
 - [已知问题与技术债](./KNOWN-ISSUES.md)
 - [文档索引与术语表](./INDEX.md)
-- [接手指南](../HANDOVER.md)
+- [接手指南](./HANDOVER.md)
 - [项目工作手册](../AGENTS.md)
-- [用户侧问题排查](../TROUBLESHOOTING.md)
+- [用户侧问题排查](./TROUBLESHOOTING.md)
 - [架构权威地图](../ARCHITECTURE.md)

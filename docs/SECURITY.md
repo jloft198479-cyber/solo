@@ -1,3 +1,13 @@
+---
+title: Security Policy
+type: guide
+audience: maintainer
+status: active
+tags: [安全, 漏洞披露, 攻击面]
+summary: 安全披露政策 + 攻击面 + 当前版本号（随 package.json 更新）
+updates: [package.json, ARCHITECTURE.md §11.4]
+---
+
 # Security Policy
 
 ## 1. 项目性质与攻击面
@@ -22,7 +32,7 @@
 
 我们只对**最新正式版**提供安全修复。安全漏洞请在最新版上复现并报告。
 
-- 当前版本：`v1.2.24`（以 `package.json` 为准）。
+- 当前版本：`v1.2.39`（以 `package.json` 为准）。
 - 旧版本（< 最新版）不再单独打安全补丁；请升级到最新版。
 
 ---
@@ -39,7 +49,7 @@
 报告请包含：
 
 1. 漏洞类型（路径穿越 / 更新投毒 / XSS / 其他）
-2. 复现步骤（含环境版本，如 `v1.2.24`、Windows 版本）
+2. 复现步骤（含环境版本，如 `v1.2.39`、Windows 版本）
 3. 影响范围评估（能读到什么、能执行什么）
 4. 如有，附最小复现样例或日志路径（`%APPDATA%\solo\`）
 

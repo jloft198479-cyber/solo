@@ -1,3 +1,13 @@
+---
+title: Contributing to solo
+type: guide
+audience: dev
+status: active
+tags: [贡献指南, 提交纪律, 开发环境]
+summary: 协作规范：开发环境/提交纪律/PR 流程
+updates: [docs/SECURITY.md, ARCHITECTURE.md, AGENTS.md]
+---
+
 # Contributing to solo
 
 感谢你（无论是人类开发者，还是另一个 AI agent）愿意接手或改进 solo。
@@ -13,23 +23,23 @@
 | 顺序 | 文档 | 作用 |
 |---|---|---|
 | 1 | [`HANDOVER.md`](./HANDOVER.md) | 接手第一站：30 秒定位、环境、真理源文件 |
-| 2 | [`ARCHITECTURE.md`](./ARCHITECTURE.md) | 三层架构、决策阶梯、核心约束 |
-| 3 | [`AGENTS.md`](./AGENTS.md) | 工作纪律 + 文档地图 |
-| 4 | [`ARCHITECTURE.md §11`](./ARCHITECTURE.md) | 10 个 bug 易发区速查表，改前必看 |
-| 5 | [`docs/KNOWN-ISSUES.md`](./docs/KNOWN-ISSUES.md) | 已知问题 / 技术债 |
-| 6 | [`docs/debugging.md`](./docs/debugging.md) | 调试指南、环境坑位 |
+| 2 | [`ARCHITECTURE.md`](../ARCHITECTURE.md) | 三层架构、决策阶梯、核心约束 |
+| 3 | [`AGENTS.md`](../AGENTS.md) | 工作纪律 + 文档地图 |
+| 4 | [`ARCHITECTURE.md §11`](../ARCHITECTURE.md) | 11 个 bug 易发区速查表，改前必看 |
+| 5 | [`docs/KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) | 已知问题 / 技术债 |
+| 6 | [`docs/debugging.md`](./debugging.md) | 调试指南、环境坑位 |
 
 ---
 
 ## 1. 开发环境
 
-> **工具链版本、安装、环境变量配置、编译命令与踩坑**统一以 [BUILD_GUIDE.md](./BUILD_GUIDE.md) 为唯一真理源（§1 技术栈 / §2 安装 / §3 环境变量 / §4 编译 / §6–§7 踩坑）。本文只保留 BUILD_GUIDE 未覆盖的**本机特有坑位**。
+> **工具链版本、安装、环境变量配置、编译命令与踩坑**统一以 [BUILD_GUIDE.md](../BUILD_GUIDE.md) 为唯一真理源（§1 技术栈 / §2 安装 / §3 环境变量 / §4 编译 / §6–§7 踩坑）。本文只保留 BUILD_GUIDE 未覆盖的**本机特有坑位**。
 
 ### 1.1 本机环境坑位（重要）
 
 > 以下坑是**本机特有**，CI（GitHub windows-latest）不受影响。本地开发务必照做。
 
-- **Rust / MSVC 不在默认 PATH**：编译前需手动加载 `vcvars64.bat` 并设置 `CARGO_HOME=M:\rust\.cargo`、`RUSTUP_HOME=M:\rust\.rustup`。完整 env 设置见 [BUILD_GUIDE.md §3](./BUILD_GUIDE.md)。
+- **Rust / MSVC 不在默认 PATH**：编译前需手动加载 `vcvars64.bat` 并设置 `CARGO_HOME=M:\rust\.cargo`、`RUSTUP_HOME=M:\rust\.rustup`。完整 env 设置见 [BUILD_GUIDE.md §3](../BUILD_GUIDE.md)。
 - **bun 下 `vue-tsc` / `vite` / `vitest run <过滤>` 可能 segfault**：
   - 类型检查兜底：`node node_modules/vue-tsc/bin/vue-tsc.js --noEmit`
   - 构建兜底：`node node_modules/vite/bin/vite.js build`
@@ -50,14 +60,14 @@ bun run test                # 全量 Vitest（happy-dom），必须 0 失败
 bun run lint                # 静态检查
 ```
 
-验证标准动作见 [`docs/debugging.md` §验证标准动作](./docs/debugging.md)。
+验证标准动作见 [`docs/debugging.md` §验证标准动作](./debugging.md)。
 
 ---
 
 ## 3. 分支与提交
 
 ### 3.1 分支策略
-- 主分支：`master`（CI 在 push / PR 到 `master` / `main` 时跑测试）。
+- 主分支：`master`（CI 在 push / PR 到 `master` 时跑测试）。
 - 功能 / 修复从 `master` 切出短生命周期分支，PR 回 `master`。
 
 ### 3.2 提交信息

@@ -1,3 +1,13 @@
+---
+title: Changelog
+type: core
+audience: maintainer
+status: active
+tags: [核心文档, 版本史, 发布]
+summary: 版本变更史唯一真理源（由真实 git log 整理，发版必更新）
+updates: [package.json, src-tauri/Cargo.toml, src-tauri/tauri.conf.json]
+---
+
 # Changelog
 
 All notable changes to **solo** are documented here.
@@ -13,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **切换文档后 Ctrl+Z 回退到上一篇内容（静默数据损坏）**：TipTap `setContent` 只设 `preventUpdate` 不处理 history，撤销栈跨文档污染——切换文档后按 Ctrl+Z 会把上一篇内容换回来，随后自动保存把旧内容写进当前文件。修复：文档载入/切换改用 `addToHistory: false` + `preventUpdate` 事务整体替换，Ctrl+Z 不再跨过文档边界（同时修复首次加载后 Ctrl+Z 可撤销为空文档的问题）。
+- **多窗口应用级退出丢失其他窗口未保存内容**：菜单「退出」/ CmdOrCtrl+Q 原只确认焦点窗口脏态，随后 `app.exit(0)` 强杀进程，其余窗口的未保存修改直接丢失。修复：`exit_app` 更名为 `request_app_quit`——Rust 向所有已加载窗口定向发送 `window-close-requested`，各窗口走自己的「脏态确认 → 保存 → 关闭」链路，任一窗口取消即中止退出，全部关闭后进程自然退出。
+- **重命名成功但写内容失败后保存死锁**：rename 已落盘而 persist 失败时 store.path 停在旧路径，此后每次保存都重走 rename 分支（目标已存在）永久失败。修复：persist 失败时把 store 路径同步到已更名的磁盘实际路径（isDirty 保持 true），下次保存走正常分支直写新路径。
 - **大纲点击跳转不精准定位**：点击侧边栏标题后正文只滚到视口边缘、没对准标题。根因：`view.domAtPos` 在块节点起始边界返回编辑根容器而非标题元素，`scrollIntoView` 静默失效，只剩 focus 附带的「最小滚动」。修复：新增 `editor-dom.ts` 统一取块节点 DOM（`nodeDOM` 优先）+ 手算滚动位置，标题平滑停靠视口上方约 1/4（Obsidian/Typora 风格）；scroll-spy 高亮阈值与跳转目标对齐，跳转后高亮不再跳回上一个标题。已真窗口验证。
 
 ## [1.2.39] — 2026-08-14
@@ -339,7 +352,7 @@ v1.2.31 尝试用 blob URL 绕过 FontFace API 的 CORS 限制，但因 `command
 
 ## [1.2.21] ~ [1.2.18]
 
-- **v1.2.18 导出系统移除**（用户可见）：删除 HTML/PDF/微信导出（净删约 2500 行代码），改用状态栏「复制为 HTML」按钮把渲染后 HTML 写入剪贴板。详见 [`ARCHITECTURE.md`](./ARCHITECTURE.md) §10.2。
+- **v1.2.18 导出系统移除**（用户可见）：删除 HTML/PDF/微信导出（净删约 2500 行代码），改用状态栏「复制为 HTML」按钮把渲染后 HTML 写入剪贴板。详见 [`ARCHITECTURE.md`](../ARCHITECTURE.md) §10.2。
 - 其余为版本号同步与小修复（见对应提交 `bump version to 1.2.x`）。
 
 ---

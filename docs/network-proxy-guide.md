@@ -1,3 +1,13 @@
+---
+title: 网络与代理配置指南
+type: guide
+audience: maintainer
+status: active
+tags: [代理, 更新, 网络]
+summary: 更新检测代理配置（环境变量/注册表/端口探测 7890·10809）
+updates: [src-tauri/src/updater.rs, src-tauri/tauri.conf.json]
+---
+
 # 网络与代理配置指南
 
 > 适用对象：solo 用户（尤其是中国大陆地区用户）
@@ -20,11 +30,11 @@ solo 按以下优先级自动检测代理，命中即停：
 | 优先级 | 检测来源 | 说明 |
 |-------|---------|------|
 | 1 | 环境变量 | `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`（大小写均识别） |
-| 2 | Git 全局配置 | `git config --global http.proxy` |
-| 3 | Windows 注册表 | 系统代理设置（Internet 选项中的代理服务器） |
-| 4 | 端口探测 | 自动探测 `127.0.0.1` 上的常见代理端口（7890/10809/1080/8118/8080） |
+| 2 | Windows 注册表 | 系统代理设置（Internet 选项中的代理服务器） |
+| 3 | 端口探测 | 自动探测 `127.0.0.1` 上的 `7890`(Clash) / `10809`(V2Ray) |
 
-> 如果通过环境变量或系统代理等方式正确配置了代理，检测到后即可自动用于更新请求，无需额外操作。
+> ⚠️ **Git 全局代理（`git config --global http.proxy`）不会被 solo 自动检测**（见 [`updater.rs`](../src-tauri/src/updater.rs) 的 `detect_github_proxy`：仅查环境变量 → 注册表 → 端口）。所以「`gh` 能更新但 solo 更新失败」时，需按场景 3 补设 `HTTPS_PROXY` 环境变量。
+> 端口自动探测仅覆盖 Clash(7890)/V2Ray(10809)；其他工具（如 SSR 1080、Privoxy 8118）需手动设环境变量（场景 3/4）。
 
 ## 常见场景配置
 
@@ -167,7 +177,7 @@ curl -I https://github.com
 
 ### solo 的双重注入策略（v1.2.16+）
 
-solo 在 `src-tauri/src/proxy.rs` 完成 4 级检测后，在 `src-tauri/src/lib.rs::run()` 中做了两件事：
+solo 在 `src-tauri/src/updater.rs` 的 `detect_github_proxy()` 完成 3 级检测后，在 `src-tauri/src/lib.rs::run()` 中做了两件事（`detect_proxy_for_update` 命令封装，见 lib.rs:130）：
 
 ```rust
 // 1. 设置 HTTPS_PROXY 环境变量（macOS/Linux 的 reqwest 会读取）
@@ -177,7 +187,7 @@ std::env::set_var("HTTPS_PROXY", proxy);
 updater = updater.proxy(url);  // 内部使用 reqwest::Proxy::https()
 ```
 
-双重注入确保无论用户在哪個平台，updater 都能用上检测到的代理。同时 `image.rs` / `font.rs` 的 `OnceLock<Client>` 也在构建时调用 `proxy::get_proxy()` 设置代理。
+双重注入确保无论用户在哪個平台，updater 都能用上检测到的代理。字体/图片下载共用 reqwest 的 **system-proxy feature**：`font.rs` 的 `FONT_CLIENT` 在构建时启用该 feature，自动读取环境变量 + Windows 注册表系统代理（`image.rs` 同此机制；不存在独立的 `proxy::get_proxy()` 模块）。
 
 ### 安全说明
 

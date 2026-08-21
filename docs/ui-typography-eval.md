@@ -1,11 +1,24 @@
+---
+title: 编辑区排版评估与优化方案
+type: guide
+audience: agent
+status: active
+tags: [排版, 评估, 设计留痕]
+summary: 排版微调 + 文字变浅评估（§一 为改动前快照，当前真值以 editor.css 为准）
+updates: [src/components/Editor/tiptap/editor.css]
+---
+
 # 编辑区排版评估与优化方案
 
 > 日期：2026-08-21 · 范围：编辑区内文本排版 + 「文字变浅」功能可行性
 > 状态：排版微调**已执行**（2026-08-21）；「文字变浅」**已实施**（2026-08-21，见 §二 追加记录）
+> 真理源：排版变量**当前真值以 `src/components/Editor/tiptap/editor.css` 为准**（SSOT）；本文为设计决策留痕，§一 为改动前快照（非当前值）。
 
 ---
 
-## 一、现状数据（取自代码，非推断）
+## 一、改动前快照（取自代码，非推断）
+
+> 本节为评估起始时（2026-08-21）的排版值，**非当前值**；改动后的真实值以 `src/components/Editor/tiptap/editor.css` 为准（SSOT）。
 
 来源：`src/components/Editor/tiptap/editor.css` 排版变量（`:root` 默认值，可被主题/设置覆盖）
 

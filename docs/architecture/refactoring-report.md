@@ -1,3 +1,13 @@
+---
+title: Solo 减法重构报告
+type: archive
+audience: agent
+status: archive
+tags: [历史, 重构, 快照]
+summary: 减法重构历史报告（历史快照，命令数/结构等现状以 ARCHITECTURE 为准）
+updates: [ARCHITECTURE.md]
+---
+
 # Solo 减法重构报告
 
 > 基于"做减法"理念，系统性地清除冗余代码、合并 IPC 通道、移除硬编码探测逻辑，

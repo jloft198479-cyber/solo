@@ -1,3 +1,13 @@
+---
+title: solo — Local-first Markdown editor
+type: product
+audience: user
+status: active
+tags: [产品导览, README]
+summary: Product intro/install/dev setup (English)
+updates: [README.zh-CN.md, README.ja-JP.md, README.ko-KR.md, docs/solo产品精神.md]
+---
+
 <p align="center">
   <img src="./public/icon.png" width="160" alt="solo Logo" />
 </p>
@@ -27,7 +37,7 @@ solo is a "scalpel for words" — launches instantly, stays out of your way, and
 - **WYSIWYG editing** — TipTap / ProseMirror under the hood. Type and see it rendered instantly.
 - **Multi-window** — Open multiple files in separate windows. Switch focus without losing content. Compare documents side-by-side.
 - **Extended syntax** — KaTeX math, Mermaid diagrams, GFM tables, footnotes, Frontmatter YAML, Callouts (12 colors), WikiLinks, highlighting, superscript/subscript.
-- **Elegant typography** — 6 hand-crafted themes (Scholar Light / Scholar Dark / Elegant / Cinnabar / Cinnabar Dark / Default), fully themeable. Fonts downloaded on demand.
+- **Elegant typography** — 8 hand-crafted themes (Scholar Light / Scholar Dark / Elegant / Cinnabar / Cinnabar Dark / Default / Jade / Orchid), fully themeable. Fonts downloaded on demand.
 - **Desktop-native** — Frameless window, system menu, right-click "New .md", double-click titlebar to maximize, always-on-top, auto-save.
 - **Memory-conscious** — WebView2 MemoryUsageTargetLevel on blur, lazy editor initialization, lightweight installer (uses system WebView2).
 - **Copy as HTML** — One-click rich HTML to clipboard, theme-following, what you see is what you get.

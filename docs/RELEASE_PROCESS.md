@@ -1,3 +1,13 @@
+---
+title: solo 正式发布流程
+type: core
+audience: maintainer
+status: active
+tags: [核心文档, 发布, CI]
+summary: 发版流程真理源：Phase 定义/回滚/故障处理
+updates: [docs/PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从写完代码到用户下载）.md, .github/workflows/release.yml]
+---
+
 # solo 正式发布流程
 
 > **目标**：从功能开发完成到用户收到更新的全链路标准操作程序。
@@ -35,7 +45,7 @@
 [ ] 9. 验证 release assets：版本号正确、3 个资产齐全
 [ ] 10. 发布 release（draft → published）
 [ ] 11. 在已安装版本上验证自动更新
-[ ] 12. 更新项目文档（PROFILE.md 版本历史）
+[ ] 12. 更新项目文档（CHANGELOG.md 版本历史；PROFILE.md 版本历史已于 2026-07-21 去重，统一以 CHANGELOG.md 为真理源）
 ```
 
 ---
