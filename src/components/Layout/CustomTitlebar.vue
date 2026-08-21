@@ -71,7 +71,6 @@
           <path class="pin-shape" d="M7.5 11v3M5.7 7a1.2 1.2 0 0 1-.67 1.08l-1.07.54A1.2 1.2 0 0 0 3.3 9.6v.4a.5.5 0 0 0 .5.5h7.4a.5.5 0 0 0 .5-.5v-.4a1.2 1.2 0 0 0-.67-1.08l-1.07-.54A1.2 1.2 0 0 1 9.3 7V4.5a.5.5 0 0 1 .5-.5 1.2 1.2 0 0 0 0-2.4H5.2a1.2 1.2 0 0 0 0 2.4.5.5 0 0 1 .5.5z" />
         </svg>
       </button>
-      <span class="titlebar-group-sep" />
       <button class="titlebar-btn" title="最小化" @click="emit('minimize')">
         <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor" /></svg>
       </button>
@@ -360,15 +359,6 @@ onUnmounted(() => {
 
 .titlebar-outline-btn--active {
   color: var(--primary-color);
-}
-
-/* ── 视图切换组 / 窗口控制组 分隔线 ───────────────── */
-.titlebar-group-sep {
-  width: 1px;
-  height: 16px;
-  margin: 0 4px;
-  background-color: var(--border-color);
-  flex-shrink: 0;
 }
 
 .titlebar-trigger {
