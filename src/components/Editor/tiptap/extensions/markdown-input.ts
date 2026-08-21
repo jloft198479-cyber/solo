@@ -47,6 +47,8 @@ type MarkdownInputState = {
   composing: boolean;
   forceCheck: boolean;
   suppressUntil: number;
+  /** pending heading 装饰集，随事务增量维护（P4-02） */
+  decorations: DecorationSet;
 };
 
 type PendingHeading = {
@@ -132,25 +134,33 @@ export { markdownInputPlugin, markdownInputPluginKey };
 export type { MarkdownInputState };
 
 function markdownInputPlugin(): Plugin<MarkdownInputState> {
-  let _cachedDoc: PMNode | null = null;
-  let _cachedDecorations: DecorationSet | null = null;
-
   return new Plugin<MarkdownInputState>({
     key: markdownInputPluginKey,
 
     state: {
-      init() {
-        return { composing: false, forceCheck: false, suppressUntil: 0 };
+      init(_, { doc }) {
+        return {
+          composing: false,
+          forceCheck: false,
+          suppressUntil: 0,
+          decorations: buildPendingHeadingDecorations(doc),
+        };
       },
       apply(tr, value) {
+        // 增量维护 pending heading 装饰：mapped 平移复用 + 只重算变更区间内块。
+        // 原实现 props.decorations 每次 doc 变化全文档 descendants 重建（P4-02）。
+        const decorations = tr.docChanged
+          ? updatePendingDecorations(tr, value.decorations)
+          : value.decorations;
         const meta = tr.getMeta(markdownInputPluginKey) as Partial<MarkdownInputState> | undefined;
         if (!meta) {
-          return { ...value, forceCheck: false };
+          return { ...value, decorations, forceCheck: false };
         }
         return {
           composing: meta.composing ?? value.composing,
           forceCheck: meta.forceCheck ?? false,
           suppressUntil: meta.suppressUntil ?? value.suppressUntil,
+          decorations,
         };
       },
     },
@@ -189,7 +199,9 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
             return;
           }
 
-          if (!findPendingHeading(view.state.doc)) {
+          // 装饰集非空 = 存在 pending heading（每段至少 1 条节点装饰）。
+          // 原实现这里 findPendingHeading 全文档遍历（P4-02）。
+          if (!pluginState || pluginState.decorations.find().length === 0) {
             clearCheckTimer();
             return;
           }
@@ -240,12 +252,7 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
       },
 
       decorations(state) {
-        if (state.doc === _cachedDoc && _cachedDecorations) {
-          return _cachedDecorations;
-        }
-        _cachedDoc = state.doc;
-        _cachedDecorations = buildPendingHeadingDecorations(state.doc);
-        return _cachedDecorations;
+        return markdownInputPluginKey.getState(state)?.decorations ?? DecorationSet.empty;
       },
     },
 
@@ -257,11 +264,21 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
       const docChanged = transactions.some((tr) => tr.docChanged);
       if (!docChanged && !pluginState?.forceCheck) return null;
 
-      // 单次遍历同时查找空 heading 和 pending heading，共享扫描结果
-      const { emptyHeading, pendingHeading } =
-        docChanged || pluginState?.forceCheck
-          ? scanHeadings(newState.doc)
-          : { emptyHeading: null, pendingHeading: null };
+      // 查找空 heading / pending heading：
+      // - forceCheck（settle 兜底）：全文档扫描，低频、正确性优先
+      // - 普通 docChanged：只扫最后一个变更事务的变更区间（P4-02 增量，
+      //   多变更事务的中间区间漏检由 forceCheck 兜底——正常输入单事务）
+      let emptyHeading: { pos: number; level: number } | null = null;
+      let pendingHeading: PendingHeading | null = null;
+      if (pluginState?.forceCheck) {
+        ({ emptyHeading, pendingHeading } = scanHeadings(newState.doc));
+      } else {
+        let changedTr: Transaction | null = null;
+        for (const tr of transactions) if (tr.docChanged) changedTr = tr;
+        if (changedTr) {
+          ({ emptyHeading, pendingHeading } = scanChangedRanges(changedTr, newState.doc));
+        }
+      }
 
       // 1. 空 heading 被删空 → 退回 pending heading（恢复 `# ` 前缀）。
       if (docChanged && emptyHeading) {
@@ -502,6 +519,74 @@ function scanHeadings(doc: PMNode): {
 }
 
 /**
+ * 增量版标题扫描（P4-02）：只扫 [from, to) 区间内与区间相交的块
+ * （nodesBetween 语义：起点 < to 且 结束 > from），判定与 scanHeadings 一致。
+ */
+function scanHeadingsInRange(
+  doc: PMNode,
+  from: number,
+  to: number,
+): { emptyHeading: { pos: number; level: number } | null; pendingHeading: PendingHeading | null } {
+  let emptyHeading: { pos: number; level: number } | null = null;
+  let pendingHeading: PendingHeading | null = null;
+
+  doc.nodesBetween(from, to, (node, pos) => {
+    if (emptyHeading || pendingHeading) return false;
+
+    if (node.type.name === 'heading') {
+      if (node.content.size > 0) return true;
+      const level = node.attrs.level as number;
+      if (!HEADING_LEVELS.includes(level as (typeof HEADING_LEVELS)[number])) return true;
+      emptyHeading = { pos, level };
+      return false;
+    }
+
+    if (node.type.name === 'paragraph') {
+      const match = /^(#{1,6})\s\S/.exec(node.textContent);
+      if (!match) return false;
+      pendingHeading = {
+        level: match[1].length,
+        paragraphPos: pos,
+        prefixLength: match[1].length + 1,
+      };
+      return false;
+    }
+
+    return true;
+  });
+
+  return { emptyHeading, pendingHeading };
+}
+
+/**
+ * 把事务各 step 的变更区间换算到最终文档坐标后做增量标题扫描。
+ * 坐标换算与 updatePendingDecorations 同款（from 钉前、to 钉后，纯插入才非空）。
+ */
+function scanChangedRanges(
+  tr: Transaction,
+  doc: PMNode,
+): { emptyHeading: { pos: number; level: number } | null; pendingHeading: PendingHeading | null } {
+  const docSize = doc.content.size;
+  let emptyHeading: { pos: number; level: number } | null = null;
+  let pendingHeading: PendingHeading | null = null;
+
+  for (const step of tr.steps) {
+    if (emptyHeading && pendingHeading) break;
+    step.getMap().forEach((fromA, toA) => {
+      if (emptyHeading && pendingHeading) return;
+      const from = Math.min(Math.max(tr.mapping.map(fromA, -1), 0), docSize);
+      const to = Math.min(Math.max(tr.mapping.map(toA, 1), 0), docSize);
+      if (to < from) return;
+      const result = scanHeadingsInRange(doc, from, to);
+      if (result.emptyHeading) emptyHeading = result.emptyHeading;
+      if (result.pendingHeading) pendingHeading = result.pendingHeading;
+    });
+  }
+
+  return { emptyHeading, pendingHeading };
+}
+
+/**
  * 空 heading 被删空时，转回 paragraph 并恢复 `# ` 前缀，让 pending 机制重新接管，
  * 规避空 heading 上的 IME composition 错位。
  */
@@ -549,6 +634,25 @@ export function convertPendingHeading(
   return tr.docChanged ? tr : null;
 }
 
+/** 为单个 pending heading 段落构建装饰（node + 行内前缀各一条）。 */
+function buildParagraphPendingDecorations(
+  node: PMNode,
+  pos: number,
+  match: RegExpExecArray,
+): Decoration[] {
+  const level = match[1].length;
+  return [
+    Decoration.node(pos, pos + node.nodeSize, {
+      class: `mk-pending-heading mk-pending-heading-${level}`,
+      'data-pending-heading-level': `H${level}`,
+    }),
+    Decoration.inline(pos + 1, pos + 1 + match[0].length, {
+      class: 'mk-pending-heading-prefix',
+    }),
+  ];
+}
+
+/** 首次加载：全文档构建 pending heading 装饰（一次性，后续由 updatePendingDecorations 增量维护）。 */
 function buildPendingHeadingDecorations(doc: PMNode): DecorationSet {
   const decorations: Decoration[] = [];
 
@@ -556,23 +660,51 @@ function buildPendingHeadingDecorations(doc: PMNode): DecorationSet {
     if (node.type.name !== 'paragraph') return true;
 
     const match = /^(#{1,6})\s/.exec(node.textContent);
-    if (!match) return false;
+    if (!match) return true;
 
-    const level = match[1].length;
-    decorations.push(
-      Decoration.node(pos, pos + node.nodeSize, {
-        class: `mk-pending-heading mk-pending-heading-${level}`,
-        'data-pending-heading-level': `H${level}`,
-      }),
-    );
-    decorations.push(
-      Decoration.inline(pos + 1, pos + 1 + match[0].length, {
-        class: 'mk-pending-heading-prefix',
-      }),
-    );
-
-    return false;
+    decorations.push(...buildParagraphPendingDecorations(node, pos, match));
+    return true;
   });
 
   return DecorationSet.create(doc, decorations);
+}
+
+/**
+ * 增量维护 pending heading 装饰（P4-02）。
+ * mapped 平移未变更段的装饰；只对变更区间内 textblock 重新评估：
+ * 先移除该块范围内旧装饰（防 setBlockType 等类型变更残留），
+ * 仅当其为匹配的 paragraph 时重建装饰。亚线性，无全文档遍历。
+ */
+function updatePendingDecorations(tr: Transaction, decoSet: DecorationSet): DecorationSet {
+  const mapped = decoSet.map(tr.mapping, tr.doc);
+  const docSize = tr.doc.content.size;
+  const touched = new Set<number>();
+  let result = mapped;
+
+  for (const step of tr.steps) {
+    step.getMap().forEach((fromA, toA) => {
+      const from = Math.min(Math.max(tr.mapping.map(fromA, -1), 0), docSize);
+      const to = Math.min(Math.max(tr.mapping.map(toA, 1), 0), docSize);
+      if (to < from) return;
+      tr.doc.nodesBetween(from, to, (node, pos) => {
+        if (!node.isTextblock) return true;
+        if (touched.has(pos)) return false;
+        touched.add(pos);
+
+        // find 的相交判定是闭区间（span.to >= start），会把「结束位置恰好等于
+        // 本块起点」的相邻 node 装饰误捞进来，必须过滤到完全落在块范围内。
+        const stale = result
+          .find(pos, pos + node.nodeSize)
+          .filter((d) => d.from >= pos && d.to <= pos + node.nodeSize);
+        if (stale.length > 0) result = result.remove(stale);
+
+        if (node.type.name === 'paragraph') {
+          const match = /^(#{1,6})\s/.exec(node.textContent);
+          if (match) result = result.add(tr.doc, buildParagraphPendingDecorations(node, pos, match));
+        }
+        return false;
+      });
+    });
+  }
+  return result;
 }

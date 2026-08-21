@@ -246,3 +246,55 @@ describe('真定时器层：真实 EditorView 执行 window.setTimeout', () => {
     expect(v.state.doc.firstChild!.textContent).toBe('你好');
   });
 });
+
+describe('增量 pending heading 装饰（P4-02）', () => {
+  /** 读插件状态的装饰集，归并为 (from, to, cls) 摘要。 */
+  function pendingDecos(state: EditorState): Array<{ from: number; to: number; cls: string }> {
+    const set = markdownInputPluginKey.getState(state)!.decorations;
+    return set.find().map((d) => ({
+      from: d.from,
+      to: d.to,
+      cls: (d.type.attrs.class as string | undefined) ?? '',
+    }));
+  }
+
+  it('`# ` 前缀段落生成 node + 前缀 inline 装饰', () => {
+    const state = stateWith(docOf(paragraph('# ')), 3);
+    const decos = pendingDecos(state);
+    expect(decos.some((d) => d.cls === 'mk-pending-heading mk-pending-heading-1')).toBe(true);
+    expect(decos.some((d) => d.cls === 'mk-pending-heading-prefix')).toBe(true);
+  });
+
+  it('非 IME `# x` 转 heading 后，装饰不残留', () => {
+    let state = stateWith(docOf(paragraph()), 1);
+    state = dispatch(state, (tr) => tr.insertText('# x', 1));
+    expect(state.doc.firstChild!.type.name).toBe('heading');
+    expect(pendingDecos(state)).toHaveLength(0);
+  });
+
+  it('`# ` 段删掉空格后装饰移除', () => {
+    let state = stateWith(docOf(paragraph('# ')), 3);
+    expect(pendingDecos(state)).toHaveLength(2);
+    state = dispatch(state, (tr) => tr.delete(2, 3));
+    expect(state.doc.firstChild!.textContent).toBe('#');
+    expect(pendingDecos(state)).toHaveLength(0);
+  });
+
+  it('在非 pending 段打字，已有 pending 装饰平移保留', () => {
+    let state = stateWith(docOf(paragraph('# '), paragraph('hello')), 10);
+    expect(pendingDecos(state)).toHaveLength(2);
+    state = dispatch(state, (tr) => tr.insertText('X', 10));
+    expect(pendingDecos(state)).toHaveLength(2);
+    const nodeDeco = pendingDecos(state).find((d) => d.cls.startsWith('mk-pending-heading '))!;
+    expect(nodeDeco.from).toBe(0);
+    expect(nodeDeco.to).toBe(4);
+  });
+
+  it('删除整个 pending 段，装饰随之丢弃', () => {
+    let state = stateWith(docOf(paragraph('# '), paragraph('hello')), 10);
+    expect(pendingDecos(state)).toHaveLength(2);
+    state = dispatch(state, (tr) => tr.delete(0, 3));
+    expect(state.doc.childCount).toBe(1);
+    expect(pendingDecos(state)).toHaveLength(0);
+  });
+});
