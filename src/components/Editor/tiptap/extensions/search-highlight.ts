@@ -1,19 +1,18 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import type { Transaction, EditorState } from '@tiptap/pm/state';
 
-const key = new PluginKey('searchHighlight');
-
-// 装饰集缓存：用引用相等判断是否需要重建，避免每次 applyState 都 JSON.stringify
-// getMatches() 返回的是 useEditorSearch 的 currentMatches.value，引用在搜索查询变化时才换新
-let _cachedMatchesRef: Array<{ from: number; to: number }> | null = null;
-let _cachedActiveIndex = -1;
-let _cachedDecoSet: DecorationSet | null = null;
+const key = new PluginKey<DecorationSet>('searchHighlight');
 
 export interface SearchHighlightOptions {
   getMatches: () => Array<{ from: number; to: number }>;
   getActiveIndex: () => number;
 }
+
+// 引用比较缓存：避免每次 apply 都重建 DecorationSet
+let _cachedMatchesRef: Array<{ from: number; to: number }> | null = null;
+let _cachedActiveIndex = -1;
 
 export const SearchHighlight = Extension.create<SearchHighlightOptions>({
   name: 'searchHighlight',
@@ -30,38 +29,55 @@ export const SearchHighlight = Extension.create<SearchHighlightOptions>({
     return [
       new Plugin({
         key,
-        props: {
-          decorations(state) {
+        state: {
+          init() {
+            return DecorationSet.empty;
+          },
+          apply(tr: Transaction, oldSet: DecorationSet, _oldState: EditorState, newState: EditorState): DecorationSet {
+            // 场景 1：切文档 → 显式清空
+            if (tr.getMeta('clearSearch')) {
+              _cachedMatchesRef = null;
+              _cachedActiveIndex = -1;
+              return DecorationSet.empty;
+            }
+
             const matches = getMatches();
             if (!matches.length) {
               _cachedMatchesRef = null;
               _cachedActiveIndex = -1;
-              _cachedDecoSet = null;
               return DecorationSet.empty;
             }
 
             const activeIndex = getActiveIndex();
 
-            // 引用比较：matches 引用稳定时（编辑期间不换新），仅 activeIndex 变化才重建
+            // 场景 2：用户编辑（docChanged）→ 先 map 旧装饰到新位置
+            if (tr.docChanged) {
+              oldSet = oldSet.map(tr.mapping, newState.doc);
+            }
+
+            // 引用比较：matches 引用稳定（编辑期间不换新）且 activeIndex 未变 → 用 mapped 后的 oldSet
             if (
               matches === _cachedMatchesRef
               && activeIndex === _cachedActiveIndex
-              && _cachedDecoSet
             ) {
-              return _cachedDecoSet;
+              return oldSet;
             }
 
+            // 场景 3：matches 引用或 activeIndex 变化 → 重建装饰
             const decorations = matches.map((m, i) =>
               Decoration.inline(m.from, m.to, {
                 class: i === activeIndex ? 'search-match search-match-active' : 'search-match',
               }),
             );
 
-            const decoSet = DecorationSet.create(state.doc, decorations);
             _cachedMatchesRef = matches;
             _cachedActiveIndex = activeIndex;
-            _cachedDecoSet = decoSet;
-            return decoSet;
+            return DecorationSet.create(newState.doc, decorations);
+          },
+        },
+        props: {
+          decorations(state: EditorState) {
+            return key.getState(state) ?? DecorationSet.empty;
           },
         },
       }),
