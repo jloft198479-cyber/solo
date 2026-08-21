@@ -37,6 +37,14 @@ const fileStoreState = {
     fileStoreState.currentFile.isDirty = false;
     fileStoreState.currentFile.lastModifiedTime = lastModifiedTime;
   }),
+  renamePath: vi.fn((newPath: string) => {
+    const baseName = newPath
+      ? (newPath.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
+      : DEFAULT_DISPLAY_NAME;
+    fileStoreState.currentFile.path = newPath;
+    fileStoreState.currentFile.displayName = baseName;
+    fileStoreState.currentFile.originalBaseName = baseName;
+  }),
   reset: vi.fn(),
 };
 
@@ -88,6 +96,7 @@ describe('useDocumentSession', () => {
     messageMock.mockReset();
     openDocumentMock.mockReset();
     saveDocumentMock.mockReset();
+    renameFileMock.mockReset();
     fileStoreState.currentFile = {
       path: null,
       content: '',
@@ -99,6 +108,7 @@ describe('useDocumentSession', () => {
     fileStoreState.setLoading.mockReset();
     fileStoreState.setFile.mockClear();
     fileStoreState.markSaved.mockClear();
+    fileStoreState.renamePath.mockClear();
     fileStoreState.reset.mockClear();
   });
 
@@ -309,8 +319,9 @@ describe('useDocumentSession', () => {
     expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/original.md', 'draft', 1000, false);
   });
 
-  it('keeps displayName when user cancels the save-as dialog after renaming', async () => {
-    // 打开后改了标题，弹另存为，用户点取消
+  it('recovers to the renamed path when persisting content fails after rename', async () => {
+    // P1-03 回归：rename 成功但写内容失败时，store 必须同步到新路径，
+    // 否则下次保存会对已不存在的旧路径再 rename，永久死锁。
     fileStoreState.currentFile = {
       path: '/tmp/original.md',
       content: 'draft',
@@ -319,7 +330,10 @@ describe('useDocumentSession', () => {
       displayName: '新标题',
       originalBaseName: 'original',
     };
-    saveMock.mockResolvedValue(null); // 用户取消
+    renameFileMock.mockResolvedValue({ path: '/tmp/新标题.md' });
+    saveDocumentMock
+      .mockRejectedValueOnce({ code: 'io_error', message: 'disk full' })
+      .mockResolvedValueOnce({ path: '/tmp/新标题.md', lastModifiedMs: 2000 });
 
     const { useDocumentSession } = await import('../useDocumentSession');
     const session = useDocumentSession({
@@ -328,10 +342,18 @@ describe('useDocumentSession', () => {
 
     const result = await session.saveCurrentDocument();
     expect(result).toBe(false);
-    // 标题保留：displayName 不被回滚
+    // store 同步到新路径：path/displayName/originalBaseName 均为新名
+    expect(fileStoreState.renamePath).toHaveBeenCalledWith('/tmp/新标题.md');
+    expect(fileStoreState.currentFile.path).toBe('/tmp/新标题.md');
     expect(fileStoreState.currentFile.displayName).toBe('新标题');
-    // 仍为脏状态，下一次保存会重试另存为
+    // 仍为脏状态，内容未丢失
     expect(fileStoreState.currentFile.isDirty).toBe(true);
+
+    // 下次保存走正常分支直写新路径（不再 rename），不再死锁
+    const retry = await session.saveCurrentDocument();
+    expect(retry).toBe(true);
+    expect(renameFileMock).toHaveBeenCalledTimes(1);
+    expect(saveDocumentMock).toHaveBeenNthCalledWith(2, '/tmp/新标题.md', 'draft', 1000, false);
   });
 
   it('passes displayName to renameFile for save-after-rename flow', async () => {

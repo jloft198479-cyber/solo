@@ -9,6 +9,7 @@ import {
   destroyCurrentWindow,
   isCurrentWindowFullscreen,
   registerShellNew,
+  requestAppQuit,
   setCurrentWindowFullscreen,
   setCurrentWindowTitle,
   startupReady,
@@ -227,11 +228,10 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
   }
 
   async function handleQuit() {
-    const closed = await handleCloseRequest();
-    if (closed) {
-      const { exitApp } = await import('../services/tauri/window');
-      await exitApp();
-    }
+    // 应用级退出：Rust 向所有已加载窗口广播 close-requested，
+    // 各窗口（含本窗口）自行走「脏态确认 → 保存 → destroy」链路；
+    // 任一窗口取消即中止退出，所有窗口关闭后进程自然退出。
+    await requestAppQuit();
   }
 
   onUnmounted(cleanup);

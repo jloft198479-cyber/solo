@@ -106,6 +106,13 @@ impl LoadedWindows {
         Ok(())
     }
 
+    pub fn contains(&self, label: &str) -> Result<bool, AppError> {
+        Ok(self
+            .0
+            .lock()
+            .map_err(|error| AppError::Native(error.to_string()))?
+            .contains(label))
+    }
 }
 
 #[cfg(test)]

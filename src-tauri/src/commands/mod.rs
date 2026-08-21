@@ -13,6 +13,6 @@ pub use document::{
 pub use font::{fetch_font_data, get_cached_font_path, read_font_bytes, save_font_cache};
 pub use image::fetch_remote_image;
 pub use window::{
-    attach_window_events, exit_app, set_window_background_color,
+    attach_window_events, request_app_quit, set_window_background_color,
 };
 pub use clipboard::read_clipboard_html;

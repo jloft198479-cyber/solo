@@ -61,7 +61,7 @@ export async function newEditorWindow(path?: string): Promise<string> {
   return invokeCommand<string>(TAURI_COMMANDS.newEditorWindow, { path: path ?? null });
 }
 
-/** 强制退出整个应用进程 */
-export async function exitApp() {
-  await invokeCommand<void>(TAURI_COMMANDS.exitApp);
+/** 请求应用级退出：Rust 向所有窗口广播 close-requested，各窗口自行确认/保存后关闭 */
+export async function requestAppQuit() {
+  await invokeCommand<void>(TAURI_COMMANDS.requestAppQuit);
 }

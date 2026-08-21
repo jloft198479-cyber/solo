@@ -855,16 +855,17 @@ mod tests {
         fs::write(&doc_path, b"# hello").unwrap();
 
         // stale 残留：mtime 设为 2 小时前 → 应删除
-        let stale_tmp = dir.join(".demo.1000000.tmp");
+        // （tmp 文件名模式与 temp_path 生成格式一致：.{文件名含扩展名}.{毫秒}.tmp）
+        let stale_tmp = dir.join(".demo.md.1000000.tmp");
         fs::write(&stale_tmp, b"stale").unwrap();
         set_modified_hours_ago(&stale_tmp, 2);
 
         // fresh 残留：mtime 当前 → 应保留（双开进程可能正在写入）
-        let fresh_tmp = dir.join(".demo.1000001.tmp");
+        let fresh_tmp = dir.join(".demo.md.1000001.tmp");
         fs::write(&fresh_tmp, b"fresh").unwrap();
 
         // 匹配前后缀但中间非纯数字 → 应保留
-        let bad_num_tmp = dir.join(".demo.abc.tmp");
+        let bad_num_tmp = dir.join(".demo.md.abc.tmp");
         fs::write(&bad_num_tmp, b"bad").unwrap();
 
         super::cleanup_stale_tmp_files(&doc_path);
