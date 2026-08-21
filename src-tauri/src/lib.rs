@@ -363,7 +363,7 @@ pub fn run() {
             read_font_bytes,
             refresh_native_menu_shortcuts,
             reveal_startup_open_log,
-            exit_app,
+            request_app_quit,
             set_window_background_color,
             register_shell_new,
             unregister_shell_new,

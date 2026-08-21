@@ -13,7 +13,7 @@ export const TAURI_COMMANDS = {
   refreshNativeMenuShortcuts: 'refresh_native_menu_shortcuts',
   renameFile: 'rename_file',
   registerShellNew: 'register_shell_new',
-  exitApp: 'exit_app',
+  requestAppQuit: 'request_app_quit',
   revealStartupOpenLog: 'reveal_startup_open_log',
   saveCachedFont: 'save_font_cache',
   saveClipboardImage: 'save_clipboard_image',

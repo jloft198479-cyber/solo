@@ -159,9 +159,25 @@ pub fn set_window_background_color(window: WebviewWindow, color: String) -> Resu
     apply_macos_window_background(&window, &color)
 }
 
+/// 应用级退出：不直接杀进程，而是向所有窗口定向发送 close-requested，
+/// 让每个窗口走自己已有的「脏态确认 → 保存 → destroy」链路（前端 listenWindowCloseRequested）。
+/// 所有窗口关闭后进程自然退出（Tauri 默认行为）。
+/// 任一窗口在确认框选「取消」即中止退出（该窗口不销毁，其余已关闭窗口不恢复）。
+/// 未 startup_ready 的窗口：前端 listener 尚未注册，事件会丢失——
+/// 但懒初始化设计保证其无用户内容，直接销毁即可。
 #[tauri::command]
-pub fn exit_app(app: tauri::AppHandle) -> Result<(), AppError> {
-    app.exit(0);
+pub fn request_app_quit(app: tauri::AppHandle) -> Result<(), AppError> {
+    for (label, window) in app.webview_windows() {
+        let is_loaded = app
+            .try_state::<LoadedWindows>()
+            .and_then(|state| state.contains(&label).ok())
+            .unwrap_or(false);
+        if is_loaded {
+            emit_window_close_requested(&window);
+        } else {
+            let _ = window.destroy();
+        }
+    }
     Ok(())
 }
 

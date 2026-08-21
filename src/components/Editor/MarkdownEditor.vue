@@ -40,7 +40,7 @@ import { useSettingsStore } from '../../stores/settings';
 import { useEditorSync } from '../../composables/useEditorSync';
 import { parseMarkdown } from './tiptap/markdown/parser';
 import { serializeMarkdown, serializeClipboardSlice } from './tiptap/markdown/serializer';
-import type { Slice } from '@tiptap/pm/model';
+import type { Node as PMNode, Slice } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import type { SlashCommandItem } from './tiptap/extensions/slash-commands';
 import type { EmojiItem } from './tiptap/extensions/emoji-suggest';
@@ -151,6 +151,20 @@ async function handleWikilinkNavigate(target: string) {
 // ── 图片路径解析缓存：同一 src + docPath + storagePath 的解析结果不会变，缓存避免重复 IPC ──
 const resolvedImageCache = new Map<string, string>();
 
+/**
+ * 整体替换文档内容，但不进撤销栈、不触发 onUpdate。
+ * 「载入 / 切换文档」在语义上是全新文档——Ctrl+Z 不应跨过文档边界回退到上一篇内容，
+ * 否则撤销后触发自动保存会把旧文档内容写进当前文件（静默数据损坏）。
+ * TipTap 的 setContent 只设 preventUpdate（core/dist index.js:1218），不处理 history；
+ * PM history 插件尊重 addToHistory: false 事务 meta（prosemirror-history/dist index.js:274）。
+ */
+function replaceDocumentWithoutHistory(ed: TiptapEditor, doc: PMNode) {
+  const tr = ed.state.tr.replaceWith(0, ed.state.doc.content.size, doc);
+  tr.setMeta('addToHistory', false);
+  tr.setMeta('preventUpdate', true);
+  ed.view.dispatch(tr);
+}
+
 function createEditor(content: string) {
   if (editor.value) {
     editor.value.destroy();
@@ -195,10 +209,10 @@ function createEditor(content: string) {
     },
   });
 
-  // 解析 markdown 并设置文档
+  // 解析 markdown 并设置文档（不进撤销栈：初始载入不是用户编辑，Ctrl+Z 不应清回空文档）
   if (content) {
     const doc = parseMarkdown(e.schema, content);
-    e.commands.setContent(doc.toJSON(), { emitUpdate: false });
+    replaceDocumentWithoutHistory(e, doc);
   }
 
   editor.value = e;
@@ -227,11 +241,11 @@ watch(
 
     cancelPending();
     const doc = parseMarkdown(editor.value.schema, content);
-    // emitUpdate: false 避免触发 onUpdate 导致误判 dirty
-    editor.value.commands.setContent(doc.toJSON(), { emitUpdate: false });
+    // 不进撤销栈、不触发 onUpdate（避免撤销跨文档 + 误判 dirty）
+    replaceDocumentWithoutHistory(editor.value, doc);
     // 重置基线：直接用目标内容，避免一次序列化
     fileStore.setContent(targetMarkdown);
-    // setContent({ emitUpdate:false }) 不触发 onUpdate → 手动补发字数和大纲
+    // preventUpdate 事务不触发 onUpdate → 手动补发字数和大纲
     emitImmediateStats(editor.value);
     editor.value.commands.focus('start');
   },

@@ -271,17 +271,27 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     if (!currentFile.path) return saveCurrentDocumentAs();
 
     isSaving = true;
+    // rename 成功后会拿到新路径——即使后续写内容失败，也必须让 store 跟到新路径，
+    // 否则磁盘文件已是新名而 store.path 仍指向已不存在的旧路径，下次保存会
+    // 再次 rename（报“原文件不存在”）而永久死锁。
+    let renamedPath: string | null = null;
     try {
       // 1. Rust fs::rename：原子移动文件到新名字
       const renameResult = await renameFile(currentFile.path, currentFile.displayName);
+      renamedPath = renameResult.path;
 
       // 2. 保存内容到新路径（force=true，因为文件刚被 rename 过来）
-      const saveResult = await persistDocument(renameResult.path, true, null);
+      const saveResult = await persistDocument(renamedPath, true, null);
 
       fileStore.setFile(fileStore.currentFile.content, saveResult.path, saveResult.lastModifiedMs);
       autoSavePaused = false;
       return true;
     } catch (error) {
+      if (renamedPath) {
+        // 磁盘文件已是新名，同步 store 路径；isDirty 保持 true，
+        // 下次保存走正常分支直写新路径即可，不会死锁。
+        fileStore.renamePath(renamedPath);
+      }
       const appError = normalizeTauriError(error);
       console.error('Failed to save renamed document:', appError.message);
       await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
