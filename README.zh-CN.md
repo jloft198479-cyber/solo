@@ -1,3 +1,13 @@
+---
+title: solo — 本地优先的 Markdown 编辑器
+type: product
+audience: user
+status: active
+tags: [产品导览, README]
+summary: 产品介绍/安装/开发起步（简体中文）
+updates: [README.md, README.ja-JP.md, README.ko-KR.md, docs/solo产品精神.md]
+---
+
 <p align="center">
   <img src="./public/icon.png" width="160" alt="solo Logo" />
 </p>

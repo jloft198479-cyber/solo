@@ -1,3 +1,13 @@
+---
+title: solo — ローカルファーストの Markdown エディタ
+type: product
+audience: user
+status: active
+tags: [产品导览, README]
+summary: 製品紹介/インストール/開発セットアップ（日本語）
+updates: [README.md, README.zh-CN.md, README.ko-KR.md, docs/solo产品精神.md]
+---
+
 <p align="center">
   <img src="./public/icon.png" width="160" alt="solo Logo" />
 </p>

@@ -1,3 +1,13 @@
+---
+title: 粘贴兼容性优化 · 决策备忘
+type: guide
+audience: maintainer
+status: active
+tags: [粘贴, 决策, markdown]
+summary: 粘贴兼容性决策备忘（优先级排序/踩坑）
+updates: [src/components/Editor/tiptap/extensions/markdown-paste.ts, src-tauri/src/commands/clipboard.rs]
+---
+
 # 粘贴兼容性优化 · 决策备忘
 
 > **定位**：agent 决策记录（SSOT 真理源在代码，本文件只留结论与排序，不抄评估细节）。
@@ -28,8 +38,8 @@
 ## 踩坑提醒（防止被原报告误导）
 
 - **远程图片缓存**：不是 50MB LRU，实际是 **10MB 永久缓存、无并发、无 TTL**（`image.rs`）。如需治理是独立任务（加 LRU 淘汰），与粘贴兼容性无关。
-- **strike parseDOM**：只认 `<s>`，不认 `<del>`（[compat-schema.ts](file:///f:/fzz-Project/md-editor/src/components/Editor/tiptap/markdown/compat-schema.ts)）——从网页复制 `<del>` 会丢删除线。
-- **callout 内不嵌套 blockquote**：是设计约束，不是 bug（[callout.ts](file:///f:/fzz-Project/md-editor/src/components/Editor/tiptap/markdown/plugins/callout.ts)）。
+- **strike parseDOM**：只认 `<s>`，不认 `<del>`（[compat-schema.ts](../src/components/Editor/tiptap/markdown/compat-schema.ts)）——从网页复制 `<del>` 会丢删除线。
+- **callout 内不嵌套 blockquote**：是设计约束，不是 bug（[callout.ts](../src/components/Editor/tiptap/markdown/plugins/callout.ts)）。
 
 ## 相关真理源
 

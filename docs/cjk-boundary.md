@@ -1,7 +1,18 @@
+---
+title: CJK Markdown 经验沉淀
+type: guide
+audience: dev
+status: active
+tags: [CJK, parser, serializer, 经验]
+summary: CJK 加粗边界决策留痕（改 parser/serializer 必读，行号以函数名为锚）
+updates: [src/components/Editor/tiptap/markdown/parser.ts, src/components/Editor/tiptap/markdown/serializer.ts]
+---
+
 # CJK Markdown 经验沉淀
 
 > 本文件记录 markdown-it 对 CJK 标点后 `**`/`*` 关闭失效的根因、方案决策和关键约束。
 > 下次改 parser/serializer 涉及 CJK 边界时必须优先阅读。
+> **SSOT 指针**：具体实现以 `parser.ts` / `serializer.ts` 当前代码为准（本文为方案决策与约束留痕，非代码真相源）。行号随重构漂移，引用时以函数名为锚（如「ZWNJ 预处理」「ZWNJ 剥离」）。
 
 ---
 
@@ -40,7 +51,7 @@ CJK 文本中，`，**继续` 场景：
 
 ## 实现决策
 
-### 预处理正则（parser.ts:438-462）
+### 预处理正则（parser.ts ZWNJ 预处理段；当前约 491–516，行号随重构漂移，以函数注释「1.5. 预处理：插入 ZWNJ」为锚）
 
 **关闭方向**（punct → `**` → word）：
 ```
@@ -65,15 +76,17 @@ CJK 文本中，`，**继续` 场景：
 - ZWNJ 只在解析阶段使用，序列化时从文本中剥离
 - 删除原有的 `_delimiterBoundaryUnsafe` ZWNJ 插入逻辑（由预处理统一接管）
 
-## 测试覆盖（829 个用例）
+## 测试覆盖
 
-| 测试文件 | 用例数 | 覆盖场景 |
-|----------|--------|----------|
-| `commonmark.spec.ts` | 618 | CommonMark 标准合规 |
-| `roundtrip.spec.ts` | 81 | parse→serialize→re-parse 闭环 |
-| `fuzz.spec.ts` | 100 | 随机输入稳定性 |
-| `fixtures.spec.ts` | 19 | 预设文件对比 |
-| `_cjk-diag.spec.ts` | 8 | CJK 边界用例专项 |
+> 用例数随用例增减，以 `bun run test` 实际输出为准（项目约定，不硬编码）。下表为 CJK 修复时的场景划分，非固定数字。
+
+| 测试文件 | 覆盖场景 |
+|----------|----------|
+| `commonmark.spec.ts` | CommonMark 标准合规 |
+| `roundtrip.spec.ts` | parse→serialize→re-parse 闭环 |
+| `fuzz.spec.ts` | 随机输入稳定性 |
+| `fixtures.spec.ts` | 预设文件对比 |
+| `_cjk-diag.spec.ts` | CJK 边界用例专项 |
 
 ## CJK 边界用例目录
 
