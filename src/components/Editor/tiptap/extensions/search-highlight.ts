@@ -10,10 +10,6 @@ export interface SearchHighlightOptions {
   getActiveIndex: () => number;
 }
 
-// 引用比较缓存：避免每次 apply 都重建 DecorationSet
-let _cachedMatchesRef: Array<{ from: number; to: number }> | null = null;
-let _cachedActiveIndex = -1;
-
 export const SearchHighlight = Extension.create<SearchHighlightOptions>({
   name: 'searchHighlight',
 
@@ -26,6 +22,9 @@ export const SearchHighlight = Extension.create<SearchHighlightOptions>({
 
   addProseMirrorPlugins() {
     const { getMatches, getActiveIndex } = this.options;
+    // 引用比较缓存：放在闭包里而非模块级，确保多编辑器实例不串台
+    let cachedMatchesRef: Array<{ from: number; to: number }> | null = null;
+    let cachedActiveIndex = -1;
     return [
       new Plugin({
         key,
@@ -33,18 +32,23 @@ export const SearchHighlight = Extension.create<SearchHighlightOptions>({
           init() {
             return DecorationSet.empty;
           },
-          apply(tr: Transaction, oldSet: DecorationSet, _oldState: EditorState, newState: EditorState): DecorationSet {
+          apply(
+            tr: Transaction,
+            oldSet: DecorationSet,
+            _oldState: EditorState,
+            newState: EditorState,
+          ): DecorationSet {
             // 场景 1：切文档 → 显式清空
             if (tr.getMeta('clearSearch')) {
-              _cachedMatchesRef = null;
-              _cachedActiveIndex = -1;
+              cachedMatchesRef = null;
+              cachedActiveIndex = -1;
               return DecorationSet.empty;
             }
 
             const matches = getMatches();
             if (!matches.length) {
-              _cachedMatchesRef = null;
-              _cachedActiveIndex = -1;
+              cachedMatchesRef = null;
+              cachedActiveIndex = -1;
               return DecorationSet.empty;
             }
 
@@ -56,10 +60,7 @@ export const SearchHighlight = Extension.create<SearchHighlightOptions>({
             }
 
             // 引用比较：matches 引用稳定（编辑期间不换新）且 activeIndex 未变 → 用 mapped 后的 oldSet
-            if (
-              matches === _cachedMatchesRef
-              && activeIndex === _cachedActiveIndex
-            ) {
+            if (matches === cachedMatchesRef && activeIndex === cachedActiveIndex) {
               return oldSet;
             }
 
@@ -70,8 +71,8 @@ export const SearchHighlight = Extension.create<SearchHighlightOptions>({
               }),
             );
 
-            _cachedMatchesRef = matches;
-            _cachedActiveIndex = activeIndex;
+            cachedMatchesRef = matches;
+            cachedActiveIndex = activeIndex;
             return DecorationSet.create(newState.doc, decorations);
           },
         },

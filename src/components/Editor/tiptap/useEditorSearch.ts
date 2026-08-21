@@ -48,7 +48,12 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     currentMatches.value = matches;
     searchMatchCount.value = matches.length;
     searchCurrentIndex.value = matches.length > 0 ? 1 : 0;
-    if (matches.length > 0) scrollToMatch(0);
+    if (matches.length > 0) {
+      scrollToMatch(0);
+    } else if (editor.value && !editor.value.isDestroyed) {
+      // 从有匹配变成 0 匹配时，dispatch 空 tr 触发 apply 清除残留高亮
+      editor.value.view.dispatch(editor.value.state.tr);
+    }
   }, 120);
 
   // 编辑后重新扫描：保持当前 activeIndex 上下文（不重置到 1）
