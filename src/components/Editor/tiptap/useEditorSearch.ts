@@ -51,6 +51,25 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     if (matches.length > 0) scrollToMatch(0);
   }, 120);
 
+  // 编辑后重新扫描：保持当前 activeIndex 上下文（不重置到 1）
+  // 与 doSearch 共用 120ms 节奏但独立 debounce 实例——语义不同（搜索框输入 vs 编辑触发）
+  const refreshAfterEdit = debounce(() => {
+    if (!searchQuery || !editor.value) return;
+    const matches = findMatches(searchQuery);
+    currentMatches.value = matches;
+    searchMatchCount.value = matches.length;
+    // clamp 当前索引到有效范围，保持用户的高亮位置上下文
+    if (matches.length === 0) {
+      searchCurrentIndex.value = 0;
+    } else if (searchCurrentIndex.value > matches.length) {
+      searchCurrentIndex.value = 1;
+    }
+    // 触发事务让 decorations 回调重建（currentMatches 引用已变）
+    if (editor.value && !editor.value.isDestroyed) {
+      editor.value.view.dispatch(editor.value.state.tr);
+    }
+  }, 120);
+
   function findMatches(query: string): SearchMatch[] {
     if (!editor.value || !query) return [];
     const doc = editor.value.state.doc;
@@ -170,10 +189,30 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     currentMatches.value = [];
     searchQuery = '';
     doSearch.cancel();
+    refreshAfterEdit.cancel();
 
     // 触发事务清除 ProseMirror 搜索高亮装饰
     if (editor.value) {
       editor.value.view.dispatch(editor.value.state.tr);
+    }
+  }
+
+  /** 编辑器内容变化时调用（由 MarkdownEditor onUpdate 接线） */
+  function onEditorDocChange() {
+    refreshAfterEdit();
+  }
+
+  /** 切换文档时调用：清除搜索状态并通知 PM 插件 */
+  function onDocumentSwitch() {
+    refreshAfterEdit.cancel();
+    doSearch.cancel();
+    searchQuery = '';
+    currentMatches.value = [];
+    searchMatchCount.value = 0;
+    searchCurrentIndex.value = 0;
+    // 通知 search-highlight 插件清空（通过 clearSearch meta）
+    if (editor.value && !editor.value.isDestroyed) {
+      editor.value.view.dispatch(editor.value.state.tr.setMeta('clearSearch', true));
     }
   }
 
@@ -190,5 +229,7 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     onSearchReplaceAll,
     openSearch,
     closeSearch,
+    onEditorDocChange,
+    onDocumentSwitch,
   };
 }

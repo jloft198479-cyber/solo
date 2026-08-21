@@ -127,6 +127,8 @@ const {
   currentMatches,
   openSearch,
   closeSearch,
+  onEditorDocChange,
+  onDocumentSwitch,
 } = useEditorSearch(editor);
 
 // 查找（false）/ 查找替换（true）两种入口，传给 SearchPanel 决定是否预展开替换行
@@ -199,6 +201,8 @@ function createEditor(content: string) {
       const t = ed as unknown as TiptapEditor;
       // 脏标记由 useEditorSync → syncEditedContent 按「内容是否变化」判定，不再依赖交互门控
       handleDocChange(t);
+      // 搜索高亮：编辑后防抖重新扫描，保持当前 activeIndex 上下文
+      onEditorDocChange();
     },
     onSelectionUpdate: ({ editor: ed }) => {
       rafUpdateBubbleMenu(ed as unknown as TiptapEditor);
@@ -237,6 +241,8 @@ watch(
     if (currentMarkdown === targetMarkdown) return;
 
     cancelPending();
+    // 切文档时清除搜索高亮（旧文档的 matches pos 对新文档无意义）
+    onDocumentSwitch();
     const doc = parseMarkdown(editor.value.schema, content);
     // 不进撤销栈、不触发 onUpdate（避免撤销跨文档 + 误判 dirty）
     replaceDocumentWithoutHistory(editor.value, doc);
