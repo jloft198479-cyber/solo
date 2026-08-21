@@ -106,14 +106,11 @@ const editor = shallowRef<TiptapEditor | null>(null);
 useEditorAppearance(editor);
 
 // ── 编辑器 → 下层状态同步中枢（字数 / 大纲 / 光标 / 序列化，防抖后单出口）──
-const {
-  handleDocChange,
-  handleSelectionChange,
-  emitImmediateStats,
-  cancelPending,
-} = useEditorSync({
-  onUpdate: (data) => emit('update', data),
-});
+const { handleDocChange, handleSelectionChange, emitImmediateStats, cancelPending } = useEditorSync(
+  {
+    onUpdate: (data) => emit('update', data),
+  },
+);
 
 // ── 创建 TipTap Editor ────────────────────────────────────────
 
@@ -366,24 +363,17 @@ onMounted(async () => {
     }
   });
 
-  // 编辑器懒初始化
-  if (document.hasFocus()) {
-    // 快速路径：窗口已有焦点，直接创建
-    createEditor(props.initialContent || '');
-  } else {
-    // 延迟兜底：Focused(true) 事件可能早于 listener 注册到达而被丢弃。
-    // 短延迟给事件队列一次额外处理机会，之后仍无焦点则强行创建编辑器
-    // （失去的只是懒加载优化，窗口正确可用更重要）
-    setTimeout(() => {
-      if (editor.value && !editor.value.isDestroyed) return;
-      lazyInitEditor();
-    }, 50);
-  }
+  // 编辑器懒初始化——用 requestAnimationFrame 延迟到首帧绘制后创建，
+  // 避免编辑器构建（schema 注册、高亮语言注册等）阻塞窗口首次绘制。
+  // 后台不可见窗口的 RAF 不会触发，编辑器留待 solo:editor-focus 事件创建。
+  requestAnimationFrame(() => {
+    if (editor.value && !editor.value.isDestroyed) return;
+    lazyInitEditor();
+  });
 
   // 图片双击 → 全屏预览（从 CustomImage NodeView 冒泡上来的自定义事件）
   editorWrapRef.value?.addEventListener('editor:image-dblclick', handleImageDblClick);
-
-  });
+});
 
 onBeforeUnmount(() => {
   // 1. 先断开 focus 事件，防止销毁期间回调触发

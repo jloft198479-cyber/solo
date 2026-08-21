@@ -72,13 +72,3 @@ export async function listenMenuEvent(handler: AppEventHandler<string>) {
 export async function listenWindowCloseRequested(handler: AppEventHandler<null>) {
   return listenWindowEvent(WINDOW_CLOSE_REQUESTED, handler);
 }
-
-export async function emitMenuEvent(commandId: string) {
-  const { emit } = await import('@tauri-apps/api/event');
-  await emit(MENU_EVENT, commandId);
-}
-
-export async function emitWindowCloseRequested() {
-  const { emit } = await import('@tauri-apps/api/event');
-  await emit(WINDOW_CLOSE_REQUESTED);
-}

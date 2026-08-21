@@ -28,6 +28,8 @@ beforeEach(() => {
       },
       style: {
         setProperty: mocks.setPropertyMock,
+        getPropertyValue: vi.fn(() => ''),
+        removeProperty: vi.fn(),
       },
       getBoundingClientRect: vi.fn(),
     },
@@ -115,10 +117,14 @@ describe('theme manager', () => {
     const dark = getPresetTheme('scholar-dark')!;
 
     applyTheme(light);
-    const lightSuccess = mocks.setPropertyMock.mock.calls.find((c) => c[0] === '--success-color')?.[1];
+    const lightSuccess = mocks.setPropertyMock.mock.calls.find(
+      (c) => c[0] === '--success-color',
+    )?.[1];
     mocks.setPropertyMock.mockClear();
     applyTheme(dark);
-    const darkSuccess = mocks.setPropertyMock.mock.calls.find((c) => c[0] === '--success-color')?.[1];
+    const darkSuccess = mocks.setPropertyMock.mock.calls.find(
+      (c) => c[0] === '--success-color',
+    )?.[1];
 
     expect(lightSuccess).toBeTruthy();
     expect(darkSuccess).toBeTruthy();
