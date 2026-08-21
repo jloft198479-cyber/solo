@@ -48,12 +48,13 @@ pub async fn save_document(
         let path_ref = Path::new(&path_for_io);
         if !force {
             if let Some(expected) = expected_last_modified_ms {
-                if let Ok(current_modified) = read_modified_time_ms(path_ref) {
-                    if current_modified != expected {
-                        return Err(AppError::conflict(
-                            "文件已被外部修改，请重新加载或选择强制覆盖",
-                        ));
-                    }
+                // metadata 读失败不静默跳过——可能是文件被删除后重建，
+                // 应返回冲突让前端提示用户，而非无声覆盖。
+                let current_modified = read_modified_time_ms(path_ref)?;
+                if current_modified != expected {
+                    return Err(AppError::conflict(
+                        "文件已被外部修改，请重新加载或选择强制覆盖",
+                    ));
                 }
             }
         }
