@@ -29,6 +29,10 @@ export async function openDocument(path: string) {
   return invokeCommand<DocumentOpenResult>(TAURI_COMMANDS.openDocument, { path });
 }
 
+export async function getFileMtime(path: string) {
+  return invokeCommand<number>(TAURI_COMMANDS.getFileMtime, { path });
+}
+
 export async function saveDocument(
   path: string,
   content: string,

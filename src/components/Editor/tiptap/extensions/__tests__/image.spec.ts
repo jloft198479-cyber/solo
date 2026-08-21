@@ -13,13 +13,23 @@ beforeEach(() => {
 
 describe('formatImageMarkdown', () => {
   it('formats image markdown without title', () => {
-    expect(formatImageMarkdown({ src: '/demo.png', alt: 'demo', title: null }))
+    expect(formatImageMarkdown({ src: '/demo.png', alt: 'demo', title: null, width: null, height: null }))
       .toBe('![demo](/demo.png)');
   });
 
   it('formats image markdown with title', () => {
-    expect(formatImageMarkdown({ src: '/demo.png', alt: 'demo', title: 'cover' }))
+    expect(formatImageMarkdown({ src: '/demo.png', alt: 'demo', title: 'cover', width: null, height: null }))
       .toBe('![demo](/demo.png "cover")');
+  });
+
+  it('formats image markdown with dimensions', () => {
+    expect(formatImageMarkdown({ src: '/demo.png', alt: 'demo', title: null, width: 640, height: 480 }))
+      .toBe('![demo|640x480](/demo.png)');
+  });
+
+  it('formats image markdown with dimensions and title', () => {
+    expect(formatImageMarkdown({ src: '/demo.png', alt: 'demo', title: 'cover', width: 800, height: 600 }))
+      .toBe('![demo|800x600](/demo.png "cover")');
   });
 });
 
@@ -29,6 +39,8 @@ describe('parseImageMarkdown', () => {
       src: '/demo.png',
       alt: 'demo',
       title: null,
+      width: null,
+      height: null,
     });
   });
 
@@ -37,6 +49,38 @@ describe('parseImageMarkdown', () => {
       src: '/demo.png',
       alt: 'demo',
       title: 'cover',
+      width: null,
+      height: null,
+    });
+  });
+
+  it('parses image markdown with dimensions', () => {
+    expect(parseImageMarkdown('![demo|640x480](/demo.png)')).toEqual({
+      src: '/demo.png',
+      alt: 'demo',
+      title: null,
+      width: 640,
+      height: 480,
+    });
+  });
+
+  it('parses image markdown with dimensions and title', () => {
+    expect(parseImageMarkdown('![demo|800x600](/demo.png "cover")')).toEqual({
+      src: '/demo.png',
+      alt: 'demo',
+      title: 'cover',
+      width: 800,
+      height: 600,
+    });
+  });
+
+  it('ignores invalid dimension suffix', () => {
+    expect(parseImageMarkdown('![demo|0x0](/demo.png)')).toEqual({
+      src: '/demo.png',
+      alt: 'demo|0x0',
+      title: null,
+      width: null,
+      height: null,
     });
   });
 

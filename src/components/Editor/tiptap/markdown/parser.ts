@@ -309,9 +309,23 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
 
   handlers.image = (state, token) => {
     const src = token.attrGet('src') || '';
-    const alt = token.content || token.children?.map(t => t.content).join('') || '';
+    const rawAlt = token.content || token.children?.map(t => t.content).join('') || '';
     const title = token.attrGet('title') || null;
-    state.addNode(schema.nodes.image, { src, alt, title });
+    // 从 alt 提取 `|WxH` 尺寸后缀（solo 扩展语法）
+    const dimMatch = rawAlt.match(/^(.*?)\|(\d+)x(\d+)$/);
+    if (dimMatch) {
+      const width = parseInt(dimMatch[2], 10);
+      const height = parseInt(dimMatch[3], 10);
+      state.addNode(schema.nodes.image, {
+        src,
+        alt: dimMatch[1],
+        title,
+        width: width || null,
+        height: height || null,
+      });
+    } else {
+      state.addNode(schema.nodes.image, { src, alt: rawAlt, title, width: null, height: null });
+    }
   };
 
   // ── 行内标记 ──

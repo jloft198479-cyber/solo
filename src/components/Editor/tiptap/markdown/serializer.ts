@@ -411,10 +411,17 @@ const nodeSerializers: Record<string, NodeSerializer> = {
     const alt = node.attrs.alt || '';
     const src = node.attrs.src || '';
     const title = node.attrs.title;
+    const width = node.attrs.width;
+    const height = node.attrs.height;
+    // 有尺寸时输出 `![alt|WxH](src)`，无尺寸时输出 `![alt](src)`
+    const altWithDims =
+      width != null && height != null
+        ? `${alt}|${width}x${height}`
+        : alt;
     if (title) {
-      state.write(`![${alt}](${src} "${escapeLinkTitle(title as string)}")`);
+      state.write(`![${altWithDims}](${src} "${escapeLinkTitle(title as string)}")`);
     } else {
-      state.write(`![${alt}](${src})`);
+      state.write(`![${altWithDims}](${src})`);
     }
   },
 

@@ -9,6 +9,7 @@ import {
 } from '../components/Editor/tiptap/editor-metadata';
 import { serializeMarkdown } from '../components/Editor/tiptap/markdown/serializer';
 import { useFileStore } from '../stores/file';
+import type { Node as PMNode } from '@tiptap/pm/model';
 
 export interface EditorSyncPayload {
   wordCount?: number;
@@ -20,6 +21,8 @@ export interface EditorSyncPayload {
 export interface EditorSyncOptions {
   /** 内容变化后的统一出口（防抖后）。替代原先 4 路独立 emit('update')。 */
   onUpdate: (data: EditorSyncPayload) => void;
+  /** 空闲序列化完成后回调，供调用方缓存序列化结果避免重复计算。 */
+  onSerialize?: (content: string, doc: PMNode) => void;
 }
 
 // 字数统计轻量（读 doc.textContent），150ms 均衡响应与开销
@@ -86,6 +89,7 @@ export function useEditorSync(options: EditorSyncOptions) {
         if (!target || target.isDestroyed) return;
         const markdown = serializeMarkdown(target.state.doc);
         fileStore.syncEditedContent(markdown);
+        options.onSerialize?.(markdown, target.state.doc);
       },
       { timeout: SERIALIZE_IDLE_TIMEOUT_MS },
     );
