@@ -1,5 +1,10 @@
 import { onUnmounted, ref, watch } from 'vue';
-import { openDocument, saveDocument, renameFile, type DocumentOpenResult } from '../services/tauri/document';
+import {
+  openDocument,
+  saveDocument,
+  renameFile,
+  type DocumentOpenResult,
+} from '../services/tauri/document';
 import { normalizeTauriError } from '../services/tauri/client';
 import { confirm, message, open, save } from '../services/tauri/dialog';
 import { useFileStore } from '../stores/file';
@@ -27,7 +32,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   let autoSaveIntervalId: ReturnType<typeof setTimeout> | null = null;
   let autoSaveStatusTimer: ReturnType<typeof setTimeout> | null = null;
   let externalWarningTimer: ReturnType<typeof setTimeout> | null = null;
-  let autoSavePaused = false;
   /** 保存互斥锁：防止自动保存与手动保存并发执行导致冲突 */
   let isSaving = false;
   /** 文件打开互斥锁：防止同时打开两个文件导致编辑器状态竞争 */
@@ -70,9 +74,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
       // 大文档提示（此时 loading=false，不会阻塞确认对话框）
       // 排除 base64 图片数据：图片渲染为独立节点，不影响编辑打字性能
-      const textContent = document.content.indexOf('data:image') >= 0
-        ? document.content.replace(/!\[.*?\]\(data:image\/[^;]+;base64,[^)]+\)/g, '')
-        : document.content;
+      const textContent =
+        document.content.indexOf('data:image') >= 0
+          ? document.content.replace(/!\[.*?\]\(data:image\/[^;]+;base64,[^)]+\)/g, '')
+          : document.content;
       if (textContent.length > LARGE_DOC_THRESHOLD) {
         const sizeKB = Math.round(textContent.length / 1024);
         const proceed = await confirm(
@@ -200,7 +205,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       try {
         const result = await persistDocument(savePath, force, saveLastModified);
         fileStore.markSaved(result.lastModifiedMs);
-        autoSavePaused = false;
         return true;
       } catch (error) {
         const appError = normalizeTauriError(error);
@@ -284,7 +288,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       const saveResult = await persistDocument(renamedPath, true, null);
 
       fileStore.setFile(fileStore.currentFile.content, saveResult.path, saveResult.lastModifiedMs);
-      autoSavePaused = false;
       return true;
     } catch (error) {
       if (renamedPath) {
@@ -352,10 +355,9 @@ export function useDocumentSession(options: DocumentSessionOptions) {
         autoSaveIntervalId = setTimeout(async () => {
           if (!autoSaveActive) return;
 
-          if (fileStore.currentFile.isDirty && fileStore.currentFile.path && !autoSavePaused) {
+          if (fileStore.currentFile.isDirty && fileStore.currentFile.path) {
             const saved = await saveCurrentDocument(false);
             if (saved) {
-              autoSavePaused = false;
               updateAutoSaveStatus('已自动保存');
             }
           }

@@ -86,6 +86,10 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
       searchMatchCount.value = 0;
       searchCurrentIndex.value = 0;
       doSearch.cancel();
+      // 触发事务清除 ProseMirror 搜索高亮装饰（与 closeSearch 一致）
+      if (editor.value) {
+        editor.value.view.dispatch(editor.value.state.tr);
+      }
       return;
     }
     doSearch(query);

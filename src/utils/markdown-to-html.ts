@@ -1,13 +1,3 @@
-import MarkdownIt from 'markdown-it';
-import markdownItTaskLists from 'markdown-it-task-lists';
-import markdownItMark from 'markdown-it-mark';
-import markdownItSub from 'markdown-it-sub';
-import markdownItSup from 'markdown-it-sup';
-import markdownItTexmath from 'markdown-it-texmath';
-import markdownItFootnote from 'markdown-it-footnote';
-
-let _md: MarkdownIt | null = null;
-
 /**
  * 对外渲染前的私有格式降级清洗（「剥私有、保通用」）。
  *
@@ -23,16 +13,42 @@ let _md: MarkdownIt | null = null;
 const PRIVATE_TAG_RE = /<span class="mk-dim">(.*?)<\/span>/g;
 
 function sanitizeForExternal(markdown: string): string {
-  return markdown
-    .replace(PRIVATE_TAG_RE, (_, inner) => inner.replace(/<br>/g, '\n'));
+  return markdown.replace(PRIVATE_TAG_RE, (_, inner) => inner.replace(/<br>/g, '\n'));
 }
 
-function getRenderer(): MarkdownIt {
-  if (!_md) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _md: any | null = null;
+let _mdPromise: Promise<void> | null = null;
+
+/**
+ * 懒加载 markdown-it 及其插件——只在用户首次点「复制 Markdown」时才加载，
+ * 不打入首屏入口 chunk。renderer 构建后缓存复用。
+ */
+function ensureRenderer(): Promise<void> {
+  if (_md) return Promise.resolve();
+  if (_mdPromise) return _mdPromise;
+  _mdPromise = (async () => {
+    const [
+      { default: MarkdownIt },
+      { default: markdownItTaskLists },
+      { default: markdownItMark },
+      { default: markdownItSub },
+      { default: markdownItSup },
+      { default: markdownItTexmath },
+      { default: markdownItFootnote },
+    ] = await Promise.all([
+      import('markdown-it'),
+      import('markdown-it-task-lists'),
+      import('markdown-it-mark'),
+      import('markdown-it-sub'),
+      import('markdown-it-sup'),
+      import('markdown-it-texmath'),
+      import('markdown-it-footnote'),
+    ]);
+
     // linkify:false 与编辑器内解析器(markdown/parser.ts)保持一致：
     // 裸 URL 不自动转链接，保证「编辑器所见」与「复制出的 HTML」行为一致。
-    _md = new MarkdownIt({ html: false, linkify: false })
-      .enable(['table', 'strikethrough']);
+    _md = new MarkdownIt({ html: false, linkify: false }).enable(['table', 'strikethrough']);
 
     _md.use(markdownItTaskLists, { enabled: true, label: false });
     _md.use(markdownItMark);
@@ -43,10 +59,11 @@ function getRenderer(): MarkdownIt {
       delimiters: 'dollars',
     });
     _md.use(markdownItFootnote);
-  }
-  return _md;
+  })();
+  return _mdPromise;
 }
 
-export function renderMarkdown(markdown: string): string {
-  return getRenderer().render(sanitizeForExternal(markdown));
+export async function renderMarkdown(markdown: string): Promise<string> {
+  await ensureRenderer();
+  return _md.render(sanitizeForExternal(markdown));
 }

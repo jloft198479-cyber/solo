@@ -203,20 +203,21 @@ const TYPOGRAPHY_VAR_MAP: Record<keyof ThemeTypography, string> = {
 
 function injectTypography(typography?: ThemeTypography) {
   const style = document.documentElement.style;
-  // 先重置所有排版变量为空字符串，让 CSS 默认值生效
-  for (const cssVar of Object.values(TYPOGRAPHY_VAR_MAP)) {
-    try {
-      style.removeProperty(cssVar);
-    } catch {
-      style.setProperty(cssVar, '');
-    }
-  }
-  // 再注入主题自定义值
-  if (!typography) return;
+  // diff 注入：逐变量比对，仅当值变化才写/删，避免无谓的样式重算（与 injectColors 一致）
   for (const [key, cssVar] of Object.entries(TYPOGRAPHY_VAR_MAP)) {
-    const value = typography[key as keyof ThemeTypography];
+    const value = typography?.[key as keyof ThemeTypography];
+    const current = style.getPropertyValue(cssVar);
     if (value) {
-      style.setProperty(cssVar, value);
+      if (current !== value) {
+        style.setProperty(cssVar, value);
+      }
+    } else if (current) {
+      // 无主题值时清除（让 CSS 默认值生效），仅当前有值才操作
+      try {
+        style.removeProperty(cssVar);
+      } catch {
+        style.setProperty(cssVar, '');
+      }
     }
   }
 }
@@ -230,10 +231,7 @@ function persistThemeColors(colors: ThemeColors, appearance: ThemeAppearance) {
       const value = colors[key as keyof ThemeColors];
       if (value) vars[cssVar] = value;
     }
-    localStorage.setItem(
-      THEME_PAINT_KEY,
-      JSON.stringify({ d: appearance === 'dark', v: vars }),
-    );
+    localStorage.setItem(THEME_PAINT_KEY, JSON.stringify({ d: appearance === 'dark', v: vars }));
   } catch {
     // localStorage unavailable (private browsing, etc.)
   }
@@ -352,5 +350,3 @@ export function importTheme(json: string, appearance: ThemeAppearance = 'light')
 export function generateThemeId(): string {
   return `custom-${crypto.randomUUID()}`;
 }
-
-

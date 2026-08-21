@@ -31,7 +31,7 @@ async function copyMarkdown() {
   // 优先编辑器实时内容（绕过 store 500ms 防抖），编辑器不可用时回退到 store 内容
   const content = props.editorRef?.getContent?.() ?? useFileStore().currentFile.content;
   try {
-    const html = renderMarkdown(content);
+    const html = await renderMarkdown(content);
     await navigator.clipboard.write([
       new ClipboardItem({
         'text/plain': new Blob([content], { type: 'text/plain' }),
@@ -39,7 +39,9 @@ async function copyMarkdown() {
       }),
     ]);
     copied.value = true;
-    copyTimer = setTimeout(() => { copied.value = false; }, 1500);
+    copyTimer = setTimeout(() => {
+      copied.value = false;
+    }, 1500);
   } catch {
     // 静默失败，clipboard API 在部分环境可能不可用
   }
@@ -70,11 +72,31 @@ useClickOutside(wrapRef, closePopover);
       :title="copied ? '已复制' : '复制 Markdown'"
       @click="copyMarkdown"
     >
-      <svg v-if="!copied" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+      <svg
+        v-if="!copied"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
       </svg>
-      <svg v-else width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        v-else
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <path d="M3 8.5l3 3 7-7" />
       </svg>
     </button>
@@ -99,7 +121,10 @@ useClickOutside(wrapRef, closePopover);
   color: var(--text-secondary);
   cursor: pointer;
   border-radius: var(--radius-lg);
-  transition: background-color 0.15s, color 0.15s, opacity 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    opacity 0.15s;
   opacity: 0.6;
 }
 
