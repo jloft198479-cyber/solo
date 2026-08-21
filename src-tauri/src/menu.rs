@@ -2,7 +2,7 @@ use crate::events::emit_menu_event;
 use crate::state::FocusedWindow;
 use std::collections::HashMap;
 use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu};
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
 fn accelerator(
     shortcuts: &HashMap<String, String>,

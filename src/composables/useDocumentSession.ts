@@ -189,7 +189,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
   let _savePromise: Promise<boolean> | null = null;
 
-  async function saveCurrentDocument(force = false): Promise<boolean> {
+  async function saveCurrentDocument(force = false, manual = false): Promise<boolean> {
     if (_savePromise) {
       await _savePromise;
     }
@@ -229,9 +229,9 @@ export function useDocumentSession(options: DocumentSessionOptions) {
         }
 
         console.error('Failed to save document:', appError.message);
-        // 首次失败弹 modal，后续连续失败降级为状态栏非阻塞提示，避免弹窗轰炸
+        // 手动保存（Ctrl+S / 状态栏按钮）永远弹 modal；自动保存首次弹 modal，后续降级
         autoSaveFailCount += 1;
-        if (autoSaveFailCount <= AUTO_SAVE_MAX_MODAL) {
+        if (manual || autoSaveFailCount <= AUTO_SAVE_MAX_MODAL) {
           await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
         } else {
           updateAutoSaveStatus(`保存失败: ${appError.message}`);
@@ -265,6 +265,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       const result = await persistDocument(selected, true, null);
       fileStore.setFile(fileStore.currentFile.content, result.path, result.lastModifiedMs);
       clearExternalWarning();
+      autoSaveFailCount = 0;
       return true;
     } catch (error) {
       const appError = normalizeTauriError(error);
@@ -300,6 +301,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       const saveResult = await persistDocument(renamedPath, true, null);
 
       fileStore.setFile(fileStore.currentFile.content, saveResult.path, saveResult.lastModifiedMs);
+      autoSaveFailCount = 0;
       return true;
     } catch (error) {
       if (renamedPath) {

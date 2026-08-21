@@ -86,26 +86,29 @@ onUnmounted(() => {
   if (_focusNoticeTimer.value) clearTimeout(_focusNoticeTimer.value);
   if (_focusEnterTimer.value) clearTimeout(_focusEnterTimer.value);
 });
-watch(() => settingsStore.isFocusMode, (active) => {
-  if (_focusNoticeTimer.value) clearTimeout(_focusNoticeTimer.value);
-  if (_focusEnterTimer.value) clearTimeout(_focusEnterTimer.value);
-  if (active) {
-    focusEnterNotice.value = true;
-    _focusEnterTimer.value = setTimeout(() => {
-      _focusEnterTimer.value = null;
-      focusEnterNotice.value = false;
-    }, 3500);
-  } else {
-    const msg = { message: '已退出焦点模式', timestamp: Date.now() };
-    focusModeNotice.value = msg;
-    _focusNoticeTimer.value = setTimeout(() => {
-      _focusNoticeTimer.value = null;
-      if (focusModeNotice.value?.timestamp === msg.timestamp) {
-        focusModeNotice.value = null;
-      }
-    }, 2000);
-  }
-});
+watch(
+  () => settingsStore.isFocusMode,
+  (active) => {
+    if (_focusNoticeTimer.value) clearTimeout(_focusNoticeTimer.value);
+    if (_focusEnterTimer.value) clearTimeout(_focusEnterTimer.value);
+    if (active) {
+      focusEnterNotice.value = true;
+      _focusEnterTimer.value = setTimeout(() => {
+        _focusEnterTimer.value = null;
+        focusEnterNotice.value = false;
+      }, 3500);
+    } else {
+      const msg = { message: '已退出焦点模式', timestamp: Date.now() };
+      focusModeNotice.value = msg;
+      _focusNoticeTimer.value = setTimeout(() => {
+        _focusNoticeTimer.value = null;
+        if (focusModeNotice.value?.timestamp === msg.timestamp) {
+          focusModeNotice.value = null;
+        }
+      }, 2000);
+    }
+  },
+);
 
 // ── Shell 集成动态注册/注销 ─────────────────────────────────
 import { registerShellNew, unregisterShellNew } from './services/tauri/window';
@@ -168,7 +171,7 @@ const { executeCommand } = useCommandDispatcher({
     await newEditorWindow();
   },
   handleOpen: documentSession.handleOpenDocument,
-  handleSave: documentSession.saveCurrentDocument,
+  handleSave: () => documentSession.saveCurrentDocument(false, true),
   handleSaveAs: documentSession.saveCurrentDocumentAs,
   openSettings: () => settingsStore.openModal(),
   toggleFocusMode: () => settingsStore.toggleFocusMode(),
@@ -227,10 +230,7 @@ onMounted(async () => {
     await settingsStore.initThemeOnly();
     await windowSession.setup();
     // 阶段4：窗口已可见，后台加载完整配置、初始化主题列表、启动 watcher
-    await Promise.all([
-      settingsStore.init(),
-      syncMenuShortcuts(),
-    ]);
+    await Promise.all([settingsStore.init(), syncMenuShortcuts()]);
     autoCheckForUpdate();
   } catch (e) {
     console.error('[App] onMounted init failed:', e);
@@ -317,19 +317,29 @@ onUnmounted(() => {
     >
       <div class="minimal-statusbar">
         <div class="statusbar-left">
-          <span v-if="focusModeNotice" class="statusbar-stat statusbar-stat--accent">{{ focusModeNotice.message }}</span>
-          <span v-else-if="stats.selectionText" class="statusbar-stat statusbar-stat--accent">{{ stats.selectionText.length }} 字选中</span>
-          <span v-else-if="externalFileWarning" class="statusbar-stat statusbar-stat--warn">{{ externalFileWarning }}</span>
+          <span v-if="focusModeNotice" class="statusbar-stat statusbar-stat--accent">{{
+            focusModeNotice.message
+          }}</span>
+          <span v-else-if="stats.selectionText" class="statusbar-stat statusbar-stat--accent"
+            >{{ stats.selectionText.length }} 字选中</span
+          >
+          <span v-else-if="externalFileWarning" class="statusbar-stat statusbar-stat--warn">{{
+            externalFileWarning
+          }}</span>
           <span v-else class="statusbar-stat">{{ stats.wordCount }} 字</span>
         </div>
         <div class="statusbar-right">
-          <span v-if="autoSaveStatus" class="statusbar-stat statusbar-stat--success">{{ autoSaveStatus.message }}</span>
+          <span v-if="autoSaveStatus" class="statusbar-stat statusbar-stat--success">{{
+            autoSaveStatus.message
+          }}</span>
           <button
             v-else
             class="statusbar-save-btn"
             :class="fileStore.currentFile.isDirty ? 'is-dirty' : 'is-clean'"
             :title="fileStore.currentFile.isDirty ? '点击保存 (Ctrl+S)' : '已保存'"
-            @click="fileStore.currentFile.isDirty && documentSession.saveCurrentDocument()"
+            @click="
+              fileStore.currentFile.isDirty && documentSession.saveCurrentDocument(false, true)
+            "
           >
             <span class="statusbar-save-dot" />
             {{ fileStore.currentFile.isDirty ? '未保存' : '已保存' }}
@@ -343,9 +353,20 @@ onUnmounted(() => {
             title="设置 (Ctrl+,)"
             @click="settingsStore.openModal()"
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <circle cx="8" cy="8" r="2.2" />
-              <path d="M13.1 10a1.2 1.2 0 0 0 .24 1.32l.04.04a1.45 1.45 0 1 1-2.06 2.06l-.04-.04a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.73 1.1v.11a1.45 1.45 0 1 1-2.9 0v-.06a1.2 1.2 0 0 0-.79-1.1 1.2 1.2 0 0 0-1.32.24l-.04.04a1.45 1.45 0 1 1-2.06-2.06l.04-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.73h-.11a1.45 1.45 0 1 1 0-2.9h.06a1.2 1.2 0 0 0 1.1-.79 1.2 1.2 0 0 0-.24-1.32l-.04-.04a1.45 1.45 0 1 1 2.06-2.06l.04.04a1.2 1.2 0 0 0 1.32.24h.06a1.2 1.2 0 0 0 .73-1.1v-.11a1.45 1.45 0 1 1 2.9 0v.06a1.2 1.2 0 0 0 .73 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.04a1.45 1.45 0 1 1 2.06 2.06l-.04.04a1.2 1.2 0 0 0-.24 1.32v.06a1.2 1.2 0 0 0 1.1.73h.11a1.45 1.45 0 1 1 0 2.9h-.06a1.2 1.2 0 0 0-1.1.73z" />
+              <path
+                d="M13.1 10a1.2 1.2 0 0 0 .24 1.32l.04.04a1.45 1.45 0 1 1-2.06 2.06l-.04-.04a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.73 1.1v.11a1.45 1.45 0 1 1-2.9 0v-.06a1.2 1.2 0 0 0-.79-1.1 1.2 1.2 0 0 0-1.32.24l-.04.04a1.45 1.45 0 1 1-2.06-2.06l.04-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.73h-.11a1.45 1.45 0 1 1 0-2.9h.06a1.2 1.2 0 0 0 1.1-.79 1.2 1.2 0 0 0-.24-1.32l-.04-.04a1.45 1.45 0 1 1 2.06-2.06l.04.04a1.2 1.2 0 0 0 1.32.24h.06a1.2 1.2 0 0 0 .73-1.1v-.11a1.45 1.45 0 1 1 2.9 0v.06a1.2 1.2 0 0 0 .73 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.04a1.45 1.45 0 1 1 2.06 2.06l-.04.04a1.2 1.2 0 0 0-.24 1.32v.06a1.2 1.2 0 0 0 1.1.73h.11a1.45 1.45 0 1 1 0 2.9h-.06a1.2 1.2 0 0 0-1.1.73z"
+              />
             </svg>
           </button>
         </div>
@@ -368,11 +389,7 @@ onUnmounted(() => {
     <!-- About 弹窗 -->
     <Teleport to="body">
       <Transition name="about">
-        <div
-          v-if="showAboutModal"
-          class="about-overlay"
-          @click.self="showAboutModal = false"
-        >
+        <div v-if="showAboutModal" class="about-overlay" @click.self="showAboutModal = false">
           <div class="about-dialog">
             <div class="about-header">
               <h2 class="about-title">solo</h2>
@@ -433,7 +450,9 @@ onUnmounted(() => {
 
 .focus-hint-enter-active,
 .focus-hint-leave-active {
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease;
 }
 
 .focus-hint-enter-from,
@@ -496,7 +515,9 @@ onUnmounted(() => {
   padding: 4px 8px;
   border-radius: 6px;
   color: var(--text-secondary);
-  transition: background-color 0.15s, color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 
 .statusbar-save-btn:hover {
@@ -532,7 +553,10 @@ onUnmounted(() => {
   color: var(--text-secondary);
   cursor: pointer;
   border-radius: var(--radius-lg);
-  transition: background-color 0.15s, color 0.15s, opacity 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    opacity 0.15s;
   opacity: 0.6;
 }
 
@@ -624,7 +648,9 @@ onUnmounted(() => {
 
 .about-enter-active .about-dialog,
 .about-leave-active .about-dialog {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .about-enter-from,
