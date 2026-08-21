@@ -4,6 +4,8 @@ import type { SuggestionOptions } from '@tiptap/suggestion';
 import type { Editor, Range } from '@tiptap/core';
 import { PluginKey } from '@tiptap/pm/state';
 
+import { guardedFindSuggestionMatch } from './suggestion-guard';
+
 const slashPluginKey = new PluginKey('slashCommands');
 
 export interface SlashCommandItem {
@@ -213,6 +215,8 @@ export const SlashCommands = Extension.create<SlashCommandsOptions>({
       Suggestion({
         editor: this.editor,
         pluginKey: slashPluginKey,
+        // P4-04：守卫版匹配，避免每次事务对整段文本 matchAll
+        findSuggestionMatch: guardedFindSuggestionMatch,
         ...this.options.suggestion,
       }),
     ];
