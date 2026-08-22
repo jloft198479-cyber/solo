@@ -137,7 +137,7 @@ async function checkForUpdate() {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
+  transition: background-color var(--motion-fast), border-color var(--motion-fast);
 }
 
 .update-check-btn:hover:not(:disabled) {

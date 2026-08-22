@@ -137,7 +137,7 @@ async function handleImportTheme(event: Event) {
   border-radius: var(--radius-md);
   background: transparent;
   cursor: pointer;
-  transition: border-color 0.15s, background-color 0.15s;
+  transition: border-color var(--motion-fast), background-color var(--motion-fast);
 }
 
 .theme-import-card:hover {
@@ -155,7 +155,7 @@ async function handleImportTheme(event: Event) {
 
 .theme-import-plus {
   opacity: 0.5;
-  transition: opacity 0.15s;
+  transition: opacity var(--motion-fast);
 }
 
 .theme-import-card:hover .theme-import-plus {
@@ -175,7 +175,7 @@ async function handleImportTheme(event: Event) {
   background: none;
   border: none;
   cursor: pointer;
-  transition: color 0.15s;
+  transition: color var(--motion-fast);
 }
 
 .theme-template-link:hover {

@@ -9,7 +9,7 @@
       </div>
     </div>
 
-    <BubbleMenuComponent ref="bubbleMenuRef" :on-action="onBubbleMenuAction" />
+    <BubbleMenuComponent ref="bubbleMenuRef" @action="onBubbleMenuAction" />
     <SlashMenu ref="slashMenuRef" :items="slashMenuItems" :command="slashMenuCommand" />
     <EmojiMenu ref="emojiMenuRef" :items="emojiMenuItems" :command="emojiMenuCommand" />
 

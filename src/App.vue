@@ -557,8 +557,8 @@ onUnmounted(() => {
   border-radius: 6px;
   color: var(--text-secondary);
   transition:
-    background-color 0.15s,
-    color 0.15s;
+    background-color var(--motion-fast),
+    color var(--motion-fast);
 }
 
 .statusbar-save-btn:hover {
@@ -595,9 +595,9 @@ onUnmounted(() => {
   cursor: pointer;
   border-radius: var(--radius-lg);
   transition:
-    background-color 0.15s,
-    color 0.15s,
-    opacity 0.15s;
+    background-color var(--motion-fast),
+    color var(--motion-fast),
+    opacity var(--motion-fast);
   opacity: 0.6;
 }
 
@@ -674,7 +674,7 @@ onUnmounted(() => {
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-fast);
 }
 
 .about-close:hover {

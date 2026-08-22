@@ -216,7 +216,7 @@ defineExpose({
 /* search-panel 进出场动画：仅用 opacity，避免覆盖 translateX(-50%) 居中 */
 .search-panel-enter-active,
 .search-panel-leave-active {
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-fast) ease;
 }
 
 .search-panel-enter-from,
@@ -282,8 +282,8 @@ defineExpose({
   font-weight: 600;
   cursor: pointer;
   transition:
-    background-color 0.15s,
-    color 0.15s;
+    background-color var(--motion-fast),
+    color var(--motion-fast);
 }
 
 .search-btn-meta:hover {
@@ -317,8 +317,8 @@ defineExpose({
   color: var(--text-secondary);
   cursor: pointer;
   transition:
-    background-color 0.15s,
-    color 0.15s;
+    background-color var(--motion-fast),
+    color var(--motion-fast);
 }
 
 .search-btn-nav:hover {
@@ -338,8 +338,8 @@ defineExpose({
   color: var(--muted-color);
   cursor: pointer;
   transition:
-    background-color 0.15s,
-    color 0.15s;
+    background-color var(--motion-fast),
+    color var(--motion-fast);
 }
 
 .search-btn-close:hover {
@@ -363,9 +363,9 @@ defineExpose({
   font-size: 12px;
   cursor: pointer;
   transition:
-    background-color 0.15s,
-    border-color 0.15s,
-    color 0.15s;
+    background-color var(--motion-fast),
+    border-color var(--motion-fast),
+    color var(--motion-fast);
   white-space: nowrap;
 }
 

@@ -152,7 +152,7 @@ function clearStoragePath() {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
+  transition: background-color var(--motion-fast), border-color var(--motion-fast);
 }
 
 .storage-path-btn:hover {

@@ -162,7 +162,7 @@ function resetLineHeight() {
   color: var(--muted-color);
   font-size: 14px;
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color var(--motion-fast), color var(--motion-fast);
 }
 
 .settings-reset-btn:hover {

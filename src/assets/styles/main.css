@@ -588,7 +588,7 @@ html.theme-transitioning .sidebar {
   box-shadow: var(--modal-shadow);
   min-width: 320px;
   max-width: 400px;
-  animation: unsaved-scale-in 0.15s ease;
+  animation: unsaved-scale-in var(--motion-fast) ease;
 }
 
 .unsaved-dialog-inner {
@@ -621,7 +621,7 @@ html.theme-transitioning .sidebar {
   border-radius: var(--radius-md);
   font-size: 13px;
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color var(--motion-fast), color var(--motion-fast);
 }
 
 .unsaved-btn--save {
