@@ -230,6 +230,7 @@ updates: [本文事实来源 / 联动对象——改这些代码或文档必须�
   8. **#8 OutlinePanel scroll-spy O(n) → 二分查找**：每帧 `for` 循环遍历所有标题做 `getBoundingClientRect`。修复：二分查找（标题按文档序排列，`top` 单调），O(n) → O(log n)。**教训**：有序数据用二分是基本功——`getBoundingClientRect` 触发样式计算，调用次数从每帧 n 次降到 log n 次。
   9. **#9 releaseRemoteImageBlobs 未接线 → onBeforeUnmount 调用**：函数定义并导出但从未被调用。修复：`onBeforeUnmount` 里加一行 `releaseRemoteImageBlobs()`。**教训**：定义了清理函数就要接线，否则等于没写——好在有 50MB LRU 上限兜底不是无界泄漏。
   10. **#10/#11/#12 跳过**：① lowlight 17 种语言静态注册——需先量化首包占比再决定；② 焦点模式 decoration 重建——`forEach` 只遍历顶层块开销极小，改造插件结构风险大于收益；③ `findCommandByShortcut` 线性查找——几十条命令微秒级开销可忽略。**教训**：不是所有"理论缺陷"都值得修——开销极小的路径优化不如把精力花在高频高开销的路径上；遵循「不过度优化」纪律，先量化再决定。
+- **🚫 丝滑体验优化 P0-P3（已主动舍弃，勿重新提交）**：commit `bb76c25`（P0 动效 token 统一）+ `612ddb5`（P0-P3 丝滑体验）+ `828b18c`（审查修复），共 25 文件 816 行。已被 `git reset --hard` 回退到 `9782c0d`，三个 commit 以 dangling 状态留在 reflog 中。**舍弃原因**：workbuddy 审查发现核心方案 `useSmoothScroll.ts` 用 JS 拦截原生 wheel 事件做 lerp 插值，导致滚动体验倒退（比原生更卡顿）——这是负优化，不是优化不充分。其余改动（统一动效 token、搜索脉冲、crossfade 等）本身无问题，但与 `useSmoothScroll.ts` 绑在同一批 commit 中，整体回退。**后续处理**：`87f8542` 已单独 cherry-pick 了动效 token 统一中安全的部分（0.15s → `var(--motion-fast)`）；`useSmoothScroll.ts` 的逻辑完整且有参考价值，若要救回需连带 `main.css` 中的 token 定义一起处理，且必须**放弃 JS 拦截 wheel 方案**，改用 CSS `scroll-behavior: smooth` 或其他原生方案。**⚠️ 任何 Agent 看到 reflog 中这三个 commit，不要误以为是"未提交的待办工作"而重新提交。**
 
 ## 沟通风格
 
