@@ -712,7 +712,7 @@
 }
 
 .tiptap-editor .column-resize-handle:hover {
-  background-color: var(--primary-color, #8b7355);
+  background-color: var(--primary-color, #8a4e25);
 }
 
 .tiptap-editor.resize-cursor {
