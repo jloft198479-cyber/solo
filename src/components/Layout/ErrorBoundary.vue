@@ -72,7 +72,7 @@ function retry() {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color var(--motion-fast), color var(--motion-fast);
 }
 
 .error-boundary-retry:hover {

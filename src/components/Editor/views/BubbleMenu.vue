@@ -89,8 +89,8 @@ type ActiveMarks = {
   dim: boolean;
 };
 
-const props = defineProps<{
-  onAction: (type: string, data?: BubbleMenuActionData) => void;
+const emit = defineEmits<{
+  (e: 'action', type: string, data?: BubbleMenuActionData): void;
 }>();
 
 const visible = ref(false);
@@ -122,7 +122,7 @@ const btnClass = (active: boolean) => [
 ];
 
 const exec = (type: string) => {
-  props.onAction(type);
+  emit('action', type);
 };
 
 // 切换链接输入区
@@ -138,7 +138,7 @@ const toggleLinkInput = () => {
 // 应用链接
 const applyLink = () => {
   if (linkUrl.value.trim()) {
-    props.onAction('link', { href: linkUrl.value.trim() });
+    emit('action', 'link', { href: linkUrl.value.trim() });
   }
   showLinkInput.value = false;
   linkUrl.value = '';
@@ -146,7 +146,7 @@ const applyLink = () => {
 
 // 移除链接
 const removeLink = () => {
-  props.onAction('unlink');
+  emit('action', 'unlink');
   showLinkInput.value = false;
   linkUrl.value = '';
 };
@@ -191,7 +191,7 @@ defineExpose({
   border: 1px solid var(--popover-border);
   border-radius: var(--radius-md);
   box-shadow: var(--popover-shadow);
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
 }
 
 .bubble-menu-toolbar {
@@ -209,7 +209,7 @@ defineExpose({
   border-radius: var(--radius-sm);
   color: var(--text-color);
   background-color: transparent;
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-fast);
   cursor: pointer;
   border: none;
 }
@@ -246,7 +246,7 @@ defineExpose({
   color: var(--text-color);
   cursor: pointer;
   border: none;
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-fast);
 }
 
 .bubble-menu-heading-btn:hover {
@@ -290,7 +290,7 @@ defineExpose({
   border-radius: var(--radius-sm);
   cursor: pointer;
   border: none;
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-fast);
 }
 
 .bubble-menu-btn-primary:hover {
@@ -305,7 +305,7 @@ defineExpose({
   border-radius: var(--radius-sm);
   cursor: pointer;
   border: none;
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-fast);
 }
 
 .bubble-menu-btn-danger:hover {
@@ -322,7 +322,7 @@ defineExpose({
   /* 用 --text-color 而非 --muted-color：与相邻按钮一致对比度，让按钮「看得见」 */
   color: var(--text-color);
   background-color: transparent;
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color var(--motion-fast), color var(--motion-fast);
   cursor: pointer;
   border: none;
 }

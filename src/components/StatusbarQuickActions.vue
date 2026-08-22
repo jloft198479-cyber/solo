@@ -122,9 +122,9 @@ useClickOutside(wrapRef, closePopover);
   cursor: pointer;
   border-radius: var(--radius-lg);
   transition:
-    background-color 0.15s,
-    color 0.15s,
-    opacity 0.15s;
+    background-color var(--motion-fast),
+    color var(--motion-fast),
+    opacity var(--motion-fast);
   opacity: 0.6;
 }
 

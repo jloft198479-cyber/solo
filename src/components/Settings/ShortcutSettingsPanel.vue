@@ -139,8 +139,8 @@ defineEmits<{
   background-color: var(--sidebar-bg);
   cursor: pointer;
   transition:
-    background-color 0.15s,
-    outline-color 0.15s;
+    background-color var(--motion-fast),
+    outline-color var(--motion-fast);
 }
 
 .shortcut-settings-panel__item--editing {
@@ -169,8 +169,8 @@ defineEmits<{
   color: var(--muted-color);
   font-size: 12px;
   transition:
-    background-color 0.15s,
-    color 0.15s;
+    background-color var(--motion-fast),
+    color var(--motion-fast);
 }
 
 .shortcut-settings-panel__item-reset:hover {

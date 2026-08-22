@@ -54,7 +54,7 @@ const tabs: Array<{ key: SettingsTabKey; label: string }> = [
   font-weight: 600;
   text-align: left;
   color: var(--text-color);
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-fast);
 }
 
 .settings-nav-btn--active {

@@ -150,6 +150,7 @@ const hasItems = computed(() => props.items.length > 0);
           :key="item.pos"
           class="outline-item"
           :class="[`outline-level-${item.level}`, { 'is-active': activePos === item.pos }]"
+          :style="{ '--level': item.level }"
           :title="item.text"
           @click="onClickItem(item)"
         >
@@ -247,6 +248,8 @@ const hasItems = computed(() => props.items.length > 0);
   background: transparent;
   cursor: pointer;
   padding: 5px 10px;
+  /* 按层级缩进，层级越深越往右：10 + (level-1)*12，公式化免硬编码 */
+  padding-left: calc(10px + (var(--level, 1) - 1) * 12px);
   border-radius: var(--radius-md);
   border-right: 2px solid transparent;
   color: var(--text-secondary);
@@ -256,26 +259,6 @@ const hasItems = computed(() => props.items.length > 0);
     background-color var(--motion-fast),
     color var(--motion-fast),
     border-color var(--motion-fast);
-}
-
-/* 按层级缩进，层级越深越往右 */
-.outline-level-1 {
-  padding-left: 10px;
-}
-.outline-level-2 {
-  padding-left: 22px;
-}
-.outline-level-3 {
-  padding-left: 34px;
-}
-.outline-level-4 {
-  padding-left: 46px;
-}
-.outline-level-5 {
-  padding-left: 58px;
-}
-.outline-level-6 {
-  padding-left: 70px;
 }
 
 .outline-level-1 {

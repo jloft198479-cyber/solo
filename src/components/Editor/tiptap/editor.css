@@ -189,7 +189,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-fast) ease;
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
@@ -251,7 +251,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-fast) ease;
   pointer-events: none;
   user-select: none;
   white-space: nowrap;
@@ -497,7 +497,7 @@
   border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
   text-underline-offset: 2px;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color var(--motion-fast);
 }
 
 .tiptap-editor a:hover {
@@ -575,9 +575,9 @@
   border-radius: 3px;
   opacity: 0;
   transition:
-    opacity 0.15s,
-    color 0.15s,
-    background-color 0.15s;
+    opacity var(--motion-fast),
+    color var(--motion-fast),
+    background-color var(--motion-fast);
 }
 
 .tiptap-editor .mk-code-block-shell:hover .mk-code-block-copy-button {
@@ -955,9 +955,9 @@
   border-radius: 3px;
   opacity: 0;
   transition:
-    opacity 0.15s,
-    color 0.15s,
-    background-color 0.15s;
+    opacity var(--motion-fast),
+    color var(--motion-fast),
+    background-color var(--motion-fast);
 }
 
 .tiptap-editor .mk-mermaid-block:hover .mk-block-delete-button,
@@ -986,9 +986,9 @@
   border-radius: 3px;
   opacity: 0;
   transition:
-    opacity 0.15s,
-    color 0.15s,
-    background-color 0.15s;
+    opacity var(--motion-fast),
+    color var(--motion-fast),
+    background-color var(--motion-fast);
 }
 
 .tiptap-editor .mk-mermaid-block:hover .mk-block-zoom-button {
@@ -1257,7 +1257,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   font-size: 18px;
   font-family: var(--font-mono);
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-fast);
 }
 
 .mk-mermaid-lightbox-btn:hover {
@@ -1342,7 +1342,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   padding: 0 3px;
   cursor: pointer;
   text-decoration: none;
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-fast);
 }
 
 .tiptap-editor .mk-wikilink:hover {
@@ -1410,7 +1410,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   gap: 10px;
   padding: 6px 12px;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-fast);
 }
 
 .mk-slash-menu-item:hover,
@@ -1471,8 +1471,8 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   color: var(--muted-color);
   opacity: 0;
   transition:
-    opacity 0.15s,
-    background-color 0.15s;
+    opacity var(--motion-fast),
+    background-color var(--motion-fast);
   z-index: 50;
 }
 

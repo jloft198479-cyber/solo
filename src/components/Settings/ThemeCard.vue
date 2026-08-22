@@ -51,7 +51,7 @@ const emit = defineEmits<{
   border: 1px solid var(--border-color);
   background: var(--bg-color);
   cursor: pointer;
-  transition: border-color 0.15s, background-color 0.15s, transform 0.15s;
+  transition: border-color var(--motion-fast), background-color var(--motion-fast), transform var(--motion-fast);
 }
 
 .theme-card:hover {
@@ -103,7 +103,7 @@ const emit = defineEmits<{
   color: var(--error-color);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s, background-color 0.15s;
+  transition: opacity var(--motion-fast), background-color var(--motion-fast);
 }
 
 .theme-card:hover .theme-delete-btn {

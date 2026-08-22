@@ -268,8 +268,8 @@ function onKeyDown(e: KeyboardEvent) {
   border-radius: var(--radius-md);
   color: var(--muted-color);
   transition:
-    background-color 0.15s,
-    color 0.15s;
+    background-color var(--motion-fast),
+    color var(--motion-fast);
 }
 
 .settings-close-btn:hover {
@@ -331,7 +331,7 @@ function onKeyDown(e: KeyboardEvent) {
   padding: 8px 16px;
   font-size: 14px;
   color: var(--muted-color);
-  transition: color 0.15s;
+  transition: color var(--motion-fast);
 }
 
 .settings-footer-done {
@@ -341,7 +341,7 @@ function onKeyDown(e: KeyboardEvent) {
   color: var(--btn-primary-text);
   font-size: 14px;
   font-weight: 500;
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-fast);
 }
 
 .settings-footer-done:hover {

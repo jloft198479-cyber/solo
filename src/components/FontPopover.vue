@@ -29,16 +29,22 @@ onMounted(refreshStatus);
 
 const progressing = ref<Record<string, number>>({});
 
+// 竞态防护：卸载后丢弃迟到回调（onProgress / promise.then），并清掉待触发的 600ms 定时器
+let selectTimer: ReturnType<typeof setTimeout> | null = null;
+let disposed = false;
+
 const unsub = onProgress((family, pct) => {
+  if (disposed) return;
   if (pct >= 0) {
     progressing.value[family] = pct;
   } else {
     progressing.value[family] = 100;
     isFontAvailable(family).then((ok) => {
+      if (disposed) return;
       fontStatus.value[family] = ok;
       fontFailed.value[family] = !ok && isFontFailed(family);
       if (currentFont.value === family) {
-        setTimeout(() => {
+        selectTimer = setTimeout(() => {
           delete progressing.value[family];
           emit('select');
         }, 600);
@@ -49,7 +55,11 @@ const unsub = onProgress((family, pct) => {
   }
 });
 
-onUnmounted(unsub);
+onUnmounted(() => {
+  disposed = true;
+  unsub();
+  if (selectTimer) clearTimeout(selectTimer);
+});
 
 function selectFont(value: string) {
   settingsStore.updateSetting('fontFamily', value);
