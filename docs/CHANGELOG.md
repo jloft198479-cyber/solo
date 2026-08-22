@@ -20,7 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.2.40] — 2026-08-22
+
+> 4 项数据可靠性修复（Ctrl+Z 跨文档回退、多窗口退出丢内容、重命名死锁、大纲跳转不精准），编辑健壮性显著增强。
 
 ### Fixed
 - **切换文档后 Ctrl+Z 回退到上一篇内容（静默数据损坏）**：TipTap `setContent` 只设 `preventUpdate` 不处理 history，撤销栈跨文档污染——切换文档后按 Ctrl+Z 会把上一篇内容换回来，随后自动保存把旧内容写进当前文件。修复：文档载入/切换改用 `addToHistory: false` + `preventUpdate` 事务整体替换，Ctrl+Z 不再跨过文档边界（同时修复首次加载后 Ctrl+Z 可撤销为空文档的问题）。
