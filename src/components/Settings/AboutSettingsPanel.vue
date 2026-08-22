@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { check } from '@tauri-apps/plugin-updater';
-import { invokeCommand } from '../../services/tauri/client';
-import { TAURI_COMMANDS } from '../../services/tauri/command-names';
+import { checkUpdateAvailability } from '../../services/tauri/update';
 import SettingsSwitch from './SettingsSwitch.vue';
 import './settings-shared.css';
 import pkg from '../../../package.json';
@@ -22,8 +20,7 @@ async function checkForUpdate() {
   statusMessage.value = '';
   downloadProgress.value = 0;
   try {
-    await invokeCommand<string>(TAURI_COMMANDS.detectProxyForUpdate).catch(() => {});
-    const update = await check();
+    const update = await checkUpdateAvailability();
     if (update) {
       updateStatus.value = 'downloading';
       statusMessage.value = '正在下载 0%';

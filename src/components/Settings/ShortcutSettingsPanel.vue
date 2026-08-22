@@ -1,31 +1,24 @@
 <script setup lang="ts">
-import type { ComponentPublicInstance } from 'vue';
-import type { ShortcutCommand as ShortcutDef } from '../../commands/registry';
+import { useSettingsStore } from '../../stores/settings';
+import { useShortcutSettings } from './useShortcutSettings';
 import './settings-shared.css';
 
-interface ShortcutGroup {
-  name: string;
-  items: ShortcutDef[];
-}
-
-defineProps<{
-  conflictWarning: string | null;
-  editingId: string | null;
-  editingKey: string;
-  formatShortcutDisplay: (shortcut: string) => string;
-  isDefaultShortcut: (item: ShortcutDef) => boolean;
-  isMac: boolean;
-  setCaptureInputRef: (el: Element | ComponentPublicInstance | null) => void;
-  shortcutGroups: ShortcutGroup[];
-}>();
-
-defineEmits<{
-  resetAll: [];
-  resetShortcut: [item: ShortcutDef];
-  startEdit: [item: ShortcutDef];
-  cancelEdit: [];
-  captureKeydown: [event: KeyboardEvent, item: ShortcutDef];
-}>();
+const settingsStore = useSettingsStore();
+const {
+  conflictWarning,
+  editingId,
+  editingKey,
+  formatShortcutDisplay,
+  isDefaultShortcut,
+  isMac,
+  resetAllShortcuts,
+  resetShortcut,
+  shortcutGroups,
+  startEdit,
+  setCaptureInputRef,
+  cancelEdit,
+  captureKeydown,
+} = useShortcutSettings(settingsStore.settings);
 </script>
 
 <template>
@@ -36,7 +29,7 @@ defineEmits<{
       </div>
       <button
         class="shortcut-settings-panel__reset"
-        @click="$emit('resetAll')"
+        @click="resetAllShortcuts"
       >
         重置全部
       </button>
@@ -56,7 +49,7 @@ defineEmits<{
           :key="item.id"
           class="shortcut-settings-panel__item"
           :class="{ 'shortcut-settings-panel__item--editing': editingId === item.id }"
-          @click="$emit('startEdit', item)"
+          @click="startEdit(item)"
         >
           <span class="shortcut-settings-panel__description">
             {{ item.description }}
@@ -67,7 +60,7 @@ defineEmits<{
               v-if="!isDefaultShortcut(item)"
               class="shortcut-settings-panel__item-reset"
               title="重置为默认"
-              @click.stop="$emit('resetShortcut', item)"
+              @click.stop="resetShortcut(item)"
             >
               ↺
             </button>
@@ -81,8 +74,8 @@ defineEmits<{
               :value="formatShortcutDisplay(editingKey)"
               class="shortcut-input editing"
               placeholder="按下..."
-              @keydown="$emit('captureKeydown', $event, item)"
-              @blur="$emit('cancelEdit')"
+              @keydown="captureKeydown($event, item)"
+              @blur="cancelEdit"
             />
 
             <div v-else class="shortcut-input" :class="{ custom: !isDefaultShortcut(item) }">

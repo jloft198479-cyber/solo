@@ -6,8 +6,7 @@ import { useCommandDispatcher } from './composables/useCommandDispatcher';
 import { useAppDomEvents } from './composables/useAppDomEvents';
 import { useAppEditorState } from './composables/useAppEditorState';
 import { useDocumentSession } from './composables/useDocumentSession';
-import { invokeCommand } from './services/tauri/client';
-import { TAURI_COMMANDS } from './services/tauri/command-names';
+import { checkUpdateAvailability } from './services/tauri/update';
 import { useImagePreview } from './composables/useImagePreview';
 import { useMenuEvents } from './composables/useMenuEvents';
 import { useMenuShortcutsSync } from './composables/useMenuShortcutsSync';
@@ -250,10 +249,7 @@ onMounted(async () => {
 async function autoCheckForUpdate() {
   if (!settings.value.enableAutoUpdateCheck) return;
   try {
-    // 先尝试检测代理
-    await invokeCommand<string>(TAURI_COMMANDS.detectProxyForUpdate).catch(() => {});
-    const { check } = await import('@tauri-apps/plugin-updater');
-    await check();
+    await checkUpdateAvailability();
   } catch {
     // 静默忽略网络错误，不打扰用户
   }
