@@ -15,7 +15,7 @@
 }
 
 .mk-editor-inner {
-  max-width: 680px;
+  max-width: var(--mk-content-max-width);
   margin: 0 auto;
   padding: 0 48px;
 }
@@ -57,6 +57,8 @@
   --mk-quote-border-width: 2px;
   --mk-focus-dimmed-opacity: 0.22;
   --mk-focus-heading-opacity: 0.2;
+  /* 内容阅读宽度：680px 保底（CJK 舒适行长下限），随窗口渐进加宽，960px 封顶（≈60 字/行） */
+  --mk-content-max-width: clamp(680px, 52vw, 960px);
 }
 
 .tiptap-editor {
@@ -415,24 +417,24 @@
 }
 
 /* ── 任务列表 ──────────────────────────────────────────────── */
-.tiptap-editor ul[data-type="taskList"] {
+.tiptap-editor ul[data-type='taskList'] {
   list-style: none;
   padding-left: 0;
 }
 
-.tiptap-editor ul[data-type="taskList"] li {
+.tiptap-editor ul[data-type='taskList'] li {
   display: flex;
   align-items: flex-start;
   gap: 6px;
 }
 
-.tiptap-editor ul[data-type="taskList"] li > label {
+.tiptap-editor ul[data-type='taskList'] li > label {
   flex-shrink: 0;
   margin-top: 4px;
   user-select: none;
 }
 
-.tiptap-editor ul[data-type="taskList"] li > label input[type="checkbox"] {
+.tiptap-editor ul[data-type='taskList'] li > label input[type='checkbox'] {
   width: 15px;
   height: 15px;
   border-radius: 4px;
@@ -440,11 +442,11 @@
   cursor: pointer;
 }
 
-.tiptap-editor ul[data-type="taskList"] li > div {
+.tiptap-editor ul[data-type='taskList'] li > div {
   flex: 1;
 }
 
-.tiptap-editor ul[data-type="taskList"] li[data-checked="true"] > div {
+.tiptap-editor ul[data-type='taskList'] li[data-checked='true'] > div {
   text-decoration: line-through;
   color: var(--muted-color);
 }
@@ -572,7 +574,10 @@
   cursor: pointer;
   border-radius: 3px;
   opacity: 0;
-  transition: opacity 0.15s, color 0.15s, background-color 0.15s;
+  transition:
+    opacity 0.15s,
+    color 0.15s,
+    background-color 0.15s;
 }
 
 .tiptap-editor .mk-code-block-shell:hover .mk-code-block-copy-button {
@@ -758,8 +763,12 @@
 }
 
 @keyframes img-skeleton {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* 图片 caption：显示 alt 文字，居中 muted 小字号（iA Writer 做法） */
@@ -836,7 +845,9 @@
 }
 
 @keyframes ProseMirror-cursor-blink {
-  to { visibility: hidden; }
+  to {
+    visibility: hidden;
+  }
 }
 
 /* ── 数学公式块 ────────────────────────────────────────────── */
@@ -943,7 +954,10 @@
   cursor: pointer;
   border-radius: 3px;
   opacity: 0;
-  transition: opacity 0.15s, color 0.15s, background-color 0.15s;
+  transition:
+    opacity 0.15s,
+    color 0.15s,
+    background-color 0.15s;
 }
 
 .tiptap-editor .mk-mermaid-block:hover .mk-block-delete-button,
@@ -971,7 +985,10 @@
   cursor: pointer;
   border-radius: 3px;
   opacity: 0;
-  transition: opacity 0.15s, color 0.15s, background-color 0.15s;
+  transition:
+    opacity 0.15s,
+    color 0.15s,
+    background-color 0.15s;
 }
 
 .tiptap-editor .mk-mermaid-block:hover .mk-block-zoom-button {
@@ -1043,28 +1060,72 @@
   margin-bottom: 6px;
   opacity: 0.8;
 }
-.tiptap-editor .mk-callout[data-callout-type="abstract"] { background-color: var(--callout-abstract-bg); }
-.tiptap-editor .mk-callout[data-callout-type="abstract"]::before { color: var(--callout-abstract); }
-.tiptap-editor .mk-callout[data-callout-type="info"] { background-color: var(--callout-info-bg); }
-.tiptap-editor .mk-callout[data-callout-type="info"]::before { color: var(--callout-info); }
-.tiptap-editor .mk-callout[data-callout-type="tip"] { background-color: var(--callout-tip-bg); }
-.tiptap-editor .mk-callout[data-callout-type="tip"]::before { color: var(--callout-tip); }
-.tiptap-editor .mk-callout[data-callout-type="success"] { background-color: var(--callout-success-bg); }
-.tiptap-editor .mk-callout[data-callout-type="success"]::before { color: var(--callout-success); }
-.tiptap-editor .mk-callout[data-callout-type="question"] { background-color: var(--callout-question-bg); }
-.tiptap-editor .mk-callout[data-callout-type="question"]::before { color: var(--callout-question); }
-.tiptap-editor .mk-callout[data-callout-type="warning"] { background-color: var(--callout-warning-bg); }
-.tiptap-editor .mk-callout[data-callout-type="warning"]::before { color: var(--callout-warning); }
-.tiptap-editor .mk-callout[data-callout-type="failure"] { background-color: var(--callout-failure-bg); }
-.tiptap-editor .mk-callout[data-callout-type="failure"]::before { color: var(--callout-failure); }
-.tiptap-editor .mk-callout[data-callout-type="danger"] { background-color: var(--callout-danger-bg); }
-.tiptap-editor .mk-callout[data-callout-type="danger"]::before { color: var(--callout-danger); }
-.tiptap-editor .mk-callout[data-callout-type="bug"] { background-color: var(--callout-bug-bg); }
-.tiptap-editor .mk-callout[data-callout-type="bug"]::before { color: var(--callout-bug); }
-.tiptap-editor .mk-callout[data-callout-type="example"] { background-color: var(--callout-example-bg); }
-.tiptap-editor .mk-callout[data-callout-type="example"]::before { color: var(--callout-example); }
-.tiptap-editor .mk-callout[data-callout-type="quote"] { background-color: var(--callout-quote-bg); }
-.tiptap-editor .mk-callout[data-callout-type="quote"]::before { color: var(--callout-quote); }
+.tiptap-editor .mk-callout[data-callout-type='abstract'] {
+  background-color: var(--callout-abstract-bg);
+}
+.tiptap-editor .mk-callout[data-callout-type='abstract']::before {
+  color: var(--callout-abstract);
+}
+.tiptap-editor .mk-callout[data-callout-type='info'] {
+  background-color: var(--callout-info-bg);
+}
+.tiptap-editor .mk-callout[data-callout-type='info']::before {
+  color: var(--callout-info);
+}
+.tiptap-editor .mk-callout[data-callout-type='tip'] {
+  background-color: var(--callout-tip-bg);
+}
+.tiptap-editor .mk-callout[data-callout-type='tip']::before {
+  color: var(--callout-tip);
+}
+.tiptap-editor .mk-callout[data-callout-type='success'] {
+  background-color: var(--callout-success-bg);
+}
+.tiptap-editor .mk-callout[data-callout-type='success']::before {
+  color: var(--callout-success);
+}
+.tiptap-editor .mk-callout[data-callout-type='question'] {
+  background-color: var(--callout-question-bg);
+}
+.tiptap-editor .mk-callout[data-callout-type='question']::before {
+  color: var(--callout-question);
+}
+.tiptap-editor .mk-callout[data-callout-type='warning'] {
+  background-color: var(--callout-warning-bg);
+}
+.tiptap-editor .mk-callout[data-callout-type='warning']::before {
+  color: var(--callout-warning);
+}
+.tiptap-editor .mk-callout[data-callout-type='failure'] {
+  background-color: var(--callout-failure-bg);
+}
+.tiptap-editor .mk-callout[data-callout-type='failure']::before {
+  color: var(--callout-failure);
+}
+.tiptap-editor .mk-callout[data-callout-type='danger'] {
+  background-color: var(--callout-danger-bg);
+}
+.tiptap-editor .mk-callout[data-callout-type='danger']::before {
+  color: var(--callout-danger);
+}
+.tiptap-editor .mk-callout[data-callout-type='bug'] {
+  background-color: var(--callout-bug-bg);
+}
+.tiptap-editor .mk-callout[data-callout-type='bug']::before {
+  color: var(--callout-bug);
+}
+.tiptap-editor .mk-callout[data-callout-type='example'] {
+  background-color: var(--callout-example-bg);
+}
+.tiptap-editor .mk-callout[data-callout-type='example']::before {
+  color: var(--callout-example);
+}
+.tiptap-editor .mk-callout[data-callout-type='quote'] {
+  background-color: var(--callout-quote-bg);
+}
+.tiptap-editor .mk-callout[data-callout-type='quote']::before {
+  color: var(--callout-quote);
+}
 
 /* ── Frontmatter ───────────────────────────────────────────── */
 .tiptap-editor .mk-frontmatter {
@@ -1161,8 +1222,12 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
 }
 
 @keyframes mk-mermaid-lightbox-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .mk-mermaid-lightbox-toolbar {
@@ -1405,7 +1470,9 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   cursor: grab;
   color: var(--muted-color);
   opacity: 0;
-  transition: opacity 0.15s, background-color 0.15s;
+  transition:
+    opacity 0.15s,
+    background-color 0.15s;
   z-index: 50;
 }
 
@@ -1464,20 +1531,22 @@ html.focus-mode .paragraph-active {
   transition: opacity 0.35s ease;
 }
 
-html.focus-mode [class*="mk-editor"] h1::before,
-html.focus-mode [class*="mk-editor"] h2::before,
-html.focus-mode [class*="mk-editor"] h3::before,
-html.focus-mode [class*="mk-editor"] h4::before,
-html.focus-mode [class*="mk-editor"] h5::before,
-html.focus-mode [class*="mk-editor"] h6::before,
-html.focus-mode [class*="mk-editor"] .mk-pending-heading::before {
+html.focus-mode [class*='mk-editor'] h1::before,
+html.focus-mode [class*='mk-editor'] h2::before,
+html.focus-mode [class*='mk-editor'] h3::before,
+html.focus-mode [class*='mk-editor'] h4::before,
+html.focus-mode [class*='mk-editor'] h5::before,
+html.focus-mode [class*='mk-editor'] h6::before,
+html.focus-mode [class*='mk-editor'] .mk-pending-heading::before {
   opacity: var(--mk-focus-heading-opacity);
 }
 
 /* ── 浮动菜单进出场动画（SlashMenu / EmojiMenu / BubbleMenu 共用）── */
 .mk-menu-enter-active,
 .mk-menu-leave-active {
-  transition: opacity var(--motion-fast) var(--ease-out), transform var(--motion-fast) var(--ease-out);
+  transition:
+    opacity var(--motion-fast) var(--ease-out),
+    transform var(--motion-fast) var(--ease-out);
 }
 
 .mk-menu-enter-from,
@@ -1490,8 +1559,12 @@ html.focus-mode [class*="mk-editor"] .mk-pending-heading::before {
    UX 研究结论：跳转到目标后给一次明确的视觉反馈，比静默滚动更能让用户「知道到这儿了」。
    300ms 背景色淡入淡出，不抢注意力。 */
 @keyframes mk-jump-pulse {
-  0%   { background-color: var(--primary-light); }
-  100% { background-color: transparent; }
+  0% {
+    background-color: var(--primary-light);
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 .mk-jump-target {
   animation: mk-jump-pulse 0.3s var(--ease-out);
@@ -1503,8 +1576,12 @@ html.focus-mode [class*="mk-editor"] .mk-pending-heading::before {
    给 .mk-editor 加 200ms 透明度淡入，保留视觉上下文（不是完全消失），灭闪烁感。
    opacity 从 0.6 起而非 0：避免用户失去位置感（Notion / Linear 的做法）。 */
 @keyframes mk-content-crossfade {
-  from { opacity: 0.6; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .mk-content-crossfade {
   animation: mk-content-crossfade var(--motion-base) var(--ease-out);
