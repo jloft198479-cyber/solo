@@ -318,12 +318,7 @@ pub fn run() {
                                     source: AppOpenSource::Cli,
                                 });
                             }
-                        } else if let Some(state) = app.try_state::<StartupOpenRequests>() {
-                            let _ = state.merge(AppOpenPathsPayload {
-                                paths: vec![file_path.to_string()],
-                                source: AppOpenSource::Cli,
-                            });
-                        };
+                        }
                     }
                 }
             }

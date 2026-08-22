@@ -9,28 +9,11 @@ import SaveSettingsPanel from './SaveSettingsPanel.vue';
 import SettingsSidebarNav, { type SettingsTabKey } from './SettingsSidebarNav.vue';
 import ShortcutSettingsPanel from './ShortcutSettingsPanel.vue';
 import AboutSettingsPanel from './AboutSettingsPanel.vue';
-import { useShortcutSettings } from './useShortcutSettings';
 
 const settingsStore = useSettingsStore();
 
 // 当前选中的设置分组
 const activeTab = ref<SettingsTabKey>('appearance');
-
-const {
-  conflictWarning,
-  editingId,
-  editingKey,
-  formatShortcutDisplay,
-  isDefaultShortcut,
-  isMac,
-  resetAllShortcuts,
-  resetShortcut,
-  shortcutGroups,
-  startEdit,
-  setCaptureInputRef,
-  cancelEdit,
-  captureKeydown,
-} = useShortcutSettings(settingsStore.settings);
 
 const tabMeta = {
   appearance: {
@@ -61,7 +44,6 @@ const currentThemeName = computed(() => settingsStore.currentTheme?.name ?? '未
 // 关闭弹窗
 function close() {
   settingsStore.closeModal();
-  cancelEdit();
 }
 
 // 点击遮罩关闭
@@ -153,22 +135,7 @@ function onKeyDown(e: KeyboardEvent) {
                 />
 
                 <!-- 快捷键设置 -->
-                <ShortcutSettingsPanel
-                  v-else-if="activeTab === 'shortcuts'"
-                  :conflict-warning="conflictWarning"
-                  :editing-id="editingId"
-                  :editing-key="editingKey"
-                  :format-shortcut-display="formatShortcutDisplay"
-                  :is-default-shortcut="isDefaultShortcut"
-                  :is-mac="isMac"
-                  :set-capture-input-ref="setCaptureInputRef"
-                  :shortcut-groups="shortcutGroups"
-                  @reset-all="resetAllShortcuts"
-                  @reset-shortcut="resetShortcut"
-                  @start-edit="startEdit"
-                  @cancel-edit="cancelEdit"
-                  @capture-keydown="captureKeydown"
-                />
+                <ShortcutSettingsPanel v-else-if="activeTab === 'shortcuts'" />
 
                 <!-- 保存设置 -->
                 <SaveSettingsPanel
