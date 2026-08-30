@@ -381,7 +381,7 @@ app.mount('#app');
 | `useImagePreview` | 图片预览 | 视图模式状态机 |
 | `useFloatingListMenu` | 浮动菜单 | SlashMenu/EmojiMenu 共享逻辑 |
 | `useOutline` | 大纲 | 大纲提取与导航（OutlinePanel） |
-| `useEditorSync` | 编辑器↔store 同步 | **脏态 A1 核心**，4 档防抖（字数150/大纲500/序列化500/光标100），`onUpdate` 单出口 → `fileStore.syncEditedContent` |
+| `useEditorSync` | 编辑器↔store 同步 | **脏态 A1 核心**，4 档防抖（字数150/大纲500/序列化500/光标100），`onUpdate` 单出口 → `fileStore.syncEditedContent`；heavy 档且大纲面板关闭时跳过全文大纲提取（面板打开时补算）；空闲序列化超时兜底撞上续打时推迟回防抖，不在输入中途硬跑大序列化 |
 | `useClickOutside` | 点击外部 | 通用 composable |
 
 > 旧文档提到的 `utils/shortcuts.ts` **已删除**：registry 内联 `getShortcut`/`getShortcutCommands`，全仓无 `shortcuts` 引用。命令源 `CommandSource` 含 `shortcut`/`menu`/`palette`/`titlebar`/`ui`，`CommandScope` 为 `app`/`editor`。
@@ -416,7 +416,7 @@ currentFile: { path, content, isDirty, lastModifiedTime, displayName, originalBa
 
 - **持久化**：tauri-plugin-store（经 `services/tauri/store.ts`）。焦点模式用 `focus-mode` class（`<html>` 上 toggle）。
 - **迁移**：`configVersion`（当前 **12**）。加载时若存储版本 ≠ 当前 → 规范化后回写，一次性升级。v12 迁移把 `fontSize`/`lineHeight` 从硬编码（16/1.6）改为 `null` 用主题默认。
-- **防抖写入**：设置变更后 300ms 防抖落盘。
+- **防抖写入**：设置变更后 300ms 防抖落盘；关窗链调用 `flushPendingSettings()` 强制落盘，防抖窗口内关窗不丢最后一次改动。
 - **`normalizeSettings()`**：合并默认值 + 强制 `autoSaveInterval ≥ 5s` + 刷版本号（`CURRENT`）。
 - **主题回退**：`ensureThemeId()` 在主题 id 失效时按当前外观回退到 `scholar-dark`/`default-light`。
 - **启动两阶段**（见 `App.vue` `onMounted`）：`initThemeOnly`（只读 `activeThemeId` 并 `applyCurrentTheme`，不触发 watcher，避免黑闪）→ `initFull`（读全部设置 + focusMode，版本不符则回写）。`startWatchers` 精确 watch 13 个顶层字段 + `activeThemeId` watcher（重注入 CSS）+ focusMode watcher。
