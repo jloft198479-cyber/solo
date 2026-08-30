@@ -5,7 +5,7 @@ audience: maintainer
 status: active
 tags: [核心文档, 发布, CI]
 summary: 发版流程真理源：Phase 定义/回滚/故障处理
-updates: [docs/PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从写完代码到用户下载）.md, .github/workflows/release.yml]
+updates: [docs/PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从写完代码到用户下载）.md, .github/workflows/release.yml, docs/KNOWN-ISSUES.md]
 ---
 
 # solo 正式发布流程
@@ -287,6 +287,25 @@ gh release view v1.x.x
 > 注：`.opencode/PROFILE.md` 的版本历史已于 2026-07-21 去重，统一以 `CHANGELOG.md` 为版本史真理源。
 
 同时更新 `BUILD_GUIDE.md` 中的版本号示例（如果有硬编码）。
+
+### 7.5 同步 CNB 国内镜像（每次发版）
+
+CNB (cnb.cool) 只作**国内手动下载渠道**——软件 updater 端点写死 GitHub，CNB 那份**不参与自动更新**（改这条见 [KNOWN-ISSUES §二 #7](./KNOWN-ISSUES.md)）。
+
+```bash
+# 1. 从 GitHub 取 3 个资产到沙盒目录（exe / .sig / latest.json）
+gh release download v1.x.x -D .sandbox-cnb/assets --clobber
+
+# 2. 上传到 CNB（令牌已存本机，勿入库）
+export CNB_TOKEN=$(cat ~/.cnb/personal-token)
+node ~/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs \
+  --repo fzz198479/solo --tag v1.x.x --assets-dir .sandbox-cnb/assets
+
+# 3. 完整性校验：自算 sha256 与从 CNB 下载回来的文件比对，必须一致
+```
+
+- 完整流程、令牌权限、13 条踩坑经验：技能 `~/.workbuddy/skills/cnb-publish/`；跨项目通用版 `F:\Agent\公用经验\CNB发版分发-全流程与踩坑经验.md`。
+- **源码隔离**：CNB 仓库只放 release 附件 + 一个说明性 README，**永不推源码**。
 
 ---
 

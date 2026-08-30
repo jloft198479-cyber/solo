@@ -5,7 +5,7 @@ audience: agent
 status: active
 tags: [核心文档, 待办, 已知坑]
 summary: 待办/已知问题真理源：§一 已修复、§二 待办
-updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src]
+updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src, docs/RELEASE_PROCESS.md]
 ---
 
 # docs/KNOWN-ISSUES.md — 已知问题与技术债
@@ -39,6 +39,7 @@ updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src]
 | 4 | （可选）最近文件快开 | 来源：已退役的 UI/交互优化提案 P9（本项未做、非必须）。在不引入应用内 tab 模型前提下，提供「最近文件」快开——可挂在命令面板（Ctrl+K）增「最近文件」分组，数据源依赖 Rust 侧是否已有最近文件记录。保持 solo 多窗口哲学。 | 待定（Rust 侧最近文件记录可用性） |
 | 5 | 远程图片 URL 校验挡不住 DNS rebinding | §一 #9 的 `validate_remote_image_url` 只判断**字面量**主机（回环/私有/链路本地/组播、`localhost`、`.local`/`.internal`、云元数据 `169.254.169.254`）。若攻击者掌握一个公网域名，让其 A 记录解析到内网 IP，请求仍会打到内网。彻底修法需要「解析后 IP 再校验 + 用该 IP 建连」，会破坏 TLS SNI 与虚拟主机，且 reqwest 需自定义 resolver；本地优先单文件编辑器 threat model 下暂不付出这个复杂度。同理 `validate_font_url` 只限 https，刻意不做主机白名单——GitHub release 会 302 跳到 `objects.githubusercontent.com`，白名单会打断下载。取舍已写入 Rust 注释 | [`src-tauri/src/commands/image.rs`](../src-tauri/src/commands/image.rs) / [`font.rs`](../src-tauri/src/commands/font.rs) |
 | 6 | 表格 resizable 拖拽列宽不持久 | TipTap Table 配置了 `resizable: true`，用户可拖拽调整列宽，但 `serializer.ts` 用文本长度算列宽对齐（`colWidths` 局部变量），完全忽略 `node.attrs.colwidth`。保存后重新打开，拖过的列宽丢失。修复需 serializer 读取 `colwidth` 属性写入 GFM 表格（GFM 本身无列宽语义，可能需要 HTML `<col>` 或自定义属性），同时 parser 要能还原。当前 #9 仅补齐行列操作入口，此项留待后续 | [`src/components/Editor/tiptap/markdown/serializer.ts`](../src/components/Editor/tiptap/markdown/serializer.ts):438-459 |
+| 7 | 国内用户自动更新走 GitHub，慢；CNB 镜像只供手动下载（**[待用户拍板]** A 维持现状 / B 启用 CNB 自动更新） | **现状**：updater 唯一端点写死 GitHub（[`tauri.conf.json`](../src-tauri/tauri.conf.json):74），CNB 那份 `latest.json` 是 GitHub 原样副本，其 `platforms.windows-x86_64.url` **仍指 GitHub** ⇒ 仅把 CNB 加进 endpoints 不会有加速效果。**启用 B 的前置条件**（缺一不可）：① 上传前改写 `latest.json` 的 `url` 指向 CNB 下载链接（`.sig` 无需重签——签的是同一个 exe）；② 保证两侧 `version` 字段一致（同一份清单天然满足）；③ **先实测 Tauri v2 多端点 fallback 行为**（据理解是顺序尝试、取首个成功返回，但**未实测**，CNB 在前还是 GitHub 在前需据此定）。两侧 exe 字节完全一致（v1.2.41 实测 sha256 相同），故用户手动从 CNB 覆盖安装不影响后续自动更新——这是 A 方案的兜底 | [`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json):74 ／ 流程见 [RELEASE_PROCESS §7.5](./RELEASE_PROCESS.md) |
 
 ## 三、设计取舍（[设计取舍]，非 bug，勿"修"）
 
