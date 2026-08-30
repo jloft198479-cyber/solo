@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_DISPLAY_NAME } from '../../stores/file';
+import {
+  documentTier,
+  setDocumentTier,
+  HEAVY_DOC_CHARS,
+  EXTREME_DOC_CHARS,
+} from '../../components/Editor/document-scale';
 
 const openMock = vi.fn();
 const saveMock = vi.fn();
@@ -466,5 +472,61 @@ describe('useDocumentSession 关窗脏闸口的免序列化快路径', () => {
 
     session.evaluateDirtyFromEditor();
     expect(getContent).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useDocumentSession 大文档档位闸门（阈值分层 + 自动降级）', () => {
+  async function loadWith(content: string) {
+    openDocumentMock.mockResolvedValue({ path: '/tmp/big.md', content, lastModifiedMs: 1 });
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({ resetViewMode: vi.fn() });
+    return session.loadDocumentFromPath('/tmp/big.md');
+  }
+
+  beforeEach(() => {
+    confirmMock.mockReset();
+    openDocumentMock.mockReset();
+    fileStoreState.setFile.mockClear();
+    setDocumentTier('normal');
+  });
+
+  it('heavy 档：自动降级但绝不打扰用户（不弹确认框）', async () => {
+    await expect(loadWith('x'.repeat(HEAVY_DOC_CHARS))).resolves.toBe(true);
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(documentTier.value).toBe('heavy');
+    expect(fileStoreState.setFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('extreme 档：用户取消则不写 store，也不留下降级痕迹', async () => {
+    confirmMock.mockResolvedValueOnce(false);
+    await expect(loadWith('x'.repeat(EXTREME_DOC_CHARS))).resolves.toBe(false);
+    expect(fileStoreState.setFile).not.toHaveBeenCalled();
+    expect(documentTier.value).toBe('normal');
+  });
+
+  it('extreme 档：用户确认后才按 extreme 档发布并写入', async () => {
+    confirmMock.mockResolvedValueOnce(true);
+    await expect(loadWith('x'.repeat(EXTREME_DOC_CHARS))).resolves.toBe(true);
+    expect(documentTier.value).toBe('extreme');
+    expect(fileStoreState.setFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('base64 内嵌图片不计入档位度量（渲染成独立节点，不参与全文遍历）', async () => {
+    const md = `![p](data:image/png;base64,${'A'.repeat(EXTREME_DOC_CHARS)})\n正文`;
+    await expect(loadWith(md)).resolves.toBe(true);
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(documentTier.value).toBe('normal');
+  });
+
+  it('新建文档复位档位：不继承上一个超大文档的降级设置', async () => {
+    confirmMock.mockResolvedValueOnce(true);
+    await loadWith('x'.repeat(EXTREME_DOC_CHARS));
+    expect(documentTier.value).toBe('extreme');
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({ resetViewMode: vi.fn() });
+    await session.handleNewDocument();
+
+    expect(documentTier.value).toBe('normal');
   });
 });

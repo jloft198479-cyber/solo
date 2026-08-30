@@ -25,6 +25,7 @@ import { useSettingsStore } from './stores/settings';
 import { message } from './services/tauri/dialog';
 import { destroyCurrentWindow, newEditorWindow } from './services/tauri/window';
 import { findCommandByShortcut } from './commands/registry';
+import { HEAVY_DOC_CHARS, isHeavyDocument } from './components/Editor/document-scale';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import pkg from '../package.json';
 
@@ -164,6 +165,15 @@ function switchToImageView() {
 function showAbout() {
   showAboutModal.value = true;
 }
+
+// 大文档降级档：实时字数不再跟随编辑更新，状态栏显示的是打开时的基线，
+// 用约号 + 悬停说明如实交代，不静默降低可信度。
+const isDegradedDoc = computed(() => isHeavyDocument());
+const degradedWordCountTitle = computed(() =>
+  isDegradedDoc.value
+    ? `大文档模式（${(HEAVY_DOC_CHARS / 10_000).toFixed(0)} 万字符以上自动开启）：字数按打开时统计，不再实时更新；代码块语言自动检测与焦点模式段落淡化已暂停`
+    : '',
+);
 
 const { executeCommand } = useCommandDispatcher({
   editorRef,
@@ -353,7 +363,9 @@ onUnmounted(() => {
           >
             {{ externalFileWarning }}
           </button>
-          <span v-else class="statusbar-stat">{{ stats.wordCount }} 字</span>
+          <span v-else class="statusbar-stat" :title="degradedWordCountTitle"
+            >{{ isDegradedDoc ? '≈' : '' }}{{ stats.wordCount }} 字</span
+          >
         </div>
         <div class="statusbar-right">
           <span v-if="autoSaveStatus" class="statusbar-stat statusbar-stat--success">{{

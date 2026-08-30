@@ -8,6 +8,7 @@ import {
   type EditorOutlineItem,
 } from '../components/Editor/tiptap/editor-metadata';
 import { serializeMarkdown } from '../components/Editor/tiptap/markdown/serializer';
+import { isHeavyDocument } from '../components/Editor/document-scale';
 import { useFileStore } from '../stores/file';
 import type { Node as PMNode } from '@tiptap/pm/model';
 
@@ -116,7 +117,10 @@ export function useEditorSync(options: EditorSyncOptions) {
   /** 编辑器 doc 变化（onUpdate 回调）入口 */
   function handleDocChange(ed: TiptapEditor) {
     editGeneration += 1;
-    debouncedWordCount(ed);
+    // 大文档降级：字数统计要遍历全文文本节点并逐段跑正则，正常文档下 150ms 防抖无感，
+    // 超大文档下每次到点都是一次全文遍历。停掉「跟随编辑」的实时字数，
+    // 打开时由 emitImmediateStats 算一次基线（状态栏以约数呈现）。
+    if (!isHeavyDocument()) debouncedWordCount(ed);
     debouncedOutline(ed);
     debouncedSerialize(ed);
   }

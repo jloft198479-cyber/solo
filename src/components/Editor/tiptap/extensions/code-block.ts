@@ -14,6 +14,7 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { isHeavyDocument } from '../../document-scale';
 import { createLowlight } from 'lowlight';
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
@@ -107,7 +108,10 @@ interface HighlightSpan {
 
 function parseNodes(nodes: HastNode[], className: string[] = []): HighlightSpan[] {
   return nodes.flatMap((node) => {
-    const classes = [...className, ...(Array.isArray(node.properties?.className) ? (node.properties.className as string[]) : [])];
+    const classes = [
+      ...className,
+      ...(Array.isArray(node.properties?.className) ? (node.properties.className as string[]) : []),
+    ];
     if (node.children) return parseNodes(node.children, classes);
     return [{ text: node.value ?? '', classes }];
   });
@@ -123,9 +127,13 @@ function highlightBlock(
     typeof block.attrs.language === 'string' ? block.attrs.language : null,
   );
   const effective = language || defaultLanguage;
-  const result = effective && lowlightInstance.registered(effective)
-    ? lowlightInstance.highlight(effective, block.textContent)
-    : lowlightInstance.highlightAuto(block.textContent);
+  // 大文档降级：无语言标注时走 highlightAuto——它把 17 种语言的完整 tokenizer 逐个跑一遍，
+  // 是超大文档打开与编辑期的实测热点。降级档位下这类块直接不高亮，标注了语言的仍正常高亮。
+  if (!effective && isHeavyDocument()) return [];
+  const result =
+    effective && lowlightInstance.registered(effective)
+      ? lowlightInstance.highlight(effective, block.textContent)
+      : lowlightInstance.highlightAuto(block.textContent);
 
   const spans = parseNodes((result.children ?? []) as HastNode[]);
   const decorations: Decoration[] = [];
@@ -276,26 +284,33 @@ export const CustomCodeBlock = CodeBlock.extend({
       copyButton.type = 'button';
       copyButton.className = 'mk-code-block-copy-button';
       copyButton.title = '复制代码';
-      copyButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      copyButton.innerHTML =
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
       header.appendChild(copyButton);
 
       let copyTimeout: ReturnType<typeof setTimeout> | null = null;
-      copyButton.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const code = node.textContent;
-        navigator.clipboard.writeText(code).then(() => {
-          // 写入是异步的，本块可能已经销毁；此时再改按钮并起定时器就是泄漏
-          if (eventController.signal.aborted) return;
-          copyButton.classList.add('is-copied');
-          copyButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-          if (copyTimeout) clearTimeout(copyTimeout);
-          copyTimeout = setTimeout(() => {
-            copyButton.classList.remove('is-copied');
-            copyButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-          }, 2000);
-        });
-      }, { signal: eventController.signal });
+      copyButton.addEventListener(
+        'click',
+        (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const code = node.textContent;
+          navigator.clipboard.writeText(code).then(() => {
+            // 写入是异步的，本块可能已经销毁；此时再改按钮并起定时器就是泄漏
+            if (eventController.signal.aborted) return;
+            copyButton.classList.add('is-copied');
+            copyButton.innerHTML =
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+            if (copyTimeout) clearTimeout(copyTimeout);
+            copyTimeout = setTimeout(() => {
+              copyButton.classList.remove('is-copied');
+              copyButton.innerHTML =
+                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+            }, 2000);
+          });
+        },
+        { signal: eventController.signal },
+      );
 
       const pre = document.createElement('pre');
       pre.className = 'mk-code-block';
@@ -308,7 +323,8 @@ export const CustomCodeBlock = CodeBlock.extend({
 
       function syncLanguageUI() {
         if (isEditingLanguage) return;
-        const currentLanguage = typeof node.attrs.language === 'string' ? node.attrs.language : null;
+        const currentLanguage =
+          typeof node.attrs.language === 'string' ? node.attrs.language : null;
         const label = getCodeBlockLanguageLabel(currentLanguage);
         languageButton.textContent = label;
         pre.dataset.language = label;
@@ -347,30 +363,42 @@ export const CustomCodeBlock = CodeBlock.extend({
         exitLanguageEdit();
       }
 
-      languageButton.addEventListener('click', (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        enterLanguageEdit();
-      }, { signal: eventController.signal });
-
-      languageInput.addEventListener('blur', () => {
-        commitLanguage();
-      }, { signal: eventController.signal });
-
-      languageInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
+      languageButton.addEventListener(
+        'click',
+        (event) => {
           event.preventDefault();
+          event.stopPropagation();
+          enterLanguageEdit();
+        },
+        { signal: eventController.signal },
+      );
+
+      languageInput.addEventListener(
+        'blur',
+        () => {
           commitLanguage();
-          editor.commands.focus();
-          return;
-        }
+        },
+        { signal: eventController.signal },
+      );
 
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          cancelLanguageEdit();
-          editor.commands.focus();
-        }
-      }, { signal: eventController.signal });
+      languageInput.addEventListener(
+        'keydown',
+        (event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            commitLanguage();
+            editor.commands.focus();
+            return;
+          }
+
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            cancelLanguageEdit();
+            editor.commands.focus();
+          }
+        },
+        { signal: eventController.signal },
+      );
 
       syncLanguageUI();
 

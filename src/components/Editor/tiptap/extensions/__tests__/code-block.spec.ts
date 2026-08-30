@@ -5,6 +5,7 @@ import { createLowlight } from 'lowlight';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
+import { setDocumentTier } from '../../../document-scale';
 import {
   createIncrementalLowlightPlugin,
   getCodeBlockLanguageLabel,
@@ -50,6 +51,7 @@ describe('createIncrementalLowlightPlugin 增量高亮', () => {
   afterEach(() => {
     highlightSpy.mockClear();
     autoSpy.mockClear();
+    setDocumentTier('normal');
   });
 
   interface DecoSummary {
@@ -149,9 +151,28 @@ describe('createIncrementalLowlightPlugin 增量高亮', () => {
     const summaries = decoSummaries(plugin.getState(next));
     expect(summaries.length).toBeGreaterThan(0);
     for (const s of summaries) {
-      expect(s.from >= 8 && s.to <= 20, `stale decoration survived: ${JSON.stringify(s)}`).toBe(true);
+      expect(s.from >= 8 && s.to <= 20, `stale decoration survived: ${JSON.stringify(s)}`).toBe(
+        true,
+      );
     }
     expect(highlightSpy).toHaveBeenCalledTimes(1);
     expect(autoSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('大文档降级（heavy）：无语言块不再走 highlightAuto，标注语言的块仍正常高亮', () => {
+    setDocumentTier('heavy');
+    const { state, plugin } = setup();
+
+    expect(highlightSpy).toHaveBeenCalledTimes(1); // js 块照常高亮
+    expect(autoSpy).not.toHaveBeenCalled(); // 17 种语言全量试跑是最贵的路径
+    for (const s of decoSummaries(plugin.getState(state))) {
+      expect(s.from >= 8 && s.to <= 20, `降级后残留自动检测装饰: ${JSON.stringify(s)}`).toBe(true);
+    }
+
+    state.apply(state.tr.insertText('y', 32)); // 编辑无语言块内容区末尾
+    expect(autoSpy).not.toHaveBeenCalled();
+
+    state.apply(state.tr.insertText('y', 20)); // 编辑 js 块内容区末尾
+    expect(highlightSpy).toHaveBeenCalledTimes(2);
   });
 });
