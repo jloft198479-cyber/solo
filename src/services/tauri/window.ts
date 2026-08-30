@@ -65,3 +65,13 @@ export async function newEditorWindow(path?: string): Promise<string> {
 export async function requestAppQuit() {
   await invokeCommand<void>(TAURI_COMMANDS.requestAppQuit);
 }
+
+/**
+ * 关窗逃生舱握手。
+ * - `ack`：本窗口已收到 close-requested（证明 JS 主线程还活着），Rust 此后吞掉重复的关闭请求，
+ *   避免大文档卡死时连按关闭叠出多个确认框。
+ * - `abort`：本次关闭链已中止（用户取消 / 保存失败），让下一次关闭请求重新弹窗。
+ */
+export async function reportWindowClose(phase: 'ack' | 'abort') {
+  await invokeCommand<void>(TAURI_COMMANDS.reportWindowClose, { phase });
+}

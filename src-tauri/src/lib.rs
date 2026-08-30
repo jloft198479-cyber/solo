@@ -8,7 +8,7 @@ mod updater;
 
 use commands::*;
 use models::{AppOpenPathsPayload, AppOpenSource};
-use state::{FocusedWindow, LoadedWindows, PendingWindowPaths, StartupOpenRequests};
+use state::{CloseGuard, FocusedWindow, LoadedWindows, PendingWindowPaths, StartupOpenRequests};
 use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -282,6 +282,7 @@ pub fn run() {
             app.manage(PendingWindowPaths::default());
             app.manage(LoadedWindows::default());
             app.manage(FocusedWindow::default());
+            app.manage(CloseGuard::default());
 
             let raw_args = std::env::args().collect::<Vec<_>>();
             append_startup_log(
@@ -366,6 +367,7 @@ pub fn run() {
             refresh_native_menu_shortcuts,
             reveal_startup_open_log,
             request_app_quit,
+            report_window_close,
             set_window_background_color,
             register_shell_new,
             unregister_shell_new,
