@@ -20,6 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+> 全项目代码审查后落地的 3 项修复：一处越权面收口、一处内存泄漏、一处剪贴板保真。
+
+### Security
+- **Rust IPC 入口补路径与 URL 校验**：此前 `open_document` / `save_document` / `import_document_image` / `fetch_remote_image` 把前端传入的路径或 URL 直接用于读文件与发请求，恶意文档内容（如构造的 `image src`）可诱导越权读写与 SSRF。修复：① 读/写各加扩展名白名单（读 md/markdown/txt，与 `lib.rs` 的 `supported_open_path` 同源；写多一个 json，因为「导出主题模板」复用 `save_document` 写 `.json`）；② `import_document_image` 的 source 改走 `validate_image_asset_path`，复用 canonicalize + is_file + 图片扩展名三重校验，防止把任意文件（或 `evil.png` 指向 `secret.txt` 的符号链接）拷进资产目录；③ 新增 `validate_remote_image_url` 限定 http/https 并拦截字面量内网主机（回环/私有/链路本地/组播、`localhost` / `.local` / `.internal`、云元数据 `169.254.169.254`，含 IPv4 内嵌 IPv6 形式），请求与 Referer 改用校验后的规范化 URL，做到「校验什么就请求什么」；④ 新增 `validate_font_url` 限定 https，刻意不做主机白名单——GitHub release 会 302 跳到 `objects.githubusercontent.com`，白名单会打断下载。缓存 key 仍哈希原始输入，升级后既有 remote-image-cache 不失效。
+
+### Fixed
+- **代码块 / 图片 NodeView 事件监听器泄漏**：`code-block.ts`（4 个监听器 + 复制回显定时器）与 `image.ts`（7 个监听器）缺 `destroy()`，节点销毁后监听器与闭包仍存活，频繁增删代码块/图片的长会话线性积累。改用仓库既有的 `AbortController` 套路（对齐 `math-block.ts` / `mermaid-block.ts`）：监听器统一带 `signal`，`destroy()` 里 `abort()`。同时补两处**销毁后异步回写**的守卫——图片 src 解析是异步的，`requestId` 活在同一个已销毁的闭包里仍会自匹配，必须额外查 `signal.aborted` 才能挡住晚到的 `image.src` 赋值。
+- **复制含引用块 / 表格的内容时多出反斜杠**：出站复制走「轻量转义」（只转 `` ` `` `*` 等必要字符），但 `blockquote` 与表格单元格各自新建内层序列化 state 时用的是默认构造（文件落盘的严格转义模式），把 clipboard 标记丢了——在引用块或表格里写 `A = B` / `100$`，粘到外部 Markdown 编辑器会变成 `A \= B` / `100\$`。修复：两处改用 `state.createChild()` 继承转义模式（`callout.ts` 早已这么写，这两处是漏改）。`cellToText` 因此要拿到父 state，列宽统计与输出两个调用点必须同步改，否则 `padEnd` 对齐的宽度和实际写入的字符串不是同一份、表格会错位。文件保存的严格转义不受影响（已有反向保护测试）。
+
 ## [1.2.40] — 2026-08-22
 
 > 4 项数据可靠性修复（Ctrl+Z 跨文档回退、多窗口退出丢内容、重命名死锁、大纲跳转不精准），编辑健壮性显著增强。
