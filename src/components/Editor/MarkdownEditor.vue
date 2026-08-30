@@ -3,13 +3,22 @@
     class="editor-shell relative h-full w-full cursor-text transition-colors"
     @click="lazyInitEditor"
   >
-    <div ref="editorWrapRef" class="mk-editor h-full overflow-y-auto outline-none">
+    <div
+      ref="editorWrapRef"
+      class="mk-editor h-full overflow-y-auto outline-none"
+      @contextmenu="onEditorContextMenu"
+    >
       <div class="mk-editor-inner">
         <EditorContent v-if="editor" :editor="editor" />
       </div>
     </div>
 
     <BubbleMenuComponent ref="bubbleMenuRef" @action="onBubbleMenuAction" />
+    <ContextMenuComponent
+      ref="contextMenuRef"
+      :items="contextMenuItems"
+      @select="onContextMenuSelect"
+    />
     <SlashMenu ref="slashMenuRef" :items="slashMenuItems" :command="slashMenuCommand" />
     <EmojiMenu ref="emojiMenuRef" :items="emojiMenuItems" :command="emojiMenuCommand" />
 
@@ -70,6 +79,7 @@ import { message } from '../../services/tauri/dialog';
 import { toAssetUrl } from '../../services/tauri/asset';
 import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
 import BubbleMenuComponent from './views/BubbleMenu.vue';
+import ContextMenuComponent, { type ContextMenuItem } from './views/ContextMenu.vue';
 import SlashMenu from './views/SlashMenu.vue';
 import EmojiMenu from './views/EmojiMenu.vue';
 import SearchPanel from './views/SearchPanel.vue';
@@ -96,6 +106,8 @@ const fileStore = useFileStore();
 const settingsStore = useSettingsStore();
 const editorWrapRef = ref<HTMLElement | null>(null);
 const bubbleMenuRef = ref<InstanceType<typeof BubbleMenuComponent> | null>(null);
+const contextMenuRef = ref<InstanceType<typeof ContextMenuComponent> | null>(null);
+const contextMenuItems = ref<ContextMenuItem[]>([]);
 const slashMenuRef = ref<SlashMenuController | null>(null);
 const slashMenuItems = ref<SlashCommandItem[]>([]);
 const slashMenuCommand = ref<(item: SlashCommandItem) => void>(() => {});
@@ -333,6 +345,33 @@ function updateBubbleMenu(ed: TiptapEditor) {
 
 function onBubbleMenuAction(type: string, data?: BubbleMenuActionData) {
   runBubbleMenuAction(editor.value, type, data);
+}
+
+// ── ContextMenu（右键菜单）──────────────────────────────────────
+
+function buildTableContextMenuItems(ed: TiptapEditor): ContextMenuItem[] {
+  const can = ed.can();
+  return [
+    { id: 'editor.tableAddRowBefore', label: '在上方插入行', disabled: !can.addRowBefore() },
+    { id: 'editor.tableAddRowAfter', label: '在下方插入行', disabled: !can.addRowAfter() },
+    { id: 'editor.tableDeleteRow', label: '删除当前行', disabled: !can.deleteRow() },
+    { id: 'editor.tableAddColBefore', label: '在左侧插入列', disabled: !can.addColumnBefore() },
+    { id: 'editor.tableAddColAfter', label: '在右侧插入列', disabled: !can.addColumnAfter() },
+    { id: 'editor.tableDeleteCol', label: '删除当前列', disabled: !can.deleteColumn() },
+    { id: 'editor.tableToggleHeaderRow', label: '切换表头行', disabled: !can.toggleHeaderRow() },
+  ];
+}
+
+function onEditorContextMenu(event: MouseEvent) {
+  const ed = editor.value;
+  if (!ed || ed.isDestroyed) return;
+  if (!ed.isActive('table')) return; // 非表格区域：让浏览器默认菜单出现
+  contextMenuItems.value = buildTableContextMenuItems(ed);
+  contextMenuRef.value?.open(event);
+}
+
+function onContextMenuSelect(item: ContextMenuItem) {
+  executeEditorCommand(editor.value, item.id);
 }
 
 // ── 图片拖拽上传 ──────────────────────────────────────────────
