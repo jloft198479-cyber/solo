@@ -31,6 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **代码块 / 图片 NodeView 事件监听器泄漏**：`code-block.ts`（4 个监听器 + 复制回显定时器）与 `image.ts`（7 个监听器）缺 `destroy()`，节点销毁后监听器与闭包仍存活，频繁增删代码块/图片的长会话线性积累。改用仓库既有的 `AbortController` 套路（对齐 `math-block.ts` / `mermaid-block.ts`）：监听器统一带 `signal`，`destroy()` 里 `abort()`。同时补两处**销毁后异步回写**的守卫——图片 src 解析是异步的，`requestId` 活在同一个已销毁的闭包里仍会自匹配，必须额外查 `signal.aborted` 才能挡住晚到的 `image.src` 赋值。
 - **复制含引用块 / 表格的内容时多出反斜杠**：出站复制走「轻量转义」（只转 `` ` `` `*` 等必要字符），但 `blockquote` 与表格单元格各自新建内层序列化 state 时用的是默认构造（文件落盘的严格转义模式），把 clipboard 标记丢了——在引用块或表格里写 `A = B` / `100$`，粘到外部 Markdown 编辑器会变成 `A \= B` / `100\$`。修复：两处改用 `state.createChild()` 继承转义模式（`callout.ts` 早已这么写，这两处是漏改）。`cellToText` 因此要拿到父 state，列宽统计与输出两个调用点必须同步改，否则 `padEnd` 对齐的宽度和实际写入的字符串不是同一份、表格会错位。文件保存的严格转义不受影响（已有反向保护测试）。
 
+### Added
+- **表格行列操作入口**：新增右键菜单（`ContextMenu.vue`）与命令面板 7 条表格命令（插入/删除行列、切换表头行），解决「创建了表格但无法删除行列」的用户痛点。TipTap Table 扩展原生命令此前无任何调用点，本次补齐入口；colwidth 属性序列化 / resizable 拖拽列宽持久化留待后续（见 KNOWN-ISSUES §二 #6）。
+
 ## [1.2.40] — 2026-08-22
 
 > 4 项数据可靠性修复（Ctrl+Z 跨文档回退、多窗口退出丢内容、重命名死锁、大纲跳转不精准），编辑健壮性显著增强。
