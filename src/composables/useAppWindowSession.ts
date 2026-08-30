@@ -25,6 +25,8 @@ interface AppWindowSessionOptions {
   shellIntegration: () => boolean;
   /** 关闭前停掉自动保存，避免 isSaving 锁阻塞 */
   stopAutoSave?: () => void;
+  /** 关闭前强制落盘防抖窗口内的设置改动，避免丢最后一次配置修改 */
+  flushSettings?: () => Promise<void> | void;
 }
 
 /** 当前打开的确认弹窗的清理函数，供外部（如组件 unmount 时）强制关闭 */
@@ -148,6 +150,13 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
 
     options.stopAutoSave?.();
 
+    // 300ms 防抖窗口内的最后一次设置改动要在销毁前强制落盘
+    try {
+      await options.flushSettings?.();
+    } catch {
+      // 设置落盘失败不阻断关闭流程
+    }
+
     if (options.isDirty()) {
       const result = await confirmUnsavedChanges();
       if (result === 'cancel') {
@@ -169,7 +178,15 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
     } catch {
       // 窗口状态保存失败不影响关闭流程
     }
-    await destroyCurrentWindow();
+    try {
+      await destroyCurrentWindow();
+    } catch (error) {
+      // destroy 失败时若保持 acked 状态，CloseGuard 会永久停在 Waiting，
+      // 逃生舱失效、后续所有关闭被吞——必须 abort 让下一次关闭重新走确认。
+      console.error('[close] destroy 失败:', error);
+      void abortCloseHandshake();
+      throw error;
+    }
     return true;
   }
 

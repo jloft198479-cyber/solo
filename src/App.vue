@@ -23,10 +23,15 @@ import { useOutline } from './composables/useOutline';
 import { useFileStore } from './stores/file';
 import { useSettingsStore } from './stores/settings';
 import { message } from './services/tauri/dialog';
-import { destroyCurrentWindow, newEditorWindow } from './services/tauri/window';
+import {
+  destroyCurrentWindow,
+  minimizeCurrentWindow,
+  newEditorWindow,
+  toggleCurrentWindowMaximized,
+} from './services/tauri/window';
+import { listenEditorFocus } from './services/tauri/events';
 import { findCommandByShortcut } from './commands/registry';
 import { HEAVY_DOC_CHARS, isHeavyDocument } from './components/Editor/document-scale';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import pkg from '../package.json';
 
 const MarkdownEditor = defineAsyncComponent(() => import('./components/Editor/MarkdownEditor.vue'));
@@ -155,6 +160,7 @@ const windowSession = useAppWindowSession({
   windowTitle,
   shellIntegration: () => settingsStore.settings.shellIntegration,
   stopAutoSave: documentSession.stopAutoSave,
+  flushSettings: () => settingsStore.flushPendingSettings(),
 });
 
 function switchToImageView() {
@@ -214,16 +220,11 @@ useMenuEvents(async (commandId) => {
 
 // ── 窗口控制 ──────────────────────────────────────────────
 async function handleMinimize() {
-  await getCurrentWindow().minimize();
+  await minimizeCurrentWindow();
 }
 
 async function handleMaximize() {
-  const win = getCurrentWindow();
-  if (await win.isMaximized()) {
-    await win.unmaximize();
-  } else {
-    await win.maximize();
-  }
+  await toggleCurrentWindowMaximized();
 }
 
 async function handleClose() {
@@ -246,8 +247,7 @@ onMounted(async () => {
 
     // 窗口获得焦点时检查外部修改
     try {
-      const appWindow = getCurrentWindow();
-      unlistenEditorFocus = await appWindow.listen('solo:editor-focus', () => {
+      unlistenEditorFocus = await listenEditorFocus(() => {
         checkExternalModification();
       });
     } catch {
@@ -274,8 +274,9 @@ async function handleReloadFromExternal() {
     clearExternalWarning();
     return;
   }
-  await documentSession.loadDocumentFromPath(path, true);
-  clearExternalWarning();
+  // openDocumentWithPrompt 内含脏态确认（有未保存编辑时让用户决定）与错误弹窗，
+  // 此前直接用 loadDocumentFromPath(silent) 会静默丢弃未保存编辑且错误无人捕获。
+  await documentSession.openDocumentWithPrompt(path);
 }
 
 let unlistenEditorFocus: (() => void) | null = null;
@@ -312,6 +313,9 @@ onUnmounted(() => {
     />
 
     <main class="flex-1 relative overflow-hidden select-text flex">
+      <!-- 文档加载指示：大文件读取/解析期间此前界面无任何反馈 -->
+      <div v-if="fileStore.isLoading" class="loading-bar" aria-hidden="true"></div>
+
       <!-- 焦点模式进入引导：移动到顶部退出聚焦 -->
       <Transition name="focus-hint">
         <div v-if="focusEnterNotice" class="focus-enter-hint">移到顶部退出聚焦</div>
@@ -322,6 +326,7 @@ onUnmounted(() => {
           v-if="activeViewMode === 'editor'"
           ref="editorRef"
           :initial-content="fileStore.currentFile.content"
+          :outline-open="outlineOpen"
           @update="handleEditorUpdate"
           @image-dblclick="openFullscreenPreview"
           @navigate-wikilink="handleOpenFile"
@@ -352,8 +357,8 @@ onUnmounted(() => {
           <span v-if="focusModeNotice" class="statusbar-stat statusbar-stat--accent">{{
             focusModeNotice.message
           }}</span>
-          <span v-else-if="stats.selectionText" class="statusbar-stat statusbar-stat--accent"
-            >{{ stats.selectionText.length }} 字选中</span
+          <span v-else-if="stats.selectionLen" class="statusbar-stat statusbar-stat--accent"
+            >{{ stats.selectionLen }} 字选中</span
           >
           <button
             v-else-if="externalFileWarning"
@@ -694,14 +699,14 @@ onUnmounted(() => {
 /* ── About 弹窗过渡动画 ──────────────────────────── */
 .about-enter-active,
 .about-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--motion-base) var(--ease-out);
 }
 
 .about-enter-active .about-dialog,
 .about-leave-active .about-dialog {
   transition:
-    transform 0.2s ease,
-    opacity 0.2s ease;
+    transform var(--motion-base) var(--ease-out),
+    opacity var(--motion-base) var(--ease-out);
 }
 
 .about-enter-from,
