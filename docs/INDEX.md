@@ -66,6 +66,8 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`architecture/refactoring-report.md`](./architecture/refactoring-report.md) | archive   | agent            | archive  | 减法重构历史报告（22→17 命令等，**历史快照**，现状以 ARCHITECTURE 为准） |
 | [`archive/settings-audit-report.md`](./archive/settings-audit-report.md)     | archive   | agent            | archive  | 设置面板排查历史报告（P0 死代码已清理，**历史快照**）                    |
 | [`catpaw审核/丝滑体验优化复盘.md`](./catpaw审核/丝滑体验优化复盘.md)         | archive   | dev/agent        | archive  | 丝滑优化（P0-P3）全流程复盘：方案/实施/审查/回退/根因/教训               |
+| [`large-document-performance.md`](./large-document-performance.md)            | proposal  | dev              | proposal | 大文档卡顿根因清单与分阶段方案（**P0/P1 已实施、P2 已砍、P3 简化**）      |
+| [`project-plan-2026-08-29.md`](./project-plan-2026-08-29.md)                  | proposal  | maintainer       | proposal | 产品演进建议清单（**非强制任务**，逐项可执行可不执行）                    |
 | [`solo-tour.html`](./solo-tour.html)                                         | product   | user             | active   | 产品功能导览 HTML 页（非 md，无 frontmatter）                            |
 
 ### 已退役 / 忽略
