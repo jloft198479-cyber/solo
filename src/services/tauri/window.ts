@@ -21,6 +21,33 @@ export async function destroyCurrentWindow() {
   await getCurrentWindow().destroy();
 }
 
+export async function minimizeCurrentWindow() {
+  await getCurrentWindow().minimize();
+}
+
+export async function toggleCurrentWindowMaximized() {
+  const win = getCurrentWindow();
+  if (await win.isMaximized()) {
+    await win.unmaximize();
+  } else {
+    await win.maximize();
+  }
+}
+
+export type WindowResizeDirection =
+  | 'East'
+  | 'North'
+  | 'NorthEast'
+  | 'NorthWest'
+  | 'South'
+  | 'SouthEast'
+  | 'SouthWest'
+  | 'West';
+
+export async function startCurrentWindowResize(direction: WindowResizeDirection) {
+  await getCurrentWindow().startResizeDragging(direction);
+}
+
 export async function startupReady(): Promise<AppOpenPathsPayload | null> {
   return invokeCommand<AppOpenPathsPayload | null>(TAURI_COMMANDS.startupReady);
 }
