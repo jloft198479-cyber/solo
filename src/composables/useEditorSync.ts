@@ -77,6 +77,13 @@ export function useEditorSync(options: EditorSyncOptions) {
   // 合并调度：空闲期若再次编辑并再次到点，只保留最新编辑器引用，一次空闲回调内完成。
   let pendingSerializeEditor: TiptapEditor | null = null;
   let serializeIdleId: number | null = null;
+  // 关窗 / 切文档闸口的免序列化判据：editGeneration 每次 doc 变化 +1，
+  // syncedGeneration 记录「最后一次把序列化结果写回 store」时的序号。
+  // 两者相等 ⇒ store 基线就是当前 doc 的序列化产物，脏标记可信，闸口不必再全量序列化。
+  let editGeneration = 0;
+  // -1 = 尚未锚定（编辑器还没写过序列化基线）。不能从 0 起，否则基线还是磁盘原文时
+  // 两个计数器同为 0，闸口会误判「已同步」而跳过兜底序列化。
+  let syncedGeneration = -1;
 
   function scheduleSerialize(ed: TiptapEditor) {
     pendingSerializeEditor = ed;
@@ -89,6 +96,8 @@ export function useEditorSync(options: EditorSyncOptions) {
         if (!target || target.isDestroyed) return;
         const markdown = serializeMarkdown(target.state.doc);
         fileStore.syncEditedContent(markdown);
+        // 空闲回调执行时才读 doc，此刻的 editGeneration 已含之前所有编辑
+        syncedGeneration = editGeneration;
         options.onSerialize?.(markdown, target.state.doc);
       },
       { timeout: SERIALIZE_IDLE_TIMEOUT_MS },
@@ -106,6 +115,7 @@ export function useEditorSync(options: EditorSyncOptions) {
 
   /** 编辑器 doc 变化（onUpdate 回调）入口 */
   function handleDocChange(ed: TiptapEditor) {
+    editGeneration += 1;
     debouncedWordCount(ed);
     debouncedOutline(ed);
     debouncedSerialize(ed);
@@ -122,6 +132,25 @@ export function useEditorSync(options: EditorSyncOptions) {
       wordCount: getEditorWordCount(ed),
       outline: extractEditorOutline(ed),
     });
+  }
+
+  /**
+   * store 基线是否已等于「当前 doc 的序列化产物」。
+   * true 时关窗 / 切文档闸口可直接信任 `isDirty`，不必再全量序列化兜底——
+   * 4MB 文档上这一次序列化就是「关窗卡死」的主要开销。
+   * 契约：偏保守只浪费一次序列化；偏乐观会丢编辑。成立前提是「改 doc 必进
+   * handleDocChange」+「preventUpdate 替换文档后必调 markSynced」，新增此类路径时一并遵守。
+   */
+  function isSyncedWithStore() {
+    return editGeneration === syncedGeneration;
+  }
+
+  /**
+   * 重新锚定同步基线：调用方刚用 `setContent(serializeMarkdown(doc))` 写入基线后调用。
+   * 载入 / 切文档走 `preventUpdate` 事务，不触发 onUpdate，editGeneration 不会自己跟上。
+   */
+  function markSynced() {
+    syncedGeneration = editGeneration;
   }
 
   function cancelPending() {
@@ -142,6 +171,8 @@ export function useEditorSync(options: EditorSyncOptions) {
     handleDocChange,
     handleSelectionChange,
     emitImmediateStats,
+    isSyncedWithStore,
+    markSynced,
     cancelPending,
   };
 }

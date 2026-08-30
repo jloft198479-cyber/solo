@@ -7,6 +7,8 @@ export type AppEditorExpose = {
   scrollToPos: (pos: number) => void;
   openSearch: (showReplace?: boolean) => void;
   getContent?: () => string | null;
+  /** store 基线是否已等于编辑器当前 doc 的序列化产物（关窗闸口据此免掉一次全量序列化） */
+  isSyncedWithStore?: () => boolean;
   getDoc?: () => PMNode | null;
   getEditorView: () => EditorView | null;
   hasFocus?: () => boolean;

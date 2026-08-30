@@ -118,3 +118,50 @@ describe('useEditorSync serialize 空闲调度（P4-05）', () => {
     expect(syncSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('useEditorSync 同步代际（关窗闸口免序列化判据）', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    setActivePinia(createPinia());
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('基线尚未锚定时报「未同步」——不能因为两个计数器都是初始值就误判已同步', () => {
+    const { isSyncedWithStore } = useEditorSync({ onUpdate: vi.fn() });
+    expect(isSyncedWithStore()).toBe(false);
+  });
+
+  it('markSynced 锚定后报「已同步」（载入 / 切文档写入序列化基线的场景）', () => {
+    const { markSynced, isSyncedWithStore } = useEditorSync({ onUpdate: vi.fn() });
+    markSynced();
+    expect(isSyncedWithStore()).toBe(true);
+  });
+
+  it('编辑已发生但序列化还在防抖 / 空闲窗口内 → 报「未同步」，闸口须走兜底序列化', () => {
+    const { handleDocChange, markSynced, isSyncedWithStore } = useEditorSync({
+      onUpdate: vi.fn(),
+    });
+
+    markSynced();
+    handleDocChange(fakeEditor('typed'));
+    vi.advanceTimersByTime(500); // 防抖到点，但空闲回调还没执行
+
+    expect(isSyncedWithStore()).toBe(false);
+  });
+
+  it('空闲序列化写回 store 后自动追平，无需调用方 markSynced', () => {
+    const { handleDocChange, markSynced, isSyncedWithStore } = useEditorSync({
+      onUpdate: vi.fn(),
+    });
+
+    markSynced();
+    handleDocChange(fakeEditor('hello'));
+    expect(isSyncedWithStore()).toBe(false);
+
+    vi.advanceTimersByTime(500);
+    runIdle();
+    expect(isSyncedWithStore()).toBe(true);
+  });
+});

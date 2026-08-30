@@ -56,6 +56,7 @@ const {
 const documentSession = useDocumentSession({
   resetViewMode: resetToEditor,
   getContent: () => editorRef.value?.getContent?.() ?? null,
+  isSyncedWithStore: () => editorRef.value?.isSyncedWithStore?.() ?? false,
 });
 
 async function handleOpenFile(path: string, silent = false) {
@@ -74,7 +75,8 @@ async function handleRename(name: string) {
   fileStore.setDisplayName(trimmed);
 }
 
-const { autoSaveStatus, externalFileWarning, checkExternalModification, clearExternalWarning } = documentSession;
+const { autoSaveStatus, externalFileWarning, checkExternalModification, clearExternalWarning } =
+  documentSession;
 
 const focusModeNotice = ref<{ message: string; timestamp: number } | null>(null);
 const _focusNoticeTimer = ref<ReturnType<typeof setTimeout> | null>(null);
