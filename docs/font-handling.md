@@ -52,7 +52,7 @@ updates: [src/services/fontLoader.ts, src-tauri/src/commands/font.rs, ARCHITECTU
 | I1 | **`value` 必须严格等于字体文件内部的真实 family 名** | FontFace 注册名 = 文件内部 name 表里的 family。`value` 配错 → 注册失败 / 显示 fallback。文件名（`fileName`）可随意，与 `value` 解耦。 |
 | I2 | `fileName` 用于缓存落盘 + 下载 URL，与 `value` 解耦 | 改 `value`（如对齐 Lite 真名）**不要**动 `fileName`，否则旧缓存 / release 链接全部失效。 |
 | I3 | 渲染优先 `asset://` `@font-face`（浏览器内核直读盘，IPC 零字节传输）；该路径失败才回退 `readFontBytes` → `new FontFace(family, bytes)` 字节通道（见 §2.1）。prod CSP 验证通过前不得移除字节 fallback。 | 2026-08-14 起 `asset://` @font-face 为首选路径，字节通道为兜底。 |
-| I4 | 下载通道固定为 GitHub release `fonts-v1` tag | `DOWNLOAD_BASE` 写在 `fontLoader.ts`，与 app 版本号解耦——app 升版无需动字体链接。 |
+| I4 | 下载通道为**多源**：七牛 CDN `fonts.weimabbs.com` 优先，GitHub release `fonts-v1` 兜底（架构见 §1.4） | `FONT_SOURCES` 写在 `fontLoader.ts`，与 app 版本号解耦——app 升版无需动字体链接。 |
 | I5 | 缓存目录 = `app_local_data_dir()/font-cache` | 真实路径 `C:\Users\<user>\AppData\Local\com.solomarkdown\font-cache`。 |
 | I6 | 下载/读取必经 `validate_font_bytes` | magic bytes（OTTO/TTF）+ 表目录 offset+length ≤ 文件大小，拒绝截断文件入缓存。 |
 
@@ -67,6 +67,24 @@ updates: [src/services/fontLoader.ts, src-tauri/src/commands/font.rs, ARCHITECTU
 7. 未命中缓存 → `downloadAndCache`：Rust `fetch_font_data`（reqwest 走系统代理）→ 落盘 → 回到 3。
 
 **Console 正确信号**：`[fontLoader] registerFontFromBytes: family="Noto Serif SC", status="loaded", check=true`。
+
+### 1.4 字体下载多源架构（七牛 CDN 优先 + GitHub 兜底，2026-08-31）
+
+> 字体资源原固定从 GitHub release 下载，国内网络慢。2026-08 起改为**多源下载**，国内用户走七牛 CDN，不可达时自动回 GitHub。
+
+- **当前实现**：[`fontLoader.ts`](../src/services/fontLoader.ts) 顶部定义 `FONT_SOURCES` 数组（`QINIU_BASE` 优先、`GITHUB_BASE` 兜底）；`downloadAndCache` 按序遍历各源，任一源成功即返回，全失败才判失败。
+- **源地址**：
+  - 七牛 CDN（国内快）：`https://fonts.weimabbs.com/fonts-v1` —— 七牛云 `solo-fonts` 桶（华南 `cn-south-1`，公开空间，绑定自定义域名 `fonts.weimabbs.com` + 免费 HTTPS 证书）。
+  - GitHub（兜底）：`https://github.com/jloft198479-cyber/solo/releases/download/fonts-v1`。
+- **关键设计点**：
+  - **缓存复用**：两源 URL 末段文件名完全一致（如 `NotoSerifSC-Regular.otf`），Rust `fetch_font_data` 用末段作缓存文件名 → 从七牛下好的文件，GitHub 兜底尝试时直接命中缓存、不重复下载。
+  - **走 Rust 下载**（非前端 `fetch`）：绕开 GitHub CDN 的 CORS 拦截（GitHub release 不返回 `Access-Control-Allow-Origin`），七牛/私有 CDN 同理适用（Rust `reqwest` 不依赖浏览器 CORS 头）。
+  - **落盘后不再换源**：某源把文件落盘但注册失败（渲染层问题，§2.1）时，`downloadAndCache` 直接判失败，避免无效重下。
+  - **退化安全**：七牛不可达 → 自动回 GitHub，用户仍能用字体（仅来源/速度不同），符合 solo 退化安全原则。
+- **运维要点（改域名 / 加字体必读）**：
+  - 字体文件须**同步传两处**：七牛 `solo-fonts/fonts-v1/<fileName>` + GitHub `fonts-v1` release。任一处缺文件 → 该源失败、自动换另一源（不报错，但会拖慢）。
+  - 七牛自定义域名 `fonts.weimabbs.com` 三件套：**公开空间** + DNS 的 **CNAME**（指向七牛给的目标）+ **免费 HTTPS 证书**（缺一不可；证书缺失时 Rust `reqwest` 验证失败，表现同 §2.5 截断——浏览器/app 都拉不到字体）。
+  - 改 `FONT_SOURCES` 域名只动 `fontLoader.ts` 顶部两个常量，但**主体变更需发版才生效**（已下载的字体不受影响）。
 
 ---
 
@@ -155,7 +173,7 @@ bun run dev:tauri:inspect
 
 - [ ] 解析字体文件 **name 表**，确认内部真实 `family` 名（不要信文件名）。
 - [ ] 确认 `value` 与内部 family 名**逐字符一致**（含大小写、空格）。
-- [ ] 确认 `fileName` 与 GitHub `fonts-v1` 上的实际文件名一致。
+- [ ] 确认 `fileName` 与 GitHub / 七牛 `fonts-v1` 两处实际文件名一致（见 §1.4 多源架构）。
 - [ ] 本地 `font-cache` 中该文件大小 ≈ 真身、magic 正确（OTTO / `00 01 00 00`）。
 
 ---
@@ -167,7 +185,7 @@ bun run dev:tauri:inspect
 1. 拿到字体文件 → 解析内部 family 名（见 §3.3）。
 2. [`constants/fonts.ts`](../src/constants/fonts.ts)：在 `FONT_OPTIONS` 加一项 `{ value: '<内部真实family名>', label: '<中文展示名>', fileName: '<下载文件名>' }`。
 3. [`utils/fontStack.ts`](../src/utils/fontStack.ts)：在 `buildFontStack` 加该 `value` 的匹配分支与回退字体（如楷体类 → 楷体 fallback）。
-4. 把字体文件上传到 GitHub `fonts-v1` release（上传后**必须校验字节大小/magic**，防 §2.5 截断）。
+4. 把字体文件**同步上传到两处**：GitHub `fonts-v1` release + 七牛 `solo-fonts/fonts-v1`（见 §1.4 多源架构；上传后**必须校验字节大小/magic**，防 §2.5 截断）。
 5. 真窗口验证（§3.1）+ 清空重下验证（§3.2）。
 
 ### 4.2 改名 / 对齐字体（如 Lite 事件）

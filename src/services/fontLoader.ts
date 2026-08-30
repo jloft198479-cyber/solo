@@ -3,8 +3,12 @@ import { toAssetUrl } from './tauri/asset';
 import { FONT_OPTIONS } from '../constants/fonts';
 
 // 字体资源固定在独立 tag `fonts-v1` 的 release 下，与 app 版本号解耦：
-// 以后 app 升版无需同步字体链接，且 Rust fallback（fetch_font_data）复用同一地址。
-const DOWNLOAD_BASE = 'https://github.com/jloft198479-cyber/solo/releases/download/fonts-v1';
+// 多源下载——七牛 CDN（国内快）优先，GitHub release 兜底，任一源失败自动换源，
+// 契合 solo 退化安全原则（远程字体不可达时用户仍能用字体，只是来源不同）。
+const QINIU_BASE = 'https://fonts.weimabbs.com/fonts-v1';
+const GITHUB_BASE = 'https://github.com/jloft198479-cyber/solo/releases/download/fonts-v1';
+/** 字体下载源优先级：七牛优先，GitHub 兜底 */
+const FONT_SOURCES: readonly string[] = [QINIU_BASE, GITHUB_BASE];
 
 const REMOTE_FONTS: Readonly<Record<string, string>> = Object.fromEntries(
   FONT_OPTIONS.filter((opt) => opt.fileName).map((opt) => [opt.value, opt.fileName!]),
@@ -123,26 +127,38 @@ async function readCache(family: string): Promise<boolean> {
 }
 
 async function downloadAndCache(family: string, fileName: string): Promise<boolean> {
-  const remoteUrl = `${DOWNLOAD_BASE}/${fileName}`;
   notifyProgress(family, 0);
 
-  try {
-    // 直接用 Rust 下载——前端 fetch 会被 GitHub CDN 的 CORS 拦截
-    // （GitHub release 不返回 Access-Control-Allow-Origin 头）
-    await fetchFontData(remoteUrl, family);
-    notifyProgress(family, 100);
+  let lastErr: unknown;
+  for (const base of FONT_SOURCES) {
+    const remoteUrl = `${base}/${fileName}`;
+    try {
+      // 直接用 Rust 下载——前端 fetch 会被 CDN 的 CORS 拦截
+      // （GitHub release 不返回 Access-Control-Allow-Origin 头）
+      await fetchFontData(remoteUrl, family);
+      notifyProgress(family, 100);
 
-    // 下载落盘后，走 readCache 加载（优先 CSS @font-face，失败回退字节通道）
-    const ok = await readCache(family);
-    if (!ok) downloadFailures.add(family);
-    notifyProgress(family, -1);
-    return ok;
-  } catch (e) {
-    console.warn(`[fontLoader] download failed: ${family}`, e);
-    downloadFailures.add(family);
-    notifyProgress(family, -1);
-    return false;
+      // 下载落盘后，走 readCache 加载（优先 CSS @font-face，失败回退字节通道）
+      const ok = await readCache(family);
+      if (ok) {
+        notifyProgress(family, -1);
+        return true;
+      }
+      // 文件已落盘，换源无益，直接判失败
+      console.warn(`[fontLoader] downloaded from ${base} but register failed: ${family}`);
+      downloadFailures.add(family);
+      notifyProgress(family, -1);
+      return false;
+    } catch (e) {
+      console.warn(`[fontLoader] download failed from ${base}: ${family}`, e);
+      lastErr = e;
+    }
   }
+
+  console.warn(`[fontLoader] all font sources failed: ${family}`, lastErr);
+  downloadFailures.add(family);
+  notifyProgress(family, -1);
+  return false;
 }
 
 export async function ensureFontLoaded(family: string): Promise<boolean> {
