@@ -44,13 +44,15 @@ function fakeEditor(text: string): TiptapEditor {
   } as unknown as TiptapEditor;
 }
 
-/** 手动触发所有挂起的空闲回调（模拟浏览器空闲时段到来）。 */
-function runIdle() {
+/** 手动触发所有挂起的空闲回调。默认模拟真实空闲（didTimeout: false）；
+ * 传 { timeout: true } 模拟「2s 兜底超时强制唤醒」路径。 */
+function runIdle(opts?: { timeout?: boolean }) {
   const callbacks = (globalThis as unknown as { __idleCallbacks: Map<number, IdleCallback> })
     .__idleCallbacks;
   const pending = [...callbacks.values()];
   callbacks.clear();
-  for (const cb of pending) cb({ didTimeout: true, timeRemaining: () => 0 });
+  for (const cb of pending)
+    cb({ didTimeout: opts?.timeout ?? false, timeRemaining: () => 0 });
 }
 
 describe('useEditorSync serialize 空闲调度（P4-05）', () => {
@@ -90,6 +92,24 @@ describe('useEditorSync serialize 空闲调度（P4-05）', () => {
     const arg = syncSpy.mock.calls[0][0];
     expect(arg).toContain('second');
     expect(arg).not.toContain('first');
+  });
+
+  it('超时兜底撞上续打 → 推迟回防抖，不在输入中途硬跑大序列化', () => {
+    const store = useFileStore();
+    const syncSpy = vi.spyOn(store, 'syncEditedContent');
+    const { handleDocChange } = useEditorSync({ onUpdate: vi.fn() });
+
+    handleDocChange(fakeEditor('first'));
+    vi.advanceTimersByTime(500); // 防抖到点 → 空闲回调排队，记录当时代际
+    handleDocChange(fakeEditor('second')); // 用户续打，代际前进
+
+    runIdle({ timeout: true }); // 兜底超时到来——但用户正在打字
+    expect(syncSpy).not.toHaveBeenCalled(); // 不硬跑，回到防抖
+
+    vi.advanceTimersByTime(500); // 下一个停顿
+    runIdle(); // 真空闲到来
+    expect(syncSpy).toHaveBeenCalledTimes(1);
+    expect(syncSpy.mock.calls[0][0]).toContain('second');
   });
 
   it('cancelPending 取消挂起的空闲序列化', () => {
