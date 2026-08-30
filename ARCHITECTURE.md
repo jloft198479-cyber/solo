@@ -546,7 +546,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 1 | 脏态机制（A1 语义比对） | [`src/stores/file.ts`](./src/stores/file.ts)（`setContent`/`syncEditedContent`） | §11.1 |
 | 2 | 保存冲突检测 | [`src-tauri/src/commands/document.rs`](./src-tauri/src/commands/document.rs) + [`useDocumentSession.ts`](./src/composables/useDocumentSession.ts) | §11.2 |
 | 3 | 序列化尾换行 | [`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts) | §11.3 |
-| 4 | 图片资产安全 | [`src-tauri/src/commands/document.rs`](./src-tauri/src/commands/document.rs) | §11.4 |
+| 4 | IPC 路径 / URL 信任边界（扩展名白名单、图片资产、远程 URL） | [`src-tauri/src/commands/document.rs`](./src-tauri/src/commands/document.rs) + [`image.rs`](./src-tauri/src/commands/image.rs) + [`font.rs`](./src-tauri/src/commands/font.rs) | §11.4 |
 | 5 | 启动开打竞态 | [`src-tauri/src/state.rs`](./src-tauri/src/state.rs) + [`lib.rs`](./src-tauri/src/lib.rs) | §11.5 |
 | 6 | 防抖分层（字数150/光标100/大纲500/序列化500） | [`useEditorSync.ts`](./src/composables/useEditorSync.ts) | §6.3 |
 | 7 | 命令名 / 定义真理源 | [`command-names.ts`](./src/services/tauri/command-names.ts) + [`registry.ts`](./src/commands/registry.ts) | 附录 B |
@@ -554,6 +554,8 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 9 | 多窗口进程模型 | [`lib.rs`](./src-tauri/src/lib.rs) | — |
 | 10 | 构建环境 | 见 [`docs/debugging.md`](./docs/debugging.md) + [`docs/HANDOVER.md`](./docs/HANDOVER.md) | — |
 | 11 | 字体渲染 CORS + 资源错配 | [`fontLoader.ts`](./src/services/fontLoader.ts) + [`font.rs`](./src-tauri/src/commands/font.rs) | [字体手册](./docs/font-handling.md) |
+| 12 | NodeView 事件/定时器成对清理 | [`extensions/code-block.ts`](./src/components/Editor/tiptap/extensions/code-block.ts) + [`image.ts`](./src/components/Editor/tiptap/extensions/image.ts) | §11.7 |
+| 13 | 文件 vs 剪贴板两种转义模式，嵌套 state 必须继承 | [`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts) | §11.8 |
 
 ### 11.1 脏态机制不可随意改动（A1 语义比对模型）
 
@@ -575,9 +577,19 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 `serializeMarkdown()` 强制输出**恰好一个**尾换行。roundtrip 测试同样规范化预期值。**"多了一个换行"先查 serializer，别改测试。**
 
-### 11.4 图片资产安全
+### 11.4 IPC 路径 / URL 信任边界
 
-`validate_image_asset_path`：先 `canonicalize`（解析符号链接/`..`）再校验扩展名，**防 `evil.png → /etc/passwd` 绕过**。只在 6 种图片扩展名白名单内放行。
+前端传入的路径与 URL **不可直接采信**：恶意文档内容（如构造的 `image src`）能诱导命令越权读写文件或向内网发请求。当前闸门：
+
+- **扩展名白名单**（`validate_document_extension`，大小写不敏感）：读 `md/markdown/txt`（与 `lib.rs` 的 `supported_open_path` 同源，新增可编辑类型两处都要改）；写多一个 `json`——「导出主题模板」复用 `save_document` 写 `.json`。本地绝对路径本身是合法用例（用户引用 `D:/docs/x.md`），故**只卡扩展名，不做目录约束**。
+- `validate_image_asset_path`：先 `canonicalize`（解析符号链接/`..`）再校验 `is_file` 与扩展名，**防 `evil.png → /etc/passwd` 绕过**。只在 8 种图片扩展名白名单内放行（`png/jpg/jpeg/gif/webp/svg/bmp/ico`；v1.2.27 从 6 种扩到 8 种补齐 `.bmp/.ico`，此前文档写「6 种」已滞后）。`import_document_image` 的 source 也走它，防止把任意文件拷进资产目录。**这 8 种是三处硬编码**——Rust `IMAGE_EXTENSIONS`、前端 `editor-image-drop.ts` 的 `supportedImageExtensions`、Rust `mime_to_extension` 的返回值必须一致，否则会出现「能保存但显示失败」（`.bmp/.ico` 当初就是这么踩到的）。
+- `validate_remote_image_url`：限 http/https + 拦截**字面量**内网主机（回环/私有/链路本地/组播、`localhost`/`.local`/`.internal`、云元数据 `169.254.169.254`，含 IPv4 内嵌 IPv6 形式）。
+- `validate_font_url`：限 https，**刻意不做主机白名单**——GitHub release 会 302 跳到 `objects.githubusercontent.com`，白名单会打断下载（字体链路有「连修四版才修对」的历史，不再引入新失效面）。
+
+**改动铁律**：
+- **校验什么就请求什么**——校验后必须用规范化 URL 建请求（含 `Referer`），不能拿原始输入去 fetch，否则校验形同虚设。
+- 缓存 key 仍哈希**原始输入**，避免加固后既有 `remote-image-cache` 全部失效。
+- 残留风险（DNS rebinding：域名解析后指向内网）见 [`docs/KNOWN-ISSUES.md` §二 #5](./docs/KNOWN-ISSUES.md)。
 
 ### 11.5 启动开打是竞态敏感的
 
@@ -595,6 +607,38 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
   - Mermaid 图表：`mermaid-block.ts::buildMermaidConfig` 用 `getComputedStyle` 读当前主题 CSS 变量注入 `themeVariables`（theme: 'base'，**禁止** mermaid 内置 default/dark 主题与硬编码提亮）。
   - 新增任何"带颜色的格式"时先回答：它的颜色进 token 全集了吗？进不了就拒绝实现或收编。
   - 主题 JSON 只允许存在"性格差异"字段，共享值（radius/功能色/markBg/遮罩/幽灵按钮）一律进共享默认层（SHARED_LIGHT/DARK_COLORS），禁止复制进各主题。
+
+### 11.7 NodeView 事件与定时器必须成对清理
+
+NodeView 的 `dom` 由 ProseMirror 直接增删，**不走 Vue 的生命周期**，所以 `addEventListener` / `setInterval` / `setTimeout` 没有任何东西替你收尾——节点销毁后监听器和整条闭包仍存活，频繁增删同类节点的长会话会线性积累内存与幽灵回调。
+
+**仓库统一套路**（`AbortController`，勿另发明）：
+
+```ts
+const eventController = new AbortController();      // 建 DOM 时先声明
+el.addEventListener('click', onClick, { signal: eventController.signal });  // 每个监听器都带 signal
+destroy() {
+  eventController.abort();                           // 一次摘掉全部监听
+  if (timer) clearTimeout(timer);                    // 定时器不在 signal 管辖内，单独清
+}
+```
+
+现役实现：[`code-block.ts`](./src/components/Editor/tiptap/extensions/code-block.ts) / [`image.ts`](./src/components/Editor/tiptap/extensions/image.ts) / [`math-block.ts`](./src/components/Editor/tiptap/extensions/math-block.ts) / [`mermaid-block.ts`](./src/components/Editor/tiptap/extensions/mermaid-block.ts)。回归锁：[`extensions/__tests__/nodeview-destroy.spec.ts`](./src/components/Editor/tiptap/extensions/__tests__/nodeview-destroy.spec.ts)。
+
+**易漏的第二半**：销毁后的**异步回写**也要守卫。图片 src 解析是异步的，`requestId` 闭包变量活在同一个已销毁的闭包里、晚到的响应仍会自匹配——**单靠 requestId 挡不住**，必须额外查 `eventController.signal.aborted` 再碰 DOM。
+
+### 11.8 两种转义模式：文件 vs 剪贴板
+
+`escapeInline`（[`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts)）按 `clipboard` 标记分两套转义，两者**故意不同，别互相"修正"**：
+
+| 模式 | 入口 | 行内转义集 | 行首额外转义 |
+|---|---|---|---|
+| 文件落盘（严格） | `serializeMarkdown()` | `` ` [ ] ( ) * ~ ^ = \| $ < > { } `` | `# + - .` |
+| 剪贴板（轻量） | `serializeMarkdownForClipboard()` | `` ` * `` | `# + - . > =` |
+
+**改动铁律**：块处理器需要**嵌套序列化**（引用块内部、表格单元格文本）时，必须用 `state.createChild()` 拿内层 state，**不要 `new MarkdownSerializerState()`**——默认构造是文件模式，会把外层 clipboard 标记丢掉，导致粘到外部编辑器的内容多出 `\=` `\$`。只有上面两个真入口允许直接构造。
+
+另一处坑：表格的**列宽统计**与**内容输出**必须调同一个 `cellToText(state, cell)`，否则 `padEnd` 对齐用的长度与实际写入的字符串不是同一份，表格会错位。
 
 ---
 
