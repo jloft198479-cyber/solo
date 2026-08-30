@@ -110,14 +110,19 @@ useEditorAppearance(editor);
 let cachedSerialize: { doc: PMNode; content: string } | null = null;
 
 // ── 编辑器 → 下层状态同步中枢（字数 / 大纲 / 光标 / 序列化，防抖后单出口）──
-const { handleDocChange, handleSelectionChange, emitImmediateStats, cancelPending } = useEditorSync(
-  {
-    onUpdate: (data) => emit('update', data),
-    onSerialize: (content, doc) => {
-      cachedSerialize = { doc, content };
-    },
+const {
+  handleDocChange,
+  handleSelectionChange,
+  emitImmediateStats,
+  isSyncedWithStore,
+  markSynced,
+  cancelPending,
+} = useEditorSync({
+  onUpdate: (data) => emit('update', data),
+  onSerialize: (content, doc) => {
+    cachedSerialize = { doc, content };
   },
-);
+});
 
 // ── 创建 TipTap Editor ────────────────────────────────────────
 
@@ -236,6 +241,8 @@ function createEditor(content: string) {
   // 预热序列化缓存：未编辑就关闭时，getContent() 直接命中，不再全量重扫
   cachedSerialize = { doc: initialDoc, content: baseline };
   fileStore.setContent(baseline);
+  // 基线即当前 doc 的序列化产物 → 锚定同步代际，关窗闸口据此跳过全量序列化
+  markSynced();
 
   // 触发初始字数统计
   emitImmediateStats(e);
@@ -264,6 +271,8 @@ watch(
     const baseline = serializeMarkdown(newDoc);
     cachedSerialize = { doc: newDoc, content: baseline };
     fileStore.setContent(baseline);
+    // preventUpdate 事务不触发 onUpdate → editGeneration 不会自己跟上，必须显式锚定
+    markSynced();
     // preventUpdate 事务不触发 onUpdate → 手动补发字数和大纲
     emitImmediateStats(editor.value);
     editor.value.commands.focus('start');
@@ -481,6 +490,8 @@ defineExpose({
     return content;
   },
   getDoc: () => editor.value?.state.doc ?? null,
+  /** 关窗 / 切文档闸口：store 基线是否已是当前 doc 的序列化产物（true 时无需再序列化兜底） */
+  isSyncedWithStore: () => (editor.value ? isSyncedWithStore() : false),
   getEditorView: () => editor.value?.view ?? null,
   hasFocus: () => editor.value?.isFocused ?? false,
   executeCommand: (commandId: string) => executeEditorCommand(editor.value, commandId),

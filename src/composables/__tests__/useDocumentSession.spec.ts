@@ -37,6 +37,8 @@ const fileStoreState = {
     fileStoreState.currentFile.isDirty = false;
     fileStoreState.currentFile.lastModifiedTime = lastModifiedTime;
   }),
+  /** 语义比对的真实实现见 stores/file（由 file.spec.ts 覆盖）；这里只需可被调用与断言 */
+  syncEditedContent: vi.fn(() => false),
   renamePath: vi.fn((newPath: string) => {
     const baseName = newPath
       ? (newPath.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
@@ -207,7 +209,10 @@ describe('useDocumentSession', () => {
 
     await session.saveCurrentDocument();
     expect(saveMock).toHaveBeenCalledTimes(1);
-    const callArgs = saveMock.mock.calls[0][0] as { defaultPath?: string; filters?: Array<{ extensions: string[] }> };
+    const callArgs = saveMock.mock.calls[0][0] as {
+      defaultPath?: string;
+      filters?: Array<{ extensions: string[] }>;
+    };
     expect(callArgs.defaultPath).toBe('学习笔记.md');
     expect(callArgs.filters).toEqual([{ name: 'Markdown', extensions: ['md'] }]);
   });
@@ -292,7 +297,12 @@ describe('useDocumentSession', () => {
     expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/新标题.md', 'draft', null, true);
     expect(saveMock).not.toHaveBeenCalled();
     // 原文件 /tmp/original.md 未被静默写回
-    expect(saveDocumentMock).not.toHaveBeenCalledWith('/tmp/original.md', 'draft', 1000, expect.anything());
+    expect(saveDocumentMock).not.toHaveBeenCalledWith(
+      '/tmp/original.md',
+      'draft',
+      1000,
+      expect.anything(),
+    );
   });
 
   it('silent saves in place when displayName matches original base name', async () => {
@@ -384,5 +394,77 @@ describe('useDocumentSession', () => {
     expect(renameFileMock).toHaveBeenCalledWith('/tmp/original.md', 'a/b:c*d?e');
     expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/a_b_c_d_e.md', 'draft', null, true);
     expect(saveMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('useDocumentSession 关窗脏闸口的免序列化快路径', () => {
+  function setFile(isDirty: boolean) {
+    fileStoreState.currentFile = {
+      path: '/tmp/big.md',
+      content: 'baseline',
+      isDirty,
+      lastModifiedTime: 1000,
+      displayName: 'big',
+      originalBaseName: 'big',
+    };
+    fileStoreState.syncEditedContent.mockClear();
+  }
+
+  it('基线已追平时直接信任脏标记，一次 getContent 都不调（4MB 关窗免卡死）', async () => {
+    setFile(false);
+    const getContent = vi.fn(() => 'baseline');
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent,
+      isSyncedWithStore: () => true,
+    });
+
+    expect(session.evaluateDirtyFromEditor()).toBe(false);
+    expect(getContent).not.toHaveBeenCalled();
+    expect(fileStoreState.syncEditedContent).not.toHaveBeenCalled();
+  });
+
+  it('基线已追平且确有编辑时，仍如实报脏（快路径不吞掉保存提示）', async () => {
+    setFile(true);
+    const getContent = vi.fn(() => 'edited');
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent,
+      isSyncedWithStore: () => true,
+    });
+
+    expect(session.evaluateDirtyFromEditor()).toBe(true);
+    expect(getContent).not.toHaveBeenCalled();
+  });
+
+  it('未追平时保留兜底：取实时内容并回写 store，坑2 的最后一秒编辑不丢', async () => {
+    setFile(false);
+    const getContent = vi.fn(() => 'edited');
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent,
+      isSyncedWithStore: () => false,
+    });
+
+    session.evaluateDirtyFromEditor();
+    expect(getContent).toHaveBeenCalledTimes(1);
+    expect(fileStoreState.syncEditedContent).toHaveBeenCalledWith('edited');
+  });
+
+  it('调用方未提供 isSyncedWithStore 时，行为与改造前一致（走 getContent 兜底）', async () => {
+    setFile(false);
+    const getContent = vi.fn(() => 'edited');
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({ resetViewMode: vi.fn(), getContent });
+
+    session.evaluateDirtyFromEditor();
+    expect(getContent).toHaveBeenCalledTimes(1);
   });
 });

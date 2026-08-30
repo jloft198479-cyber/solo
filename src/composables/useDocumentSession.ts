@@ -21,6 +21,12 @@ interface DocumentSessionOptions {
   resetViewMode: () => void;
   /** 从编辑器实时获取最新内容（绕过 store 防抖延迟）。编辑器不可用时返回 null。 */
   getContent?: () => string | null;
+  /**
+   * store 基线是否已等于编辑器当前 doc 的序列化产物。
+   * true ⇒ isDirty 已是真相，闸口可直接返回，省掉一次全文序列化（大文档关窗卡死的主因）。
+   * 未提供时一律走 getContent 兜底，保守但正确。
+   */
+  isSyncedWithStore?: () => boolean;
 }
 
 export function useDocumentSession(options: DocumentSessionOptions) {
@@ -113,8 +119,13 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   }
 
   /** 闸口前强制用编辑器实时内容评估脏态（坑2）：绕开 500ms 序列化防抖，
-   * 避免「编辑后 <500ms 就关窗/切换」时 store 还是旧基线而误判未修改、丢最后半秒编辑。 */
+   * 避免「编辑后 <500ms 就关窗/切换」时 store 还是旧基线而误判未修改、丢最后半秒编辑。
+   * 快路径：store 基线已追上当前 doc 的序列化结果时，isDirty 本身就是真相，
+   * 直接返回不再 getContent()——4MB 文档「打开后立刻关窗」的那一次全量序列化就是卡死来源。 */
   function evaluateDirtyFromEditor() {
+    if (options.isSyncedWithStore?.()) {
+      return fileStore.currentFile.isDirty;
+    }
     const live = options.getContent?.();
     if (live == null) return fileStore.currentFile.isDirty;
     fileStore.syncEditedContent(live);
