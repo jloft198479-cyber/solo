@@ -342,6 +342,9 @@ export const CustomImage = Image.extend({
       dom.className = 'mk-image-shell';
       dom.draggable = false;
 
+      // 统一管理事件监听器，destroy 时一次性清理（声明在前，下方监听器可立即引用）
+      const eventController = new AbortController();
+
       const image = document.createElement('img');
       image.className = 'mk-image';
       image.loading = 'lazy';
@@ -414,6 +417,8 @@ export const CustomImage = Image.extend({
           image.dataset.prevRemoteSrc = attrs.src;
           const requestId = ++displayRequestId;
           void getRemoteImageDisplaySrc(attrs.src).then((displaySrc) => {
+            // 解析是异步的，本块可能已经销毁；此时 requestId 仍然自匹配，必须额外查 aborted
+            if (eventController.signal.aborted) return;
             if (requestId === displayRequestId) {
               if (image.src !== displaySrc) {
                 image.src = displaySrc;
@@ -438,7 +443,8 @@ export const CustomImage = Image.extend({
           if (image.dataset.prevLocalSrc === attrs.src) return;
           const requestId = ++displayRequestId;
           void _localSrcResolver(attrs.src).then((displaySrc) => {
-            if (requestId !== displayRequestId) return;
+            // 解析是异步的，本块可能已经销毁；此时 requestId 仍然自匹配，必须额外查 aborted
+            if (eventController.signal.aborted || requestId !== displayRequestId) return;
             if (!displaySrc) {
               // 解析失败 → 清标记，下次 syncView 可重试
               if (image.dataset.prevLocalSrc === attrs.src) {
@@ -508,21 +514,21 @@ export const CustomImage = Image.extend({
 
       dom.addEventListener('dragstart', (event) => {
         event.preventDefault();
-      });
+      }, { signal: eventController.signal });
 
       sourceText.addEventListener('mousedown', (event) => {
         event.stopPropagation();
-      });
+      }, { signal: eventController.signal });
 
       sourceText.addEventListener('focus', () => {
         isEditing = true;
         dom.classList.add('is-editing');
         dom.classList.remove('is-invalid');
-      });
+      }, { signal: eventController.signal });
 
       sourceText.addEventListener('blur', () => {
         commit();
-      });
+      }, { signal: eventController.signal });
 
       sourceText.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
@@ -537,7 +543,7 @@ export const CustomImage = Image.extend({
           cancel();
           editor.commands.focus();
         }
-      });
+      }, { signal: eventController.signal });
 
       // 双击图片 → 全屏预览（通过自定义事件冒泡到 MarkdownEditor）
       image.addEventListener('dblclick', (event) => {
@@ -551,17 +557,17 @@ export const CustomImage = Image.extend({
             }),
           );
         }
-      });
+      }, { signal: eventController.signal });
 
       // 加载完成移除 skeleton 占位
       image.addEventListener('load', () => {
         image.dataset.loaded = '1';
         image.classList.remove('is-loading');
-      });
+      }, { signal: eventController.signal });
       image.addEventListener('error', () => {
         image.dataset.loaded = '1';
         image.classList.remove('is-loading');
-      });
+      }, { signal: eventController.signal });
 
       syncView();
 
@@ -586,6 +592,10 @@ export const CustomImage = Image.extend({
               sourceText.contains(mutation.target) ||
               image.contains(mutation.target))
           );
+        },
+        destroy() {
+          // 清理所有事件监听器，防止内存泄漏
+          eventController.abort();
         },
       };
     };
