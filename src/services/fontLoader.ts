@@ -20,9 +20,6 @@ const loadedFonts = new Set<string>();
 const downloadFailures = new Set<string>();
 const loadingPromises = new Map<string, Promise<boolean>>();
 
-/** 下载进度 0–100，-1 表示未开始/已完成 */
-const downloadProgress = new Map<string, number>();
-
 /** 进度监听器 */
 type ProgressListener = (family: string, progress: number) => void;
 const progressListeners = new Set<ProgressListener>();
@@ -33,12 +30,7 @@ export function onProgress(cb: ProgressListener): () => void {
 }
 
 function notifyProgress(family: string, progress: number) {
-  downloadProgress.set(family, progress);
   for (const cb of progressListeners) cb(family, progress);
-}
-
-export function getDownloadProgress(family: string): number {
-  return downloadProgress.get(family) ?? -1;
 }
 
 /**
@@ -50,11 +42,7 @@ async function registerFontFromBytes(family: string, bytes: BufferSource): Promi
     const face = new FontFace(family, bytes);
     await face.load();
     document.fonts.add(face);
-    const ok = document.fonts.check(`16px "${family}"`);
-    console.log(
-      `[fontLoader] registerFontFromBytes: family="${family}", status="${face.status}", check=${ok}`,
-    );
-    return ok;
+    return document.fonts.check(`16px "${family}"`);
   } catch (err) {
     console.error(`[fontLoader] registerFontFromBytes failed: ${family}`, err);
     return false;
@@ -77,11 +65,7 @@ async function registerFontViaCss(family: string, cachedPath: string): Promise<b
 }`;
     document.head.appendChild(style);
     await document.fonts.load(`16px "${family}"`);
-    const ok = document.fonts.check(`16px "${family}"`);
-    console.log(
-      `[fontLoader] registerFontViaCss: family="${family}", assetUrl="${assetUrl}", check=${ok}`,
-    );
-    return ok;
+    return document.fonts.check(`16px "${family}"`);
   } catch (err) {
     console.error(`[fontLoader] registerFontViaCss failed: ${family}`, err);
     return false;
@@ -93,12 +77,7 @@ async function readCache(family: string): Promise<boolean> {
     const fileName = REMOTE_FONTS[family];
     if (!fileName) return false;
     const cachedPath = await getCachedFontPath(family, fileName);
-    if (!cachedPath) {
-      console.log(`[fontLoader] readCache: no cached file for "${family}" (${fileName})`);
-      return false;
-    }
-
-    console.log(`[fontLoader] readCache: family="${family}", cachedPath="${cachedPath}"`);
+    if (!cachedPath) return false;
 
     // 优先走 CSS @font-face（IPC 零字节传输，浏览器内核直接读盘）
     if (await registerFontViaCss(family, cachedPath)) {

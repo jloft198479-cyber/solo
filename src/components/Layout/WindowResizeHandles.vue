@@ -11,23 +11,16 @@
 </template>
 
 <script setup lang="ts">
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import {
+  startCurrentWindowResize,
+  type WindowResizeDirection,
+} from '../../services/tauri/window';
 
-type ResizeDirection =
-  | 'East'
-  | 'North'
-  | 'NorthEast'
-  | 'NorthWest'
-  | 'South'
-  | 'SouthEast'
-  | 'SouthWest'
-  | 'West';
-
-function onResizeStart(direction: ResizeDirection) {
+function onResizeStart(direction: WindowResizeDirection) {
   return (e: MouseEvent) => {
     e.preventDefault();
     if (e.detail === 2) return;
-    getCurrentWindow().startResizeDragging(direction).catch(() => {});
+    startCurrentWindowResize(direction).catch(() => {});
   };
 }
 </script>
