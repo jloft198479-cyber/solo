@@ -233,7 +233,7 @@ mod tests {
 
     #[test]
     fn validate_font_url_accepts_https_release_url() {
-        // 与 fontLoader.ts 的 DOWNLOAD_BASE 同形：加固不能打断真实下载链路
+        // 与 fontLoader.ts 的 FONT_SOURCES 同形：加固不能打断真实下载链路
         let url = "https://github.com/jloft198479-cyber/solo/releases/download/fonts-v1/NotoSerifSC-Regular.otf";
         assert_eq!(validate_font_url(url).unwrap(), url);
     }
