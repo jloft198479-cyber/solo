@@ -253,6 +253,9 @@ export const CustomCodeBlock = CodeBlock.extend({
       const dom = document.createElement('div');
       dom.className = 'mk-code-block-shell';
 
+      // 统一管理事件监听器，destroy 时一次性清理（声明在前，下方监听器可立即引用）
+      const eventController = new AbortController();
+
       const header = document.createElement('div');
       header.className = 'mk-code-block-header';
       dom.appendChild(header);
@@ -282,6 +285,8 @@ export const CustomCodeBlock = CodeBlock.extend({
         event.stopPropagation();
         const code = node.textContent;
         navigator.clipboard.writeText(code).then(() => {
+          // 写入是异步的，本块可能已经销毁；此时再改按钮并起定时器就是泄漏
+          if (eventController.signal.aborted) return;
           copyButton.classList.add('is-copied');
           copyButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
           if (copyTimeout) clearTimeout(copyTimeout);
@@ -290,7 +295,7 @@ export const CustomCodeBlock = CodeBlock.extend({
             copyButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
           }, 2000);
         });
-      });
+      }, { signal: eventController.signal });
 
       const pre = document.createElement('pre');
       pre.className = 'mk-code-block';
@@ -346,11 +351,11 @@ export const CustomCodeBlock = CodeBlock.extend({
         event.preventDefault();
         event.stopPropagation();
         enterLanguageEdit();
-      });
+      }, { signal: eventController.signal });
 
       languageInput.addEventListener('blur', () => {
         commitLanguage();
-      });
+      }, { signal: eventController.signal });
 
       languageInput.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
@@ -365,7 +370,7 @@ export const CustomCodeBlock = CodeBlock.extend({
           cancelLanguageEdit();
           editor.commands.focus();
         }
-      });
+      }, { signal: eventController.signal });
 
       syncLanguageUI();
 
@@ -383,6 +388,11 @@ export const CustomCodeBlock = CodeBlock.extend({
         },
         ignoreMutation(mutation: MutationRecord | { type: 'selection'; target: Node }) {
           return mutation.target instanceof Node && header.contains(mutation.target);
+        },
+        destroy() {
+          // 清理所有事件监听器与回显定时器，防止内存泄漏
+          eventController.abort();
+          if (copyTimeout) clearTimeout(copyTimeout);
         },
       };
     };
