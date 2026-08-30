@@ -348,7 +348,7 @@ const nodeSerializers: Record<string, NodeSerializer> = {
 
   blockquote(state, node) {
     // 序列化引用块：逐行添加 > 前缀
-    const inner = new MarkdownSerializerState();
+    const inner = state.createChild();
     inner.renderContent(node);
     const text = inner.output.replace(/\n$/, '');
     const lines = text.split('\n');
@@ -439,7 +439,7 @@ const nodeSerializers: Record<string, NodeSerializer> = {
     const colWidths: number[] = Array(colCount).fill(3); // 最小3（分隔行 ---）
     for (const row of rows) {
       row.forEach((cell, _offset, colIndex) => {
-        const text = cellToText(cell);
+        const text = cellToText(state, cell);
         colWidths[colIndex] = Math.max(colWidths[colIndex], text.length);
       });
     }
@@ -449,7 +449,7 @@ const nodeSerializers: Record<string, NodeSerializer> = {
       const row = rows[r];
       const cells: string[] = [];
       row.forEach((cell, _offset, colIndex) => {
-        const text = cellToText(cell);
+        const text = cellToText(state, cell);
         cells.push(text.padEnd(colWidths[colIndex]));
       });
       state.writeLine('| ' + cells.join(' | ') + ' |');
@@ -474,8 +474,8 @@ const nodeSerializers: Record<string, NodeSerializer> = {
 };
 
 /** 将表格单元格节点序列化为纯文本（含 inline 标记） */
-function cellToText(cell: PMNode): string {
-  const s = new MarkdownSerializerState();
+function cellToText(state: MarkdownSerializerState, cell: PMNode): string {
+  const s = state.createChild();
   cell.forEach((child) => {
     if (child.type.name === 'paragraph') {
       s.renderInline(child);
