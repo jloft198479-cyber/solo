@@ -43,10 +43,15 @@ export async function subscribeDragDrop(handler: DragDropHandler): Promise<Unlis
         // 每个 handler 单独 try/catch：单个订阅者抛错不影响其他订阅者收到事件
         // （遵循架构原则「一处崩溃不影响全局」）。
         for (const h of [...activeDragDropHandlers]) {
+          // 单个 handler 失败不阻断后续广播；异步 handler 的 rejection 也要兜住，
+          // 否则成为 unhandled rejection（错误由 handler 自身日志负责呈现）
           try {
-            h(payload);
-          } catch {
-            // 单个 handler 失败不阻断后续广播；错误由 handler 自身负责处理
+            const result = h(payload);
+            if (result instanceof Promise) {
+              result.catch((err) => console.warn('[drag-drop] handler 执行失败:', err));
+            }
+          } catch (err) {
+            console.warn('[drag-drop] handler 执行失败:', err);
           }
         }
       }
@@ -71,4 +76,9 @@ export async function listenMenuEvent(handler: AppEventHandler<string>) {
 
 export async function listenWindowCloseRequested(handler: AppEventHandler<null>) {
   return listenWindowEvent(WINDOW_CLOSE_REQUESTED, handler);
+}
+
+/** 编辑器焦点事件：窗口获得焦点 / 需要初始化编辑器时由 Rust 定向发出 */
+export async function listenEditorFocus(handler: () => void): Promise<UnlistenFn> {
+  return listenWindowEvent<null>('solo:editor-focus', handler);
 }

@@ -9,7 +9,7 @@ export interface EditorOutlineItem {
 
 export interface EditorCursorInfo {
   cursor: { line: number; col: number };
-  selectionText: string;
+  selectionLen: number;
 }
 
 export function getEditorWordCount(editor: TiptapEditor): number {
@@ -80,12 +80,22 @@ export function getEditorCursorInfo(editor: TiptapEditor): EditorCursorInfo {
 
   const col = from - $from.start($from.depth) + 1;
   const selection = editor.state.selection;
-  const selectionText = selection.empty
-    ? ''
-    : editor.state.doc.textBetween(selection.from, selection.to, '\n');
+  // 状态栏只需要字数，不拷全文：大文档全选时 textBetween 会拷贝整份内容
+  let selectionLen = 0;
+  if (!selection.empty) {
+    editor.state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+      if (node.isText) {
+        // nodesBetween 会给出与选区部分重叠的文本节点，按交集裁剪才精确
+        const start = Math.max(selection.from, pos);
+        const end = Math.min(selection.to, pos + (node.text?.length ?? 0));
+        selectionLen += Math.max(0, end - start);
+      }
+      return true;
+    });
+  }
 
   return {
     cursor: { line, col },
-    selectionText,
+    selectionLen,
   };
 }

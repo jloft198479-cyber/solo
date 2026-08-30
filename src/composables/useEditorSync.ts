@@ -15,7 +15,7 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 export interface EditorSyncPayload {
   wordCount?: number;
   cursor?: { line: number; col: number };
-  selectionText?: string;
+  selectionLen?: number;
   outline?: EditorOutlineItem[];
 }
 
@@ -24,6 +24,11 @@ export interface EditorSyncOptions {
   onUpdate: (data: EditorSyncPayload) => void;
   /** 空闲序列化完成后回调，供调用方缓存序列化结果避免重复计算。 */
   onSerialize?: (content: string, doc: PMNode) => void;
+  /**
+   * 大纲面板是否打开。大文档（heavy 档）面板关闭时跳过全文遍历的大纲提取；
+   * 未提供时视为常开（保持旧行为，保守正确）。
+   */
+  isOutlineOpen?: () => boolean;
 }
 
 // 字数统计轻量（读 doc.textContent），150ms 均衡响应与开销
@@ -63,6 +68,11 @@ const cancelIdle =
 export function useEditorSync(options: EditorSyncOptions) {
   const fileStore = useFileStore();
 
+  /** 大纲面板是否打开（未提供视为常开）：决定大文档能否跳过全文大纲提取 */
+  const outlineOpen = () => (options.isOutlineOpen ? options.isOutlineOpen() : true);
+  /** heavy 档 + 面板关闭 ⇒ 大纲提取得不偿失（全文遍历只为一个没人看的面板） */
+  const skipOutline = () => isHeavyDocument() && !outlineOpen();
+
   const debouncedWordCount = debounce((ed: TiptapEditor) => {
     if (ed.isDestroyed) return;
     options.onUpdate({ wordCount: getEditorWordCount(ed) });
@@ -70,6 +80,7 @@ export function useEditorSync(options: EditorSyncOptions) {
 
   const debouncedOutline = debounce((ed: TiptapEditor) => {
     if (ed.isDestroyed) return;
+    if (skipOutline()) return;
     options.onUpdate({ outline: extractEditorOutline(ed) });
   }, OUTLINE_DEBOUNCE_MS);
 
@@ -89,12 +100,23 @@ export function useEditorSync(options: EditorSyncOptions) {
   function scheduleSerialize(ed: TiptapEditor) {
     pendingSerializeEditor = ed;
     if (serializeIdleId !== null) return;
+    const generationAtSchedule = editGeneration;
     serializeIdleId = requestIdle(
-      () => {
+      (deadline) => {
         serializeIdleId = null;
         const target = pendingSerializeEditor;
         pendingSerializeEditor = null;
         if (!target || target.isDestroyed) return;
+        // 超时兜底撞上续打：大文档全文序列化要 100-300ms，硬插在输入中途会造成
+        // 明显卡顿——重新排队等下一个空闲窗口。真空闲（非超时）不受此限。
+        // 必须走 scheduleSerialize 而非 debouncedSerialize：后者会用这个「调度时
+        // 捕获的旧编辑器」覆盖挂起防抖里最新的编辑器引用，序列化出过期内容。
+        // 挂起的防抖（代际前进必有）稍后会带着最新编辑器合并进这个空闲回调。
+        // 代价只是 store 基线滞后，关窗/保存闸口有 getContent 实时兜底，不丢编辑。
+        if (deadline.didTimeout && editGeneration !== generationAtSchedule) {
+          scheduleSerialize(target);
+          return;
+        }
         const markdown = serializeMarkdown(target.state.doc);
         fileStore.syncEditedContent(markdown);
         // 空闲回调执行时才读 doc，此刻的 editGeneration 已含之前所有编辑
@@ -134,8 +156,15 @@ export function useEditorSync(options: EditorSyncOptions) {
   function emitImmediateStats(ed: TiptapEditor) {
     options.onUpdate({
       wordCount: getEditorWordCount(ed),
-      outline: extractEditorOutline(ed),
+      // heavy 档且面板关闭：跳过全文大纲遍历，面板打开时由 emitOutlineNow 补算
+      outline: skipOutline() ? [] : extractEditorOutline(ed),
     });
+  }
+
+  /** 显式刷新大纲（大纲面板打开时调用）：无视降级守卫，用户主动要看就值得算 */
+  function emitOutlineNow(ed: TiptapEditor) {
+    if (ed.isDestroyed) return;
+    options.onUpdate({ outline: extractEditorOutline(ed) });
   }
 
   /**
@@ -175,6 +204,7 @@ export function useEditorSync(options: EditorSyncOptions) {
     handleDocChange,
     handleSelectionChange,
     emitImmediateStats,
+    emitOutlineNow,
     isSyncedWithStore,
     markSynced,
     cancelPending,

@@ -42,7 +42,6 @@
 <script setup lang="ts">
 import { onMounted, ref, shallowRef, onBeforeUnmount, watch } from 'vue';
 import { Editor as TiptapEditor, EditorContent } from '@tiptap/vue-3';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { useFileStore } from '../../stores/file';
 import { useSettingsStore } from '../../stores/settings';
@@ -77,6 +76,7 @@ import { getBlockElFromPos, scrollElementIntoView } from './tiptap/editor-dom';
 import { resolveImageDisplay } from '../../services/tauri/document';
 import { message } from '../../services/tauri/dialog';
 import { toAssetUrl } from '../../services/tauri/asset';
+import { listenEditorFocus } from '../../services/tauri/events';
 import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
 import BubbleMenuComponent from './views/BubbleMenu.vue';
 import ContextMenuComponent, { type ContextMenuItem } from './views/ContextMenu.vue';
@@ -87,7 +87,7 @@ import './tiptap/editor.css';
 
 type EditorUpdatePayload = EditorSyncPayload;
 
-const props = defineProps<{ initialContent?: string }>();
+const props = defineProps<{ initialContent?: string; outlineOpen?: boolean }>();
 const emit = defineEmits<{
   (e: 'update', data: EditorUpdatePayload): void;
   (e: 'image-dblclick', src: string): void;
@@ -126,6 +126,7 @@ const {
   handleDocChange,
   handleSelectionChange,
   emitImmediateStats,
+  emitOutlineNow,
   isSyncedWithStore,
   markSynced,
   cancelPending,
@@ -134,6 +135,8 @@ const {
   onSerialize: (content, doc) => {
     cachedSerialize = { doc, content };
   },
+  // 未传 outlineOpen 视为常开（保守，保持旧行为）
+  isOutlineOpen: () => props.outlineOpen ?? true,
 });
 
 // ── 创建 TipTap Editor ────────────────────────────────────────
@@ -267,8 +270,12 @@ watch(
     resolvedImageCache.clear();
     if (!editor.value || editor.value.isDestroyed) return;
     const content = fileStore.currentFile.content;
-    // 比较当前 editor 序列化结果与目标内容，相同则跳过（如另存为场景）
-    const currentMarkdown = serializeMarkdown(editor.value.state.doc).replace(/\n+$/, '');
+    // 比较当前 editor 序列化结果与目标内容，相同则跳过（如另存为场景）。
+    // 优先命中序列化缓存：大文档全量序列化要 100-300ms，缓存未命中才真跑。
+    const currentDoc = editor.value.state.doc;
+    const currentMarkdown = (
+      cachedSerialize?.doc === currentDoc ? cachedSerialize.content : serializeMarkdown(currentDoc)
+    ).replace(/\n+$/, '');
     const targetMarkdown = content.replace(/\n+$/, '');
     if (currentMarkdown === targetMarkdown) return;
 
@@ -377,13 +384,22 @@ function onContextMenuSelect(item: ContextMenuItem) {
 // ── 图片拖拽上传 ──────────────────────────────────────────────
 
 let unlistenDragDrop: (() => void) | null = null;
+// 卸载竞态守卫：setupDragDrop / setupWindowFocusHandlers 都是异步的，
+// 组件可能在 await 期间被卸载（编辑器/图片预览模式切换），此时返回的
+// unlisten 不会再被 onBeforeUnmount 调用，必须在赋值时自查补拆。
+let isUnmounted = false;
 
 async function setupDragDrop() {
-  unlistenDragDrop = await setupEditorImageDrop({
+  const unlisten = await setupEditorImageDrop({
     editor,
     getDocumentPath: () => fileStore.currentFile.path,
     getStoragePath: () => settingsStore.settings.imageStoragePath || null,
   });
+  if (isUnmounted) {
+    unlisten?.();
+    return;
+  }
+  unlistenDragDrop = unlisten;
 }
 
 // ── 编辑器懒初始化 ────────────────────────────────────────────────
@@ -400,11 +416,15 @@ let unlistenFocus: (() => void) | null = null;
 
 async function setupWindowFocusHandlers() {
   try {
-    const appWindow = getCurrentWindow();
-    unlistenFocus = await appWindow.listen('solo:editor-focus', () => {
+    const unlisten = await listenEditorFocus(() => {
       if (editor.value && !editor.value.isDestroyed) return;
       lazyInitEditor();
     });
+    if (isUnmounted) {
+      unlisten();
+      return;
+    }
+    unlistenFocus = unlisten;
   } catch {
     // 事件系统初始化失败，跳过懒初始化
   }
@@ -446,6 +466,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  isUnmounted = true;
+
   // 1. 先断开 focus 事件，防止销毁期间回调触发
   unlistenFocus?.();
   unlistenFocus = null;
@@ -495,6 +517,16 @@ watch(
   () => {
     if (editor.value?.view) {
       refreshParagraphFocus(editor.value.view);
+    }
+  },
+);
+
+// 大纲面板打开时补算一次：大文档面板关闭期间跳过了提取，打开瞬间要给面板数据
+watch(
+  () => props.outlineOpen,
+  (open, wasOpen) => {
+    if (open && !wasOpen && editor.value && !editor.value.isDestroyed) {
+      emitOutlineNow(editor.value);
     }
   },
 );
