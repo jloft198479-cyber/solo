@@ -8,6 +8,18 @@ import type { EditorView } from '@tiptap/pm/view';
 export const OUTLINE_SCROLL_RATIO = 0.25;
 
 /**
+ * JS 滚动调用的行为选择：CSS 的 `scroll-behavior` 与 `prefers-reduced-motion`
+ * 媒体查询管不到 scrollTo / scrollIntoView 的 `behavior` 参数，必须在这里
+ * 显式降级——「减少动态效果」系统偏好下平滑滚动要退化为即时跳转。
+ */
+export function smoothScrollBehavior(): ScrollBehavior {
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    return 'auto';
+  }
+  return 'smooth';
+}
+
+/**
  * 稳定获取文档位置 pos 处的块级 DOM 元素。
  *
  * 坑（实测定位）：`view.domAtPos(pos)` 在 pos 恰好等于块节点起始边界时，
@@ -37,12 +49,12 @@ export function scrollElementIntoView(
 ): void {
   const container = (view.dom as HTMLElement).closest('.mk-editor') as HTMLElement | null;
   if (!container) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.scrollIntoView({ behavior: smoothScrollBehavior(), block: 'start' });
     return;
   }
   const elTop = el.getBoundingClientRect().top;
   const containerTop = container.getBoundingClientRect().top;
   const targetScrollTop =
     elTop - containerTop + container.scrollTop - container.clientHeight * ratio;
-  container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+  container.scrollTo({ top: Math.max(0, targetScrollTop), behavior: smoothScrollBehavior() });
 }

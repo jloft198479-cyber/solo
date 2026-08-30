@@ -41,7 +41,7 @@ const emit = defineEmits<{
 <style scoped>
 .fade-enter-active,
 .fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--motion-base) var(--ease-out);
 }
 .fade-enter-from,
 .fade-leave-to {

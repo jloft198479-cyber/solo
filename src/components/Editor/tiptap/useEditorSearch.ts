@@ -1,6 +1,7 @@
 import { ref, type Ref } from 'vue';
 import { debounce } from 'lodash-es';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
+import { smoothScrollBehavior } from './editor-dom';
 
 interface SearchMatch {
   from: number;
@@ -99,7 +100,7 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     editor.value.commands.setTextSelection(match);
     const dom = editor.value.view.domAtPos(match.from);
     const el = dom.node instanceof HTMLElement ? dom.node : dom.node.parentElement;
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el?.scrollIntoView({ behavior: smoothScrollBehavior(), block: 'center' });
     pulseJumpTarget(el);
   }
 

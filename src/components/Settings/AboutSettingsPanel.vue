@@ -178,6 +178,6 @@ async function checkForUpdate() {
   height: 100%;
   background: var(--primary-color);
   border-radius: 2px;
-  transition: width 0.3s ease;
+  transition: width var(--motion-slow) ease;
 }
 </style>

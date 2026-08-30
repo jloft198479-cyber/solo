@@ -1523,12 +1523,12 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
 /* ── 焦点写作模式：段落聚焦 ───────────────────────────────── */
 html.focus-mode .paragraph-dimmed {
   opacity: var(--mk-focus-dimmed-opacity);
-  transition: opacity 0.35s ease;
+  transition: opacity var(--motion-slow) var(--ease-out);
 }
 
 html.focus-mode .paragraph-active {
   opacity: 1;
-  transition: opacity 0.35s ease;
+  transition: opacity var(--motion-slow) var(--ease-out);
 }
 
 html.focus-mode [class*='mk-editor'] h1::before,

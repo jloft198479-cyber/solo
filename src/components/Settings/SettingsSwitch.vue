@@ -53,7 +53,7 @@ const model = defineModel<boolean>({ required: true });
   border-radius: 999px;
   background: var(--input-bg);
   box-shadow: var(--shadow-sm);
-  transition: transform 0.2s ease;
+  transition: transform var(--motion-base) var(--ease-out);
 }
 
 .settings-switch__thumb--on {
