@@ -14,6 +14,7 @@
      ease-out 缓出曲线让动作「停在终点」，比 ease 更跟手。 */
   --motion-fast: 120ms;  /* 菜单 / 按钮 / 小切换 */
   --motion-base: 200ms;  /* 面板 / 视图 / crossfade */
+  --motion-slow: 300ms;  /* 进度条 / 焦点模式变暗等更缓的过渡 */
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -309,8 +310,8 @@ body {
   background-color: transparent;
   color: var(--text-color);
   transition:
-    background-color 0.2s,
-    color 0.2s;
+    background-color var(--motion-base) var(--ease-out),
+    color var(--motion-base) var(--ease-out);
 }
 
 /* ── 标题栏拖拽 ────────────────────────────────────────────── */
@@ -578,7 +579,7 @@ html.theme-transitioning .sidebar {
   align-items: center;
   justify-content: center;
   background: var(--modal-overlay);
-  animation: unsaved-fade-in 0.12s ease;
+  animation: unsaved-fade-in var(--motion-fast) ease;
 }
 
 .unsaved-dialog {
@@ -660,4 +661,35 @@ html.theme-transitioning .sidebar {
 @keyframes unsaved-scale-in {
   from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: scale(1); }
+}
+
+/* ── 文档加载指示（消费 fileStore.isLoading，大文件读取/解析反馈） ──
+   顶部 2px 不定长进度条：零布局抖动，纯 transform 动画。 */
+.loading-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 50;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  pointer-events: none;
+}
+
+.loading-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 40%;
+  border-radius: 2px;
+  background: var(--primary-color);
+  animation: loading-slide 1.2s var(--ease-out) infinite;
+}
+
+@keyframes loading-slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(350%); }
 }
