@@ -38,6 +38,7 @@ updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src]
 | 3 | 测试数曾多处不一致 | 2026-07-20 已治理（README/PROFILE/ARCHITECTURE 去硬编码），但**新增文档请勿再硬编码测试数**，统一写「以 `bun run test` 实际输出为准」 | 全局 |
 | 4 | （可选）最近文件快开 | 来源：已退役的 UI/交互优化提案 P9（本项未做、非必须）。在不引入应用内 tab 模型前提下，提供「最近文件」快开——可挂在命令面板（Ctrl+K）增「最近文件」分组，数据源依赖 Rust 侧是否已有最近文件记录。保持 solo 多窗口哲学。 | 待定（Rust 侧最近文件记录可用性） |
 | 5 | 远程图片 URL 校验挡不住 DNS rebinding | §一 #9 的 `validate_remote_image_url` 只判断**字面量**主机（回环/私有/链路本地/组播、`localhost`、`.local`/`.internal`、云元数据 `169.254.169.254`）。若攻击者掌握一个公网域名，让其 A 记录解析到内网 IP，请求仍会打到内网。彻底修法需要「解析后 IP 再校验 + 用该 IP 建连」，会破坏 TLS SNI 与虚拟主机，且 reqwest 需自定义 resolver；本地优先单文件编辑器 threat model 下暂不付出这个复杂度。同理 `validate_font_url` 只限 https，刻意不做主机白名单——GitHub release 会 302 跳到 `objects.githubusercontent.com`，白名单会打断下载。取舍已写入 Rust 注释 | [`src-tauri/src/commands/image.rs`](../src-tauri/src/commands/image.rs) / [`font.rs`](../src-tauri/src/commands/font.rs) |
+| 6 | 表格 resizable 拖拽列宽不持久 | TipTap Table 配置了 `resizable: true`，用户可拖拽调整列宽，但 `serializer.ts` 用文本长度算列宽对齐（`colWidths` 局部变量），完全忽略 `node.attrs.colwidth`。保存后重新打开，拖过的列宽丢失。修复需 serializer 读取 `colwidth` 属性写入 GFM 表格（GFM 本身无列宽语义，可能需要 HTML `<col>` 或自定义属性），同时 parser 要能还原。当前 #9 仅补齐行列操作入口，此项留待后续 | [`src/components/Editor/tiptap/markdown/serializer.ts`](../src/components/Editor/tiptap/markdown/serializer.ts):438-459 |
 
 ## 三、设计取舍（[设计取舍]，非 bug，勿"修"）
 
