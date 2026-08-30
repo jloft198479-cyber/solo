@@ -5,6 +5,7 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
+import { setDocumentTier } from '../../../document-scale';
 import { createParagraphFocusPlugin, paragraphFocusKey } from '../paragraph-focus';
 
 const schema = createMarkdownCompatSchema();
@@ -47,6 +48,7 @@ describe('paragraph-focus 增量聚焦装饰（P4-03）', () => {
   });
   afterEach(() => {
     document.documentElement.classList.remove('focus-mode');
+    setDocumentTier('normal');
     vi.restoreAllMocks();
   });
 
@@ -117,13 +119,38 @@ describe('paragraph-focus 增量聚焦装饰（P4-03）', () => {
     ]);
   });
 
-  it('focus mode 关闭时不更新插件状态，props 层返回空装饰', () => {
+  it('focus mode 关闭时：init 不预建装饰（H4 空转修复），事务也不重建', () => {
     document.documentElement.classList.remove('focus-mode');
-    let state = stateOf(docOf(paragraph('hello')), 1);
     const calls = createCallCount();
+    let state = stateOf(docOf(paragraph('hello')), 1);
+
+    expect(createCallCount()).toBe(calls); // 创建编辑器时一次都不建
+    expect(summaries(state)).toEqual([]);
 
     state = state.apply(state.tr.insertText('X', 1));
 
     expect(createCallCount()).toBe(calls); // 关闭状态下不重建
+  });
+
+  it('大文档降级（heavy）：init 不建装饰，每块一条正是超大文档的卡死来源', () => {
+    setDocumentTier('heavy');
+    const state = stateOf(docOf(paragraph('hello'), heading(1, 'world')), 1);
+
+    expect(summaries(state)).toEqual([]);
+    expect(createCallCount()).toBe(0);
+  });
+
+  it('大文档降级（extreme）：焦点模式开着，渲染边界仍拿不到任何装饰', () => {
+    setDocumentTier('extreme');
+    const plugin = createParagraphFocusPlugin();
+    const doc = docOf(paragraph('hello'), heading(1, 'world'));
+    const state = EditorState.create({
+      schema,
+      doc,
+      selection: TextSelection.create(doc, 1),
+      plugins: [plugin],
+    });
+
+    expect(plugin.props.decorations?.(state)?.find()).toEqual([]);
   });
 });

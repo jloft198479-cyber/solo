@@ -11,6 +11,12 @@ import { confirm, message, open, save } from '../services/tauri/dialog';
 import { useFileStore } from '../stores/file';
 import { DEFAULT_DISPLAY_NAME } from '../stores/file';
 import { useSettingsStore } from '../stores/settings';
+import {
+  countVisibleChars,
+  resolveDocumentTier,
+  setDocumentTier,
+  HEAVY_DOC_CHARS,
+} from '../components/Editor/document-scale';
 
 export interface AutoSaveStatus {
   message: string;
@@ -46,8 +52,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   /** 自动保存是否应继续运行（用户关闭/禁用时停止递归） */
   let autoSaveActive = false;
 
-  /** 大文档阈值（字符数），超过此值弹出提示 */
-  const LARGE_DOC_THRESHOLD = 100_000;
   /** 自动保存状态消息展示时长（毫秒），超时后自动清除 */
   const AUTOSAVE_STATUS_DISPLAY_MS = 2000;
   /** 自动保存间隔下限（秒），与 settings store 保持一致 */
@@ -79,17 +83,17 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       // 加载完成，取消 loading 避免阻塞 UI 交互
       fileStore.setLoading(false);
 
-      // 大文档提示（此时 loading=false，不会阻塞确认对话框）
-      // 排除 base64 图片数据：图片渲染为独立节点，不影响编辑打字性能
-      const textContent =
-        document.content.indexOf('data:image') >= 0
-          ? document.content.replace(/!\[.*?\]\(data:image\/[^;]+;base64,[^)]+\)/g, '')
-          : document.content;
-      if (textContent.length > LARGE_DOC_THRESHOLD) {
-        const sizeKB = Math.round(textContent.length / 1024);
+      // 档位判定放在 loading=false 之后：extreme 档要弹确认框，不能压在 loading 遮罩下。
+      // 度量剔除 base64 内嵌图片——它们渲染成独立节点，不参与编辑期的全文遍历。
+      const textLength = countVisibleChars(document.content);
+      const tier = resolveDocumentTier(textLength);
+      if (tier === 'extreme') {
+        const sizeMB = (textLength / (1024 * 1024)).toFixed(1);
         const proceed = await confirm(
-          `该文件较大（约 ${sizeKB} KB），编辑器可能会变慢。是否继续打开？`,
-          { title: '大文件提示', kind: 'warning', okLabel: '继续打开', cancelLabel: '取消' },
+          `该文件约 ${sizeMB} MB，逐字符遍历的编辑特性（序列化、大纲、搜索）会明显变慢。` +
+            `仍要打开编辑吗？\n` +
+            `（${(HEAVY_DOC_CHARS / 10_000).toFixed(0)} 万字符以上还会自动暂停代码自动语言检测、焦点模式装饰和实时字数）`,
+          { title: '超大文件提示', kind: 'warning', okLabel: '继续编辑', cancelLabel: '取消' },
         );
         if (!proceed) {
           return false;
@@ -97,6 +101,9 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       }
 
       fileStore.setLoading(true);
+      // 必须在写入 store 之前发布档位：store 变化会立刻触发编辑器解析文档，
+      // 插件在解析阶段就要按档位决定建不建装饰、做不做自动语言检测。
+      setDocumentTier(tier);
       applyLoadedDocument(document);
       return true;
     } catch (error) {
@@ -168,6 +175,8 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     }
 
     clearExternalWarning();
+    // 必须先复位档位再写 store：新建文档不该继承上一个超大文档的降级设置。
+    setDocumentTier('normal');
     fileStore.reset();
     options.resetViewMode();
   }

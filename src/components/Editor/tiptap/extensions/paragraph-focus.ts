@@ -4,6 +4,7 @@ import type { EditorState, Transaction } from '@tiptap/pm/state';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
+import { isHeavyDocument } from '../../document-scale';
 
 export const paragraphFocusKey = new PluginKey<ParagraphFocusState>('paragraphFocus');
 
@@ -93,10 +94,18 @@ export function createParagraphFocusPlugin(): Plugin<ParagraphFocusState> {
     key: paragraphFocusKey,
     state: {
       init(_, state) {
+        // 焦点模式未开时不预建装饰——props.decorations 此时返回 empty，建了也用不上。
+        // 原实现在编辑器创建时无条件遍历全部顶层块，是超大文档「打开即卡」的实测热点之一；
+        // 开启焦点模式时 refreshParagraphFocus 会发 meta reset 事务补建，不会丢效果。
+        if (!isFocusModeActive() || isHeavyDocument()) {
+          return { decorations: DecorationSet.empty, activeBlock: -1 };
+        }
         const activeBlock = activeBlockOf(state);
         return { decorations: buildAllBlockDecorations(state.doc, activeBlock), activeBlock };
       },
       apply(tr, value) {
+        // 档位只在打开 / 新建文档时变化，随后必然跟着整文档替换事务；这里无条件归零，不残留上一档装饰
+        if (isHeavyDocument()) return { decorations: DecorationSet.empty, activeBlock: -1 };
         if (!isFocusModeActive()) return value;
         // 焦点模式切换后的强制重建
         if (tr.getMeta(paragraphFocusKey)) {

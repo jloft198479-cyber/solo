@@ -4,6 +4,7 @@ import { EditorState } from '@tiptap/pm/state';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
 import { createMarkdownCompatSchema } from '../../components/Editor/tiptap/markdown/compat-schema';
+import { setDocumentTier } from '../../components/Editor/document-scale';
 import { useFileStore } from '../../stores/file';
 import { useEditorSync } from '../useEditorSync';
 
@@ -163,5 +164,49 @@ describe('useEditorSync 同步代际（关窗闸口免序列化判据）', () =>
     vi.advanceTimersByTime(500);
     runIdle();
     expect(isSyncedWithStore()).toBe(true);
+  });
+});
+
+describe('useEditorSync 大文档降级（H7：字数不再跟随编辑）', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    setActivePinia(createPinia());
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    setDocumentTier('normal');
+  });
+
+  function hasWordCountPayload(onUpdate: ReturnType<typeof vi.fn>): boolean {
+    return onUpdate.mock.calls.some(([payload]) => 'wordCount' in (payload ?? {}));
+  }
+
+  it('heavy 档位：防抖到点也不发字数，序列化与同步代际照常', () => {
+    setDocumentTier('heavy');
+    const store = useFileStore();
+    const syncSpy = vi.spyOn(store, 'syncEditedContent');
+    const onUpdate = vi.fn();
+    const { handleDocChange, markSynced, isSyncedWithStore } = useEditorSync({ onUpdate });
+
+    markSynced();
+    handleDocChange(fakeEditor('typed'));
+    vi.advanceTimersByTime(500);
+
+    expect(hasWordCountPayload(onUpdate)).toBe(false);
+    expect(isSyncedWithStore()).toBe(false);
+
+    runIdle();
+    expect(syncSpy).toHaveBeenCalledTimes(1); // 降级不能弄脏「是否已同步」判据
+    expect(isSyncedWithStore()).toBe(true);
+  });
+
+  it('normal 档位（对照）：字数照旧实时发出，证明降级门没有误伤正常路径', () => {
+    const onUpdate = vi.fn();
+    const { handleDocChange } = useEditorSync({ onUpdate });
+
+    handleDocChange(fakeEditor('typed'));
+    vi.advanceTimersByTime(500);
+
+    expect(hasWordCountPayload(onUpdate)).toBe(true);
   });
 });
