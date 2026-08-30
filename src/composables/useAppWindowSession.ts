@@ -9,6 +9,7 @@ import {
   destroyCurrentWindow,
   isCurrentWindowFullscreen,
   registerShellNew,
+  reportWindowClose,
   requestAppQuit,
   setCurrentWindowFullscreen,
   setCurrentWindowTitle,
@@ -130,17 +131,33 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
     }
   }
 
+  /** 通知 Rust「本次关闭链已中止」，让下一次关闭请求重新弹窗。失败不影响关闭链本身。 */
+  function abortCloseHandshake(): Promise<void> {
+    return reportWindowClose('abort').catch((error: unknown) => {
+      console.warn('[close] abort 失败:', error);
+    });
+  }
+
   async function handleCloseRequest(): Promise<boolean> {
+    // 逃生舱握手：第一时间 fire-and-forget 通知 Rust「JS 还活着」，
+    // 此后重复的关闭请求会被吞掉（不再叠框）。绝不能 await——
+    // 大文档场景下紧接着的序列化会把 JS 线程占死，消息必须在那之前发出去。
+    void reportWindowClose('ack').catch((error: unknown) => {
+      console.warn('[close] ack 失败:', error);
+    });
+
     options.stopAutoSave?.();
 
     if (options.isDirty()) {
       const result = await confirmUnsavedChanges();
       if (result === 'cancel') {
+        void abortCloseHandshake();
         return false;
       }
       if (result === 'save') {
         const saved = await options.saveDocument();
         if (!saved) {
+          void abortCloseHandshake();
           return false;
         }
       }
