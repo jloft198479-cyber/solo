@@ -15,6 +15,9 @@
  *   2. 标题（pending heading）—— 输入 `# 文字` 时段落保持 paragraph、用 CSS 装饰
  *      模拟标题外观；等输入稳定（非 composition、settle 之后）再转换为真正的 heading。
  *      绝不在空 heading 上让 IME composition 发生，从根本上规避 readDOMChange 错位。
+ *      任何转换事务在浏览器仍处 composition（view.composing）时一律不落地——中途
+ *      改 doc 会拆掉正在组字的文本节点，输入法候选窗随之失锚（位置不跟/状态怪异）。
+ *      组字结束后由 compositionend 自己排定的检查补齐转换。
  *
  *   3. 块级 —— 数学块（$$）、Mermaid（```mermaid）的 input rules。
  */
@@ -134,6 +137,11 @@ export { markdownInputPlugin, markdownInputPluginKey };
 export type { MarkdownInputState };
 
 function markdownInputPlugin(): Plugin<MarkdownInputState> {
+  // prosemirror-state 调 appendTransaction 只传 (transactions, oldState, newState)，
+  // 拿不到 view（prosemirror-state/dist/index.js:807）。用工厂闭包登记 view 实例，
+  // 让 appendTransaction 能读 view.composing —— 浏览器 composition 的权威信号。
+  let liveView: EditorView | null = null;
+
   return new Plugin<MarkdownInputState>({
     key: markdownInputPluginKey,
 
@@ -165,7 +173,8 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
       },
     },
 
-    view() {
+    view(editorView) {
+      liveView = editorView;
       let checkTimer: number | null = null;
 
       function clearCheckTimer() {
@@ -179,6 +188,9 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
         checkTimer = window.setTimeout(() => {
           checkTimer = null;
           if (view.isDestroyed) return;
+          // 到点时用户已在敲下一个词（新的活跃 composition）→ 放弃本次转换，
+          // 由那次组字的 compositionend 重新排定检查。
+          if (view.composing) return;
           setMarkdownInputState(view, {
             composing: false,
             forceCheck: true,
@@ -191,13 +203,16 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
         // 非 IME 文本输入后，pending heading 需要在停顿后转成真正 heading。
         // composition 路径由 compositionend 自己安排 forceCheck，这里只管非 IME。
         update(view, previousState) {
-          if (view.state.doc.eq(previousState.doc)) return;
-
           const pluginState = markdownInputPluginKey.getState(view.state);
-          if (pluginState?.composing) {
+
+          // 组字进行中：既不排期也不保留检查。放在 doc.eq 早退之前，
+          // 让 compositionstart 那个纯 meta 事务也能撤掉已排期的定时器。
+          if (pluginState?.composing || view.composing) {
             clearCheckTimer();
             return;
           }
+
+          if (view.state.doc.eq(previousState.doc)) return;
 
           // 装饰集非空 = 存在 pending heading（每段至少 1 条节点装饰）。
           // 原实现这里 findPendingHeading 全文档遍历（P4-02）。
@@ -217,6 +232,7 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
 
         destroy() {
           clearCheckTimer();
+          liveView = null;
         },
       };
     },
@@ -239,8 +255,12 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
             suppressUntil,
           });
           // 上屏后等 DOM/composition 稳定，再强制扫描一次（覆盖行内标记与标题）。
+          // 若此刻用户已在敲下一个词（新的活跃 composition），立即转换会拆掉正在
+          // 组字的文本节点，输入法候选窗随之失锚——放弃本次，由那次组字的
+          // compositionend 重新排定检查。
           window.setTimeout(() => {
             if (view.isDestroyed) return;
+            if (view.composing) return;
             setMarkdownInputState(view, {
               composing: false,
               forceCheck: true,
@@ -260,6 +280,12 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
       const pluginState = markdownInputPluginKey.getState(newState);
       if (pluginState?.composing) return null;
       if (pluginState && pluginState.suppressUntil > Date.now()) return null;
+
+      // 兜底闸门：liveView.composing 是浏览器 DOM composition 的权威信号。
+      // 正常路径下 pluginState.composing 已拦截（compositionstart 的 meta 先于一切转换），
+      // 这里再挡一道绕过插件状态的活跃组字。被挡下的转换不会丢：组字结束时的
+      // compositionend 会另排一次 forceCheck，期间任何 docChanged 也走增量扫描。
+      if (liveView?.composing) return null;
 
       const docChanged = transactions.some((tr) => tr.docChanged);
       if (!docChanged && !pluginState?.forceCheck) return null;

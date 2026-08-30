@@ -197,6 +197,25 @@ describe('状态机层：composition 编排不变量', () => {
     expect(state.doc.firstChild!.type.name).toBe('heading');
     expect(state.doc.firstChild!.textContent).toBe('x');
   });
+
+  it('(e) 组字标志激活时 forceCheck 也不转换（pluginState.composing 守卫）', () => {
+    // 边缘竞态：compositionstart 已置 composing=true + suppressUntil=Infinity，
+    // 随后定时器 meta 落地把 suppressUntil 清零——守卫必须靠 composing 拦住。
+    let state = stateWith(docOf(paragraph('# 你好')), 5);
+    state = dispatch(state, (tr) => metaCompositionStart(tr));
+
+    state = dispatch(
+      state,
+      (tr) =>
+        tr.setMeta(markdownInputPluginKey, {
+          composing: true, // 定时器 meta 也翻不动组字中的标志
+          forceCheck: true,
+          suppressUntil: 0,
+        }),
+    );
+    expect(state.doc.firstChild!.type.name).toBe('paragraph');
+    expect(state.doc.firstChild!.textContent).toBe('# 你好');
+  });
 });
 
 describe('真定时器层：真实 EditorView 执行 window.setTimeout', () => {
@@ -244,6 +263,32 @@ describe('真定时器层：真实 EditorView 执行 window.setTimeout', () => {
     // docChanged → appendTransaction 立即转换。
     expect(v.state.doc.firstChild!.type.name).toBe('heading');
     expect(v.state.doc.firstChild!.textContent).toBe('你好');
+  });
+
+  it('(ime-anchor) 浏览器组字标志激活期间不落地转换，组字结束后照常转换', () => {
+    // 转换事务一旦落地就拆掉正在组字的文本节点，输入法候选窗随之失锚
+    // （偶发不跟手 / 呈现怪异状态）。闸门读的是 view.composing 这一浏览器权威信号，
+    // 不依赖插件自己的 composing——后者由 handleDOMEvents 写，存在竞态窗口。
+    const v = mountView(docOf(paragraph('# 你好')), 5);
+    // EditorView.composing 是原型 getter（prosemirror-view/dist/index.js:5446），
+    // 装一个实例 getter 覆盖即可模拟「浏览器正在组字」。
+    let browserComposing = true;
+    Object.defineProperty(v, 'composing', {
+      configurable: true,
+      get: () => browserComposing,
+    });
+
+    // 组字中的上屏事务：段落保持 paragraph，`# ` 前缀还在（由 CSS 装饰伪装成标题）
+    v.dispatch(v.state.tr.insertText('世界', 5));
+    expect(markdownInputPluginKey.getState(v.state)!.composing).toBe(false);
+    expect(v.state.doc.firstChild!.type.name).toBe('paragraph');
+    expect(v.state.doc.firstChild!.textContent).toBe('# 你好世界');
+
+    // 组字结束：下一次输入照常把 pending heading 转成真正的 heading
+    browserComposing = false;
+    v.dispatch(v.state.tr.insertText('。', 7));
+    expect(v.state.doc.firstChild!.type.name).toBe('heading');
+    expect(v.state.doc.firstChild!.textContent).toBe('你好世界。');
   });
 });
 
