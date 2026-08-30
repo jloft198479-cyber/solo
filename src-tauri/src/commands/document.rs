@@ -15,8 +15,36 @@ use tauri::{AppHandle, Manager};
 // 且与 mime_to_extension 支持的格式对齐——否则会出现「能保存但显示失败」（如 .bmp/.ico）。
 const IMAGE_EXTENSIONS: [&str; 8] = ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"];
 
+// 文档扩展名白名单。与 lib.rs 的 supported_open_path()（CLI 参数接收门控）同源于
+// 「solo 能编辑什么文件」这一事实，新增可编辑类型时两处都要改。
+const OPEN_EXTENSIONS: [&str; 3] = ["md", "markdown", "txt"];
+// 写入白名单比读取多一个 json：「导出主题模板」复用 save_document 写 .json
+// （见 ThemeSelector.vue 的 downloadTemplate），只按 OPEN 白名单卡会让导出功能报无效参数。
+const WRITE_EXTENSIONS: [&str; 4] = ["md", "markdown", "txt", "json"];
+
+/// 校验文件扩展名在白名单内（大小写不敏感）。
+/// 在 IPC 入口把关，避免恶意文档内容诱导前端读写任意类型文件；
+/// 本地绝对路径本身是合法用例（用户引用 D:/docs/x.md），故只卡扩展名不做目录约束。
+fn validate_document_extension(path: &str, allowed: &[&str], action: &str) -> Result<(), AppError> {
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    if allowed.contains(&ext.as_str()) {
+        Ok(())
+    } else {
+        Err(AppError::validation(format!(
+            "{}仅支持 {} 文件",
+            action,
+            allowed.join("/")
+        )))
+    }
+}
+
 #[tauri::command]
 pub async fn open_document(path: String) -> Result<DocumentOpenResult, AppError> {
+    validate_document_extension(&path, &OPEN_EXTENSIONS, "打开")?;
     let path_for_io = path.clone();
     let (content, last_modified_ms) = tauri::async_runtime::spawn_blocking(move || {
         let content = fs::read_to_string(&path_for_io)?;
@@ -52,6 +80,7 @@ pub async fn save_document(
     expected_last_modified_ms: Option<u64>,
     force: bool,
 ) -> Result<DocumentSaveResult, AppError> {
+    validate_document_extension(&path, &WRITE_EXTENSIONS, "保存")?;
     // 冲突检查也涉及 metadata IO，一并放进 spawn_blocking
     let path_for_io = path.clone();
     let last_modified_ms = tauri::async_runtime::spawn_blocking(move || {
@@ -160,7 +189,10 @@ pub async fn import_document_image(
     storage_dir: Option<String>,
 ) -> Result<DocumentImageImportResult, AppError> {
     tauri::async_runtime::spawn_blocking(move || {
-        let source = Path::new(&source_path);
+        // 复用 validate_image_asset_path 作为「什么是可导入图片」的真理源：
+        // canonicalize 解析符号链接 + is_file + IMAGE_EXTENSIONS 三重校验，
+        // 防止把任意文件（或 evil.png -> secret.txt 这类符号链接）拷进资产目录。
+        let source = validate_image_asset_path(Path::new(&source_path))?;
         let filename = source
             .file_name()
             .and_then(|name| name.to_str())
@@ -593,7 +625,8 @@ fn unique_asset_target(assets_dir: &Path, filename: &str) -> (PathBuf, String) {
 mod tests {
     use super::{
         atomic_write, import_document_image, open_document, rename_file, resolve_image_src,
-        save_document, validate_image_asset_path,
+        save_document, validate_document_extension, validate_image_asset_path, OPEN_EXTENSIONS,
+        WRITE_EXTENSIONS,
     };
     use crate::error::AppError;
     use std::fs;
@@ -710,6 +743,74 @@ mod tests {
         assert_eq!(validated, image_path.canonicalize().unwrap());
 
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn open_document_rejects_non_document_extension() {
+        let dir = test_dir();
+        let exe_path = dir.join("payload.exe");
+        fs::write(&exe_path, b"MZ").unwrap();
+
+        let error = open_document(exe_path.to_string_lossy().to_string())
+            .await
+            .unwrap_err();
+
+        match error {
+            AppError::Validation(_) => {}
+            other => panic!("expected validation error, got {:?}", other),
+        }
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn save_document_rejects_unexpected_extension_but_allows_theme_json() {
+        let dir = test_dir();
+
+        // 写入白名单刻意包含 json：「导出主题模板」复用 save_document（ThemeSelector.vue）
+        let json_path = dir.join("theme-template.json");
+        save_document(
+            json_path.to_string_lossy().to_string(),
+            "{\"id\":\"demo\"}".into(),
+            None,
+            true,
+        )
+        .await
+        .unwrap();
+        assert!(json_path.exists());
+
+        let script_path = dir.join("startup.bat");
+        let error = save_document(
+            script_path.to_string_lossy().to_string(),
+            "@echo off".into(),
+            None,
+            true,
+        )
+        .await
+        .unwrap_err();
+        match error {
+            AppError::Validation(_) => {}
+            other => panic!("expected validation error, got {:?}", other),
+        }
+        assert!(!script_path.exists());
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn validate_document_extension_is_case_insensitive() {
+        assert!(validate_document_extension("C:/docs/README.MD", &OPEN_EXTENSIONS, "打开").is_ok());
+        assert!(validate_document_extension("/tmp/notes.Markdown", &OPEN_EXTENSIONS, "打开").is_ok());
+        // 无扩展名与未知扩展名一律拒绝
+        assert!(validate_document_extension("/tmp/LICENSE", &OPEN_EXTENSIONS, "打开").is_err());
+        assert!(validate_document_extension("/tmp/a.sh", &WRITE_EXTENSIONS, "保存").is_err());
+    }
+
+    #[test]
+    fn write_whitelist_is_read_whitelist_plus_json() {
+        // 主题模板导出是 save 独有的合法用例，两处白名单差异必须是有意的
+        assert_eq!(OPEN_EXTENSIONS, ["md", "markdown", "txt"]);
+        assert_eq!(WRITE_EXTENSIONS, ["md", "markdown", "txt", "json"]);
     }
 
     #[tokio::test]

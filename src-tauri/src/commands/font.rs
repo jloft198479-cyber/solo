@@ -2,8 +2,25 @@ use crate::error::AppError;
 use std::fs;
 use std::sync::OnceLock;
 use tauri::{AppHandle, Manager};
+use url::Url;
 
 static FONT_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+/// 校验字体下载 URL：只允许 https。
+/// 当前唯一调用方 fontLoader.ts 用的是硬编码 https 常量，此校验不改变正常行为，
+/// 只堵住命令被传入任意 URL（file:// / http:// 明文）时的读取与降级风险。
+/// 刻意不做主机白名单：GitHub release 下载会 302 跳到 objects.githubusercontent.com，
+/// 白名单会打断下载——字体链路有「连修四版才修对」的历史，不再引入新的失效面。
+fn validate_font_url(raw: &str) -> Result<String, AppError> {
+    let url = Url::parse(raw.trim()).map_err(|_| AppError::validation("无效的字体 URL"))?;
+    if url.scheme() != "https" {
+        return Err(AppError::validation("字体仅支持 https 下载"));
+    }
+    if url.host_str().is_none() {
+        return Err(AppError::validation("字体 URL 缺少主机名"));
+    }
+    Ok(String::from(url))
+}
 
 fn font_client() -> Result<reqwest::Client, AppError> {
     if let Some(client) = FONT_CLIENT.get() {
@@ -68,6 +85,7 @@ pub async fn fetch_font_data(
     family: String,
     app: AppHandle,
 ) -> Result<String, AppError> {
+    let url = validate_font_url(&url)?;
     let response = font_client()?.get(&url).send().await?;
     let bytes = response.bytes().await?;
 
@@ -207,4 +225,30 @@ pub async fn read_font_bytes(
     }
 
     Ok(Vec::new())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_font_url;
+
+    #[test]
+    fn validate_font_url_accepts_https_release_url() {
+        // 与 fontLoader.ts 的 DOWNLOAD_BASE 同形：加固不能打断真实下载链路
+        let url = "https://github.com/jloft198479-cyber/solo/releases/download/fonts-v1/NotoSerifSC-Regular.otf";
+        assert_eq!(validate_font_url(url).unwrap(), url);
+    }
+
+    #[test]
+    fn validate_font_url_rejects_non_https_and_garbage() {
+        for bad in [
+            "http://github.com/any/font.ttf",
+            "file:///C:/Windows/Fonts/evil.ttf",
+            "not a url",
+        ] {
+            assert!(
+                validate_font_url(bad).is_err(),
+                "expected rejection for {bad}"
+            );
+        }
+    }
 }
