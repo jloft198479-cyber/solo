@@ -122,12 +122,12 @@ describe('paragraph-focus 增量聚焦装饰（P4-03）', () => {
   it('focus mode 关闭时：init 不预建装饰（H4 空转修复），事务也不重建', () => {
     document.documentElement.classList.remove('focus-mode');
     const calls = createCallCount();
-    let state = stateOf(docOf(paragraph('hello')), 1);
+    const state = stateOf(docOf(paragraph('hello')), 1);
 
     expect(createCallCount()).toBe(calls); // 创建编辑器时一次都不建
     expect(summaries(state)).toEqual([]);
 
-    state = state.apply(state.tr.insertText('X', 1));
+    state.apply(state.tr.insertText('X', 1));
 
     expect(createCallCount()).toBe(calls); // 关闭状态下不重建
   });
