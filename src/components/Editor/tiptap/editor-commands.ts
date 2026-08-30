@@ -96,6 +96,20 @@ export function executeEditorCommand(editor: TiptapEditor | null, commandId: str
       return chain.toggleBlockquote().run();
     case 'editor.codeBlock':
       return chain.toggleCodeBlock().run();
+    case 'editor.tableAddRowBefore':
+      return chain.addRowBefore().run();
+    case 'editor.tableAddRowAfter':
+      return chain.addRowAfter().run();
+    case 'editor.tableDeleteRow':
+      return chain.deleteRow().run();
+    case 'editor.tableAddColBefore':
+      return chain.addColumnBefore().run();
+    case 'editor.tableAddColAfter':
+      return chain.addColumnAfter().run();
+    case 'editor.tableDeleteCol':
+      return chain.deleteColumn().run();
+    case 'editor.tableToggleHeaderRow':
+      return chain.toggleHeaderRow().run();
     default:
       return false;
   }

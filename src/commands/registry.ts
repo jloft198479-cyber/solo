@@ -9,6 +9,7 @@ export type CommandGroup =
   | 'heading'
   | 'list'
   | 'block'
+  | 'table'
   | 'history'
   | 'view'
   | 'help';
@@ -37,6 +38,7 @@ export const GROUP_LABELS: Record<CommandGroup, string> = {
   heading: '标题',
   list: '列表',
   block: '块级元素',
+  table: '表格',
   history: '历史',
   view: '视图',
   help: '帮助',
@@ -274,6 +276,62 @@ export const COMMANDS: CommandDefinition[] = [
     palette: true,
   },
   {
+    id: 'editor.tableAddRowBefore',
+    title: '在上方插入行',
+    description: '在当前行上方插入一行',
+    scope: 'editor',
+    group: 'table',
+    palette: true,
+  },
+  {
+    id: 'editor.tableAddRowAfter',
+    title: '在下方插入行',
+    description: '在当前行下方插入一行',
+    scope: 'editor',
+    group: 'table',
+    palette: true,
+  },
+  {
+    id: 'editor.tableDeleteRow',
+    title: '删除当前行',
+    description: '删除光标所在的表格行',
+    scope: 'editor',
+    group: 'table',
+    palette: true,
+  },
+  {
+    id: 'editor.tableAddColBefore',
+    title: '在左侧插入列',
+    description: '在当前列左侧插入一列',
+    scope: 'editor',
+    group: 'table',
+    palette: true,
+  },
+  {
+    id: 'editor.tableAddColAfter',
+    title: '在右侧插入列',
+    description: '在当前列右侧插入一列',
+    scope: 'editor',
+    group: 'table',
+    palette: true,
+  },
+  {
+    id: 'editor.tableDeleteCol',
+    title: '删除当前列',
+    description: '删除光标所在的表格列',
+    scope: 'editor',
+    group: 'table',
+    palette: true,
+  },
+  {
+    id: 'editor.tableToggleHeaderRow',
+    title: '切换表头行',
+    description: '将首行切换为表头或普通行',
+    scope: 'editor',
+    group: 'table',
+    palette: true,
+  },
+  {
     id: 'edit.find',
     title: '查找',
     description: '打开编辑器内查找',
@@ -349,7 +407,10 @@ export function getCommand(commandId: string): CommandDefinition | undefined {
   return COMMAND_LOOKUP.get(commandId);
 }
 
-export function getShortcut(command: CommandDefinition, customShortcuts: Record<string, string> = {}): string | null {
+export function getShortcut(
+  command: CommandDefinition,
+  customShortcuts: Record<string, string> = {},
+): string | null {
   return customShortcuts[command.id] ?? command.defaultShortcut ?? null;
 }
 
@@ -357,8 +418,9 @@ export function getShortcutCommands(
   customShortcuts: Record<string, string> = {},
   options: { includePaletteOnly?: boolean } = {},
 ): ShortcutCommand[] {
-  return COMMANDS
-    .filter((command) => (options.includePaletteOnly ? command.palette !== false : true))
+  return COMMANDS.filter((command) =>
+    options.includePaletteOnly ? command.palette !== false : true,
+  )
     .map((command) => {
       const shortcut = getShortcut(command, customShortcuts);
       if (!shortcut) return null;
@@ -420,9 +482,7 @@ function formatKeyForDisplay(shortcut: string, platform: 'mac' | 'win'): string 
       .replace(/-/g, '');
   }
 
-  const joined = shortcut
-    .replace(/Mod/g, 'Ctrl')
-    .replace(/-/g, '+');
+  const joined = shortcut.replace(/Mod/g, 'Ctrl').replace(/-/g, '+');
   const parts = joined.split('+');
   parts[parts.length - 1] = parts[parts.length - 1].toUpperCase();
   return parts.join('+');
@@ -469,7 +529,9 @@ export function toTauriAccelerator(shortcut: string): string {
   return key ? [...modifiers, key].join('+') : modifiers.join('+');
 }
 
-export function getMenuShortcuts(customShortcuts: Record<string, string> = {}): Record<string, string> {
+export function getMenuShortcuts(
+  customShortcuts: Record<string, string> = {},
+): Record<string, string> {
   return COMMANDS.reduce<Record<string, string>>((acc, command) => {
     if (!command.menuSection) {
       return acc;
