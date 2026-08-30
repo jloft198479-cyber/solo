@@ -371,8 +371,9 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       externalWarningTimer = setTimeout(() => {
         externalFileWarning.value = null;
       }, 30_000);
-    } catch {
-      // 获取 mtime 失败（文件可能被删除/移动），静默跳过
+    } catch (error) {
+      // 获取 mtime 失败（文件可能被删除/移动）：跳过本次检查，但留痕便于排查
+      console.warn('[external-check] getFileMtime failed:', error);
     }
   }
 

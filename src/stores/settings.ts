@@ -71,6 +71,8 @@ const MIN_AUTOSAVE_INTERVAL_SECONDS = 5;
 
 // 非响应式内部状态（不参与渲染，避免写入 reactive 触发无谓通知）
 let _saveTimeout: ReturnType<typeof setTimeout> | null = null;
+/** 防抖窗口内待落盘的设置快照：关窗前可强制 flush，避免丢最后一次改动 */
+let _pendingSettings: Settings | null = null;
 let _stopSettingsWatcher: WatchStopHandle | null = null;
 let _stopActiveThemeIdWatcher: WatchStopHandle | null = null;
 let _stopFocusModeWatcher: WatchStopHandle | null = null;
@@ -127,16 +129,42 @@ export const useSettingsStore = defineStore('settings', {
         clearTimeout(_saveTimeout);
       }
 
+      _pendingSettings = newSettings;
       _saveTimeout = setTimeout(async () => {
+        _saveTimeout = null;
+        const pending = _pendingSettings;
+        _pendingSettings = null;
         try {
           await writeStoredSettings({
-            ...newSettings,
+            ...pending,
             configVersion: CURRENT_CONFIG_VERSION,
           });
         } catch (error) {
           console.error('[Settings] 保存配置失败:', error);
         }
       }, 300);
+    },
+
+    /**
+     * 强制落盘防抖窗口内的待保存设置（关窗前调用）。
+     * 300ms 防抖期间关窗会丢最后一次设置改动，这里同步补写一次。
+     */
+    async flushPendingSettings() {
+      if (_saveTimeout) {
+        clearTimeout(_saveTimeout);
+        _saveTimeout = null;
+      }
+      const pending = _pendingSettings;
+      _pendingSettings = null;
+      if (!pending || !this.isLoaded) return;
+      try {
+        await writeStoredSettings({
+          ...pending,
+          configVersion: CURRENT_CONFIG_VERSION,
+        });
+      } catch (error) {
+        console.error('[Settings] 保存配置失败:', error);
+      }
     },
 
     /**

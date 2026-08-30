@@ -36,6 +36,10 @@ export async function setupEditorImageDrop({
       const paths = payload.paths;
       if (!paths?.length || !editor.value) return;
 
+      // 混拖 .md + 图片：窗口侧订阅者会切换文档，图片循环会被插进切换后的新文档
+      // （相对路径仍指向旧文档 assets → 断链）。混拖时以打开文档为准，图片不处理。
+      if (paths.some((p) => /\.(md|markdown|txt)$/i.test(p))) return;
+
       const storagePath = getStoragePath();
       const documentPath = getDocumentPath();
 
