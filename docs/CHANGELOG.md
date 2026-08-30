@@ -20,19 +20,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.2.41] — 2026-08-31
 
-> 全项目代码审查后落地的 3 项修复：一处越权面收口、一处内存泄漏、一处剪贴板保真。
+> 全项目系统性审查与优化：安全面收口、大文档性能三阶段落地、字体下载切国内 CDN、输入法组字稳定性修复，以及一处用户可感知的痛点补齐（表格行列操作）。
 
 ### Security
 - **Rust IPC 入口补路径与 URL 校验**：此前 `open_document` / `save_document` / `import_document_image` / `fetch_remote_image` 把前端传入的路径或 URL 直接用于读文件与发请求，恶意文档内容（如构造的 `image src`）可诱导越权读写与 SSRF。修复：① 读/写各加扩展名白名单（读 md/markdown/txt，与 `lib.rs` 的 `supported_open_path` 同源；写多一个 json，因为「导出主题模板」复用 `save_document` 写 `.json`）；② `import_document_image` 的 source 改走 `validate_image_asset_path`，复用 canonicalize + is_file + 图片扩展名三重校验，防止把任意文件（或 `evil.png` 指向 `secret.txt` 的符号链接）拷进资产目录；③ 新增 `validate_remote_image_url` 限定 http/https 并拦截字面量内网主机（回环/私有/链路本地/组播、`localhost` / `.local` / `.internal`、云元数据 `169.254.169.254`，含 IPv4 内嵌 IPv6 形式），请求与 Referer 改用校验后的规范化 URL，做到「校验什么就请求什么」；④ 新增 `validate_font_url` 限定 https，刻意不做主机白名单——GitHub release 会 302 跳到 `objects.githubusercontent.com`，白名单会打断下载。缓存 key 仍哈希原始输入，升级后既有 remote-image-cache 不失效。
 
 ### Fixed
 - **代码块 / 图片 NodeView 事件监听器泄漏**：`code-block.ts`（4 个监听器 + 复制回显定时器）与 `image.ts`（7 个监听器）缺 `destroy()`，节点销毁后监听器与闭包仍存活，频繁增删代码块/图片的长会话线性积累。改用仓库既有的 `AbortController` 套路（对齐 `math-block.ts` / `mermaid-block.ts`）：监听器统一带 `signal`，`destroy()` 里 `abort()`。同时补两处**销毁后异步回写**的守卫——图片 src 解析是异步的，`requestId` 活在同一个已销毁的闭包里仍会自匹配，必须额外查 `signal.aborted` 才能挡住晚到的 `image.src` 赋值。
-- **复制含引用块 / 表格的内容时多出反斜杠**：出站复制走「轻量转义」（只转 `` ` `` `*` 等必要字符），但 `blockquote` 与表格单元格各自新建内层序列化 state 时用的是默认构造（文件落盘的严格转义模式），把 clipboard 标记丢了——在引用块或表格里写 `A = B` / `100$`，粘到外部 Markdown 编辑器会变成 `A \= B` / `100\$`。修复：两处改用 `state.createChild()` 继承转义模式（`callout.ts` 早已这么写，这两处是漏改）。`cellToText` 因此要拿到父 state，列宽统计与输出两个调用点必须同步改，否则 `padEnd` 对齐的宽度和实际写入的字符串不是同一份、表格会错位。文件保存的严格转义不受影响（已有反向保护测试）。
+- **输入法候选窗失锚（中文输入偶发「不跟手 / 呈现怪异状态」）**：Windows TSF 候选窗贴在浏览器报告的光标矩形上——组字期间若正在组字的文本节点被替换，锚点即失效，候选窗停在旧位置或乱跳。而 `markdown-input` 的 pending heading 与行内标记转换（`setBlockType`、`delete + addMark`）正是会拆掉该文本节点的文档变更。修复：`appendTransaction` 新增组字闸门，浏览器权威信号 `view.composing` 为真时一律不转换（PM 调 `appendTransaction` 只传三个参数拿不到 view，改用插件工厂闭包登记 EditorView 实例读信号）；两处 settle 定时器到点若仍在组字则放弃本次转换。被挡下的转换不丢——那次组字结束时的 `compositionend` 会重新触发。
+- **大文档卡死时窗口关不掉（关窗逃生舱）**：关窗确认链完全跑在前端，4MB 以上文档的序列化会把 WebView 的 JS 线程占死——`close-requested` 送进去没人应答，窗口既关不掉也不弹框，只能杀进程。修复：Rust 侧新增 `CloseGuard` 看门狗 + 前端握手命令 `report_window_close`。首次关闭请求照常弹确认框并起算 3 秒宽限期；前端收到即回 `ack` 证明 JS 还活着，此后重复请求一律吞掉（不再叠出多个确认框）；宽限期内前端一次都没应答则判定线程被占死，第二次关闭请求放行原生关闭。用户取消 / 保存失败 / destroy 失败都会 `abort` 复位，避免看门狗永久停在 Waiting 让逃生舱失效。
+- **外部修改重载会静默丢弃未保存编辑**：文件在外部被改动后，重载链路直接覆盖了当前内容。修复：改走 `openDocumentWithPrompt`，含脏态确认与错误弹窗，不再静默丢弃。
+- **关窗时丢失最后一次设置改动**：设置写入有 300ms 防抖窗口，关窗时窗口内未落盘的改动直接丢失。修复：新增 `flushPendingSettings`，关窗链路在销毁前强制落盘。
+- **拖入混合文件时 .md 被当图片内联**：同时拖入含 `.md` 的混合文件时，`.md` 走了图片内联链路而非文档打开链路。修复：加混拖守卫，`.md` 一律走文档打开。
+- **外部修改检查失败被静默吞掉**：失败路径无日志，问题难以定位。修复：补 `console.warn` 留痕。
 
 ### Added
 - **表格行列操作入口**：新增右键菜单（`ContextMenu.vue`）与命令面板 7 条表格命令（插入/删除行列、切换表头行），解决「创建了表格但无法删除行列」的用户痛点。TipTap Table 扩展原生命令此前无任何调用点，本次补齐入口；colwidth 属性序列化 / resizable 拖拽列宽持久化留待后续（见 KNOWN-ISSUES §二 #6）。
+- **文档加载指示条**：大文件读取 / 解析期间顶部显示细进度条（纯 transform 动画，零布局抖动）。此前这段时间界面毫无反馈，容易被误判为「卡死」。
+- **大文档阈值分层与自动降级**：按「剔除 base64 内嵌图片后的字符数」分 normal / heavy(≥50 万) / extreme(≥200 万) 三档。heavy 档自动关掉三项高开销特性（代码块自动语言检测、焦点模式装饰、实时字数——改为打开时算一次基线）；extreme 档打开前需用户确认才进可编辑模式。取代此前 10 万字符一刀切（正常文档也误弹窗、失去意义）。
+
+### Changed
+- **字体下载切国内 CDN（用户可感知：下载明显变快）**：字体改由七牛云 CDN（`fonts.weimabbs.com`）优先分发，GitHub release 作为兜底源。字体本身不变、使用方式完全无感，唯一变化是**下载速度显著提升**（国内网络下尤其明显）。任一源失败自动换源，契合退化安全原则。`fontLoader.ts` 的 `DOWNLOAD_BASE` 改为 `FONT_SOURCES` 数组；Rust 侧失败不落盘、缓存名用 URL 末段，两源可安全复用同一份缓存。
+- **动效 token 统一 + 无障碍降级**：新增 `--motion-slow`(300ms)，分散在各处的 0.15s/0.2s/0.25s ease 收敛为 token + `--ease-out` 曲线。新增 `smoothScrollBehavior()`——CSS 的 `prefers-reduced-motion` 媒体查询管不到 JS 的 `scrollTo` / `scrollIntoView`，改用 `matchMedia` 显式降级，大纲跳转与搜索跳转已接入。
+- **架构收口**：`App.vue` / `WindowResizeHandles.vue` 不再直接调 `@tauri-apps` 窗口 API，统一走 `services/tauri/window.ts`（守「Tauri 调用唯一入口」铁律）；`fontLoader` 清理无调用方的僵尸代码与热路径日志。
+
+### Performance
+- **关窗 / 切文档闸口免序列化**：新增「编辑代际」判据（`editGeneration` / `syncedGeneration`）——store 基线已是当前 doc 的序列化产物时，闸口直接信任脏标记，不再全量序列化兜底。4MB 文档上这一次序列化正是「关窗卡死」的主要开销。偏保守只浪费一次序列化，偏乐观会丢编辑，故判据取严格相等。
+- **载入基线改存序列化产物**：此前基线存磁盘原文，而 parse→serialize 并非字节等价往返（CRLF→LF、marks 顺序重排），导致零编辑文档语义比对永远不等 → **关窗误提示保存**（Windows 下 CRLF 必现）。改为存序列化产物并预热缓存，未编辑即关闭时 `getContent()` 直接命中。
+- **编辑器热路径四项优化**：① 序列化结果缓存复用（切文档比较优先命中缓存，省 100–300ms 全量序列化）；② 大纲面板关闭时跳过全文大纲遍历（打开瞬间补算）；③ 空闲序列化撞上续打时重新排队，不再硬插造成输入卡顿；④ 焦点模式装饰由 N 条收敛为「当前 + 上一个」2 条。
 
 ## [1.2.40] — 2026-08-22
 
