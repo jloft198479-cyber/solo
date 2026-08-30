@@ -228,8 +228,14 @@ function createEditor(content: string) {
   // 自动聚集，打开即写（注意：需在 editor.value 赋值之后调用，否则 isFocused 为 false）
   e.commands.focus('start');
 
-  // 同步基线 — 直接用原始内容建立，避免无意义的解析→序列化轮转
-  fileStore.setContent(content || '');
+  // 基线存「编辑器序列化产物」而非磁盘原文：parse→serialize 不是字节等价往返
+  // （markdown-it 把 CRLF/CR 归一成 LF，扩展 marks 顺序也会被重排）。基线存原文
+  // 会让零编辑文档的语义比对永远不等 → 关窗误提示保存（Windows 下 CRLF 必现）。
+  const initialDoc = e.state.doc;
+  const baseline = serializeMarkdown(initialDoc);
+  // 预热序列化缓存：未编辑就关闭时，getContent() 直接命中，不再全量重扫
+  cachedSerialize = { doc: initialDoc, content: baseline };
+  fileStore.setContent(baseline);
 
   // 触发初始字数统计
   emitImmediateStats(e);
@@ -253,8 +259,11 @@ watch(
     const doc = parseMarkdown(editor.value.schema, content);
     // 不进撤销栈、不触发 onUpdate（避免撤销跨文档 + 误判 dirty）
     replaceDocumentWithoutHistory(editor.value, doc);
-    // 重置基线：直接用目标内容，避免一次序列化
-    fileStore.setContent(targetMarkdown);
+    // 重置基线：与载入路径同语义——存序列化产物，不存目标原文
+    const newDoc = editor.value.state.doc;
+    const baseline = serializeMarkdown(newDoc);
+    cachedSerialize = { doc: newDoc, content: baseline };
+    fileStore.setContent(baseline);
     // preventUpdate 事务不触发 onUpdate → 手动补发字数和大纲
     emitImmediateStats(editor.value);
     editor.value.commands.focus('start');
