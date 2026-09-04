@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Transaction, EditorState } from '@tiptap/pm/state';
+import type { EditorView } from '@tiptap/pm/view';
 
 const key = new PluginKey<DecorationSet>('searchHighlight');
 
@@ -25,9 +26,21 @@ export const SearchHighlight = Extension.create<SearchHighlightOptions>({
     // 引用比较缓存：放在闭包里而非模块级，确保多编辑器实例不串台
     let cachedMatchesRef: Array<{ from: number; to: number }> | null = null;
     let cachedActiveIndex = -1;
+    // 组字权威信号：appendTransaction/apply 拿不到 view，用工厂闭包登记实例
+    // （与 markdown-input 同款套路）。组字期间冻结装饰重建，避免改动
+    // 正在组字的 DOM 导致 WebView2 IME 候选窗失锚变形。
+    let liveView: EditorView | null = null;
     return [
       new Plugin({
         key,
+        view(editorView) {
+          liveView = editorView;
+          return {
+            destroy() {
+              liveView = null;
+            },
+          };
+        },
         state: {
           init() {
             return DecorationSet.empty;
@@ -43,6 +56,12 @@ export const SearchHighlight = Extension.create<SearchHighlightOptions>({
               cachedMatchesRef = null;
               cachedActiveIndex = -1;
               return DecorationSet.empty;
+            }
+
+            // 组字期间：只 map 平移已有装饰跟随 doc 变化，不重建（重建会
+            // 改动组字中的 DOM）。cached 保持不变，组字结束后的事务会带最新 matches 重建。
+            if (liveView?.composing) {
+              return tr.docChanged ? oldSet.map(tr.mapping, newState.doc) : oldSet;
             }
 
             const matches = getMatches();

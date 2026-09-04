@@ -275,12 +275,14 @@ pub async fn save_clipboard_image(
             fs::create_dir_all(&target_dir)?;
         }
 
-        // 生成唯一文件名：Pasted image {毫秒时间戳}.ext
+        // 生成唯一文件名：pasted-image-{毫秒时间戳}.ext
+        // 连字符而非空格：`Pasted image xxx.png` 里的空格在 Markdown 链接语法中
+        // 需要尖括号包裹才能落盘（历史版本曾因此丢图），新文件从源头消灭空格。
         let timestamp_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_millis())
             .unwrap_or(0);
-        let base_name = format!("Pasted image {}", timestamp_ms);
+        let base_name = format!("pasted-image-{}", timestamp_ms);
         let filename = format!("{}.{}", base_name, ext);
 
         let (target_path, target_filename) = unique_asset_target(&target_dir, &filename);

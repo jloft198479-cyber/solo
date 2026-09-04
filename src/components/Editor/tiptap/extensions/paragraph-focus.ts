@@ -90,8 +90,19 @@ function isWholeDocReplace(tr: Transaction): boolean {
 
 /** 插件工厂：测试直接调用（先例同 markdown-input 导出插件工厂） */
 export function createParagraphFocusPlugin(): Plugin<ParagraphFocusState> {
+  // 组字权威信号：apply 拿不到 view，用工厂闭包登记实例（markdown-input 同款套路）。
+  // 组字期间冻结 active/dimmed 装饰的 class swap，避免改动正在组字的 DOM。
+  let liveView: EditorView | null = null;
   return new Plugin<ParagraphFocusState>({
     key: paragraphFocusKey,
+    view(editorView) {
+      liveView = editorView;
+      return {
+        destroy() {
+          liveView = null;
+        },
+      };
+    },
     state: {
       init(_, state) {
         // 焦点模式未开时不预建装饰——props.decorations 此时返回 empty，建了也用不上。
@@ -107,6 +118,16 @@ export function createParagraphFocusPlugin(): Plugin<ParagraphFocusState> {
         // 档位只在打开 / 新建文档时变化，随后必然跟着整文档替换事务；这里无条件归零，不残留上一档装饰
         if (isHeavyDocument()) return { decorations: DecorationSet.empty, activeBlock: -1 };
         if (!isFocusModeActive()) return value;
+        // 组字期间：只 map 平移装饰跟随 doc 变化，不 swap active/dimmed class
+        // （swap 会改动正在组字段落的 class → WebView2 IME 候选窗失锚变形，横条塌成小方块）。
+        // activeBlock 保持旧值，组字结束后光标落定的事务会重新 swap。
+        // meta reset（切焦点模式）不在组字期发生，放行重建。
+        if (liveView?.composing && !tr.getMeta(paragraphFocusKey)) {
+          const decorations = tr.docChanged
+            ? value.decorations.map(tr.mapping, tr.doc)
+            : value.decorations;
+          return { decorations, activeBlock: value.activeBlock };
+        }
         // 焦点模式切换后的强制重建
         if (tr.getMeta(paragraphFocusKey)) {
           const activeBlock = activeBlockOf(tr);

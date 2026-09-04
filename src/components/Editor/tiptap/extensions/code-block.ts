@@ -14,6 +14,7 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import type { EditorView } from '@tiptap/pm/view';
 import { isHeavyDocument } from '../../document-scale';
 import { createLowlight } from 'lowlight';
 import javascript from 'highlight.js/lib/languages/javascript';
@@ -169,9 +170,20 @@ export function createIncrementalLowlightPlugin(
   defaultLanguage: string | null,
   lowlightInstance: ReturnType<typeof createLowlight> = getLowlight(),
 ) {
+  // 组字权威信号：apply 拿不到 view，用工厂闭包登记实例（markdown-input / search-highlight 同款套路）。
+  // 组字期间冻结语法高亮装饰重建，避免改动正在组字的 DOM 导致 WebView2 IME 候选窗失锚变形。
+  let liveView: EditorView | null = null;
   // 显式注解：props.decorations 里引用 plugin 自身，无注解会形成循环推断（TS7022）
   const plugin: Plugin<DecorationSet> = new Plugin<DecorationSet>({
     key: new PluginKey('codeBlockHighlight'),
+    view(editorView) {
+      liveView = editorView;
+      return {
+        destroy() {
+          liveView = null;
+        },
+      };
+    },
     state: {
       init: (_, { doc }) =>
         DecorationSet.create(doc, highlightAllBlocks(doc, name, defaultLanguage, lowlightInstance)),
@@ -179,6 +191,10 @@ export function createIncrementalLowlightPlugin(
         if (!tr.docChanged) return decoSet;
 
         const mapped = decoSet.map(tr.mapping, tr.doc);
+        // 组字期间：只 map 平移已有高亮装饰跟随 doc 变化，不重建（重建会 remove+add
+        // 改动组字中的 <code> DOM → WebView2 IME 候选窗失锚变形）。组字结束后
+        // 首个非组字事务会带最新内容重建，高亮不会漏。
+        if (liveView?.composing) return mapped;
         const docSize = tr.doc.content.size;
         const affected = new Map<number, PMNode>();
 

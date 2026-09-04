@@ -127,6 +127,32 @@ describe('useFileStore', () => {
       expect(store.currentFile.isDirty).toBe(false);
     });
 
+    it('setFile 递增 reloadToken（同路径外部重载也能触发编辑器刷新）', () => {
+      const store = useFileStore();
+      const t0 = store.reloadToken;
+
+      store.setFile('内容 v1', '/path/file.md');
+      const t1 = store.reloadToken;
+      expect(t1).toBe(t0 + 1);
+
+      // 同路径重载：path 不变但 token 递增——这是编辑器 watch 唯一能感知的信号
+      store.setFile('内容 v2（外部修改）', '/path/file.md');
+      expect(store.reloadToken).toBe(t1 + 1);
+      expect(store.currentFile.path).toBe('/path/file.md');
+    });
+
+    it('编辑期写 content 不递增 reloadToken（不会把正在编辑的内容回退）', () => {
+      const store = useFileStore();
+      store.setFile('基线', '/path/file.md');
+      const token = store.reloadToken;
+
+      store.setContent('程序性写回基线');
+      store.syncEditedContent('用户编辑');
+
+      // setContent / syncEditedContent 都不递增，只有 setFile（磁盘载入）才递增
+      expect(store.reloadToken).toBe(token);
+    });
+
     it('路径仅含文件名时也能正确派生 displayName', () => {
       const store = useFileStore();
 

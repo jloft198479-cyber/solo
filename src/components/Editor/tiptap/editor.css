@@ -109,8 +109,12 @@
  *   - focus mode：Decoration.node 加 class 不依赖元素是否渲染 ✅
  *   - 打印：@media print 中显式覆盖 content-visibility:visible（见 main.css） ✅
  *   - 自定义搜索：search-highlight 插件走 ProseMirror 装饰，不依赖 DOM 渲染 ✅
+ *   - 输入法：❌ content-visibility 隐含 contain:layout style paint，会干扰
+ *     WebView2/TSF 计算组字光标矩形 → 候选窗失锚变形（横条塌成小方块）。
+ *     故本优化**仅大文档启用**（html.doc-heavy，见 document-scale.ts），
+ *     普通文档（中文输入主场景）关闭以保证 IME 正确。
  */
-.tiptap-editor > * {
+html.doc-heavy .tiptap-editor > * {
   content-visibility: auto;
   contain-intrinsic-size: auto var(--mk-civ-placeholder, 2rem);
 }
@@ -118,29 +122,29 @@
 /* 段落 / 标题 / 引用：默认 2rem 已够，不单独覆写 */
 
 /* 列表：高度可能很大，给更保守的占位 */
-.tiptap-editor > ol,
-.tiptap-editor > ul {
+html.doc-heavy .tiptap-editor > ol,
+html.doc-heavy .tiptap-editor > ul {
   contain-intrinsic-size: auto 8rem;
 }
 
 /* 代码块：通常 6–20 行，给 10rem */
-.tiptap-editor > pre {
+html.doc-heavy .tiptap-editor > pre {
   contain-intrinsic-size: auto 10rem;
 }
 
 /* 表格：高度不确定，给 8rem */
-.tiptap-editor > table {
+html.doc-heavy .tiptap-editor > table {
   contain-intrinsic-size: auto 8rem;
 }
 
 /* math / mermaid 块：有头部栏 + 内容区，给 6rem */
-.tiptap-editor > .mk-math-block,
-.tiptap-editor > .mk-mermaid-block {
+html.doc-heavy .tiptap-editor > .mk-math-block,
+html.doc-heavy .tiptap-editor > .mk-mermaid-block {
   contain-intrinsic-size: auto 6rem;
 }
 
 /* hr 不占空间，不需要跳过渲染 */
-.tiptap-editor > hr {
+html.doc-heavy .tiptap-editor > hr {
   content-visibility: visible;
 }
 

@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **图片保存后重开丢失（文件名含空格 / 中文路径）**：拖入或粘贴的图片，若文件名含空格（剪贴板粘贴固定命名 `Pasted image {时间戳}.png`、部分截图工具文件名也带空格）或中文，落盘后重开会「蒸发」成字面文本或断链。根因两层：① serializer 把 image/link 的 src/href **原样写入**，而 CommonMark 规定 `(...)` 里的地址不允许未转义空格——含空格 src 重开时整段图片语法解析失败，退化成 `!\[alt\](...)` 字面文本；② markdown-it 的 `normalizeLink` 会把地址里的非 ASCII（中文路径）百分号编码，parser 未解码，导致磁盘文档里的中文路径每次保存被静默改写、零编辑文档因 src 变化被误标脏。修复：serializer 新增 `escapeLinkDestination`——括号平衡且无空白/尖括号时保留原反斜杠转义（既有文档字节不变），否则用 `<...>` 尖括号形式包裹（实测 markdown-it：反斜杠转义对空格无效，只有尖括号形式能携带空格）；parser 新增 `decodeLinkDestination` 保守还原（仅当含非 ASCII 百分号编码或 `%20` 时解码，纯 ASCII 编码如 `%25` 保持原样以免误解远程 URL）；Rust 侧粘贴图片命名从 `Pasted image {}` 改为 `pasted-image-{}`，从源头消灭空格。roundtrip 补回归锁。
+- **保存失败 / 冲突取消后脏标被洗白 → 未保存编辑静默丢失**：`persistDocument` 在保存**发起前**就把编辑器内容回写 store 基线，一旦保存失败或冲突弹框被取消，基线已被污染，后续 `syncEditedContent` 语义比对因「内容与基线相同」把 `isDirty` 洗成 false——关窗不再弹确认、自动保存不再重试，用户未保存的编辑静默丢失。修复：基线只在保存**成功后**同步（`markSaved(mtime, content)` / `setFile(content, ...)`），`persistDocument` 改为返回 `{ result, content }` 交调用方在成功分支落地；失败 / 取消路径基线不动、脏标保留。补回归锁。
+- **同路径外部修改重载不刷新编辑器 → 反向覆盖外部改动**：文件在外部被改动后点「重新加载」，路径不变、只有内容变，而编辑器 watch 只监听 `path`——不触发文档替换；旧 doc 的延迟序列化还会把旧内容写回 store 误标脏，用户一保存就把外部修改覆盖掉（静默数据损坏）。修复：store 新增 `reloadToken`（仅 `setFile` 从磁盘载入时递增），编辑器 watch 源改为 `[path, reloadToken]`；不直接 watch `content`（编辑期 `syncEditedContent` 也写 content，会在 store 滞后于编辑器时把正在编辑的内容回退成旧基线）。补回归锁。
+- **输入法候选窗失锚偶发复发（组字期间装饰重建）**：v1.2.41 已在 `markdown-input` 的 pending heading / 行内标记转换加组字闸门，但**搜索高亮刷新**、**焦点模式装饰**与**代码块语法高亮**这三条路径在组字期间仍会重建 / swap 装饰、改动正在组字的 DOM → WebView2 下 IME 候选窗失锚变形（横向长条塌成紧凑小方块）。修复：穷举所有「组字期会改正文 DOM」的装饰插件后统一「组字期间只平移装饰、不重建、不 swap class」套路——`useEditorSearch` 的 `refreshAfterEdit` 组字期直接跳过 dispatch（组字结束后上屏的 doc change 会再触发一次，高亮不漏）；`search-highlight`、`paragraph-focus` 与代码块 `createIncrementalLowlightPlugin` 三个装饰插件用工厂闭包登记 EditorView，`view.composing` 为真时只 `map` 平移已有装饰跟随 doc 变化、不重建（`paragraph-focus` 放行焦点模式切换的 meta reset）。补组字冻结回归锁。**实测仍复发后进一步定位到渲染层根因**：P5-02 的 `content-visibility:auto`（无条件作用于 `.tiptap-editor > *`）隐含 `contain:layout style paint`，会干扰 WebView2/TSF 计算组字光标矩形，是事务层守卫堵不住的「偶发复发」真凶（该优化的兼容性清单当初漏验 IME）。修复：档位映射到 `<html class="doc-heavy">`（`setDocumentTier`），content-visibility 仅大文档（heavy/extreme）启用，普通文档（中文输入主场景）关闭。**第三层（布局层，解释「时好时坏」）**：`<ErrorBoundary class="editor-area">` 因 ErrorBoundary 是双根 fragment（v-if/v-else），Vue 无法继承 class 而将其丢弃（Extraneous non-props attributes 警告）→ `.editor-area` 的 `min-width:0`/flex-column 不生效，编辑区容器宽度随内容重排、组字时光标矩形抖动、布局稳定后又自愈。修复：App.vue 用独立 `<div class="editor-area">` 包裹 ErrorBoundary 承载布局 class。**残留（判定为外部缺陷，编辑器层封顶）**：真机取证 + 组字期诊断证明应用层干净（组字期光标矩形从未退化、DOM 仅组字文本自身变动、无 refocus、祖先链无 transform/contain、WebView2 运行时为新版 152），合成输入 3/3 正常、真实输入偶发 → 锚点失效在 WebView2/TSF 可见层之下；编辑器层不再加守卫，临时诊断 `ime-diag.ts` 已删除，详见 KNOWN-ISSUES §二 #8。
+
 ## [1.2.41] — 2026-08-31
 
 > 全项目系统性审查与优化：安全面收口、大文档性能三阶段落地、字体下载切国内 CDN、输入法组字稳定性修复，以及一处用户可感知的痛点补齐（表格行列操作）。

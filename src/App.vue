@@ -321,23 +321,29 @@ onUnmounted(() => {
         <div v-if="focusEnterNotice" class="focus-enter-hint">移到顶部退出聚焦</div>
       </Transition>
 
-      <ErrorBoundary class="editor-area">
-        <MarkdownEditor
-          v-if="activeViewMode === 'editor'"
-          ref="editorRef"
-          :initial-content="fileStore.currentFile.content"
-          :outline-open="outlineOpen"
-          @update="handleEditorUpdate"
-          @image-dblclick="openFullscreenPreview"
-          @navigate-wikilink="handleOpenFile"
-        />
+      <!-- ErrorBoundary 是双根 fragment（v-if/v-else），Vue 无法把 class 自动继承到单根，
+           直接写 class 会被丢弃（Extraneous non-props attributes 警告）→ .editor-area 的
+           min-width:0 / flex-column 布局不生效，编辑区宽度随内容重排、IME 光标矩形抖动。
+           故用独立 div 承载布局 class，保证始终生效。 -->
+      <div class="editor-area">
+        <ErrorBoundary>
+          <MarkdownEditor
+            v-if="activeViewMode === 'editor'"
+            ref="editorRef"
+            :initial-content="fileStore.currentFile.content"
+            :outline-open="outlineOpen"
+            @update="handleEditorUpdate"
+            @image-dblclick="openFullscreenPreview"
+            @navigate-wikilink="handleOpenFile"
+          />
 
-        <ImagePreviewView
-          v-else-if="activeViewMode === 'image' && imagePreviewUrl"
-          :image-url="imagePreviewUrl"
-          @open-fullscreen="isFullscreenPreview = true"
-        />
-      </ErrorBoundary>
+          <ImagePreviewView
+            v-else-if="activeViewMode === 'image' && imagePreviewUrl"
+            :image-url="imagePreviewUrl"
+            @open-fullscreen="isFullscreenPreview = true"
+          />
+        </ErrorBoundary>
+      </div>
 
       <OutlinePanel
         :is-open="outlineOpen"
