@@ -34,6 +34,35 @@ const dummyKatexEngine = {
   renderToString: (latex: string) => latex,
 };
 
+/**
+ * markdown-it 的 normalizeLink 会对 destination 做百分号编码：非 ASCII 字符
+ * 一律编码（`assets/图片.png` → `assets/%E5%9B%BE%E7%89%87.png`）；空格只在
+ * 尖括号形式里编码成 %20（裸形式本来就不允许空格）。本地文件路径必须
+ * 还原成原始形式，否则：① 磁盘文档里的中文路径每次保存被静默改写成编码；
+ * ② 含空格路径解析不出来，图片显示断链；③ 零编辑文档因 src 变化被误标脏。
+ *
+ * 解码规则（区分「markdown-it 编的」与「用户原文就有的」）：
+ * - 含 %XX（XX 为非 ASCII 字节，即 ≥0x80）→ 整体 decodeURIComponent：
+ *   这只能是编码产物（用户原文的非 ASCII 会以 UTF-8 字面形式出现，不会被编码）
+ * - 含 %20 → 解码为空格：裸形式的空格无法通过解析存活，磁盘上的 %20
+ *   绝大多数来自尖括号形式落盘或外部编辑器。已接受的小概率取舍：
+ *   文件名字面含 "%20" 时会被解成空格（显示断链）；远程 URL 的 %20
+ *   解成空格后语义不变（浏览器请求时会重新编码）
+ * - 其余纯 ASCII 编码（如 %25）保持原样，避免误解远程 URL 里合法的百分号编码
+ * - 解码失败（非法序列）回退原值
+ */
+export function decodeLinkDestination(value: string): string {
+  if (!value.includes('%')) return value;
+  const hasEncodedNonAscii = /%[89a-fA-F][0-9a-fA-F]/.test(value);
+  const hasEncodedSpace = value.includes('%20');
+  if (!hasEncodedNonAscii && !hasEncodedSpace) return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function createMarkdownIt(): MarkdownIt {
   const md = new MarkdownIt('commonmark', { html: false, linkify: false }).enable([
     'table',
@@ -320,7 +349,7 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   // ── 图片 ──
 
   handlers.image = (state, token) => {
-    const src = token.attrGet('src') || '';
+    const src = decodeLinkDestination(token.attrGet('src') || '');
     const rawAlt = token.content || token.children?.map((t) => t.content).join('') || '';
     const title = token.attrGet('title') || null;
     const { alt, width, height } = extractDimsFromAlt(rawAlt);
@@ -357,7 +386,7 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   };
 
   handlers.link_open = (state, token) => {
-    const href = token.attrGet('href') || '';
+    const href = decodeLinkDestination(token.attrGet('href') || '');
     const title = token.attrGet('title') || null;
     state.openMark(schema.marks.link, { href, target: null, title });
   };

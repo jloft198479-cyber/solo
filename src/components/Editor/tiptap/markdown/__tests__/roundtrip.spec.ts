@@ -565,6 +565,94 @@ describe('Round-trip: parse → serialize', () => {
     });
   });
 
+  // 图片/链接地址保真（丢图 bug 回归锁）：
+  // 含空格文件名必须用尖括号形式落盘；中文路径的百分号编码必须解码还原；
+  // 字面 % 与成对括号不得被误改。
+  describe('image/link destination fidelity', () => {
+    function parseFirstImageSrc(md: string): string | null {
+      const schema = createTestSchema();
+      const doc = parseMarkdown(schema, md);
+      let src: string | null = null;
+      doc.descendants((node) => {
+        if (node.type.name === 'image') src = node.attrs.src as string;
+        return src === null;
+      });
+      return src;
+    }
+
+    it('含空格文件名：序列化用尖括号，重开解析回原始 src（丢图回归锁）', () => {
+      const schema = createTestSchema();
+      const doc = parseMarkdown(
+        schema,
+        '![alt](assets/Pasted image 1757123456789.png)\n',
+      );
+      // 旧行为：解析不出 image 节点，整段退化成字面文本
+      const src = parseFirstImageSrc('![alt](<assets/Pasted image 1757123456789.png>)\n');
+      expect(src).toBe('assets/Pasted image 1757123456789.png');
+
+      // 编辑器内直接拖入建的节点（src 带空格）序列化必须落盘为尖括号形式
+      const image = schema.nodes.image.create({
+        src: 'assets/Pasted image 1757123456789.png',
+        alt: 'alt',
+      });
+      const doc2 = schema.nodes.doc.create(null, [
+        schema.nodes.paragraph.create(null, [image]),
+      ]);
+      const serialized = serializeMarkdown(doc2);
+      expect(serialized).toBe(
+        normalize('![alt](<assets/Pasted image 1757123456789.png>)\n'),
+      );
+      // 落盘产物重新解析，src 不变 → 重开不丢图
+      expect(parseFirstImageSrc(serialized)).toBe('assets/Pasted image 1757123456789.png');
+      expect(doc.childCount).toBe(1);
+    });
+
+    it('中文路径：磁盘上的百分号编码解码还原，零编辑不再误标脏', () => {
+      expect(parseFirstImageSrc('![a](assets/%E5%9B%BE%E7%89%87%E4%B8%80.png)\n')).toBe(
+        'assets/图片一.png',
+      );
+    });
+
+    it('中文路径原文往返保真（不再被改写成编码）', () => {
+      const md = '![alt](assets/图片一.png)\n';
+      expect(roundTrip(md)).toBe(normalize(md));
+    });
+
+    it('成对括号文件名保持既有转义形式往返', () => {
+      const md = '![alt](assets/cover\\(1\\).png)\n';
+      expect(roundTrip(md)).toBe(normalize(md));
+      expect(parseFirstImageSrc(md)).toBe('assets/cover(1).png');
+    });
+
+    it('文件名里的字面 % 不被误解（纯 ASCII 编码保持原样）', () => {
+      expect(parseFirstImageSrc('![a](assets/100%25real.png)\n')).toBe('assets/100%25real.png');
+      expect(roundTrip('![a](assets/100%25real.png)\n')).toBe(
+        normalize('![a](assets/100%25real.png)\n'),
+      );
+    });
+
+    it('远程 URL 的合法百分号编码不被解码', () => {
+      const md = '![a](https://cdn.example.com/img%20b/%E5%9B%BE.png)\n';
+      // 含非 ASCII 解码产物 → 采用解码值；再次序列化时因含空格转尖括号，重解析仍保真
+      const src = parseFirstImageSrc(md);
+      expect(src).toBe('https://cdn.example.com/img b/图.png');
+      expect(roundTrip('![a](<https://cdn.example.com/img b/图.png>)\n')).toBe(
+        normalize('![a](<https://cdn.example.com/img b/图.png>)\n'),
+      );
+    });
+
+    it('链接 href 含空格同样走尖括号形式', () => {
+      const schema = createTestSchema();
+      const link = schema.marks.link.create({ href: 'assets/my doc notes.md' });
+      const doc = schema.nodes.doc.create(null, [
+        schema.nodes.paragraph.create(null, [schema.text('目标', [link])]),
+      ]);
+      const serialized = serializeMarkdown(doc);
+      expect(serialized).toBe(normalize('[目标](<assets/my doc notes.md>)\n'));
+      expect(roundTrip(serialized)).toBe(normalize(serialized));
+    });
+  });
+
   describe('callout', () => {
     it('callout with default type', () => {
       expect(roundTrip('> [!note]\n> hello\n')).toBe(normalize('> [!NOTE]\n> hello\n'));

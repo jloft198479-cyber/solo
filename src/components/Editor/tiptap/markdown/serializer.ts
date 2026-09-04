@@ -213,7 +213,7 @@ export class MarkdownSerializerState {
       case 'dim': return _opening ? '<span class="mk-dim">' : '</span>';
       case 'link': {
         if (_opening) return '[';
-        const href = (mark.attrs.href as string).replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+        const href = escapeLinkDestination(mark.attrs.href as string);
         return `](${href}${mark.attrs.title ? ` "${escapeLinkTitle(mark.attrs.title as string)}"` : ''})`;
       }
       default: return '';
@@ -409,7 +409,7 @@ const nodeSerializers: Record<string, NodeSerializer> = {
 
   image(state, node) {
     const alt = node.attrs.alt || '';
-    const src = node.attrs.src || '';
+    const src = escapeLinkDestination(node.attrs.src || '');
     const title = node.attrs.title;
     const width = node.attrs.width;
     const height = node.attrs.height;
@@ -505,6 +505,36 @@ function _lineClash(content: string, fenceChar: string, fenceLen: number): boole
 
 function escapeLinkTitle(title: string): string {
   return title.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/**
+ * 链接/图片地址的落盘转义（CommonMark destination 规则）：
+ * - 括号成对时是合法 destination，原样输出（保持既有文档字节不变）
+ * - 含空白/尖括号/落单括号时用 `<...>` 包裹形式（实测 markdown-it：
+ *   反斜杠转义对括号有效、对空格无效——`\ ` 会让整个图片语法解析失败，
+ *   只有尖括号形式能携带空格）
+ * 历史 bug：`Pasted image xxx.png`（剪贴板粘贴/带空格截图文件名）原样写入后
+ * 重开解析不出 image 节点，整段退化成字面文本——图片「丢失」。
+ */
+export function escapeLinkDestination(src: string): string {
+  let depth = 0;
+  let unbalanced = false;
+  for (const ch of src) {
+    if (ch === '(') depth++;
+    else if (ch === ')') {
+      depth--;
+      if (depth < 0) {
+        unbalanced = true;
+        break;
+      }
+    }
+  }
+  if (depth !== 0) unbalanced = true;
+
+  if (!unbalanced && !/[\s<>]/.test(src)) {
+    return src.replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  }
+  return `<${src.replace(/([<>\\])/g, '\\$1')}>`;
 }
 
 // ── 导出 ─────────────────��────────────��───────────────────────

@@ -61,6 +61,10 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
   // 与 doSearch 共用 120ms 节奏但独立 debounce 实例——语义不同（搜索框输入 vs 编辑触发）
   const refreshAfterEdit = debounce(() => {
     if (!searchQuery || !editor.value) return;
+    // 组字期间不 dispatch：空事务会触发 search-highlight 重建 inline 装饰，
+    // 改动正在组字的 DOM → WebView2 下 IME 候选窗失锚变形（横条塌成小方块）。
+    // 组字结束后最终上屏的 doc change 会再触发一次刷新，高亮不会漏。
+    if (editor.value.view.composing) return;
     const matches = findMatches(searchQuery);
     currentMatches.value = matches;
     searchMatchCount.value = matches.length;

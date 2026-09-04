@@ -39,7 +39,10 @@ const fileStoreState = {
       originalBaseName,
     };
   }),
-  markSaved: vi.fn((lastModifiedTime: number | null) => {
+  markSaved: vi.fn((lastModifiedTime: number | null, content?: string) => {
+    if (content !== undefined) {
+      fileStoreState.currentFile.content = content;
+    }
     fileStoreState.currentFile.isDirty = false;
     fileStoreState.currentFile.lastModifiedTime = lastModifiedTime;
   }),
@@ -163,7 +166,64 @@ describe('useDocumentSession', () => {
     await expect(session.saveCurrentDocument()).resolves.toBe(true);
     expect(saveDocumentMock).toHaveBeenNthCalledWith(1, '/tmp/demo.md', 'draft', 1000, false);
     expect(saveDocumentMock).toHaveBeenNthCalledWith(2, '/tmp/demo.md', 'draft', 1000, true);
-    expect(fileStoreState.markSaved).toHaveBeenCalledWith(1500);
+    expect(fileStoreState.markSaved).toHaveBeenCalledWith(1500, 'draft');
+  });
+
+  it('冲突取消后基线不被污染、脏标不被洗白（保存失败静默丢编辑回归锁）', async () => {
+    // C1 回归：旧实现在 persistDocument 里提前把基线改成编辑器内容，
+    // 保存失败（冲突取消/磁盘满）后基线≠磁盘，后续 syncEditedContent
+    // 语义比对「内容未变」会把 isDirty 洗成 false —— 关窗不弹确认，编辑丢失。
+    fileStoreState.currentFile = {
+      path: '/tmp/demo.md',
+      content: '磁盘基线',
+      isDirty: true,
+      lastModifiedTime: 1000,
+      displayName: 'demo',
+      originalBaseName: 'demo',
+    };
+    saveDocumentMock.mockRejectedValueOnce({
+      code: 'document_conflict',
+      message: 'conflict',
+    });
+    confirmMock.mockResolvedValueOnce(false); // 用户在冲突弹框选「取消」
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => '编辑器里的新内容',
+    });
+
+    await expect(session.saveCurrentDocument()).resolves.toBe(false);
+    // 基线仍是磁盘内容（未被提前回写），脏标保持 —— 关窗闸口会如实拦截
+    expect(fileStoreState.currentFile.content).toBe('磁盘基线');
+    expect(fileStoreState.currentFile.isDirty).toBe(true);
+    expect(fileStoreState.markSaved).not.toHaveBeenCalled();
+  });
+
+  it('保存成功后基线同步为实际写入的内容（乐观路径不再依赖提前回写）', async () => {
+    fileStoreState.currentFile = {
+      path: '/tmp/demo.md',
+      content: '旧基线',
+      isDirty: true,
+      lastModifiedTime: 1000,
+      displayName: 'demo',
+      originalBaseName: 'demo',
+    };
+    saveDocumentMock.mockResolvedValueOnce({
+      path: '/tmp/demo.md',
+      lastModifiedMs: 1500,
+    });
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => '编辑器新内容',
+    });
+
+    await expect(session.saveCurrentDocument()).resolves.toBe(true);
+    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/demo.md', '编辑器新内容', 1000, false);
+    expect(fileStoreState.currentFile.content).toBe('编辑器新内容');
+    expect(fileStoreState.currentFile.isDirty).toBe(false);
   });
 
   it('saves a new document through save as', async () => {

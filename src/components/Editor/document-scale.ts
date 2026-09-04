@@ -31,6 +31,13 @@ export function isHeavyDocument(): boolean {
 /** 打开文件后由 `loadDocumentFromPath` 调用；新建文档时复位为 normal。 */
 export function setDocumentTier(tier: DocumentTier) {
   documentTier.value = tier;
+  // 映射到 <html> class（与 focus-mode 同一套作用域），供 CSS 门控渲染优化：
+  // content-visibility 会干扰 WebView2/TSF 组字光标矩形（IME 候选窗失锚变形），
+  // 故仅大文档（doc-heavy）启用，普通文档关闭以保证输入法正确。
+  // node 环境（部分单测）无 document，守卫跳过。
+  if (typeof document !== 'undefined') {
+    document.documentElement.classList.toggle('doc-heavy', tier !== 'normal');
+  }
 }
 
 /** 档位度量口径：剔除 base64 内嵌图片后的源文本长度。 */

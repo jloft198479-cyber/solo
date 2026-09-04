@@ -265,7 +265,13 @@ function createEditor(content: string) {
 
 // ── 文件切换：复用 editor 实例替换文档（避免全量重建） ─────────
 watch(
-  () => fileStore.currentFile.path,
+  // watch [path, reloadToken]：reloadToken 仅由 fileStore.setFile（磁盘载入）递增，
+  // 覆盖「外部修改后点击重新加载」这种 path 不变、只有内容变的场景——
+  // 只监 path 时编辑器不刷新，旧 doc 的延迟序列化还会把旧内容写回 store
+  // 误标脏，用户一保存就把外部修改覆盖掉（静默数据损坏）。
+  // 不直接 watch content：编辑期 syncEditedContent 也写 content，
+  // 会在 store 滞后于编辑器时把正在编辑的内容回退成旧基线。
+  () => [fileStore.currentFile.path, fileStore.reloadToken] as const,
   () => {
     resolvedImageCache.clear();
     if (!editor.value || editor.value.isDestroyed) return;

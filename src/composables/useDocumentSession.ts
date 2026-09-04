@@ -198,9 +198,12 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   ) {
     // 优先从编辑器实时取内容，避免防抖延迟导致保存旧内容
     const content = options.getContent?.() ?? fileStore.currentFile.content;
-    // 同步 store 基线：保存后 markSaved 清脏，防抖回调不会再因内容差异重新标脏
-    fileStore.currentFile.content = content;
-    return saveDocument(path, content, expectedLastModifiedMs, force);
+    // 注意：这里绝不提前回写 store 基线——基线只能在保存成功后同步
+    // （markSaved(result, content) / setFile）。失败/冲突取消时若基线已被
+    // 污染，后续 syncEditedContent 语义比对会因「内容未变」把脏标洗白，
+    // 未保存编辑静默丢失（关窗不弹确认、自动保存不再重试）。
+    const result = await saveDocument(path, content, expectedLastModifiedMs, force);
+    return { result, content };
   }
 
   /** 自动保存连续失败计数：首次弹 modal，后续降级为状态栏非阻塞提示。
@@ -229,8 +232,9 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     const saveLastModified = currentFile.lastModifiedTime;
     _savePromise = (async () => {
       try {
-        const result = await persistDocument(savePath, force, saveLastModified);
-        fileStore.markSaved(result.lastModifiedMs);
+        const { result, content } = await persistDocument(savePath, force, saveLastModified);
+        // 保存成功才同步基线：写入磁盘的内容成为新的语义比对基准
+        fileStore.markSaved(result.lastModifiedMs, content);
         autoSaveFailCount = 0;
         return true;
       } catch (error) {
@@ -283,8 +287,8 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
     isSaving = true;
     try {
-      const result = await persistDocument(selected, true, null);
-      fileStore.setFile(fileStore.currentFile.content, result.path, result.lastModifiedMs);
+      const { result, content } = await persistDocument(selected, true, null);
+      fileStore.setFile(content, result.path, result.lastModifiedMs);
       clearExternalWarning();
       autoSaveFailCount = 0;
       return true;
@@ -319,9 +323,9 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       renamedPath = renameResult.path;
 
       // 2. 保存内容到新路径（force=true，因为文件刚被 rename 过来）
-      const saveResult = await persistDocument(renamedPath, true, null);
+      const { result: saveResult, content: savedContent } = await persistDocument(renamedPath, true, null);
 
-      fileStore.setFile(fileStore.currentFile.content, saveResult.path, saveResult.lastModifiedMs);
+      fileStore.setFile(savedContent, saveResult.path, saveResult.lastModifiedMs);
       autoSaveFailCount = 0;
       return true;
     } catch (error) {

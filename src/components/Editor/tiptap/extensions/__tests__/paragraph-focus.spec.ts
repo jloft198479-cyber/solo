@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { EditorState, TextSelection } from '@tiptap/pm/state';
-import { DecorationSet } from '@tiptap/pm/view';
+import { DecorationSet, EditorView } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -152,5 +152,86 @@ describe('paragraph-focus 增量聚焦装饰（P4-03）', () => {
     });
 
     expect(plugin.props.decorations?.(state)?.find()).toEqual([]);
+  });
+});
+
+// 组字冻结回归锁（IME 候选窗失锚防御）：真 EditorView + 覆盖 view.composing，
+// 复用 markdown-input-ime.spec 的 ime-anchor 同款套路。锁住「组字期间只平移装饰
+// 不 swap active/dimmed class」这一行为契约——swap 会改动正在组字段落的 DOM class，
+// 是 WebView2 下 IME 候选窗变形（横条塌成小方块）的诱因之一。
+describe('paragraph-focus 组字冻结（IME 防御）', () => {
+  let view: EditorView | null = null;
+  let mount: HTMLElement | null = null;
+
+  beforeEach(() => {
+    document.documentElement.classList.add('focus-mode');
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+  });
+  afterEach(() => {
+    if (view && !view.isDestroyed) view.destroy();
+    view = null;
+    if (mount) mount.remove();
+    mount = null;
+    document.documentElement.classList.remove('focus-mode');
+    setDocumentTier('normal');
+  });
+
+  function mountView(doc: PMNode, cursor: number): EditorView {
+    const state = EditorState.create({
+      schema,
+      doc,
+      selection: TextSelection.create(doc, cursor),
+      plugins: [createParagraphFocusPlugin()],
+    });
+    view = new EditorView(mount!, { state });
+    return view;
+  }
+
+  it('组字期间跨块移动光标：装饰只平移不 swap（active 保持原块），组字结束后照常 swap', () => {
+    const v = mountView(docOf(paragraph('hello'), heading(1, 'world')), 1);
+    // 初始：块0 active、块1 dimmed
+    expect(summaries(v.state)).toEqual([
+      { from: 0, to: 7, cls: 'paragraph-active' },
+      { from: 7, to: 14, cls: 'paragraph-dimmed' },
+    ]);
+
+    // 模拟浏览器组字中（EditorView.composing 是原型 getter，装实例 getter 覆盖）
+    let browserComposing = true;
+    Object.defineProperty(v, 'composing', {
+      configurable: true,
+      get: () => browserComposing,
+    });
+
+    // 组字期间把光标移到块1：绝不 swap（否则改动正在组字的 DOM class → IME 失锚）
+    v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, 8)));
+    expect(summaries(v.state)).toEqual([
+      { from: 0, to: 7, cls: 'paragraph-active' },
+      { from: 7, to: 14, cls: 'paragraph-dimmed' },
+    ]);
+
+    // 组字结束后同样移动：正常 swap 到块1（冻结只作用于组字期间，不漏最终聚焦）
+    browserComposing = false;
+    v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, 8)));
+    expect(summaries(v.state)).toEqual([
+      { from: 0, to: 7, cls: 'paragraph-dimmed' },
+      { from: 7, to: 14, cls: 'paragraph-active' },
+    ]);
+  });
+
+  it('组字期间块内打字：装饰坐标随映射平移，class 不变', () => {
+    const v = mountView(docOf(paragraph('hello'), heading(1, 'world')), 1);
+    let browserComposing = true;
+    Object.defineProperty(v, 'composing', {
+      configurable: true,
+      get: () => browserComposing,
+    });
+
+    // 组字上屏临时文本：块0 变长，装饰 map 平移跟随，active/dimmed 归属不变
+    v.dispatch(v.state.tr.insertText('你好', 1));
+    expect(summaries(v.state)).toEqual([
+      { from: 0, to: 9, cls: 'paragraph-active' }, // '你好hello' [0,9)
+      { from: 9, to: 16, cls: 'paragraph-dimmed' }, // heading 平移 +2
+    ]);
   });
 });

@@ -1,5 +1,6 @@
+// @vitest-environment happy-dom
 import { EditorState } from '@tiptap/pm/state';
-import type { DecorationSet } from '@tiptap/pm/view';
+import { EditorView, type DecorationSet } from '@tiptap/pm/view';
 import javascript from 'highlight.js/lib/languages/javascript';
 import { createLowlight } from 'lowlight';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -173,6 +174,66 @@ describe('createIncrementalLowlightPlugin 增量高亮', () => {
     expect(autoSpy).not.toHaveBeenCalled();
 
     state.apply(state.tr.insertText('y', 20)); // 编辑 js 块内容区末尾
+    expect(highlightSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+// 组字冻结回归锁（IME 候选窗失锚防御）：真 EditorView + 覆盖 view.composing，
+// 复用 paragraph-focus / markdown-input-ime 同款套路。锁住「组字期间只平移高亮
+// 装饰、不重建（不重新调 lowlight）」——重建会 remove+add 改动正在组字的 <code> DOM，
+// 是 WebView2 下 IME 候选窗变形（横条塌成小方块）的诱因之一。
+describe('createIncrementalLowlightPlugin 组字冻结（IME 防御）', () => {
+  const testLowlight = createLowlight({ javascript });
+  const highlightSpy = vi.spyOn(testLowlight, 'highlight');
+  const autoSpy = vi.spyOn(testLowlight, 'highlightAuto');
+  let view: EditorView | null = null;
+  let mount: HTMLElement | null = null;
+
+  beforeEach(() => {
+    highlightSpy.mockClear();
+    autoSpy.mockClear();
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+  });
+  afterEach(() => {
+    if (view && !view.isDestroyed) view.destroy();
+    view = null;
+    if (mount) mount.remove();
+    mount = null;
+    setDocumentTier('normal');
+  });
+
+  function mountView() {
+    const schema = createMarkdownCompatSchema();
+    // hello [0,7) + js codeBlock [7,21)（内容区 [8,20)）
+    const doc = schema.node('doc', null, [
+      schema.node('paragraph', null, schema.text('hello')),
+      schema.node('codeBlock', { language: 'javascript' }, schema.text('const x = 1;')),
+    ]);
+    const plugin = createIncrementalLowlightPlugin('codeBlock', null, testLowlight);
+    const state = EditorState.create({ schema, doc, plugins: [plugin] });
+    view = new EditorView(mount!, { state });
+    return { v: view, plugin };
+  }
+
+  it('组字期间在代码块内打字：冻结高亮重建（只平移装饰）；组字结束后恢复重建', () => {
+    const { v, plugin } = mountView();
+    expect(highlightSpy).toHaveBeenCalledTimes(1); // init 对 js 块高亮一次
+
+    // 模拟浏览器组字中（EditorView.composing 是原型 getter，装实例 getter 覆盖）
+    let browserComposing = true;
+    Object.defineProperty(v, 'composing', { configurable: true, get: () => browserComposing });
+
+    // 组字期间在 js 块内容区末尾打字：绝不重新调 highlight
+    // （重建会 remove+add 改动组字中的 <code> DOM → WebView2 IME 失锚）
+    v.dispatch(v.state.tr.insertText('y', 20));
+    expect(highlightSpy).toHaveBeenCalledTimes(1); // 仍是 init 那一次，未新增
+    // 装饰未丢：map 平移后仍有高亮装饰覆盖 js 块
+    expect((plugin.getState(v.state)?.find().length ?? 0)).toBeGreaterThan(0);
+
+    // 组字结束后再打字：恢复正常重建（高亮不漏，只是推迟到组字结束）
+    browserComposing = false;
+    v.dispatch(v.state.tr.insertText('z', 21));
     expect(highlightSpy).toHaveBeenCalledTimes(2);
   });
 });

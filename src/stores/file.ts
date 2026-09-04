@@ -17,6 +17,14 @@ export interface FileState {
 interface FileStoreState {
   currentFile: FileState;
   isLoading: boolean;
+  /**
+   * 文档载入代号：仅 setFile（从磁盘载入/另存为落地）递增。
+   * 编辑器 watch [path, reloadToken] 触发文档替换——不能直接 watch content：
+   * 编辑期 syncEditedContent 也在写 content，watch 它会在 store 滞后于编辑器时
+   * （保存失败保留旧基线、防抖窗口）把正在编辑的内容回退成旧基线。
+   * 同路径外部修改重载（path 不变）靠本 token 触发刷新。
+   */
+  reloadToken: number;
 }
 
 function createEmptyFileState(): FileState {
@@ -34,6 +42,7 @@ export const useFileStore = defineStore('file', {
   state: (): FileStoreState => ({
     currentFile: createEmptyFileState(),
     isLoading: false,
+    reloadToken: 0,
   }),
 
   actions: {
@@ -77,6 +86,9 @@ export const useFileStore = defineStore('file', {
         displayName: baseName,
         originalBaseName: baseName,
       };
+      // 通知编辑器：磁盘内容已载入，同路径重载也要刷新 doc（否则旧 doc 的
+      // 延迟序列化会把旧内容写回 store，用户一保存就覆盖掉外部修改）
+      this.reloadToken += 1;
     },
 
     setDisplayName(name: string) {
@@ -94,7 +106,16 @@ export const useFileStore = defineStore('file', {
       this.currentFile.originalBaseName = baseName;
     },
 
-    markSaved(lastModifiedTime: number | null = null) {
+    /**
+     * 保存成功后清脏。
+     * content 传入时同步基线为「实际写入磁盘的内容」——基线只能在保存
+     * 成功后更新（失败/冲突取消时若提前更新，后续 syncEditedContent 语义
+     * 比对会因「内容未变」把脏标洗白，未保存编辑静默丢失）。
+     */
+    markSaved(lastModifiedTime: number | null = null, content?: string) {
+      if (content !== undefined) {
+        this.currentFile.content = content;
+      }
       this.currentFile.isDirty = false;
       this.currentFile.displayName = this.currentFile.originalBaseName;
       if (lastModifiedTime !== null) {
