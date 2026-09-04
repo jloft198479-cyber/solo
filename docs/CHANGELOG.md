@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.42] — 2026-09-05
+
 ### Fixed
 - **图片保存后重开丢失（文件名含空格 / 中文路径）**：拖入或粘贴的图片，若文件名含空格（剪贴板粘贴固定命名 `Pasted image {时间戳}.png`、部分截图工具文件名也带空格）或中文，落盘后重开会「蒸发」成字面文本或断链。根因两层：① serializer 把 image/link 的 src/href **原样写入**，而 CommonMark 规定 `(...)` 里的地址不允许未转义空格——含空格 src 重开时整段图片语法解析失败，退化成 `!\[alt\](...)` 字面文本；② markdown-it 的 `normalizeLink` 会把地址里的非 ASCII（中文路径）百分号编码，parser 未解码，导致磁盘文档里的中文路径每次保存被静默改写、零编辑文档因 src 变化被误标脏。修复：serializer 新增 `escapeLinkDestination`——括号平衡且无空白/尖括号时保留原反斜杠转义（既有文档字节不变），否则用 `<...>` 尖括号形式包裹（实测 markdown-it：反斜杠转义对空格无效，只有尖括号形式能携带空格）；parser 新增 `decodeLinkDestination` 保守还原（仅当含非 ASCII 百分号编码或 `%20` 时解码，纯 ASCII 编码如 `%25` 保持原样以免误解远程 URL）；Rust 侧粘贴图片命名从 `Pasted image {}` 改为 `pasted-image-{}`，从源头消灭空格。roundtrip 补回归锁。
 - **保存失败 / 冲突取消后脏标被洗白 → 未保存编辑静默丢失**：`persistDocument` 在保存**发起前**就把编辑器内容回写 store 基线，一旦保存失败或冲突弹框被取消，基线已被污染，后续 `syncEditedContent` 语义比对因「内容与基线相同」把 `isDirty` 洗成 false——关窗不再弹确认、自动保存不再重试，用户未保存的编辑静默丢失。修复：基线只在保存**成功后**同步（`markSaved(mtime, content)` / `setFile(content, ...)`），`persistDocument` 改为返回 `{ result, content }` 交调用方在成功分支落地；失败 / 取消路径基线不动、脏标保留。补回归锁。
