@@ -4,7 +4,7 @@ type: proposal
 audience: maintainer
 status: proposal
 tags: [优化方案, 审查, 交互体验, 响应速度, 格式兼容, 提案]
-summary: 2026-09-06 三方向全面审查 30 条发现与 P0-P3 分批修复路线图，P0-P3 已全部完成（余 B3 独立小批）
+summary: 2026-09-06 三方向全面审查 30 条发现与 P0-P3 分批修复路线图，已全部收口（B3 放弃定为设计取舍）
 updates: [docs/KNOWN-ISSUES.md, src/components/Editor/, src-tauri/src/]
 ---
 
@@ -13,7 +13,7 @@ updates: [docs/KNOWN-ISSUES.md, src/components/Editor/, src-tauri/src/]
 > 应对方向：审查 bug、提升交互体验、提升响应速度、提升格式兼容性。
 > 审查方法：三个独立代码审查（交互体验 / 格式兼容性 / 性能与 bug），**全部发现均有 file:line 证据**；此前用户反馈并已登记的两条问题（[`KNOWN-ISSUES.md §二 #9/#10`](./KNOWN-ISSUES.md)）一并纳入，共 **31 条**。
 > 核实（2026-09-06）：31 条已逐条对照实际代码复核——**30 条属实，B9 被运行时反证推翻剔除**（注记见方向 B 表后），本文按 **30 条**维护。
-> 状态：**P0-P3 全部完成**（见第三节路线图勾销，B3 Word 列表重建独立小批另行安排）。每完成一项：[`KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) 对应条目移 §一 已修复 + 本文勾销进度。
+> 状态：**全部收口（2026-09-06）**——P0-P3 全部完成，B3 Word 列表重建经评估放弃、定为设计取舍（见 [`KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) §三）。30 条审查发现无遗留待办。每完成一项：[`KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) 对应条目移 §一 已修复 + 本文勾销进度。
 
 ---
 
@@ -42,7 +42,7 @@ updates: [docs/KNOWN-ISSUES.md, src/components/Editor/, src-tauri/src/]
 |---|---|---|---|---|
 | B1 | 中 | 文件落盘转义漏 `_`：字面 `_case_`（如 `snake \_case\_`）保存时 `\_` 被剥掉，**重开变斜体**——语义静默改变（markdown-it 实测 `em_open`） | [`serializer.ts`](../src/components/Editor/tiptap/markdown/serializer.ts):250 文件模式全局转义类不含 `_`（`*` 有、`_` 没有，CommonMark 两者等价） | 文件模式全局类补 `_`（或按 CommonMark intraword 例外做选择性转义） |
 | B2 | 中 | 剪贴板出站轻量转义漏 `_ ~ [ ] < >`：复制字面 `a_b_c` / `~~text~~` / `[见附录]` / `<tag>` 粘到 Obsidian/Typora 被重新解释为斜体/删除线/引用样式/被吃 HTML——#11 只修了「多余转义」没修「转义不足」 | [`serializer.ts`](../src/components/Editor/tiptap/markdown/serializer.ts):241-247 clipboard 模式只转义 `` ` `` `*` 与行首 `#+\-.>=` | clipboard 模式全局类补 `_~[]<>`（低频符号保持轻量） |
-| B3 | 中 | Word 粘贴列表必然塌平：Word HTML 用 `MsoListParagraph` + 字面 `·`/`1.` 表达列表（无 ol/ul/li），现有管线只清理不重建 → 全变平段落 | [`markdown-paste.ts`](../src/components/Editor/tiptap/extensions/markdown-paste.ts):391-412（`stripMsoMarkup` 后 PMDOMParser 只能映射 paragraph，无列表重建逻辑） | 对 bullet glyph / `数字.` 段落做启发式转列表（先做 bullet 一种，mso 变体多） |
+| B3 | 中 | Word 粘贴列表必然塌平：Word HTML 用 `MsoListParagraph` + 字面 `·`/`1.` 表达列表（无 ol/ul/li），现有管线只清理不重建 → 全变平段落 | [`markdown-paste.ts`](../src/components/Editor/tiptap/extensions/markdown-paste.ts):391-412（`stripMsoMarkup` 后 PMDOMParser 只能映射 paragraph，无列表重建逻辑）| ~~对 bullet glyph / `数字.` 段落做启发式转列表~~ **放弃（2026-09-06，定为设计取舍，见 KNOWN-ISSUES §三）**：低收益（用户核心是 Markdown 写作、不大量搬 Word）+ 高风险（列表变体多、易误判正常文字） |
 | B4 | 低 | 有序列表第 10 项起嵌套子列表被 3 空格缩进落盘，重开时脱离父项变文档级列表 | [`serializer.ts`](../src/components/Editor/tiptap/markdown/serializer.ts):303 固定 `'   '.repeat(depth)`，未按 marker 宽度（`10. ` = 4）对齐 | renderList 记录 marker 宽度，子层缩进取 markerWidth |
 | B5 | 低 | 表格列宽对齐按 UTF-16 长度计算，含中文单元格 `|` 无法视觉对齐（显示宽 2 记 1） | [`serializer.ts`](../src/components/Editor/tiptap/markdown/serializer.ts):443/453 无 East Asian Width 计算 | 加东亚宽字符宽度函数（W/F 算 2）替换 length/padEnd |
 | B6 | 低 | 行内代码首尾空格 roundtrip 丢失：`` ` x ` `` 重开变 `x`（CommonMark 剥各一个空格） | [`serializer.ts`](../src/components/Editor/tiptap/markdown/serializer.ts):147-149/188-190 padding 条件只查反引号不查空格 | padding 条件补 `startsWith/endsWith(' ')` |
@@ -112,7 +112,7 @@ updates: [docs/KNOWN-ISSUES.md, src/components/Editor/, src-tauri/src/]
 |---|---|---|---|
 | **P0** | 数据安全 | ✅ C1 fsync、✅ C2 卸载前 flush（2026-09-06 完成，见 CHANGELOG Unreleased） | cargo check ✅（vcvars64 初始化后本地通过）；bun run test 1207 全过 ✅；vue-tsc ✅；断电/丢编辑语义代码走查 ✅ |
 | **P1** | 交互死角 | ✅ 全部完成（2026-09-06）：D1、D2（创建 + title + 阈值 + 提示）+ 拆项 `[[` 补全、A1-A10；见 CHANGELOG Unreleased 与 KNOWN-ISSUES §一 #16-#18 | bun run test（1222 全过）+ vue-tsc + build 三步全过 ✅ |
-| **P2** | 格式兼容 | ✅ 全部完成（2026-09-06）：主批 B1、B2、B7、B8、B6、B4（先红后绿，逐项 roundtrip 测试）+ 顺手修复 CommonMark spec Ex20/603（destination 反斜杠转义，652 条规范用例 0 失败）；次级 B5（表格东亚宽度对齐）、B10（callout 标题/折叠标记建模）+ 顺手修复 callout NodeView 丢属性（类型配色真实编辑器从未生效，见 KNOWN-ISSUES §一 #20）；B3 Word 列表重建工作量最大，独立小批另行安排 | 主批：bun run test（1241 全过）+ vue-tsc + build 三步全过 ✅；次级：bun run test（1253 全过）+ vue-tsc + build 三步全过 ✅ |
+| **P2** | 格式兼容 | ✅ 全部完成（2026-09-06）：主批 B1、B2、B7、B8、B6、B4（先红后绿，逐项 roundtrip 测试）+ 顺手修复 CommonMark spec Ex20/603（destination 反斜杠转义，652 条规范用例 0 失败）；次级 B5（表格东亚宽度对齐）、B10（callout 标题/折叠标记建模）+ 顺手修复 callout NodeView 丢属性（类型配色真实编辑器从未生效，见 KNOWN-ISSUES §一 #20）；**B3 Word 列表重建放弃（定为设计取舍，见 KNOWN-ISSUES §三）** | 主批：bun run test（1241 全过）+ vue-tsc + build 三步全过 ✅；次级：bun run test（1253 全过）+ vue-tsc + build 三步全过 ✅ |
 | **P3** | 响应速度 | ✅ 全部完成（2026-09-06）：C4 启动清理移后台、C5 搜索门控（档位分流防抖 + 匹配未变跳过 dispatch）、C6 切文档跳过白算、C3 磁盘缓存清理（200MB 容量 + mtime LRU + 10min 宽限）、C9 大纲早退 + 重开补算、C7 spawn_blocking（font 三处 + image 写盘）、C8 删 blob/50MB 假预算死代码改条目级 LRU；见 CHANGELOG Unreleased Performance | bun run test（1254 全过）+ vue-tsc + build 三步全过 ✅；cargo check + cargo test --lib（68 全过）✅ |
 
 > 批内顺序即优先级；P2/P3 批内条目可按剩余时间裁剪。全部完成后再回头更新 `README`/`ARCHITECTURE` 涉及面（若此次不涉及命令清单/技术栈则无需）。
