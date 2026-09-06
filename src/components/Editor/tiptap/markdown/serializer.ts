@@ -5,6 +5,7 @@
  * 自定义实现以精确控制输出格式，支持 GFM 表格、任务列表等扩展语法。
  */
 import type { Node as PMNode, Mark, Slice } from '@tiptap/pm/model';
+import { Fragment } from '@tiptap/pm/model';
 import { getPluginNodeSerializers } from './plugins';
 import { computeFence } from './plugins/fence';
 
@@ -638,6 +639,55 @@ export function serializeMarkdownForClipboard(doc: PMNode): string {
 }
 
 /**
+ * 递归剥掉开口 slice 两端「部分包含」的容器层，只留下完全包含的内容。
+ *
+ * PM 的 slice 语义：openStart/openEnd 标记的边界节点只被选区「部分包含」，
+ * 但 `slice.content` 把它们原样放在 fragment 里——`doc.copy()` 会丢掉开口标记，
+ * 序列化器就把容器当闭合节点整段渲染，粘出去变成整张 GFM 表格 / 带标记的
+ * 引用块（格内选两个字 → `| 剪映 |`）。
+ *
+ * 剥层规则：
+ * - textblock（paragraph 等）是内容语义层（提供换行），且 inline 不能作为
+ *   doc content 顶层（renderContent 对顶层 inline 输出为空）——到此为止；
+ * - table 系节点（`nodeSerializers` 注册为空 handler、渲染靠 table 整体处理）
+ *   离开 table 上下文无法独立序列化，视为透明容器随时剥掉；
+ * - 其余语义容器（blockquote/callout/listItem 等）只按开口计数剥——
+ *   闭合选区（整篇、NodeSelection）原样保留，扩展语法标记不丢。
+ */
+function stripOpenLayers(frag: Fragment, openStart: number, openEnd: number): Fragment {
+  if (frag.childCount === 0) return frag;
+  if (frag.childCount === 1) {
+    const child = frag.firstChild!;
+    if (child.isTextblock || child.isInline) return frag;
+    // 透明容器随时剥；语义容器仅在开口时剥（闭合选区原样保留，扩展语法不丢）
+    if (openStart <= 0 && openEnd <= 0 && !isTableInternal(child)) return frag;
+    return stripOpenLayers(child.content, Math.max(openStart - 1, 0), Math.max(openEnd - 1, 0));
+  }
+  const nodes: PMNode[] = [];
+  frag.forEach((child, _offset, index) => {
+    const first = index === 0;
+    const last = index === frag.childCount - 1;
+    const open = first ? openStart : last ? openEnd : 0;
+    // 可剥的边界 child：透明容器（无论开口与否，离开 table 无法独立渲染），
+    // 或开口的非 textblock 语义容器。textblock 是内容层，整节点保留
+    // （选区外的文字已被 slice.content 截断，不存在泄漏）。
+    const peel = isTableInternal(child) || (!child.isTextblock && !child.isInline && open > 0);
+    if (peel) {
+      stripOpenLayers(child.content, first ? Math.max(openStart - 1, 0) : 0, last ? Math.max(openEnd - 1, 0) : 0).forEach((n) => nodes.push(n));
+    } else {
+      nodes.push(child);
+    }
+  });
+  return Fragment.fromArray(nodes);
+}
+
+/** 渲染逻辑挂在父级 table handler 里的节点（nodeSerializers 里是空实现），离开 table 无法独立渲染 */
+function isTableInternal(node: PMNode): boolean {
+  const name = node.type.name;
+  return name === 'table' || name === 'tableRow' || name === 'tableHeader' || name === 'tableCell';
+}
+
+/**
  * 出站复制：把选区 Slice 序列化为 Markdown 纯文本（供 `editorProps.clipboardTextSerializer` 使用）。
  *
  * ProseMirror 默认 `clipboardTextSerializer` 只输出 `textContent`（纯文本），
@@ -645,8 +695,13 @@ export function serializeMarkdownForClipboard(doc: PMNode): string {
  * 扩展语法粘到外部 Markdown 编辑器时标记全丢。这里用文档的 schema 把选区内容
  * 重新序列化为 Markdown，外部编辑器从 `text/plain` 即可拿到完整语法。
  * `text/html` 仍由 ProseMirror 默认生成（标准格式走 HTML 还原，不受影响）。
+ *
+ * 序列化前先剥开口层（见 `stripOpenLayers`）：选区内完全包含的内容才参与
+ * 序列化，边界容器只到 textblock 为止——「格内选两个字」粘出去就是那两个字，
+ * 而不是整张表格；闭合 slice（整篇/NodeSelection）原样保留，扩展语法标记不丢。
  */
 export function serializeClipboardSlice(doc: PMNode, slice: Slice): string {
-  const sliced = doc.copy(slice.content);
+  const inner = stripOpenLayers(slice.content, slice.openStart, slice.openEnd);
+  const sliced = doc.copy(inner);
   return serializeMarkdownForClipboard(sliced);
 }
