@@ -57,6 +57,7 @@ updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src, docs/RELEASE_PROCESS.
 | 导出系统 v1.2.18 删除 | 改为状态栏「复制为 HTML」（剪贴板），无独立导出/PDF/微信。PDF 实为浏览器打印（[`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) §5） |
 | `html:false` / `linkify:false` | 解析器刻意不保留原始 HTML、不自动链接裸 URL，保真优先 |
 | 多进程架构（v1.2.5+） | 每双击一个 `.md` 起独立进程；关最后一个窗口默认不退出，需菜单「退出」 |
+| 粘 Word 列表塌平（放弃重建，2026-09-06） | Word 复制的列表用 `MsoListParagraph` 样式 + 段首硬写符号（`•`/`1.`）伪装，`stripMsoMarkup` 清理后剩普通段落，无「重建回真列表」这一步 → 列表塌成平段落。**放弃修**：solo 用户核心场景是 Markdown 写作、不大量搬 Word；降级「能用（不乱码/不坏文档）」非「坏数据」；启发式识别列表变体多、误判「`1. 我先说`」这类正常文字的风险高。定为可接受降级 | [`markdown-paste.ts`](../src/components/Editor/tiptap/extensions/markdown-paste.ts) `stripMsoMarkup` |
 
 ## 四、文档类已知坑（[文档坑]，agent 必读）
 
