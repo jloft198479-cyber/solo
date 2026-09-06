@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.2.43] — 2026-09-06
 
 ### Fixed
 - **断电时保存的文档可能整文件截断（atomic_write 无 fsync）**：`create(tmp) → write_all → rename` 全程未调用 `sync_all()`——断电/内核崩溃时 rename 的元数据可能先行持久化而数据块尚未落盘，唯一文档副本整文件截断或半新半旧（tmp 已被 rename 走，旧数据无法恢复）；自动保存最短 5s 一次直写真实文件，风险敞口持续存在。修复：tmp 写完 `sync_all()` 再 rename（保存低频，毫秒级代价可接受）；Unix 上再 fsync 父目录确保目录项变更持久化（Windows/NTFS 元数据有日志保护且 std 无目录 fsync 入口，无需此步）。
