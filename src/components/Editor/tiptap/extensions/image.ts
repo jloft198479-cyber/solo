@@ -533,6 +533,7 @@ export const CustomImage = Image.extend({
       sourceText.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
+          event.stopPropagation();
           commit();
           editor.commands.focus();
           return;
@@ -540,6 +541,7 @@ export const CustomImage = Image.extend({
 
         if (event.key === 'Escape') {
           event.preventDefault();
+          event.stopPropagation();
           cancel();
           editor.commands.focus();
         }

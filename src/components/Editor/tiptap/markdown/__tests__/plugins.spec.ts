@@ -27,7 +27,7 @@ describe('markdown syntax plugin registry', () => {
 
   it('aggregates parser and serializer hooks from plugins', () => {
     expect(getPluginPreprocessors(schema)).toHaveLength(1); // frontmatter
-    expect(getPluginFenceHandlers(schema)).toHaveLength(1);
+    expect(getPluginFenceHandlers(schema)).toHaveLength(2); // math + mermaid
     expect(getPluginTokenInterceptors(schema)).toHaveLength(1); // callout
     expect(Object.keys(getPluginTokenHandlers(schema)).sort()).toEqual([
       'footnote_anchor',
@@ -54,11 +54,14 @@ describe('markdown syntax plugin registry', () => {
   });
 
   it('routes mermaid fences through the plugin fence handler', () => {
-    const [fenceHandler] = getPluginFenceHandlers(schema);
+    const fenceHandlers = getPluginFenceHandlers(schema);
     const state = new MarkdownParseState(schema);
     const token = new Token('fence', 'code', 0);
 
-    expect(fenceHandler(state, token, 'mermaid', 'graph TD;\nA-->B')).toBe(true);
+    // math handler 在注册表首位（插件顺序），对 mermaid 语言应放行（false）
+    expect(fenceHandlers[0](state, token, 'mermaid', 'graph TD;\nA-->B')).toBe(false);
+    // mermaid handler 接管
+    expect(fenceHandlers[1](state, token, 'mermaid', 'graph TD;\nA-->B')).toBe(true);
     expect(state.top.content[0]?.type.name).toBe('mermaidBlock');
     expect(state.top.content[0]?.textContent).toBe('graph TD;\nA-->B');
   });

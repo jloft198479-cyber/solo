@@ -191,7 +191,10 @@ export const MathBlock = Node.create({
       // Escape 退出编辑；Mod+Backspace 删除整个块
       textarea.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+          // stopPropagation：防冒泡到 window 级 Esc（焦点模式切换）——
+          // 退出编辑态不应顺带退出焦点模式（与 mermaid-block 一致）
           e.preventDefault();
+          e.stopPropagation();
           exitEdit();
           editor.commands.focus();
           return;

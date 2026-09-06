@@ -87,6 +87,17 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     const searchText = caseSensitive ? query : query.toLowerCase();
 
     doc.descendants((node, pos) => {
+      // wikilink 是 atom 节点，display 文本（alias||target）不在 doc 文本里——
+      // 单独匹配，命中则高亮整节点（A10：显示文本可搜索）。替换语义顺延：
+      // 命中 wikilink 的替换 = 整节点换成替换文本，与所见即所得一致。
+      if (node.type.name === 'wikilink') {
+        const display = String(node.attrs.alias || node.attrs.target || '');
+        const text = caseSensitive ? display : display.toLowerCase();
+        if (text.includes(searchText)) {
+          results.push({ from: pos, to: pos + node.nodeSize });
+        }
+        return;
+      }
       if (!node.isText || !node.text) return;
       const text = caseSensitive ? node.text : node.text.toLowerCase();
       let index = 0;

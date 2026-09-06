@@ -110,6 +110,8 @@ export function executeEditorCommand(editor: TiptapEditor | null, commandId: str
       return chain.deleteColumn().run();
     case 'editor.tableToggleHeaderRow':
       return chain.toggleHeaderRow().run();
+    case 'editor.tableDeleteTable':
+      return chain.deleteTable().run();
     default:
       return false;
   }

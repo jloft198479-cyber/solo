@@ -37,11 +37,18 @@ import {
   emojiItems,
   type EmojiItem,
 } from './extensions/emoji-suggest';
+import {
+  WikilinkSuggest,
+  filterWikilinkCandidates,
+  refreshWikilinkCandidates,
+  type WikilinkCandidateItem,
+} from './extensions/wikilink-suggest';
 import { ParagraphFocus } from './extensions/paragraph-focus';
 import { SearchHighlight, type SearchHighlightOptions } from './extensions/search-highlight';
 
 type SlashCommandSuggestionProps = SuggestionProps<SlashCommandItem, SlashCommandItem>;
 type EmojiSuggestSuggestionProps = SuggestionProps<EmojiItem, EmojiItem>;
+type WikilinkSuggestSuggestionProps = SuggestionProps<WikilinkCandidateItem, WikilinkCandidateItem>;
 
 export interface SlashMenuController {
   show: (position: { top: number; left: number }) => void;
@@ -50,6 +57,12 @@ export interface SlashMenuController {
 }
 
 export interface EmojiMenuController {
+  show: (position: { top: number; left: number }) => void;
+  hide: () => void;
+  onKeyDown: (event: KeyboardEvent) => boolean;
+}
+
+export interface WikilinkMenuController {
   show: (position: { top: number; left: number }) => void;
   hide: () => void;
   onKeyDown: (event: KeyboardEvent) => boolean;
@@ -115,6 +128,9 @@ interface EditorExtensionOptions {
   emojiMenuRef: Ref<EmojiMenuController | null>;
   emojiMenuItems: Ref<EmojiItem[]>;
   emojiMenuCommand: Ref<(item: EmojiItem) => void>;
+  wikilinkMenuRef: Ref<WikilinkMenuController | null>;
+  wikilinkMenuItems: Ref<WikilinkCandidateItem[]>;
+  wikilinkMenuCommand: Ref<(item: WikilinkCandidateItem) => void>;
   searchHighlightOptions: SearchHighlightOptions;
   /** 返回当前文档路径，用于粘贴图片时落盘 */
   getDocumentPath?: () => string | null;
@@ -125,7 +141,17 @@ interface EditorExtensionOptions {
 }
 
 export function createEditorExtensions(options: EditorExtensionOptions) {
-  const { slashMenuRef, slashMenuItems, slashMenuCommand, emojiMenuRef, emojiMenuItems, emojiMenuCommand } = options;
+  const {
+    slashMenuRef,
+    slashMenuItems,
+    slashMenuCommand,
+    emojiMenuRef,
+    emojiMenuItems,
+    emojiMenuCommand,
+    wikilinkMenuRef,
+    wikilinkMenuItems,
+    wikilinkMenuCommand,
+  } = options;
 
   return [
     StarterKit.configure({
@@ -181,6 +207,9 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
         // 或「hello/」后敲 / 也应唤出菜单。Suggestion 默认 allowedPrefixes=[' ']
         // 会过滤掉所有「非空格、非行首」的前缀，对中文场景致命。
         allowedPrefixes: null,
+        // 代码上下文不弹菜单（A5 守卫当时漏加给 Slash，只加了 Emoji——勿再漏）：
+        // 代码块里敲 `// 注释` 不应唤出命令菜单
+        allow: ({ editor }) => !editor.isActive('codeBlock') && !editor.isActive('code'),
         items: ({ query }: { query: string }) => {
           const q = query.toLowerCase();
           return slashCommandItems.filter(
@@ -221,6 +250,13 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
       suggestion: {
         char: ':',
         startOfLine: false,
+        // 代码上下文不弹菜单（与 Slash 一致）：行内 code 里的 `https:` 等
+        // 冒号内容不应唤出 Emoji 菜单
+        allow: ({ editor }) => !editor.isActive('codeBlock') && !editor.isActive('code'),
+        // 同 Slash：中文无词间空格习惯，「你好:微笑」也应唤出菜单。
+        // Suggestion 默认 allowedPrefixes=[' '] 会过滤所有非空格/非行首前缀，
+        // 对中文场景致命（Slash 已修，Emoji 漏修——勿再犯）。
+        allowedPrefixes: null,
         items: ({ query }: { query: string }) => {
           const q = query.toLowerCase();
           if (!q) {
@@ -251,6 +287,9 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
           onKeyDown: (props: SuggestionKeyDownProps) => {
             const { event } = props;
             if (event.key === 'Escape') {
+              // stopPropagation：关 Emoji 菜单不应顺带触发 window 级 Esc
+              // （焦点模式切换），与 Slash 菜单一致
+              event.stopPropagation();
               emojiMenuRef.value?.hide();
               return true;
             }
@@ -260,6 +299,59 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
             emojiMenuRef.value?.hide();
           },
         }),
+      },
+    }),
+    WikilinkSuggest.configure({
+      suggestion: {
+        // 中文无词间空格习惯（Slash/Emoji 同款教训），任意前缀后输入 [[ 都应唤出
+        allowedPrefixes: null,
+        items: ({ query }: { query: string }) =>
+          filterWikilinkCandidates(query, options.getDocumentPath?.() ?? null),
+        render: () => {
+          // 异步候选刷新完成时重过滤：items() 是同步读缓存，磁盘列表到达后
+          // 主动重算当前 query 的结果，菜单无缝从「缓存/空列表」切到新列表
+          let currentQuery = '';
+          const updateItems = () => {
+            wikilinkMenuItems.value = filterWikilinkCandidates(
+              currentQuery,
+              options.getDocumentPath?.() ?? null,
+            );
+          };
+          return {
+            onStart: (props: WikilinkSuggestSuggestionProps) => {
+              currentQuery = props.query;
+              wikilinkMenuCommand.value = props.command;
+              updateItems();
+              const rect = props.clientRect?.();
+              if (rect) wikilinkMenuRef.value?.show(computeMenuPosition(rect));
+              // 后台刷新同目录候选（去重并发）；菜单先显示缓存，刷新后无缝更新
+              void refreshWikilinkCandidates(options.getDocumentPath?.() ?? null).then(() => {
+                updateItems();
+              });
+            },
+            onUpdate: (props: WikilinkSuggestSuggestionProps) => {
+              currentQuery = props.query;
+              wikilinkMenuCommand.value = props.command;
+              updateItems();
+              const rect = props.clientRect?.();
+              if (rect) wikilinkMenuRef.value?.show(computeMenuPosition(rect));
+            },
+            onKeyDown: (props: SuggestionKeyDownProps) => {
+              const { event } = props;
+              if (event.key === 'Escape') {
+                // stopPropagation：关互链菜单不应顺带触发 window 级 Esc
+                //（焦点模式切换），与 Slash/Emoji 菜单一致
+                event.stopPropagation();
+                wikilinkMenuRef.value?.hide();
+                return true;
+              }
+              return wikilinkMenuRef.value?.onKeyDown(event) ?? false;
+            },
+            onExit: () => {
+              wikilinkMenuRef.value?.hide();
+            },
+          };
+        },
       },
     }),
   ];

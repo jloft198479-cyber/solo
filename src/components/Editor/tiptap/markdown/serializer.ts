@@ -6,6 +6,7 @@
  */
 import type { Node as PMNode, Mark, Slice } from '@tiptap/pm/model';
 import { getPluginNodeSerializers } from './plugins';
+import { computeFence } from './plugins/fence';
 
 // ── 序列化状态 ────────────────────────────────────���─────────────
 
@@ -13,7 +14,8 @@ export class MarkdownSerializerState {
   output = '';
   private closed: PMNode | null = null;
   private inTightList = false;
-  private listDepth = 0;
+  /** 嵌套列表每层项的缩进贡献栈（替代固定 3 空格计数，见 renderList） */
+  private listIndentStack: number[] = [];
   readonly clipboard: boolean;
 
   constructor(options?: { clipboard?: boolean }) {
@@ -144,7 +146,7 @@ export class MarkdownSerializerState {
           if (ch === '`') { cur++; maxRun = Math.max(maxRun, cur); } else { cur = 0; }
         }
         const delim = '`'.repeat(maxRun + 1);
-        const delims = content.startsWith('`') || content.endsWith('`')
+        const delims = needsCodePadding(content)
           ? { open: delim + ' ', close: ' ' + delim }
           : { open: delim, close: delim };
         for (let j = start; j <= end; j++) cache.set(j, delims);
@@ -185,7 +187,7 @@ export class MarkdownSerializerState {
       else { cur = 0; }
     }
     const delim = '`'.repeat(maxRun + 1);
-    if (content.startsWith('`') || content.endsWith('`')) {
+    if (needsCodePadding(content)) {
       return { open: delim + ' ', close: ' ' + delim };
     }
     return { open: delim, close: delim };
@@ -238,15 +240,22 @@ export class MarkdownSerializerState {
 
     let result = text.replace(/\\/g, '\\\\');
 
+    // `_` 选择性转义（B1/B2）：必须在 `\` 转义**之后**（否则自己产出的 `\_`
+    // 会被二次转义成 `\\_`，parse 后还原为 `\` + 未转义 `_`，反而变斜体）；
+    // 后续类转义不含 `_` 与 `\`，`\_` 产物可安全穿过
+    if (result.includes('_')) result = escapeUnderscores(result);
+
     if (this.clipboard) {
-      // 剪贴板模式：只转义核心 markdown 语法，避免 `\=` `\?` `\!` 等多余符号
-      result = result.replace(/([`*])/g, '\\$1');
+      // 剪贴板模式：轻量转义。核心语法 + `_~[]<>`（出站粘到 Obsidian/Typora
+      // 不被重新解释为斜体/删除线/链接样式/HTML）；`_` 由 escapeUnderscores 处理
+      result = result.replace(/([`*~[\]<>])/g, '\\$1');
       if (atLineStart) {
         result = result.replace(/^([#+\-.>=])/, '\\$1');
       }
       result = result.replace(/\n([#+\-.>=])/g, '\n\\$1');
     } else {
       // 文件保存模式：严格转义所有特殊字符，保证 roundtrip fidelity
+      //（`_` 不在此列——由 escapeUnderscores 按 intraword 例外选择性转义）
       result = result.replace(/([`[\]()*~^=|$<>{}])/g, '\\$1');
       if (atLineStart) {
         result = result.replace(/^([#+\-.])/, '\\$1');
@@ -295,19 +304,29 @@ export class MarkdownSerializerState {
   }
 
   /** 序列化列表 */
-  renderList(node: PMNode, getDelim: (index: number, node: PMNode) => string) {
+  renderList(
+    node: PMNode,
+    getDelim: (index: number, node: PMNode) => string,
+    itemIndentWidth?: (delim: string) => number,
+  ) {
     const prevTight = this.inTightList;
     this.inTightList = true;
-    const savedDepth = this.listDepth;
-    this.listDepth++;
-    const indent = '   '.repeat(savedDepth);
+    // 本层列表项 marker 的基础缩进 = 祖先各层项的缩进贡献之和（B4：
+    // 嵌套列表缩进按祖先 marker 实际宽度对齐，有序列表第 10 项起 `10. ` 宽 4，
+    // 固定 3 空格会让子列表脱离父项变成文档级列表）
+    const baseIndent = this.listIndentStack.reduce((sum, w) => sum + w, 0);
+    const indent = ' '.repeat(baseIndent);
     node.forEach((child, _offset, index) => {
       if (index > 0) this.ensureNewline();
       const delim = getDelim(index, child);
       this.write(indent + delim);
+      // 本项的缩进贡献：marker 内容列（≥3 维持既有落盘字节不变；task 列表的
+      // checkbox 属于内容，marker 实际是 '- '，由 itemIndentWidth 特判）
+      const width = itemIndentWidth ? itemIndentWidth(delim) : delim.length;
+      this.listIndentStack.push(Math.max(3, width));
       this.renderContent(child);
+      this.listIndentStack.pop();
     });
-    this.listDepth = savedDepth;
     this.inTightList = prevTight;
   }
 }
@@ -372,10 +391,15 @@ const nodeSerializers: Record<string, NodeSerializer> = {
   },
 
   taskList(state, node) {
-    state.renderList(node, (_index, child) => {
-      const checked = child.attrs.checked;
-      return checked ? '- [x] ' : '- [ ] ';
-    });
+    state.renderList(
+      node,
+      (_index, child) => {
+        const checked = child.attrs.checked;
+        return checked ? '- [x] ' : '- [ ] ';
+      },
+      // checkbox 是列表项内容而非 marker，实际 marker 是 '- '（宽 2）
+      () => 2,
+    );
   },
 
   taskItem(state, node) {
@@ -389,9 +413,7 @@ const nodeSerializers: Record<string, NodeSerializer> = {
     // 遇到含反引号的 language 时改用 ~~~ fence
     const hasLangBackticks = lang.includes('`');
     const fenceChar = hasLangBackticks ? '~' : '`';
-    let fenceLen = Math.max(3, _maxCharRun(content, fenceChar) + 1);
-    while (_lineClash(content, fenceChar, fenceLen)) fenceLen++;
-    const fence = fenceChar.repeat(fenceLen);
+    const fence = computeFence(content, fenceChar);
     state.writeLine(fence + lang);
     state.writeLine(content);
     state.writeLine(fence);
@@ -486,25 +508,60 @@ function cellToText(state: MarkdownSerializerState, cell: PMNode): string {
   return s.output.trim().replace(/ {2}\n/g, '<br>').replace(/\n/g, '<br>');
 }
 
-/** 计算文本中最长的连续字符运行 */
-function _maxCharRun(text: string, ch: string): number {
-  let max = 0, cur = 0;
-  for (const c of text) {
-    if (c === ch) { cur++; max = Math.max(max, cur); }
-    else { cur = 0; }
+const WORD_CHAR_RE = /[\p{L}\p{N}]/u;
+
+/**
+ * `_` 选择性转义（CommonMark intraword 例外，B1/B2）：
+ * - 前后都是字母/数字的 `_`（snake_case、中文_中文）不构成强调定界符，保持原样，
+ *   落盘/出站字节干净；
+ * - 其余位置（空格/行首/标点包围）的 `_` 会被 CommonMark 解释为斜体，转义为 `\_`。
+ * 全局转义虽也正确，但会让代码标识符满屏反斜杠；选择性转义在保真正确性前提下
+ * 最小化字节改动。
+ */
+function escapeUnderscores(text: string): string {
+  let out = '';
+  let prevIsWord = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '_') {
+      const nextIsWord = i + 1 < text.length && WORD_CHAR_RE.test(text[i + 1]);
+      out += prevIsWord && nextIsWord ? ch : '\\_';
+    } else {
+      out += ch;
+    }
+    prevIsWord = WORD_CHAR_RE.test(ch);
   }
-  return max;
+  return out;
 }
 
-/** 检查内容中是否含整行连续 fenceChar >= fenceLen（会被误判为 closing fence） */
-function _lineClash(content: string, fenceChar: string, fenceLen: number): boolean {
-  const escaped = fenceChar === '`' ? '\\`' : '\\~';
-  const re = new RegExp(`(^|\\n) {0,3}${escaped}{${fenceLen},}[ \\t]*$`, 'm');
-  return re.test(content);
+/**
+ * code span 是否需要首尾空格 padding（B6）：
+ * - 内容首/尾含反引号：padding 防止与定界符粘连；
+ * - 内容首尾**同时**有空格且非全空格：CommonMark 会剥掉首尾各一个空格，
+ *   必须 padding 一个空格让剥除后还原（` x ` → `` `  x  ` `` → 剥回 ` x `）；
+ * - 全空格内容 CommonMark 不剥，无需 padding。
+ */
+function needsCodePadding(content: string): boolean {
+  return (
+    content.startsWith('`') ||
+    content.endsWith('`') ||
+    (content.startsWith(' ') && content.endsWith(' ') && content.trim() !== '')
+  );
 }
 
 function escapeLinkTitle(title: string): string {
   return title.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/**
+ * 链接 destination 中反斜杠的稳定性转义（CommonMark 规则，实测 markdown-it）：
+ * - 「\ + ASCII 标点」是合法转义，重解析会吃掉反斜杠（foo\*bar → foo*bar）→ 补成 \\
+ * - 末尾单独的 \ 会转义闭合括号/尖括号，整条链接解析失败（Ex 603）→ 补成 \\
+ * - 「\ + 非标点」（\n \a \中文）不是转义，重解析保留字面反斜杠 → 原样输出，
+ *   Windows 路径 C:\notes\a.md 保持字节干净（B8）
+ */
+function escapeDestBackslashes(src: string): string {
+  return src.replace(/\\(?=[!-/:-@[-`{-~])|\\$/g, '\\\\');
 }
 
 /**
@@ -532,9 +589,9 @@ export function escapeLinkDestination(src: string): string {
   if (depth !== 0) unbalanced = true;
 
   if (!unbalanced && !/[\s<>]/.test(src)) {
-    return src.replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+    return escapeDestBackslashes(src).replace(/\(/g, '\\(').replace(/\)/g, '\\)');
   }
-  return `<${src.replace(/([<>\\])/g, '\\$1')}>`;
+  return `<${escapeDestBackslashes(src).replace(/([<>])/g, '\\$1')}>`;
 }
 
 // ── 导出 ─────────────────��────────────��───────────────────────

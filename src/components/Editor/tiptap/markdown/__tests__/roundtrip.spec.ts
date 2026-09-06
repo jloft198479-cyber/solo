@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { Schema, type Node as PMNode } from '@tiptap/pm/model';
 import { parseMarkdown } from '../parser';
-import { serializeMarkdown } from '../serializer';
+import { serializeMarkdown, serializeMarkdownForClipboard } from '../serializer';
 
 // ── 构建最小可用 schema（模拟 TipTap StarterKit 的核心 nodes + marks） ──
 
@@ -754,6 +754,256 @@ describe('Round-trip: parse → serialize', () => {
       expect(roundTrip(md)).toBe(
         normalize('| **a** | *b* | `c` |\n| ----- | --- | --- |\n| x     | y   | z   |\n'),
       );
+    });
+  });
+
+  // ── P2 格式兼容修复（B1/B2/B4/B6/B7/B8，2026-09-06） ─────────────
+  describe('P2 format compatibility fixes', () => {
+    function docHasItalic(schema: Schema, md: string): boolean {
+      const doc = parseMarkdown(schema, md);
+      let hasItalic = false;
+      doc.descendants((n) => {
+        if (n.marks.some((m) => m.type.name === 'italic')) hasItalic = true;
+        return !hasItalic;
+      });
+      return hasItalic;
+    }
+
+    function codeSpanText(schema: Schema, md: string): string | null {
+      const doc = parseMarkdown(schema, md);
+      let text: string | null = null;
+      doc.descendants((n) => {
+        if (n.isText && n.marks.some((m) => m.type.name === 'code')) {
+          text = n.text ?? '';
+          return false;
+        }
+        return true;
+      });
+      return text;
+    }
+
+    // B1：文件模式字面 `_` 转义
+    describe('B1: literal underscore escaping (file mode)', () => {
+      it('字面 `snake \\_case\\_` 保存重开不变成斜体', () => {
+        const schema = createTestSchema();
+        const md = 'snake \\_case\\_ 词\n';
+        expect(docHasItalic(schema, md)).toBe(false);
+        const out = serializeMarkdown(parseMarkdown(schema, md));
+        // 保存产物重新打开后仍是字面文本，不被解释为斜体
+        expect(docHasItalic(schema, out)).toBe(false);
+      });
+
+      it('字面 `_word_`（空格包围）保存重开不变成斜体', () => {
+        const schema = createTestSchema();
+        const md = '前缀 \\_word\\_ 后缀\n';
+        const out = serializeMarkdown(parseMarkdown(schema, md));
+        expect(docHasItalic(schema, out)).toBe(false);
+      });
+
+      it('intraword snake_case_var 不被转义（文件字节干净）', () => {
+        const schema = createTestSchema();
+        const para = schema.nodes.paragraph.create(null, [
+          schema.text('use snake_case_var here'),
+        ]);
+        const doc = schema.nodes.doc.create(null, [para]);
+        expect(serializeMarkdown(doc)).toBe('use snake_case_var here\n');
+      });
+
+      it('intraword 中文_下划线 不被转义', () => {
+        const schema = createTestSchema();
+        const para = schema.nodes.paragraph.create(null, [
+          schema.text('中文_下划线_变量'),
+        ]);
+        const doc = schema.nodes.doc.create(null, [para]);
+        expect(serializeMarkdown(doc)).toBe('中文_下划线_变量\n');
+      });
+    });
+
+    // B2：clipboard 模式转义补 `_ ~ [ ] < >`
+    describe('B2: clipboard escaping covers _~[]<>', () => {
+      it('字面 ~~text~~ / [见附录] / <tag> 出站被转义', () => {
+        const schema = createTestSchema();
+        const para = schema.nodes.paragraph.create(null, [
+          schema.text('a ~~text~~ b [见附录] c <tag> d'),
+        ]);
+        const doc = schema.nodes.doc.create(null, [para]);
+        expect(serializeMarkdownForClipboard(doc)).toBe(
+          'a \\~\\~text\\~\\~ b \\[见附录\\] c \\<tag\\> d\n',
+        );
+      });
+
+      it('字面 _word_（空格包围）出站被转义，intraword 不转义', () => {
+        const schema = createTestSchema();
+        const para = schema.nodes.paragraph.create(null, [
+          schema.text('a _word_ snake_case_var'),
+        ]);
+        const doc = schema.nodes.doc.create(null, [para]);
+        expect(serializeMarkdownForClipboard(doc)).toBe(
+          'a \\_word\\_ snake_case_var\n',
+        );
+      });
+
+      it('出站转义产物在 solo parser 下还原为字面文本', () => {
+        const schema = createTestSchema();
+        const out = serializeMarkdownForClipboard(
+          schema.nodes.doc.create(null, [
+            schema.nodes.paragraph.create(null, [
+              schema.text('a ~~text~~ b [见附录] c <tag> d _word_'),
+            ]),
+          ]),
+        );
+        const doc = parseMarkdown(schema, out);
+        const text = doc.textContent;
+        expect(text).toBe('a ~~text~~ b [见附录] c <tag> d _word_');
+      });
+    });
+
+    // B4：有序列表第 10 项起子列表缩进
+    describe('B4: ordered list item 10+ sublist indent', () => {
+      it('第 10 项的子列表缩进按 marker 宽度（4）对齐，重开不脱离', () => {
+        const schema = createTestSchema();
+        const lines: string[] = [];
+        for (let i = 1; i <= 10; i++) lines.push(`${i}. 项${i}`);
+        const md = lines.join('\n') + '\n    - 子项\n';
+        const doc = parseMarkdown(schema, md);
+        const ol = doc.firstChild;
+        expect(ol?.type.name).toBe('orderedList');
+        // 第 10 项内含子列表
+        const item10 = ol?.lastChild;
+        expect(item10?.childCount).toBe(2);
+        expect(item10?.lastChild?.type.name).toBe('bulletList');
+        // 序列化后子列表缩进 4 空格（`10. ` marker 宽）
+        const out = serializeMarkdown(doc);
+        expect(out).toContain('\n    - 子项');
+        // 落盘产物重新解析，子列表仍在第 10 项内
+        const doc2 = parseMarkdown(schema, out);
+        const ol2 = doc2.firstChild;
+        expect(ol2?.lastChild?.lastChild?.type.name).toBe('bulletList');
+        // 双向稳定
+        expect(roundTrip(out)).toBe(normalize(out));
+      });
+
+      it('第 1-9 项的子列表缩进维持 3 空格不变', () => {
+        // 多块列表项序列化为 loose 形式（块间空行）是既有行为，此处只锁缩进
+        expect(roundTrip('1. 项1\n   - 子项\n')).toBe(
+          normalize('1. 项1\n\n   - 子项\n'),
+        );
+      });
+
+      it('bullet / task 列表的子列表缩进维持现状（3 空格）', () => {
+        expect(roundTrip('- 项\n   - 子项\n')).toBe(normalize('- 项\n\n   - 子项\n'));
+        expect(roundTrip('- [x] 任务\n   - 子项\n')).toBe(
+          normalize('- [x] 任务\n\n   - 子项\n'),
+        );
+      });
+    });
+
+    // B6：行内代码首尾空格
+    describe('B6: code span leading/trailing space padding', () => {
+      it('首尾各一空格：双空格 padding 保真', () => {
+        const schema = createTestSchema();
+        const para = schema.nodes.paragraph.create(null, [
+          schema.text(' x ', [schema.marks.code.create()]),
+        ]);
+        const doc = schema.nodes.doc.create(null, [para]);
+        const out = serializeMarkdown(doc);
+        expect(out).toBe('`  x  `\n');
+        // 落盘产物重新解析，code 文本仍是 ' x '
+        expect(codeSpanText(schema, out)).toBe(' x ');
+      });
+
+      it('单端空格：无需 padding 直接保真', () => {
+        const schema = createTestSchema();
+        const mk = (t: string) => schema.text(t, [schema.marks.code.create()]);
+        const doc = (t: string) =>
+          schema.nodes.doc.create(null, [
+            schema.nodes.paragraph.create(null, [mk(t)]),
+          ]);
+        expect(serializeMarkdown(doc('x '))).toBe('`x `\n');
+        expect(serializeMarkdown(doc(' x'))).toBe('` x`\n');
+      });
+
+      it('全空格内容：CommonMark 不剥，原样保真', () => {
+        const schema = createTestSchema();
+        const para = schema.nodes.paragraph.create(null, [
+          schema.text(' ', [schema.marks.code.create()]),
+        ]);
+        const doc = schema.nodes.doc.create(null, [para]);
+        expect(serializeMarkdown(doc)).toBe('` `\n');
+        expect(codeSpanText(schema, '` `\n')).toBe(' ');
+      });
+    });
+
+    // B7：mermaid / math 块围栏升级
+    describe('B7: mermaid/math fence upgrade', () => {
+      it('mermaid 内容含独立 ``` 行时围栏升级，重开不损坏', () => {
+        const schema = createTestSchema();
+        const content = 'graph TD\n  A --> B\n```\nB --> C';
+        const node = schema.nodes.mermaidBlock.create(null, [schema.text(content)]);
+        const doc = schema.nodes.doc.create(null, [node]);
+        const out = serializeMarkdown(doc);
+        expect(out).toBe('````mermaid\ngraph TD\n  A --> B\n```\nB --> C\n````\n');
+        // 落盘产物重新解析，类型与内容保真
+        const doc2 = parseMarkdown(schema, out);
+        expect(doc2.firstChild?.type.name).toBe('mermaidBlock');
+        expect(doc2.firstChild?.textContent).toBe(content);
+      });
+
+      it('mermaid 无围栏冲突时维持 3 反引号现状', () => {
+        expect(roundTrip('```mermaid\ngraph TD\n  A --> B\n```\n')).toBe(
+          normalize('```mermaid\ngraph TD\n  A --> B\n```\n'),
+        );
+      });
+
+      it('math 块内容含 $$ 时改用 fence 形式落盘，重开保真', () => {
+        const schema = createTestSchema();
+        const latex = 'a = b\n$$\nc = d';
+        const node = schema.nodes.mathBlock.create(null, [schema.text(latex)]);
+        const doc = schema.nodes.doc.create(null, [node]);
+        const out = serializeMarkdown(doc);
+        expect(out).toBe('```math\na = b\n$$\nc = d\n```\n');
+        const doc2 = parseMarkdown(schema, out);
+        expect(doc2.firstChild?.type.name).toBe('mathBlock');
+        expect(doc2.firstChild?.textContent).toBe(latex);
+      });
+
+      it('math 块无 $$ 时维持 Obsidian 兼容的 $$ 形式', () => {
+        expect(roundTrip('$$\nE = mc^2\n$$\n')).toBe(normalize('$$\nE = mc^2\n$$\n'));
+      });
+    });
+
+    // B8：含反斜杠的链接 destination
+    describe('B8: backslash link destination fidelity', () => {
+      it('Windows 路径 href 还原为原始反斜杠形式，roundtrip 保真', () => {
+        const schema = createTestSchema();
+        const md = '[笔记](C:\\notes\\a.md)\n';
+        const doc = parseMarkdown(schema, md);
+        let href = '';
+        doc.descendants((n) => {
+          for (const m of n.marks) {
+            if (m.type.name === 'link') href = m.attrs.href as string;
+          }
+          return true;
+        });
+        expect(href).toBe('C:\\notes\\a.md');
+        const out = serializeMarkdown(doc);
+        expect(out).toBe('[笔记](C:\\notes\\a.md)\n');
+        expect(roundTrip(out)).toBe(normalize(out));
+      });
+
+      it('含反斜杠的图片 src 同样保真', () => {
+        const schema = createTestSchema();
+        const md = '![图](assets\\sub\\图.png)\n';
+        const doc = parseMarkdown(schema, md);
+        let src = '';
+        doc.descendants((n) => {
+          if (n.type.name === 'image') src = n.attrs.src as string;
+          return true;
+        });
+        expect(src).toBe('assets\\sub\\图.png');
+        const out = serializeMarkdown(doc);
+        expect(roundTrip(out)).toBe(normalize(out));
+      });
     });
   });
 });

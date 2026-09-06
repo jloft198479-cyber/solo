@@ -6,6 +6,7 @@ export const TAURI_COMMANDS = {
   fetchRemoteImage: 'fetch_remote_image',
   getCachedFontPath: 'get_cached_font_path',
   getFileMtime: 'get_file_mtime',
+  listMarkdownFiles: 'list_markdown_files',
   readFontBytes: 'read_font_bytes',
   importDocumentImage: 'import_document_image',
   newEditorWindow: 'new_editor_window',

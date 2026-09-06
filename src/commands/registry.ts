@@ -332,12 +332,22 @@ export const COMMANDS: CommandDefinition[] = [
     palette: true,
   },
   {
+    id: 'editor.tableDeleteTable',
+    title: '删除表格',
+    description: '删除整个表格',
+    scope: 'editor',
+    group: 'table',
+    palette: true,
+  },
+  {
     id: 'edit.find',
     title: '查找',
     description: '打开编辑器内查找',
     scope: 'app',
     group: 'edit',
-    defaultShortcut: 'Mod-g',
+    // Ctrl+F 是查找的行业心智（浏览器/Office/VS Code），webview 无原生查找兜底；
+    // 旧默认 Mod-g 与「跳转到行」g 心智冲突。用户自定义快捷键优先级仍高于此默认。
+    defaultShortcut: 'Mod-f',
     menuSection: 'edit',
     palette: true,
   },
@@ -347,7 +357,7 @@ export const COMMANDS: CommandDefinition[] = [
     description: '打开编辑器内查找替换',
     scope: 'app',
     group: 'edit',
-    defaultShortcut: 'Mod-Shift-g',
+    defaultShortcut: 'Mod-h',
     menuSection: 'edit',
     palette: true,
   },

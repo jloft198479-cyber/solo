@@ -67,8 +67,24 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`archive/settings-audit-report.md`](./archive/settings-audit-report.md)     | archive   | agent            | archive  | 设置面板排查历史报告（P0 死代码已清理，**历史快照**）                    |
 | [`catpaw审核/丝滑体验优化复盘.md`](./catpaw审核/丝滑体验优化复盘.md)         | archive   | dev/agent        | archive  | 丝滑优化（P0-P3）全流程复盘：方案/实施/审查/回退/根因/教训               |
 | [`large-document-performance.md`](./large-document-performance.md)            | proposal  | dev              | proposal | 大文档卡顿根因清单与分阶段方案（**P0/P1 已实施、P2 已砍、P3 简化**）      |
+| [`optimization-plan-2026-09-06.md`](./optimization-plan-2026-09-06.md)        | proposal  | maintainer       | proposal | 全面审查优化方案：30 条发现（已逐条核实，交互/兼容/性能）+ P0-P3 分批路线图（**执行待拍板**） |
 | [`project-plan-2026-08-29.md`](./project-plan-2026-08-29.md)                  | proposal  | maintainer       | proposal | 产品演进建议清单（**非强制任务**，逐项可执行可不执行）                    |
 | [`solo-tour.html`](./solo-tour.html)                                         | product   | user             | active   | 产品功能导览 HTML 页（非 md，无 frontmatter）                            |
+
+### wiki/（用户知识库）
+
+> 面向**使用者**的浏览型知识库（Home + 7 页），细节指向真理源不复制。入口 [`wiki/Home.md`](../wiki/Home.md)。
+
+| 路径                                             | type  | 受众 | 状态   | tag / 摘要                                                         |
+| ------------------------------------------------ | ----- | ---- | ------ | ------------------------------------------------------------------ |
+| [`wiki/Home.md`](../wiki/Home.md)                | guide | user | active | Wiki 首页：功能速览 + 页面导航                                     |
+| [`wiki/快速上手.md`](../wiki/快速上手.md)        | guide | user | active | 安装、首次启动、文件关联、多窗口、自动保存                         |
+| [`wiki/编辑器功能指南.md`](../wiki/编辑器功能指南.md) | guide | user | active | 扩展语法写法、slash 命令、查找替换、焦点模式、复制为 HTML           |
+| [`wiki/快捷键速查.md`](../wiki/快捷键速查.md)    | guide | user | active | 全部默认快捷键一览（真理源 `src/commands/registry.ts`）            |
+| [`wiki/主题与字体.md`](../wiki/主题与字体.md)    | guide | user | active | 8 套主题、7 款字体、自定义主题、按需下载                           |
+| [`wiki/图片与文档管理.md`](../wiki/图片与文档管理.md) | guide | user | active | 图片粘贴/拖拽/存储路径、自动保存、崩溃恢复、设置数据位置           |
+| [`wiki/常见问题FAQ.md`](../wiki/常见问题FAQ.md)  | guide | user | active | 常见问题速答，完整排查指向 TROUBLESHOOTING（真理源）               |
+| [`wiki/开发者入口.md`](../wiki/开发者入口.md)    | guide | dev  | active | 开发环境、接手必读、三条铁律速记（细节指向 BUILD_GUIDE/ARCHITECTURE） |
 
 ### 已退役 / 忽略
 

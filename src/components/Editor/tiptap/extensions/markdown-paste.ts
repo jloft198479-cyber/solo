@@ -37,7 +37,7 @@ import type { Schema } from '@tiptap/pm/model';
 
 import { parseMarkdown } from '../markdown/parser';
 import { authorizeImageAsset, saveClipboardImage } from '../../../../services/tauri/document';
-import { confirm } from '../../../../services/tauri/dialog';
+import { confirm, message } from '../../../../services/tauri/dialog';
 import { readClipboardHtml } from '../../../../services/tauri/clipboard';
 
 // 递增粘贴请求 ID，用于防 async 后发先至乱序
@@ -606,6 +606,10 @@ function handleClipboardImagePaste(
         insertImageNode(view, saved.relativePath, '');
       } catch (err) {
         console.error('Failed to handle pasted image:', err);
+        await message(
+          `粘贴图片失败：${err instanceof Error ? err.message : String(err)}`,
+          { title: '粘贴图片', kind: 'error' },
+        );
       }
     });
   } else {

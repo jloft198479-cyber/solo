@@ -73,6 +73,39 @@ pub async fn get_file_mtime(path: String) -> Result<u64, AppError> {
     .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?
 }
 
+/// 互链 `[[` 补全候选：列出当前文档同目录下的 .md 文件名（不递归子目录）。
+/// 只返回文件名（不含路径），按名称排序（大小写不敏感），上限 500 防
+/// node_modules 类病态目录拖垮 IPC。排除「当前文档自身」由前端做
+/// （Rust 不感知「谁是当前文件」的语义，保持命令可复用）。
+#[tauri::command]
+pub async fn list_markdown_files(path: String) -> Result<Vec<String>, AppError> {
+    validate_document_extension(&path, &OPEN_EXTENSIONS, "列出")?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let dir = Path::new(&path)
+            .parent()
+            .ok_or_else(|| AppError::validation("文档不在任何目录下"))?;
+        let mut names: Vec<String> = fs::read_dir(dir)?
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.file_type().map(|t| t.is_file()).unwrap_or(false))
+            .filter_map(|entry| {
+                let name = entry.file_name().to_string_lossy().to_string();
+                // 只列 .md：互链 target 无扩展名时统一补 .md（resolveWikilinkTarget），
+                // .markdown 等其他可编辑类型无法被互链指向
+                if name.to_ascii_lowercase().ends_with(".md") && name.len() > 3 {
+                    Some(name)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+        names.truncate(500);
+        Ok(names)
+    })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?
+}
+
 #[tauri::command]
 pub async fn save_document(
     path: String,
@@ -499,12 +532,25 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), AppError> 
     {
         let mut file = fs::File::create(&tmp_path)?;
         file.write_all(content)?;
+        // fsync 数据块后再 rename：断电/内核崩溃时若 rename 的元数据先行持久化
+        // 而数据块尚未落盘，唯一文档副本会整文件截断或半新半旧（tmp 已被 rename
+        // 走，旧数据无法恢复）。保存是低频操作，sync_all 的毫秒级代价可接受。
+        file.sync_all()?;
     }
 
     // std::fs::rename 在 Windows 上使用 MoveFileExW + MOVEFILE_REPLACE_EXISTING，
     // 在 Unix 上使用 rename(2)，两者都能原子地覆盖目标文件。
     // 无需 Windows 特殊的先删除再重命名（那会引入竞态窗口）。
     fs::rename(&tmp_path, &path)?;
+
+    // Unix 上再 fsync 父目录，确保 rename 的目录项变更持久化（断电后不回退到旧文件）。
+    // Windows/NTFS 元数据有日志保护且 std 无目录 fsync 入口，无需（也无法）此步。
+    #[cfg(unix)]
+    {
+        if let Ok(dir) = fs::File::open(parent) {
+            let _ = dir.sync_all();
+        }
+    }
     Ok(())
 }
 
@@ -626,9 +672,9 @@ fn unique_asset_target(assets_dir: &Path, filename: &str) -> (PathBuf, String) {
 #[cfg(test)]
 mod tests {
     use super::{
-        atomic_write, import_document_image, open_document, rename_file, resolve_image_src,
-        save_document, validate_document_extension, validate_image_asset_path, OPEN_EXTENSIONS,
-        WRITE_EXTENSIONS,
+        atomic_write, import_document_image, list_markdown_files, open_document, rename_file,
+        resolve_image_src, save_document, validate_document_extension, validate_image_asset_path,
+        OPEN_EXTENSIONS, WRITE_EXTENSIONS,
     };
     use crate::error::AppError;
     use std::fs;
@@ -660,6 +706,51 @@ mod tests {
 
         assert_eq!(result.content, "# demo");
         assert!(result.last_modified_ms > 0);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn list_markdown_files_returns_sorted_md_names_in_same_dir() {
+        let dir = test_dir();
+        let doc = dir.join("demo.md");
+        atomic_write(&doc, b"# demo").unwrap();
+        atomic_write(&dir.join("b.md"), b"").unwrap();
+        atomic_write(&dir.join("A.md"), b"").unwrap();
+        atomic_write(&dir.join("notes.txt"), b"").unwrap();
+        atomic_write(&dir.join("image.png"), b"").unwrap();
+        // 子目录里的 .md 不递归列出；恰好名为 ".md" 的文件跳过（target 为空）
+        let sub = dir.join("sub");
+        fs::create_dir_all(&sub).unwrap();
+        atomic_write(&sub.join("c.md"), b"").unwrap();
+        atomic_write(&dir.join(".md"), b"").unwrap();
+
+        let names =
+            list_markdown_files(doc.to_string_lossy().to_string()).await.unwrap();
+
+        // 大小写不敏感排序：A.md 在 b.md 前；.md/子目录文件/非 md 均不在列。
+        // demo.md（当前文档自身）在列——排除自身是前端的职责
+        assert_eq!(
+            names,
+            vec!["A.md".to_string(), "b.md".to_string(), "demo.md".to_string()]
+        );
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn list_markdown_files_rejects_non_document_extensions() {
+        let dir = test_dir();
+        let doc = dir.join("demo.exe");
+        atomic_write(&doc, b"").unwrap();
+
+        let error = list_markdown_files(doc.to_string_lossy().to_string())
+            .await
+            .unwrap_err();
+        match error {
+            AppError::Validation(_) => {}
+            other => panic!("expected validation error, got {:?}", other),
+        }
 
         let _ = fs::remove_dir_all(dir);
     }

@@ -48,6 +48,9 @@ const dummyKatexEngine = {
  *   绝大多数来自尖括号形式落盘或外部编辑器。已接受的小概率取舍：
  *   文件名字面含 "%20" 时会被解成空格（显示断链）；远程 URL 的 %20
  *   解成空格后语义不变（浏览器请求时会重新编码）
+ * - 含 %5C（大小写不敏感）→ 解码还原 `\`（B8）：markdown-it 会把
+ *   destination 里的字面反斜杠（Windows 路径 `C:\notes\a.md`）编码成 %5C，
+ *   不还原则 href 损坏且落盘被改写成编码形式
  * - 其余纯 ASCII 编码（如 %25）保持原样，避免误解远程 URL 里合法的百分号编码
  * - 解码失败（非法序列）回退原值
  */
@@ -55,7 +58,8 @@ export function decodeLinkDestination(value: string): string {
   if (!value.includes('%')) return value;
   const hasEncodedNonAscii = /%[89a-fA-F][0-9a-fA-F]/.test(value);
   const hasEncodedSpace = value.includes('%20');
-  if (!hasEncodedNonAscii && !hasEncodedSpace) return value;
+  const hasEncodedBackslash = /%5c/i.test(value);
+  if (!hasEncodedNonAscii && !hasEncodedSpace && !hasEncodedBackslash) return value;
   try {
     return decodeURIComponent(value);
   } catch {
