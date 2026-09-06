@@ -459,7 +459,10 @@ export const MermaidBlock = Node.create({
 
       textarea.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
+          // preventDefault 只挡浏览器默认行为，事件仍会冒泡到 window 级
+          // Esc 监听（焦点模式切换）——退出编辑态不应顺带退出焦点模式
           e.preventDefault();
+          e.stopPropagation();
           exitEdit();
           editor.commands.focus();
           return;

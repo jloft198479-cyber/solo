@@ -30,7 +30,7 @@ export function useAppDomEvents(options: AppDomEventsOptions) {
     if (!items) return;
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.startsWith('image/')) {
-        options.showImagePasteWarning('暂不支持直接粘贴图片，请使用拖拽或工具栏插入图片。');
+        options.showImagePasteWarning('暂不支持直接粘贴图片，请将图片拖入编辑器插入。');
         event.preventDefault();
         return;
       }

@@ -351,6 +351,7 @@ pub fn run() {
             open_document,
             save_document,
             get_file_mtime,
+            list_markdown_files,
             rename_file,
             import_document_image,
             save_clipboard_image,

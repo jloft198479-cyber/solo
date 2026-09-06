@@ -140,6 +140,73 @@ describe('useEditorSync serialize 空闲调度（P4-05）', () => {
   });
 });
 
+describe('useEditorSync flushPendingSerialize（卸载前冲刷挂起序列化）', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    setActivePinia(createPinia());
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('编辑尚在防抖窗口内 → flush 同步写回 store 并追平同步代际', () => {
+    const store = useFileStore();
+    const syncSpy = vi.spyOn(store, 'syncEditedContent');
+    const { handleDocChange, flushPendingSerialize, isSyncedWithStore } = useEditorSync({
+      onUpdate: vi.fn(),
+    });
+
+    const ed = fakeEditor('未保存的最后击键');
+    handleDocChange(ed);
+    // 不等待防抖/空闲——模拟编辑后立即卸载组件（如切换图片查看模式）
+    flushPendingSerialize(ed);
+
+    expect(syncSpy).toHaveBeenCalledTimes(1);
+    expect(syncSpy.mock.calls[0][0]).toContain('未保存的最后击键');
+    expect(isSyncedWithStore()).toBe(true);
+  });
+
+  it('卸载真实链路：cancelPending 先跑（composable 内部 onBeforeUnmount），flush 仍能写回', () => {
+    const store = useFileStore();
+    const syncSpy = vi.spyOn(store, 'syncEditedContent');
+    const { handleDocChange, cancelPending, flushPendingSerialize } = useEditorSync({
+      onUpdate: vi.fn(),
+    });
+
+    const ed = fakeEditor('链条里的编辑');
+    handleDocChange(ed);
+    vi.advanceTimersByTime(500); // 防抖到点，空闲回调挂起
+    cancelPending(); // useEditorSync 自己的 onBeforeUnmount 先执行：取消挂起
+    flushPendingSerialize(ed); // 组件 onBeforeUnmount 随后调用：冲刷
+
+    expect(syncSpy).toHaveBeenCalledTimes(1);
+    expect(syncSpy.mock.calls[0][0]).toContain('链条里的编辑');
+  });
+
+  it('已同步时 flush 跳过，不为卸载引入多余序列化', () => {
+    const store = useFileStore();
+    const syncSpy = vi.spyOn(store, 'syncEditedContent');
+    const { markSynced, flushPendingSerialize } = useEditorSync({ onUpdate: vi.fn() });
+
+    markSynced(); // 基线已锚定（载入 / 切文档后的状态），此刻卸载无需序列化
+    flushPendingSerialize(fakeEditor('no-op'));
+
+    expect(syncSpy).not.toHaveBeenCalled();
+  });
+
+  it('编辑器已销毁时 flush 跳过', () => {
+    const store = useFileStore();
+    const syncSpy = vi.spyOn(store, 'syncEditedContent');
+    const { flushPendingSerialize } = useEditorSync({ onUpdate: vi.fn() });
+
+    const ed = fakeEditor('destroyed');
+    ed.isDestroyed = true;
+    flushPendingSerialize(ed);
+
+    expect(syncSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe('useEditorSync 同步代际（关窗闸口免序列化判据）', () => {
   beforeEach(() => {
     vi.useFakeTimers();

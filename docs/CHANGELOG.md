@@ -22,6 +22,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **断电时保存的文档可能整文件截断（atomic_write 无 fsync）**：`create(tmp) → write_all → rename` 全程未调用 `sync_all()`——断电/内核崩溃时 rename 的元数据可能先行持久化而数据块尚未落盘，唯一文档副本整文件截断或半新半旧（tmp 已被 rename 走，旧数据无法恢复）；自动保存最短 5s 一次直写真实文件，风险敞口持续存在。修复：tmp 写完 `sync_all()` 再 rename（保存低频，毫秒级代价可接受）；Unix 上再 fsync 父目录确保目录项变更持久化（Windows/NTFS 元数据有日志保护且 std 无目录 fsync 入口，无需此步）。
+- **切图片查看模式静默丢最后一次编辑**：查看模式用 `v-if` 卸载编辑器，而 `onBeforeUnmount` 对挂起序列化是**取消**（`cancelPending`）而非执行——最后一次击键距卸载不足 500ms（防抖窗口）且 rIC 未跑时，编辑既不入 store 基线又随 doc 销毁丢失，切回按旧基线重建。修复：`useEditorSync` 新增 `flushPendingSerialize`（已同步时跳过，不为卸载引入多余序列化），`MarkdownEditor` 卸载链路在 `editor.destroy()` 之前冲刷挂起序列化写回 store。补回归锁（含 cancel 先跑、flush 后跑的真实卸载顺序）。
+- **图片 alt/路径行内编辑入口死锁**：`.mk-image-source-text` 默认 `display:none`，仅 `.is-editing` 时显示，而 `is-editing` 只由该元素 focus 事件添加——不显示就无法聚焦、不聚焦就永不显示，改 alt/路径只能改源码。修复：NodeSelection 选中或 hover 图片时即显示 sourceText 编辑入口（`image.ts` 选中/悬停/失焦三态同步 `is-editing`）。
+- **表格没有「删除整表」入口**：右键菜单只有 7 个行列操作，逐行删到剩一行时 `deleteRow` 拒删（prosemirror-tables 单行保护），表格删不掉——复刻 Mermaid「能创建不能删除」教训。修复：右键菜单 + 命令注册表补 `deleteTable`（`can()` 为真时启用）。
+- **Emoji 建议（`:` 触发）中文场景失效**：Suggestion 默认 `allowedPrefixes=[' ']` 只允许空格/行首前缀，中文后输入 `:微笑` 不弹菜单（Slash 已修、Emoji 漏修的同类坑）。修复：显式传 `allowedPrefixes: null`，契约测试锁死三个触发器（Slash/Emoji/Wikilink）。
+- **焦点模式开着时 Esc 被全局劫持**：关 Slash 菜单 / 退出 Mermaid·Math 编辑 / 关右键·气泡菜单等内层 Esc 同时把焦点模式退出了（内层 handler 均 preventDefault 但不 stopPropagation，事件冒泡到 window 触发 toggle）。修复：内层 Esc 统一 `stopPropagation`（对齐 SearchPanel 既有正确写法）。
+- **Slash 菜单在代码块与 URL 中误触发**：代码里敲 `// 注释`、`https://a.com` 会弹命令菜单，此时按 Enter 会执行命令把代码/URL 文本替换掉。修复：Suggestion `allow` 守卫——代码块/行内代码内不弹（Emoji 此前已有、Slash 漏加，本次补齐；URL 场景由 `/`、`:` 前缀守卫覆盖）。
+- **选区气泡菜单不随滚动/窗口缩放更新**：BubbleMenu 用 fixed 定位但只挂 onSelectionUpdate 一个刷新入口，滚动/缩放后与选区脱节并遮挡正文。修复：编辑器滚动容器 + window 挂 scroll/resize 监听重算位置（passive scroll，卸载时同步移除）。
+- **表格右键菜单依赖「光标已在表格内」**：光标在表外段落时直接右键表格不弹菜单（PM 右键不移动光标）。修复：用 `view.posAtCoords` 反查右键坐标是否落在表格节点内，命中即弹菜单。
+- **Ctrl+F 完全无响应**：webview 无原生查找兜底，而查找绑定在 Mod+G 与「跳转到行」心智冲突。修复：默认快捷键改 Mod+F（保留自定义覆盖能力）。
+- **粘贴图片落盘失败静默**：编辑器内粘贴失败仅 console.error，用户毫无感知；编辑器外粘贴的提示文案指向不存在的工具栏按钮。修复：失败接 `message` 弹窗（与拖拽对齐），文案改「请使用拖拽插入」。
+- **搜索 0 结果无反馈 + 互链文本搜不到**：0 匹配时不区分「还没搜」和「没搜到」；wikilink 是 atom 节点，display 文本不在 doc 文本里，永远搜不到也不高亮。修复：0 匹配显示灰字提示；`findMatches` 对 wikilink 额外匹配 display 文本（命中替换 = 整节点替换，与所见即所得一致）。
+- **表格选区复制粘到外部自带完整 `<table>` + 像素死宽度**：跨单元格选区被 prosemirror-tables 升级为 `CellSelection`，PM 默认序列化带出整表壳 + `resizable:true` 的固定像素 `<colgroup>`，粘进 Word/WPS/微信格式脏乱。修复：copy 事件拦截，仅 CellSelection 时把 text/html 压平为逐行 `<p>`（单元格间 `\t`，粘 Excel/WPS 自动分列）；text/plain 管道与普通选区富格式保真不动。
+- **超链接 Ctrl+单击「时灵时不灵」+ 互链死胡同**：外链四源叠加——PM 4px 点击门控超限判拖拽静默跳过、hover `cursor:pointer` 与「单击无反应」自相矛盾、协议白名单外（file:///#锚点/相对路径）静默不跳。修复：① mousedown 记录坐标 + click 自判（10px 阈值）；② 光标默认 text，按住 Ctrl/Cmd 才 pointer——指针出现即代表动作可用；③ 白名单外弹「仅支持 http/https/mailto」提示。互链：目标不存在从「打开文件失败」死胡同改为 confirm 一键创建带标题 frontmatter 的空文档（`expected=0` 先探 + conflict 复查，任何竞态下不覆盖既有文件）。
+- **字面下划线保存重开变斜体（文件模式转义漏 `_`）**：`snake \_case\_` 这类已手工转义的字面下划线，保存时 `\_` 被剥掉、重开 `_case_` 被解析为斜体——语义静默改变（CommonMark 里 `_` 与 `*` 同为 emphasis 定界符，但文件模式只转义 `*`）。修复：选择性转义 `escapeUnderscores`——`_` 两侧均为字母数字（intraword，如 `snake_case_var`）时不转义（文件字节保持干净，CommonMark 规定 intraword `_` 不构成 emphasis），其余 `_` 转义保语义。
+- **剪贴板出站转义不足（`_ ~ [ ] < >`）**：复制字面 `a_b_c` / `~~text~~` / `[见附录]` / `<tag>` 粘到 Obsidian/Typora 被重新解释为斜体/删除线/链接/被吃 HTML——此前只修了「多余转义」没修「转义不足」。修复：clipboard 模式全局转义类补 `_~[]<>`（低频符号保持轻量，行首 `#+\-.>=` 规则不变）。
+- **有序列表第 10 项起嵌套子列表脱离父项**：子列表缩进固定 3 空格，而 `10. ` marker 宽 4——第 10 项起的子列表重开时脱离父项变文档级列表。修复：`renderList` 记录每层 marker 实际宽度（`itemIndentWidth` 回调），子层缩进按 marker 宽度对齐（无序列表 `+`/`-` 宽 2 仍取 `max(3, width)` 保持既有字节不变）。
+- **行内代码首尾空格 roundtrip 丢失**：`` ` x ` `` 重开变 `x`（CommonMark 剥 code span 首尾各一个空格）。修复：内容首尾均为空格且非纯空白时补双空格 padding（`` `  x  ` ``），重开剥一层后复原。
+- **mermaid/math 块内容含围栏字符时落盘即损坏**：内容含独立 ` ``` ` / `$$` 行时固定三反引号围栏被提前闭合，重开结构错乱——codeBlock 有围栏升级逻辑，这两个块漏做。修复：新增共享 `computeFence`（最长同字符 run + 1，且逐行检测转义围栏冲突继续加长）；math 块内容含 `$$` 时改用 ```` ```math ```` fence 形式落盘（无冲突时维持 Obsidian 兼容的 `$$` 形式），parser 侧补 `math` fence 语言路由。
+- **含反斜杠的链接 destination 保真 + CommonMark Ex20/603**：Windows 路径 `[x](C:\notes\a.md)` 此前落盘被改写（`%5C` 编码原样落盘）；且 destination 含字面 `\` 时序列化原样输出，重解析「`\`+ASCII 标点」被当作转义吃掉反斜杠（Ex 20 两轮不稳定）、末尾 `\` 转义闭合括号导致整条链接解析失败退化成纯文本（Ex 603）。修复：parser 侧 `decodeLinkDestination` 补 `%5C` 解码还原原始反斜杠形式；serializer 侧 `escapeDestBackslashes` 只转义「后跟 ASCII 标点或位于末尾」的反斜杠（「`\`+非标点」如 `\n` `\a` `\中文` 保留原样——Windows 路径字节干净），两种 destination 形式统一。CommonMark 652 条规范用例 roundtrip 全绿。
+
+
+### Added
+- **`[[` 互链文件名补全**：输入 `[[` 即弹出同目录 .md 文件名补全菜单（复用 Slash/Emoji 同款 Suggestion 基建）：新 Rust 命令 `list_markdown_files`（同目录、不递归、排序、上限 500）+ `WikilinkSuggest` 扩展 + `WikilinkMenu` 组件；候选按文档路径缓存、切换文档/懒初始化预取，排除当前文档自身、菜单上限 50。上下文守卫：代码块内不弹、`![[` 嵌入语法不触发、未闭合 `[[` 内抑制 `/` `:` 菜单（`suggestion-guard` 升级支持多字符触发，非重叠扫描对齐正则语义）。
+
 ## [1.2.42] — 2026-09-05
 
 ### Fixed

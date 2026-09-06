@@ -38,6 +38,8 @@
             Aa
           </button>
           <span v-if="matchCount > 0" class="search-count">{{ currentIndex }}/{{ matchCount }}</span>
+          <!-- 0 结果反馈：区分「还没搜」和「没搜到」，不再静默（A10） -->
+          <span v-else-if="searchQuery.trim()" class="search-count">无结果</span>
         </div>
         <button class="search-btn-nav" title="上一个 (Shift+Enter)" @click="emitPrev()">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">

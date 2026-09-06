@@ -33,6 +33,14 @@ export async function getFileMtime(path: string) {
   return invokeCommand<number>(TAURI_COMMANDS.getFileMtime, { path });
 }
 
+/**
+ * 互链 `[[` 补全候选：当前文档同目录下的 .md 文件名列表
+ * （Rust 侧已排序、截断 500；排除当前文档自身由前端过滤）。
+ */
+export async function listMarkdownFiles(path: string) {
+  return invokeCommand<string[]>(TAURI_COMMANDS.listMarkdownFiles, { path });
+}
+
 export async function saveDocument(
   path: string,
   content: string,

@@ -1,12 +1,12 @@
 /**
- * 浮动菜单定位的边界检测测试。
+ * 浮动菜单定位的边界检测测试 + Suggestion 触发配置契约测试。
  *
- * 锁住的不变量：SlashMenu / EmojiMenu 显示位置不会超出视口边界。
- * 覆盖场景：下方放得下（默认）、下方遮挡→翻转上方、右侧遮挡→左移、
- * 上方也放不下→钉视口顶、左侧超出→钉视口左边。
+ * 锁住的不变量：SlashMenu / EmojiMenu 显示位置不会超出视口边界；
+ * Slash / Emoji 两个 Suggestion 的 allowedPrefixes 均为 null（任意前缀触发）。
  */
 import { describe, expect, it } from 'vitest';
-import { computeMenuPosition } from '../editor-extensions';
+import { ref } from 'vue';
+import { computeMenuPosition, createEditorExtensions } from '../editor-extensions';
 
 // 视口常量（与实现里的 MENU_MAX_HEIGHT=340 / MENU_MIN_WIDTH=240 / VIEWPORT_MARGIN=8 对齐）
 const MENU_MAX_HEIGHT = 340;
@@ -74,5 +74,52 @@ describe('computeMenuPosition - 浮动菜单边界检测', () => {
       top: MARGIN,
       left: MARGIN,
     });
+  });
+});
+
+describe('Suggestion 触发配置契约（allowedPrefixes=null）', () => {
+  /**
+   * Suggestion 默认 allowedPrefixes=[' ']——只允许空格/行首前缀，中文场景致命
+   * （「你好/」「你好:微笑」完全无反应）。Slash 已修、Emoji 曾漏修，
+   * 本测试直接断言 createEditorExtensions 产出的实际配置，锁死「null」契约，
+   * 防止未来误改回默认值或漏传。
+   */
+  function extensionOptions(name: string): Record<string, unknown> | undefined {
+    const extensions = createEditorExtensions({
+      slashMenuRef: ref(null as never),
+      slashMenuItems: ref([] as never),
+      slashMenuCommand: ref((() => {}) as never),
+      emojiMenuRef: ref(null as never),
+      emojiMenuItems: ref([] as never),
+      emojiMenuCommand: ref((() => {}) as never),
+      wikilinkMenuRef: ref(null as never),
+      wikilinkMenuItems: ref([] as never),
+      wikilinkMenuCommand: ref((() => {}) as never),
+      searchHighlightOptions: {} as never,
+    });
+    const found = extensions.find((ext) => ext.name === name);
+    return found?.options as Record<string, unknown> | undefined;
+  }
+
+  it('Slash：allowedPrefixes 显式为 null（任意前缀触发，中文可用）', () => {
+    const opts = extensionOptions('slashCommands') as
+      | { suggestion?: { allowedPrefixes?: string[] | null } }
+      | undefined;
+    expect(opts?.suggestion?.allowedPrefixes).toBeNull();
+  });
+
+  it('Emoji：allowedPrefixes 显式为 null（中文后输入 :微笑 可唤出菜单）', () => {
+    const opts = extensionOptions('emojiSuggest') as
+      | { suggestion?: { allowedPrefixes?: string[] | null } }
+      | undefined;
+    expect(opts?.suggestion?.allowedPrefixes).toBeNull();
+  });
+
+  it('Wikilink：allowedPrefixes 显式为 null + char 为 [[（中文后输入 [[ 可唤出）', () => {
+    const opts = extensionOptions('wikilinkSuggest') as
+      | { suggestion?: { allowedPrefixes?: string[] | null; char?: string } }
+      | undefined;
+    expect(opts?.suggestion?.allowedPrefixes).toBeNull();
+    expect(opts?.suggestion?.char).toBe('[[');
   });
 });

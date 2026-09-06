@@ -186,6 +186,22 @@ export function useEditorSync(options: EditorSyncOptions) {
     syncedGeneration = editGeneration;
   }
 
+  /**
+   * 同步执行挂起的序列化（与 cancelPending 的「取消」相对）。
+   * 卸载编辑器前调用（如切换图片查看模式 v-if 卸载组件）：编辑尚在防抖/空闲
+   * 窗口内未落 store 时，先把当前 doc 序列化写回，否则编辑随组件销毁丢失、
+   * 重挂载按旧基线重建。已同步（editGeneration === syncedGeneration）时跳过，
+   * 不为卸载引入多余序列化。必须在 editor.destroy() 之前调用。
+   */
+  function flushPendingSerialize(ed: TiptapEditor) {
+    if (ed.isDestroyed) return;
+    if (editGeneration === syncedGeneration) return;
+    const markdown = serializeMarkdown(ed.state.doc);
+    fileStore.syncEditedContent(markdown);
+    syncedGeneration = editGeneration;
+    options.onSerialize?.(markdown, ed.state.doc);
+  }
+
   function cancelPending() {
     debouncedWordCount.cancel();
     debouncedOutline.cancel();
@@ -207,6 +223,7 @@ export function useEditorSync(options: EditorSyncOptions) {
     emitOutlineNow,
     isSyncedWithStore,
     markSynced,
+    flushPendingSerialize,
     cancelPending,
   };
 }

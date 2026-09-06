@@ -7,6 +7,7 @@
       ref="editorWrapRef"
       class="mk-editor h-full overflow-y-auto outline-none"
       @contextmenu="onEditorContextMenu"
+      @copy="onEditorCopy"
     >
       <div class="mk-editor-inner">
         <EditorContent v-if="editor" :editor="editor" />
@@ -21,6 +22,11 @@
     />
     <SlashMenu ref="slashMenuRef" :items="slashMenuItems" :command="slashMenuCommand" />
     <EmojiMenu ref="emojiMenuRef" :items="emojiMenuItems" :command="emojiMenuCommand" />
+    <WikilinkMenu
+      ref="wikilinkMenuRef"
+      :items="wikilinkMenuItems"
+      :command="wikilinkMenuCommand"
+    />
 
     <!-- 搜索替换面板 -->
     <SearchPanel
@@ -50,8 +56,11 @@ import { parseMarkdown } from './tiptap/markdown/parser';
 import { serializeMarkdown, serializeClipboardSlice } from './tiptap/markdown/serializer';
 import type { Node as PMNode, Slice } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
+import { CellSelection, selectedRect } from '@tiptap/pm/tables';
 import type { SlashCommandItem } from './tiptap/extensions/slash-commands';
 import type { EmojiItem } from './tiptap/extensions/emoji-suggest';
+import type { WikilinkCandidateItem } from './tiptap/extensions/wikilink-suggest';
+import { refreshWikilinkCandidates } from './tiptap/extensions/wikilink-suggest';
 import {
   executeEditorCommand,
   runBubbleMenuAction,
@@ -61,6 +70,7 @@ import {
   createEditorExtensions,
   type SlashMenuController,
   type EmojiMenuController,
+  type WikilinkMenuController,
 } from './tiptap/editor-extensions';
 import type { EditorSyncPayload } from '../../composables/useEditorSync';
 import { setupEditorImageDrop } from './tiptap/editor-image-drop';
@@ -73,8 +83,9 @@ import { resolveWikilinkTarget } from './tiptap/extensions/wikilink';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch, pulseJumpTarget } from './tiptap/useEditorSearch';
 import { getBlockElFromPos, scrollElementIntoView } from './tiptap/editor-dom';
-import { resolveImageDisplay } from '../../services/tauri/document';
-import { message } from '../../services/tauri/dialog';
+import { resolveImageDisplay, getFileMtime, saveDocument } from '../../services/tauri/document';
+import { normalizeTauriError } from '../../services/tauri/client';
+import { confirm, message } from '../../services/tauri/dialog';
 import { toAssetUrl } from '../../services/tauri/asset';
 import { listenEditorFocus } from '../../services/tauri/events';
 import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
@@ -82,6 +93,7 @@ import BubbleMenuComponent from './views/BubbleMenu.vue';
 import ContextMenuComponent, { type ContextMenuItem } from './views/ContextMenu.vue';
 import SlashMenu from './views/SlashMenu.vue';
 import EmojiMenu from './views/EmojiMenu.vue';
+import WikilinkMenu from './views/WikilinkMenu.vue';
 import SearchPanel from './views/SearchPanel.vue';
 import './tiptap/editor.css';
 
@@ -114,6 +126,9 @@ const slashMenuCommand = ref<(item: SlashCommandItem) => void>(() => {});
 const emojiMenuRef = ref<EmojiMenuController | null>(null);
 const emojiMenuItems = ref<EmojiItem[]>([]);
 const emojiMenuCommand = ref<(item: EmojiItem) => void>(() => {});
+const wikilinkMenuRef = ref<WikilinkMenuController | null>(null);
+const wikilinkMenuItems = ref<WikilinkCandidateItem[]>([]);
+const wikilinkMenuCommand = ref<(item: WikilinkCandidateItem) => void>(() => {});
 const editor = shallowRef<TiptapEditor | null>(null);
 useEditorAppearance(editor);
 
@@ -129,6 +144,7 @@ const {
   emitOutlineNow,
   isSyncedWithStore,
   markSynced,
+  flushPendingSerialize,
   cancelPending,
 } = useEditorSync({
   onUpdate: (data) => emit('update', data),
@@ -161,7 +177,7 @@ const {
 // 查找（false）/ 查找替换（true）两种入口，传给 SearchPanel 决定是否预展开替换行
 const searchShowReplace = ref(false);
 
-/** 互链点击：解析目标路径并请求父组件打开；未保存文档时提示先保存。 */
+/** 互链点击：解析目标路径并请求父组件打开；目标不存在时提供一键创建（KNOWN-ISSUES #10）。 */
 async function handleWikilinkNavigate(target: string) {
   const resolved = resolveWikilinkTarget(fileStore.currentFile.path, target);
   if (!resolved) {
@@ -171,6 +187,49 @@ async function handleWikilinkNavigate(target: string) {
     });
     return;
   }
+
+  const fileExists = await getFileMtime(resolved)
+    .then(() => true)
+    .catch(() => false);
+
+  if (!fileExists) {
+    const okToCreate = await confirm(
+      `目标文档不存在：\n${resolved}\n\n是否创建？`,
+      { title: '互链跳转', kind: 'info', okLabel: '创建', cancelLabel: '取消' },
+    );
+    if (!okToCreate) return;
+
+    // 标题用互链目标名（[[B|别名]] 场景创建的是 B，别名不落盘），YAML 双引号包裹防特殊字符
+    const title = target.trim() || '无标题';
+    const initialContent = `---\ntitle: "${title.replace(/"/g, '\\"')}"\n---\n`;
+
+    try {
+      // 先以 expected=0 非强制写入：文件若在检查与写入之间被创建，Rust 侧 mtime
+      // 对不上会拒写（conflict）——保证任何竞态下都不覆盖既有文件。
+      await saveDocument(resolved, initialContent, 0, false);
+    } catch (err) {
+      const appError = normalizeTauriError(err);
+      if (appError.code !== 'document_conflict') {
+        await message(`创建文档失败：${appError.message}`, { title: '错误', kind: 'error' });
+        return;
+      }
+      // conflict：复查真伪——文件实际存在 → 不覆盖，直接打开；仍不存在 → 强制创建
+      const stillMissing = !(await getFileMtime(resolved)
+        .then(() => true)
+        .catch(() => false));
+      if (stillMissing) {
+        try {
+          await saveDocument(resolved, initialContent, null, true);
+        } catch (err2) {
+          const e2 = normalizeTauriError(err2);
+          await message(`创建文档失败：${e2.message}`, { title: '错误', kind: 'error' });
+          return;
+        }
+      }
+      // 文件已存在（竞态创建）→ 落到下方 emit 直接打开
+    }
+  }
+
   emit('navigate-wikilink', resolved);
 }
 
@@ -204,6 +263,9 @@ function createEditor(content: string) {
       emojiMenuRef,
       emojiMenuItems,
       emojiMenuCommand,
+      wikilinkMenuRef,
+      wikilinkMenuItems,
+      wikilinkMenuCommand,
       searchHighlightOptions: {
         getMatches: () => currentMatches.value,
         getActiveIndex: () => searchCurrentIndex.value - 1,
@@ -272,8 +334,10 @@ watch(
   // 不直接 watch content：编辑期 syncEditedContent 也写 content，
   // 会在 store 滞后于编辑器时把正在编辑的内容回退成旧基线。
   () => [fileStore.currentFile.path, fileStore.reloadToken] as const,
-  () => {
+  ([path]) => {
     resolvedImageCache.clear();
+    // 预取互链 [[ 补全候选：切文档即后台刷新，首次敲 [[ 时直接命中缓存
+    void refreshWikilinkCandidates(path);
     if (!editor.value || editor.value.isDestroyed) return;
     const content = fileStore.currentFile.content;
     // 比较当前 editor 序列化结果与目标内容，相同则跳过（如另存为场景）。
@@ -318,6 +382,15 @@ function rafUpdateBubbleMenu(ed: TiptapEditor) {
     _bubbleMenuPendingEd = null;
     if (e && !e.isDestroyed) updateBubbleMenu(e);
   });
+}
+
+// A6：BubbleMenu 是 fixed 定位但只在 onSelectionUpdate 时算坐标——编辑区滚动、
+// 窗口缩放后与选区脱节。挂 rAF 节流重算（与选区更新共用同一条 rAF 通道，
+// 同帧多次事件只算一次；选区为空时 updateBubbleMenu 自然隐藏，无额外开销）。
+function repositionBubbleMenu() {
+  const ed = editor.value;
+  if (!ed || ed.isDestroyed) return;
+  rafUpdateBubbleMenu(ed);
 }
 
 function updateBubbleMenu(ed: TiptapEditor) {
@@ -372,19 +445,83 @@ function buildTableContextMenuItems(ed: TiptapEditor): ContextMenuItem[] {
     { id: 'editor.tableAddColAfter', label: '在右侧插入列', disabled: !can.addColumnAfter() },
     { id: 'editor.tableDeleteCol', label: '删除当前列', disabled: !can.deleteColumn() },
     { id: 'editor.tableToggleHeaderRow', label: '切换表头行', disabled: !can.toggleHeaderRow() },
+    // 删除整表入口：deleteRow 单行拒删（prosemirror-tables 设计），逐行删到一行
+    // 后表格成为「删不掉的死结」——必须有整表删除逃生通道（Mermaid 同款教训）
+    { id: 'editor.tableDeleteTable', label: '删除表格', disabled: !can.deleteTable() },
   ];
+}
+
+/** pos 是否解析在 table 节点内（含祖先链） */
+function posInTable(doc: PMNode, pos: number): boolean {
+  if (pos < 0 || pos > doc.content.size) return false;
+  const $pos = doc.resolve(pos);
+  for (let d = $pos.depth; d > 0; d--) {
+    if ($pos.node(d).type.name === 'table') return true;
+  }
+  return false;
 }
 
 function onEditorContextMenu(event: MouseEvent) {
   const ed = editor.value;
   if (!ed || ed.isDestroyed) return;
-  if (!ed.isActive('table')) return; // 非表格区域：让浏览器默认菜单出现
+  // 坐标反查：PM 右键不移动光标，光标在表外段落时右键表格也应弹菜单——
+  // 用 event 坐标反查 pos，落在 table 内即把光标移过去（行列命令作用于
+  // 右键的单元格），非表格区域保持浏览器默认菜单
+  if (!ed.isActive('table')) {
+    const hit = ed.view.posAtCoords({ left: event.clientX, top: event.clientY });
+    const pos = hit?.pos;
+    if (pos == null || !posInTable(ed.state.doc, pos)) return;
+    ed.chain().focus().setTextSelection(pos).run();
+  }
   contextMenuItems.value = buildTableContextMenuItems(ed);
   contextMenuRef.value?.open(event);
 }
 
 function onContextMenuSelect(item: ContextMenuItem) {
   executeEditorCommand(editor.value, item.id);
+}
+
+// ── 单元格选区复制压平（KNOWN-ISSUES #9）─────────────────────────
+
+function escapeHtmlText(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * CellSelection（跨单元格拖选）复制时，把 text/html 压平为逐行 `<p>` 文本。
+ * 根因：PM 默认序列化 CellSelection 的 content() 会带出整表/表格行 +
+ * `resizable:true` 的固定像素 `<colgroup>`——粘到 Word/WPS/微信变成带死宽度的
+ * 表格，「不干净」。text/plain 不动（走 clipboardTextSerializer 的 Markdown
+ * 管道表）；普通选区一个字节不动（富格式保真是 v1.2.x 出站修复的成果）。
+ * 单元格间用 \t 分隔：粘到 Excel/WPS 自动分列，粘到纯文本保留视觉分隔。
+ */
+function onEditorCopy(event: ClipboardEvent) {
+  const ed = editor.value;
+  if (!ed || ed.isDestroyed) return;
+  const selection = ed.state.selection;
+  if (!(selection instanceof CellSelection)) return;
+  const clipboardData = event.clipboardData;
+  if (!clipboardData) return;
+
+  const rect = selectedRect(ed.state);
+  const lines: string[] = [];
+  for (let r = rect.top; r < rect.bottom; r++) {
+    const row = rect.table.child(r);
+    const cells: string[] = [];
+    let colIndex = 0;
+    row.forEach((cell) => {
+      const span = typeof cell.attrs.colspan === 'number' ? cell.attrs.colspan : 1;
+      // 覆盖列区间与选区列区间有交集才取该格（合并单元格不错位）
+      if (colIndex < rect.right && colIndex + span > rect.left) {
+        cells.push(cell.textContent);
+      }
+      colIndex += span;
+    });
+    lines.push(cells.join('\t'));
+  }
+  const html = lines.map((line) => `<p>${escapeHtmlText(line)}</p>`).join('');
+  clipboardData.setData('text/html', html);
+  event.preventDefault();
 }
 
 // ── 图片拖拽上传 ──────────────────────────────────────────────
@@ -416,6 +553,8 @@ async function setupDragDrop() {
 function lazyInitEditor() {
   if (editor.value && !editor.value.isDestroyed) return;
   createEditor(fileStore.currentFile.content || props.initialContent || '');
+  // 预取互链候选：初始文档不走 path watch，懒初始化时后台拉一次
+  void refreshWikilinkCandidates(fileStore.currentFile.path);
 }
 
 let unlistenFocus: (() => void) | null = null;
@@ -469,6 +608,10 @@ onMounted(async () => {
 
   // 图片双击 → 全屏预览（从 CustomImage NodeView 冒泡上来的自定义事件）
   editorWrapRef.value?.addEventListener('editor:image-dblclick', handleImageDblClick);
+
+  // A6：滚动/缩放时重算 BubbleMenu 位置（rAF 节流）
+  editorWrapRef.value?.addEventListener('scroll', repositionBubbleMenu, { passive: true });
+  window.addEventListener('resize', repositionBubbleMenu);
 });
 
 onBeforeUnmount(() => {
@@ -487,19 +630,32 @@ onBeforeUnmount(() => {
     unlistenDragDrop = null;
   }
 
-  // 4. 销毁 TipTap editor（释放 ProseMirror DOM + 内部事件监听）
+  // 4. 销毁前 flush 挂起序列化：编辑尚在防抖/空闲窗口内时先把当前 doc 写回
+  //    store，否则编辑随组件销毁丢失（v-if 卸载场景如切图片查看模式，重挂载
+  //    会按旧基线重建）。必须在 destroy 之前。
+  if (editor.value && !editor.value.isDestroyed) {
+    flushPendingSerialize(editor.value);
+  }
+
+  // 5. 销毁 TipTap editor（释放 ProseMirror DOM + 内部事件监听）
   if (editor.value && !editor.value.isDestroyed) {
     editor.value.destroy();
   }
   editor.value = null;
 
-  // 5. 清理 DOM 级事件监听
+  // 6. 清理 DOM 级事件监听
   const gateEl = editorWrapRef.value;
   if (gateEl) {
     gateEl.removeEventListener('editor:image-dblclick', handleImageDblClick);
+    gateEl.removeEventListener('scroll', repositionBubbleMenu);
+  }
+  window.removeEventListener('resize', repositionBubbleMenu);
+  if (_bubbleMenuRafId != null) {
+    cancelAnimationFrame(_bubbleMenuRafId);
+    _bubbleMenuRafId = null;
   }
 
-  // 6. 释放远程图片 Blob 缓存
+  // 7. 释放远程图片 Blob 缓存
   releaseRemoteImageBlobs();
 });
 

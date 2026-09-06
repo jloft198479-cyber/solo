@@ -493,15 +493,20 @@ html.doc-heavy .tiptap-editor > hr {
 
 /* ── 链接 ──────────────────────────────────────────────────── */
 /* LinkOpen 扩展处理 Ctrl/Cmd+Click 跳转，单击留给光标定位/编辑。
-   hover 显示 pointer 是视觉提示（用户看到指针知道是链接可点），
-   单击不会跳转，需按住 Ctrl/Cmd 才触发跳转。 */
+   光标默认 text（与正文一致，单击只定位）；按住 Ctrl/Cmd（.ctrl-held 由
+   LinkOpen 切换）才显示 pointer——指针出现即代表「现在点会跳转」，
+   消除「hover 可点、单击无反应」的误导（KNOWN-ISSUES #10）。 */
 .tiptap-editor a {
   color: var(--primary-color);
   text-decoration: none;
   border-bottom: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
   text-underline-offset: 2px;
-  cursor: pointer;
+  cursor: text;
   transition: border-color var(--motion-fast);
+}
+
+.tiptap-editor.ctrl-held a {
+  cursor: pointer;
 }
 
 .tiptap-editor a:hover {
@@ -795,6 +800,7 @@ html.doc-heavy .tiptap-editor > hr {
   white-space: pre-wrap;
   word-break: break-word;
   outline: none;
+  cursor: text;
 }
 
 .tiptap-editor .mk-image-shell.ProseMirror-selectednode img.mk-image {
@@ -804,7 +810,8 @@ html.doc-heavy .tiptap-editor > hr {
 }
 
 .tiptap-editor .mk-image-shell.is-editing .mk-image-source-text,
-.tiptap-editor .mk-image-shell.is-invalid .mk-image-source-text {
+.tiptap-editor .mk-image-shell.is-invalid .mk-image-source-text,
+.tiptap-editor .mk-image-shell.ProseMirror-selectednode .mk-image-source-text {
   display: block;
 }
 
@@ -1460,6 +1467,19 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   text-align: center;
   color: var(--muted-color);
   font-size: 13px;
+}
+
+/* ── 互链补全菜单（复用 slash-menu 壳，纯文件名列表） ─────────── */
+.mk-wikilink-menu-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-color);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── 拖拽手柄 ────────────────────────────────────────────────── */

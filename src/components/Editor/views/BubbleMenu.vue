@@ -60,7 +60,7 @@
         placeholder="输入链接地址..."
         class="bubble-menu-input"
         @keydown.enter="applyLink"
-        @keydown.escape="cancelLink"
+        @keydown.escape.stop="cancelLink"
       />
       <button class="bubble-menu-btn-primary" @click="applyLink">
         确定

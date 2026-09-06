@@ -99,7 +99,10 @@ function onDismiss() {
 
 function onKeyDown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
+    // stopPropagation：防冒泡到 window 级 Esc（焦点模式切换）——
+    // 关菜单不应顺带退出焦点模式（与 SearchPanel 的 .stop 写法一致）
     event.preventDefault();
+    event.stopPropagation();
     close();
   }
 }
