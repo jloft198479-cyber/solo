@@ -1,6 +1,7 @@
 import { ref, type Ref } from 'vue';
 import { debounce } from 'lodash-es';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
+import { isHeavyDocument } from '../document-scale';
 import { smoothScrollBehavior } from './editor-dom';
 
 interface SearchMatch {
@@ -58,14 +59,23 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
   }, 120);
 
   // 编辑后重新扫描：保持当前 activeIndex 上下文（不重置到 1）
-  // 与 doSearch 共用 120ms 节奏但独立 debounce 实例——语义不同（搜索框输入 vs 编辑触发）
-  const refreshAfterEdit = debounce(() => {
+  // 搜索框输入（doSearch）固定 120ms；编辑触发的重扫按档位分流——
+  // heavy/extreme 档全文扫描 + 全量装饰重建开销大，防抖放到 500ms 降频。
+  // 档位在切文档时变化，路由必须在触发时判断，故用两个 debounce 实例。
+  const refreshAfterEditFast = debounce(() => refreshMatches(), 120);
+  const refreshAfterEditSlow = debounce(() => refreshMatches(), 500);
+
+  function refreshMatches() {
     if (!searchQuery || !editor.value) return;
     // 组字期间不 dispatch：空事务会触发 search-highlight 重建 inline 装饰，
     // 改动正在组字的 DOM → WebView2 下 IME 候选窗失锚变形（横条塌成小方块）。
     // 组字结束后最终上屏的 doc change 会再触发一次刷新，高亮不会漏。
     if (editor.value.view.composing) return;
     const matches = findMatches(searchQuery);
+    // 匹配集合未变（数量与位置都相同）：无需 dispatch。已有装饰在用户编辑的
+    // doc change 事务里被 search-highlight 的 map 平移到新位置，仍然正确；
+    // 空 dispatch 只为换 currentMatches 引用触发重建——引用不换就不必发。
+    if (matchesEqual(matches, currentMatches.value)) return;
     currentMatches.value = matches;
     searchMatchCount.value = matches.length;
     // clamp 当前索引到有效范围，保持用户的高亮位置上下文
@@ -78,7 +88,11 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     if (editor.value && !editor.value.isDestroyed) {
       editor.value.view.dispatch(editor.value.state.tr);
     }
-  }, 120);
+  }
+
+  function matchesEqual(a: SearchMatch[], b: SearchMatch[]): boolean {
+    return a.length === b.length && a.every((m, i) => m.from === b[i].from && m.to === b[i].to);
+  }
 
   function findMatches(query: string): SearchMatch[] {
     if (!editor.value || !query) return [];
@@ -210,7 +224,8 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     currentMatches.value = [];
     searchQuery = '';
     doSearch.cancel();
-    refreshAfterEdit.cancel();
+    refreshAfterEditFast.cancel();
+    refreshAfterEditSlow.cancel();
 
     // 触发事务清除 ProseMirror 搜索高亮装饰
     if (editor.value) {
@@ -220,12 +235,18 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
 
   /** 编辑器内容变化时调用（由 MarkdownEditor onUpdate 接线） */
   function onEditorDocChange() {
-    refreshAfterEdit();
+    // heavy/extreme 档降频：全文重扫 + 装饰全量重建是大开销，500ms 防抖够用
+    if (isHeavyDocument()) {
+      refreshAfterEditSlow();
+    } else {
+      refreshAfterEditFast();
+    }
   }
 
   /** 切换文档时调用：清除搜索状态并通知 PM 插件 */
   function onDocumentSwitch() {
-    refreshAfterEdit.cancel();
+    refreshAfterEditFast.cancel();
+    refreshAfterEditSlow.cancel();
     doSearch.cancel();
     searchQuery = '';
     currentMatches.value = [];

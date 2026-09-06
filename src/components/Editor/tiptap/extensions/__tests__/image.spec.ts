@@ -92,7 +92,7 @@ describe('parseImageMarkdown', () => {
 
 describe('getRemoteImageDisplaySrc', () => {
   it('deduplicates pending requests for the same remote URL', async () => {
-    const fetcher = vi.fn(async () => 'data:image/png;base64,demo');
+    const fetcher = vi.fn(async () => 'asset://localhost/remote-image-cache/demo.png');
     __setRemoteImageFetcherForTests(fetcher);
 
     const results = await Promise.all([
@@ -104,8 +104,8 @@ describe('getRemoteImageDisplaySrc', () => {
     expect(results[0]).toBe(results[1]);
     // fetcher 只被调用一次
     expect(fetcher).toHaveBeenCalledTimes(1);
-    // 返回值是 blob URL（base64 data URL 已转换为 Blob URL）
-    expect(results[0]).toMatch(/^blob:/);
+    // #4 之后 fetcher 返回 asset URL，直接透传缓存（C8 已删 blob 转换路径）
+    expect(results[0]).toBe('asset://localhost/remote-image-cache/demo.png');
   });
 
   it('limits concurrent remote image requests', async () => {
@@ -150,5 +150,23 @@ describe('getRemoteImageDisplaySrc', () => {
     await expect(getRemoteImageDisplaySrc('https://example.com/missing.png'))
       .resolves.toBe('https://example.com/missing.png');
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('enforces an entry-count LRU cap (C8: 真兜底替代恒不触发的 50MB 假预算)', async () => {
+    // 逐个拉取 502 个不同 URL（并发上限 4，串行等待避免抖动），缓存条目应封顶 500
+    const fetcher = vi.fn(async (src: string) => `asset://localhost/${src.length}.png`);
+    __setRemoteImageFetcherForTests(fetcher);
+
+    for (let i = 0; i < 502; i++) {
+      await getRemoteImageDisplaySrc(`https://example.com/img-${i}.png`);
+    }
+
+    // 最老的条目被 LRU 淘汰，最新条目仍在缓存（再次请求不触发 fetcher）
+    const before = fetcher.mock.calls.length;
+    await getRemoteImageDisplaySrc('https://example.com/img-501.png');
+    expect(fetcher.mock.calls.length).toBe(before);
+    // 早期条目已被驱逐：重新请求会再次命中 fetcher
+    await getRemoteImageDisplaySrc('https://example.com/img-0.png');
+    expect(fetcher.mock.calls.length).toBe(before + 1);
   });
 });

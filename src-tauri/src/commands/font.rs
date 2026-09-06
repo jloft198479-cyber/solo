@@ -97,7 +97,6 @@ pub async fn fetch_font_data(
         .app_local_data_dir()
         .map_err(|e| AppError::Native(e.to_string()))?
         .join("font-cache");
-    fs::create_dir_all(&cache_dir)?;
     // 缓存文件名用 URL 末段（含扩展名，如 NotoSerifSC-Regular.otf）。
     // 历史背景：v1.2.27 用 family（如 "Noto Serif SC"，无扩展名）作文件名；
     // v1.2.28 改为 fileName 后旧缓存无法被新代码识别（key 不匹配），被迫重新下载。
@@ -106,15 +105,23 @@ pub async fn fetch_font_data(
     // 避免前端 family 字符串与磁盘文件名之间的二次映射。
     // （早期注释说"无扩展名导致 Content-Type 推断失败"是错误的——v1.2.27 时
     // 无扩展名的 family 文件名能正常加载，反证了这一点。）
-    let file_name = url
-        .rsplit('/')
-        .next()
-        .filter(|s| !s.is_empty())
-        .unwrap_or(&family);
-    let cached = cache_dir.join(file_name);
-    let tmp = cache_dir.join(format!("{}.tmp", file_name));
-    fs::write(&tmp, &bytes)?;
-    fs::rename(&tmp, &cached)?;
+    // 磁盘 IO（写 8-15MB 字体）放 spawn_blocking，不压 tokio worker 线程（对齐 #2 标准）。
+    let cached = tauri::async_runtime::spawn_blocking(move || -> Result<std::path::PathBuf, AppError> {
+        fs::create_dir_all(&cache_dir)?;
+        let file_name = url
+            .rsplit('/')
+            .next()
+            .filter(|s| !s.is_empty())
+            .unwrap_or(&family)
+            .to_string();
+        let cached = cache_dir.join(&file_name);
+        let tmp = cache_dir.join(format!("{}.tmp", file_name));
+        fs::write(&tmp, &bytes)?;
+        fs::rename(&tmp, &cached)?;
+        Ok(cached)
+    })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))??;
 
     Ok(cached.to_string_lossy().to_string())
 }
@@ -178,11 +185,17 @@ pub async fn save_font_cache(
         .app_local_data_dir()
         .map_err(|e| AppError::Native(e.to_string()))?
         .join("font-cache");
-    fs::create_dir_all(&cache_dir)?;
-    let cached = cache_dir.join(&file_name);
-    let tmp = cache_dir.join(format!("{}.tmp", &file_name));
-    fs::write(&tmp, &data)?;
-    fs::rename(&tmp, &cached)?;
+    // 磁盘 IO（写 8-15MB 字体）放 spawn_blocking（对齐 #2 标准）
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), AppError> {
+        fs::create_dir_all(&cache_dir)?;
+        let cached = cache_dir.join(&file_name);
+        let tmp = cache_dir.join(format!("{}.tmp", &file_name));
+        fs::write(&tmp, &data)?;
+        fs::rename(&tmp, &cached)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))??;
     Ok(())
 }
 
@@ -203,28 +216,33 @@ pub async fn read_font_bytes(
     file_name: String,
     app: AppHandle,
 ) -> Result<Vec<u8>, AppError> {
-    let cache_dir = app
-        .path()
-        .app_local_data_dir()
-        .map_err(|e| AppError::Native(e.to_string()))?
-        .join("font-cache");
+    // 磁盘 IO（读 8-15MB 字体 ×2 路径探测）放 spawn_blocking（对齐 #2 标准）
+    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<u8>, AppError> {
+        let cache_dir = app
+            .path()
+            .app_local_data_dir()
+            .map_err(|e| AppError::Native(e.to_string()))?
+            .join("font-cache");
 
-    // 先查新名（file_name，含扩展名）
-    let cached = cache_dir.join(&file_name);
-    if cached.exists() {
-        return Ok(fs::read(&cached)?);
-    }
+        // 先查新名（file_name，含扩展名）
+        let cached = cache_dir.join(&file_name);
+        if cached.exists() {
+            return Ok(fs::read(&cached)?);
+        }
 
-    // 再查旧名（family，无扩展名）——v1.2.27 兼容
-    let legacy = cache_dir.join(&family);
-    if legacy.exists() {
-        let bytes = fs::read(&legacy)?;
-        // 迁移为新名
-        let _ = fs::rename(&legacy, &cached);
-        return Ok(bytes);
-    }
+        // 再查旧名（family，无扩展名）——v1.2.27 兼容
+        let legacy = cache_dir.join(&family);
+        if legacy.exists() {
+            let bytes = fs::read(&legacy)?;
+            // 迁移为新名
+            let _ = fs::rename(&legacy, &cached);
+            return Ok(bytes);
+        }
 
-    Ok(Vec::new())
+        Ok(Vec::new())
+    })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?
 }
 
 #[cfg(test)]

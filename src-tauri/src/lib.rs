@@ -284,6 +284,9 @@ pub fn run() {
             app.manage(FocusedWindow::default());
             app.manage(CloseGuard::default());
 
+            // C3：remote-image-cache 磁盘缓存容量清理（后台线程，不阻塞启动）
+            commands::image::cleanup_remote_image_cache(&app.handle());
+
             let raw_args = std::env::args().collect::<Vec<_>>();
             append_startup_log(
                 Some(&app.handle()),

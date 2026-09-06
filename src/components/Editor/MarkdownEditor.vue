@@ -77,7 +77,7 @@ import { setupEditorImageDrop } from './tiptap/editor-image-drop';
 import {
   resetLocalSrcResolver,
   setLocalSrcResolver,
-  releaseRemoteImageBlobs,
+  releaseRemoteImageCache,
 } from './tiptap/extensions/image';
 import { resolveWikilinkTarget } from './tiptap/extensions/wikilink';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
@@ -334,7 +334,7 @@ watch(
   // 不直接 watch content：编辑期 syncEditedContent 也写 content，
   // 会在 store 滞后于编辑器时把正在编辑的内容回退成旧基线。
   () => [fileStore.currentFile.path, fileStore.reloadToken] as const,
-  ([path]) => {
+  ([path], [prevPath]) => {
     resolvedImageCache.clear();
     // 预取互链 [[ 补全候选：切文档即后台刷新，首次敲 [[ 时直接命中缓存
     void refreshWikilinkCandidates(path);
@@ -343,11 +343,20 @@ watch(
     // 比较当前 editor 序列化结果与目标内容，相同则跳过（如另存为场景）。
     // 优先命中序列化缓存：大文档全量序列化要 100-300ms，缓存未命中才真跑。
     const currentDoc = editor.value.state.doc;
-    const currentMarkdown = (
-      cachedSerialize?.doc === currentDoc ? cachedSerialize.content : serializeMarkdown(currentDoc)
-    ).replace(/\n+$/, '');
+    const crossFileSwitch = path !== prevPath;
+    let currentMarkdown: string | null = null;
+    if (cachedSerialize?.doc === currentDoc) {
+      currentMarkdown = cachedSerialize.content.replace(/\n+$/, '');
+    } else if (!crossFileSwitch) {
+      // 同路径重载（外部修改）：比对结果决定是否替换，缓存未命中也必须真跑
+      currentMarkdown = serializeMarkdown(currentDoc).replace(/\n+$/, '');
+    }
+    // 跨文件切换 + 缓存未命中：跳过旧文档全量序列化——目标必是另一份内容，
+    // 比对注定不等，100-300ms 序列化是纯白算，且恰好卡在切换瞬间。
+    // 另存为/重命名也属跨文件，但其落盘前 persistDocument→getContent() 已
+    // 刷新缓存，实际必走上面的缓存命中分支，不受此影响。
     const targetMarkdown = content.replace(/\n+$/, '');
-    if (currentMarkdown === targetMarkdown) return;
+    if (currentMarkdown !== null && currentMarkdown === targetMarkdown) return;
 
     cancelPending();
     // 切文档时清除搜索高亮（旧文档的 matches pos 对新文档无意义）
@@ -655,8 +664,8 @@ onBeforeUnmount(() => {
     _bubbleMenuRafId = null;
   }
 
-  // 7. 释放远程图片 Blob 缓存
-  releaseRemoteImageBlobs();
+  // 7. 清空远程图片内存缓存（重置 LRU 状态）
+  releaseRemoteImageCache();
 });
 
 // 拼写检查：编辑器创建后 settings 变更时动态更新 DOM 属性

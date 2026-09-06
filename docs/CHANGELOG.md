@@ -48,6 +48,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **callout 类型配色在真实编辑器从未生效（B10 顺手修复）**：`Callout` 的 NodeView 创建裸 `div.mk-callout`，不挂任何属性——而 `addAttributes.renderHTML` 只作用于剪贴板/HTML 序列化，不作用于 NodeView DOM，`data-callout-type` 从未出现在真实编辑器里，所有 callout 一直渲染成 note 默认配色、`::before` 类型标签为空（该 NodeView 与类型配色 CSS 同批引入，自引入日起即坏）。修复：NodeView 手动同步 `data-callout-type`/`data-title`/`data-fold`（`update()` 时增量更新），补 NodeView 属性回归锁。
 
 
+### Performance
+- **「崩溃后隔天再开」启动长时间无响应（C4）**：启动关键路径同步清理 >1h 的 WebView2 残留数据目录，`remove_dir_all` 删万级小文件可耗时数秒，且此时尚无任何窗口——点击图标表现为长时间无响应。修复：stale 清理移到后台线程与启动并行（清理目标仅 >1h 旧目录，与本进程刚建的目录无竞态）。
+- **remote-image-cache 磁盘缓存无限累积（C3）**：单图 ≤10MB 落盘后从无清理。修复：启动时后台线程做容量清理——超 200MB 按 mtime 从旧到新删除，10 分钟宽限期内的文件跳过（防误删双开实例/本进程正在拉取的图片，宁可暂留超限）；缓存 miss 会重新下载，删除无数据丢失风险。
+- **搜索开着时每次编辑停顿即全文重扫（C5）**：搜索面板打开期间每次编辑停顿 120ms 就全文重扫 + 全量装饰重建（数千匹配 = 数千 Decoration + DOM 分裂），大文档未降档。修复：编辑触发的重扫按档位分流——heavy/extreme 档防抖放到 500ms（搜索框输入仍 120ms 不变）；且匹配集合（数量与位置）未变时跳过 dispatch——已有装饰在编辑事务里被 map 平移到新位置仍然正确，空 dispatch 纯为换引用触发重建，不换就不必发。
+- **切文档瞬间的 100-300ms 白算序列化（C6）**：500ms 内快速切文件时序列化缓存未命中，watch 会同步全量序列化旧 doc，而跨文件切换目标必是另一份内容、比对注定不等——卡顿恰好落在切换瞬间且是纯白算。修复：跨文件 path 变化跳过序列化直接替换内容，仅同路径 reloadToken（外部修改重载）保留语义比对（另存为/重命名落盘前 `getContent()` 已刷新缓存，不受影响）。
+- **异步命令内阻塞 fs IO 压 tokio worker 线程（C7）**：字体 8-15MB 读写（fetch/save/read 三处）与远程图片 ≤10MB 写盘未进 `spawn_blocking`，与已修 #2 标准不一致。修复：全部写盘段包 `spawn_blocking` 对齐。
+- **大纲面板关闭时 scroll-spy 仍每滚动帧运行（C9）**：面板常驻挂载，滚动监听不看 isOpen，关闭期间每帧二分查找 + `getBoundingClientRect` 纯浪费。修复：`updateActive`/`onScroll` 开头 `isOpen` 早退（零调度零计算），重开面板时补算一次。
+- **remote-image 50MB 内存 LRU 名存实亡（C8）**：#4 改 Rust 落盘 + asset URL 后，前端缓存条目只是两个短字符串、size 恒为 0，字节预算永不超——淘汰分支是死代码，「50MB 兜底」是假保险。修复：删掉 blob 转换/记账整条死路径，改条目级 LRU（500 条封顶，只防超长会话 Map 无界增长；内存大头在 Rust 侧磁盘缓存，前端不持有图片字节）。
+
 ### Added
 - **`[[` 互链文件名补全**：输入 `[[` 即弹出同目录 .md 文件名补全菜单（复用 Slash/Emoji 同款 Suggestion 基建）：新 Rust 命令 `list_markdown_files`（同目录、不递归、排序、上限 500）+ `WikilinkSuggest` 扩展 + `WikilinkMenu` 组件；候选按文档路径缓存、切换文档/懒初始化预取，排除当前文档自身、菜单上限 50。上下文守卫：代码块内不弹、`![[` 嵌入语法不触发、未闭合 `[[` 内抑制 `/` `:` 菜单（`suggestion-guard` 升级支持多字符触发，非重叠扫描对齐正则语义）。
 
