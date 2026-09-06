@@ -57,6 +57,7 @@ solo 是一个 **Tauri v2 桌面端 Markdown 编辑器**（Vue 3 + TipTap + Rust
 2. **检查 **`replaceAll`：TS target ES2020，用 `.split().join()` 替代
 3. 确认 tag 名与版本号一致（`v1.x.x`）
 4. 完整流程见 [docs/RELEASE_PROCESS.md](./docs/RELEASE_PROCESS.md)
+5. **Agent 自动发版（WorkBuddy 托管 shell）**：`bun` / `gh` 命令有 6 个环境坑（GH_TOKEN 污染、bun segfault、draft 下载卡死、CNB 的 `main` 分支等），完整对策与一遍成功清单见 `docs/RELEASE_PROCESS.md` **§11**，照 **§11.7** 执行可一遍成功（勿只凭记忆，详情以文档为准）。
 
 ### 提交前
 

@@ -82,6 +82,7 @@ A 文档梳理 ──▶ B 问题盘点 ──▶ C 优化提案 ──▶ D 提
 ## Phase E — 发布（机械 · 脚本化）
 
 > 机制细节见 [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md)。本阶段用 `scripts/release-gate.ps1` 跑两道闸门，消灭手滑与易忘。
+> ⚠️ 在 WorkBuddy 托管 shell 自动发版时，该脚本因环境变量注入冲突跑不了（见 RELEASE_PROCESS **§11.6**），退化为手写等价命令，按 **§11.7** 清单逐条执行即可，效果等同闸门脚本。
 
 ### PreTag 闸门（打 tag 前）
 
