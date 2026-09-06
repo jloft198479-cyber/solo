@@ -497,11 +497,13 @@ function escapeHtmlText(s: string): string {
 }
 
 /**
- * CellSelection（跨单元格拖选）复制时，把 text/html 压平为逐行 `<p>` 文本。
- * 根因：PM 默认序列化 CellSelection 的 content() 会带出整表/表格行 +
+ * CellSelection（跨单元格拖选 / 点进单元格后 Ctrl+A）复制时，把选区压平为
+ * 纯文本（text/plain 用 \t 分列、text/html 用逐行 `<p>`）。
+ * 根因两层：① PM 默认序列化 CellSelection 的 content() 会带出整表/表格行 +
  * `resizable:true` 的固定像素 `<colgroup>`——粘到 Word/WPS/微信变成带死宽度的
- * 表格，「不干净」。text/plain 不动（走 clipboardTextSerializer 的 Markdown
- * 管道表）；普通选区一个字节不动（富格式保真是 v1.2.x 出站修复的成果）。
+ * 表格；② text/plain 走 clipboardTextSerializer 的 Markdown 管道，粘到纯文本
+ * 目标变成 GFM 表格源码（v1.2.43 只压平了 text/html，漏了这条）。
+ * 普通选区一个字节不动（富格式保真是 v1.2.x 出站修复的成果）。
  * 单元格间用 \t 分隔：粘到 Excel/WPS 自动分列，粘到纯文本保留视觉分隔。
  */
 function onEditorCopy(event: ClipboardEvent) {
@@ -528,8 +530,9 @@ function onEditorCopy(event: ClipboardEvent) {
     });
     lines.push(cells.join('\t'));
   }
-  const html = lines.map((line) => `<p>${escapeHtmlText(line)}</p>`).join('');
-  clipboardData.setData('text/html', html);
+  const text = lines.join('\n');
+  clipboardData.setData('text/plain', text);
+  clipboardData.setData('text/html', lines.map((line) => `<p>${escapeHtmlText(line)}</p>`).join(''));
   event.preventDefault();
 }
 
