@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 
 const STALE_DATA_DIR_AGE: Duration = Duration::from_secs(60 * 60); // 1h
@@ -19,15 +20,37 @@ fn main() {
 ///
 /// 正常退出时 main() 会清理自己的目录。启动时仅清理 >1h 的残留目录——
 /// 不无条件删全部，避免误伤仍在运行的双开老进程的 EBWebView 目录。
-fn setup_webview2_data_dir() -> std::path::PathBuf {
+fn setup_webview2_data_dir() -> PathBuf {
     let company_dir = std::env::temp_dir().join("com.solomarkdown");
     let _ = std::fs::create_dir_all(&company_dir);
 
-    let now = SystemTime::now();
+    // stale 清理放后台线程：remove_dir_all 删 WebView2 目录（万级小文件）可耗时
+    // 数秒，同步跑在 run() 之前会卡住窗口创建——「崩溃后隔天再开」表现为点击
+    // 图标长时间无响应。清理目标仅限 >1h 的旧目录，与本进程刚建的目录
+    // （mtime=now，永不满足 stale 判定）无竞态，可安全与启动并行。
+    let cleanup_dir = company_dir.clone();
+    std::thread::spawn(move || cleanup_stale_webview_dirs(&cleanup_dir));
 
-    // 清理足够老的 EBWebView 残留目录（>STALE_DATA_DIR_AGE）。
-    // 正常退出时 main() 会清理自己的目录；这里只兜底崩溃/强杀残留。
-    if let Ok(entries) = std::fs::read_dir(&company_dir) {
+    let now = SystemTime::now();
+    let pid = std::process::id();
+    let ms = now
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let dir_name = format!("EBWebView-{}-{}", pid, ms);
+    let webview_dir = company_dir.join(dir_name);
+
+    let _ = std::fs::create_dir_all(&webview_dir);
+    std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &webview_dir);
+
+    webview_dir
+}
+
+/// 清理足够老的 EBWebView 残留目录（>STALE_DATA_DIR_AGE）。
+/// 正常退出时 main() 会清理自己的目录；这里只兜底崩溃/强杀残留。
+fn cleanup_stale_webview_dirs(company_dir: &std::path::Path) {
+    let now = SystemTime::now();
+    if let Ok(entries) = std::fs::read_dir(company_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             if !name.starts_with("EBWebView-") {
@@ -45,17 +68,4 @@ fn setup_webview2_data_dir() -> std::path::PathBuf {
             }
         }
     }
-
-    let pid = std::process::id();
-    let ms = now
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis())
-        .unwrap_or(0);
-    let dir_name = format!("EBWebView-{}-{}", pid, ms);
-    let webview_dir = company_dir.join(dir_name);
-
-    let _ = std::fs::create_dir_all(&webview_dir);
-    std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &webview_dir);
-
-    webview_dir
 }

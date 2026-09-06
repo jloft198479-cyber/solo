@@ -4,7 +4,7 @@ type: proposal
 audience: maintainer
 status: proposal
 tags: [优化方案, 审查, 交互体验, 响应速度, 格式兼容, 提案]
-summary: 2026-09-06 三方向全面审查 30 条发现（已逐条核实）与 P0-P3 分批修复路线图，执行待拍板
+summary: 2026-09-06 三方向全面审查 30 条发现与 P0-P3 分批修复路线图，P0-P3 已全部完成（余 B3 独立小批）
 updates: [docs/KNOWN-ISSUES.md, src/components/Editor/, src-tauri/src/]
 ---
 
@@ -13,7 +13,7 @@ updates: [docs/KNOWN-ISSUES.md, src/components/Editor/, src-tauri/src/]
 > 应对方向：审查 bug、提升交互体验、提升响应速度、提升格式兼容性。
 > 审查方法：三个独立代码审查（交互体验 / 格式兼容性 / 性能与 bug），**全部发现均有 file:line 证据**；此前用户反馈并已登记的两条问题（[`KNOWN-ISSUES.md §二 #9/#10`](./KNOWN-ISSUES.md)）一并纳入，共 **31 条**。
 > 核实（2026-09-06）：31 条已逐条对照实际代码复核——**30 条属实，B9 被运行时反证推翻剔除**（注记见方向 B 表后），本文按 **30 条**维护。
-> 状态：**P0-P2 全部完成**（见第三节路线图勾销，B3 Word 列表重建独立小批另行安排）；剩余：P3。每完成一项：[`KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) 对应条目移 §一 已修复 + 本文勾销进度。
+> 状态：**P0-P3 全部完成**（见第三节路线图勾销，B3 Word 列表重建独立小批另行安排）。每完成一项：[`KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) 对应条目移 §一 已修复 + 本文勾销进度。
 
 ---
 
@@ -113,7 +113,7 @@ updates: [docs/KNOWN-ISSUES.md, src/components/Editor/, src-tauri/src/]
 | **P0** | 数据安全 | ✅ C1 fsync、✅ C2 卸载前 flush（2026-09-06 完成，见 CHANGELOG Unreleased） | cargo check ✅（vcvars64 初始化后本地通过）；bun run test 1207 全过 ✅；vue-tsc ✅；断电/丢编辑语义代码走查 ✅ |
 | **P1** | 交互死角 | ✅ 全部完成（2026-09-06）：D1、D2（创建 + title + 阈值 + 提示）+ 拆项 `[[` 补全、A1-A10；见 CHANGELOG Unreleased 与 KNOWN-ISSUES §一 #16-#18 | bun run test（1222 全过）+ vue-tsc + build 三步全过 ✅ |
 | **P2** | 格式兼容 | ✅ 全部完成（2026-09-06）：主批 B1、B2、B7、B8、B6、B4（先红后绿，逐项 roundtrip 测试）+ 顺手修复 CommonMark spec Ex20/603（destination 反斜杠转义，652 条规范用例 0 失败）；次级 B5（表格东亚宽度对齐）、B10（callout 标题/折叠标记建模）+ 顺手修复 callout NodeView 丢属性（类型配色真实编辑器从未生效，见 KNOWN-ISSUES §一 #20）；B3 Word 列表重建工作量最大，独立小批另行安排 | 主批：bun run test（1241 全过）+ vue-tsc + build 三步全过 ✅；次级：bun run test（1253 全过）+ vue-tsc + build 三步全过 ✅ |
-| **P3** | 响应速度 | C4 启动清理移后台、C5 搜索门控、C6 切文档跳过白算、C3 磁盘缓存清理、C9 大纲早退、C7 spawn_blocking、C8 死代码处置 | bun run test + build；Rust 项 cargo check；启动/搜索手测对比 |
+| **P3** | 响应速度 | ✅ 全部完成（2026-09-06）：C4 启动清理移后台、C5 搜索门控（档位分流防抖 + 匹配未变跳过 dispatch）、C6 切文档跳过白算、C3 磁盘缓存清理（200MB 容量 + mtime LRU + 10min 宽限）、C9 大纲早退 + 重开补算、C7 spawn_blocking（font 三处 + image 写盘）、C8 删 blob/50MB 假预算死代码改条目级 LRU；见 CHANGELOG Unreleased Performance | bun run test（1254 全过）+ vue-tsc + build 三步全过 ✅；cargo check + cargo test --lib（68 全过）✅ |
 
 > 批内顺序即优先级；P2/P3 批内条目可按剩余时间裁剪。全部完成后再回头更新 `README`/`ARCHITECTURE` 涉及面（若此次不涉及命令清单/技术栈则无需）。
 

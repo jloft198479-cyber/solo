@@ -32,6 +32,12 @@ function invalidateContainerRect() {
 }
 
 function updateActive() {
+  // 面板关闭时不跑 scroll-spy：每帧二分查找 + getBoundingClientRect 是纯浪费，
+  // 关闭期间 activePos 冻结，重开时由 isOpen watch 补算一次。
+  if (!props.isOpen) {
+    activePos.value = null;
+    return;
+  }
   const view = props.editorRef?.getEditorView?.();
   if (!view || !scrollContainer || props.items.length === 0) {
     activePos.value = null;
@@ -71,7 +77,8 @@ function updateActive() {
 }
 
 function onScroll() {
-  if (rafId != null) return;
+  // 面板关闭时连 rAF 都不排（滚动事件本身仍会触发，但零调度零计算）
+  if (!props.isOpen || rafId != null) return;
   rafId = requestAnimationFrame(() => {
     rafId = null;
     updateActive();
@@ -102,6 +109,14 @@ watch(
   () => props.editorRef,
   (val) => {
     if (val) nextTick(attachScroll);
+  },
+);
+
+// 重开面板时补算 scroll-spy：关闭期间 updateActive 早退，activePos 已冻结/清空
+watch(
+  () => props.isOpen,
+  (open) => {
+    if (open) nextTick(updateActive);
   },
 );
 
