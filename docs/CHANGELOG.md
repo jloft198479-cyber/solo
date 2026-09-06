@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.2.50] — 2026-09-07
 
 ### Fixed
 - **单元格内复制文字粘出整张 GFM 表格（#16 第二层根因）**：v1.2.43 只压平了 CellSelection 的 text/html，text/plain 管道没动——格内双击选中「剪映」两个字复制，粘到纯文本目标（聊天框/VSCode）变成 `| 剪映 |\n| ---- |`。真根因：`serializeClipboardSlice` 用 `doc.copy(slice.content)` 序列化选区 slice，丢掉了 PM 的开口（openStart/openEnd）标记——选区落在表格内时 slice 的 table/row/cell 都是「部分包含」的开口容器，被序列化器当闭合节点整段渲染；引用块/列表内选字同理带出 `>`/`- ` 标记。修复：序列化前经 `stripOpenLayers` 剥开口层，只序列化完全包含的内容（table 系容器因 `nodeSerializers` 空 handler 无法独立渲染、随时剥；语义容器按开口计数剥；停在 textblock——顶层 inline 会被 renderContent 输出为空）；闭合 slice（整篇/NodeSelection 选区）原样保留，扩展语法标记不丢。CellSelection 的 text/plain 同步压平为 TSV（与 text/html 同源）。行为变化：引用块/列表**内部**选字复制不再带 `>`/`- ` 前缀（与 PM 原生 text/plain「选什么粘什么」对齐），整篇/跨格选区的 Markdown 出站保真不变。回归锁：`clipboard-serializer.spec.ts`「开口 slice 剥层」7 条。
