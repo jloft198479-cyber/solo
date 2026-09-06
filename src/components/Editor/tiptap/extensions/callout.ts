@@ -5,6 +5,7 @@
  * 参见 Obsidian callout 语法兼容。
  */
 import { Node, mergeAttributes } from '@tiptap/core';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 
 const VALID_TYPES = [
   'note', 'abstract', 'info', 'tip', 'success', 'question',
@@ -44,6 +45,20 @@ export const Callout = Node.create({
           class: 'mk-callout',
         }),
       },
+      // B10：Obsidian `> [!NOTE]+ 标题` 的标题与折叠标记，保真建模防 roundtrip 语义漂移
+      title: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-title') || '',
+        renderHTML: (attrs) => (attrs.title ? { 'data-title': attrs.title as string } : {}),
+      },
+      fold: {
+        default: null, // '+'（默认展开）| '-'（默认折叠）| null（不可折叠）
+        parseHTML: (el) => {
+          const v = el.getAttribute('data-fold');
+          return v === '+' || v === '-' ? v : null;
+        },
+        renderHTML: (attrs) => (attrs.fold ? { 'data-fold': attrs.fold as string } : {}),
+      },
     };
   },
 
@@ -56,11 +71,32 @@ export const Callout = Node.create({
   },
 
   addNodeView() {
-    return () => {
+    return ({ node }) => {
       const dom = document.createElement('div');
-      dom.className = 'mk-callout';
 
-      return { dom, contentDOM: dom };
+      // NodeView 的 DOM 不会自动应用 addAttributes 的 renderHTML（那只作用于
+      // 剪贴板/HTML 序列化）——必须手动同步，否则类型配色/标题 CSS 全部失效
+      const applyAttrs = (n: ProseMirrorNode) => {
+        dom.className = 'mk-callout';
+        dom.setAttribute('data-callout-type', normalizeCalloutType(n.attrs.calloutType as string));
+        const title = typeof n.attrs.title === 'string' ? n.attrs.title.trim() : '';
+        if (title) dom.setAttribute('data-title', title);
+        else dom.removeAttribute('data-title');
+        const fold = n.attrs.fold === '+' || n.attrs.fold === '-' ? n.attrs.fold : null;
+        if (fold) dom.setAttribute('data-fold', fold);
+        else dom.removeAttribute('data-fold');
+      };
+      applyAttrs(node);
+
+      return {
+        dom,
+        contentDOM: dom,
+        update: (updatedNode: ProseMirrorNode) => {
+          if (updatedNode.type !== node.type) return false;
+          applyAttrs(updatedNode);
+          return true;
+        },
+      };
     };
   },
 });

@@ -34,25 +34,51 @@ function matchCalloutMarker(inlineToken: Token): string | null {
 }
 
 /**
- * 从 inline token 的 children 中剥离 [!TYPE] 前缀及紧跟的换行
+ * callout 头部信息（B10：Obsidian `> [!NOTE]+ 标题` 的折叠标记与标题建模）
  */
-function stripCalloutMarker(inlineToken: Token) {
-  if (!inlineToken.children || inlineToken.children.length === 0) return;
+interface CalloutHead {
+  /** '+' 默认展开 / '-' 默认折叠 / null 不可折叠 */
+  fold: '+' | '-' | null;
+  /** marker 行剩余文本作为标题（纯文本；含 inline 格式的标题保守不提取，保持正文） */
+  title: string;
+}
+
+/**
+ * 从 inline token 的 children 中剥离 [!TYPE] 前缀及紧跟的换行，
+ * 并提取折叠标记/标题（B10：`+ 标题` 不再混入正文段落）。
+ * 折叠标记按 Obsidian 语义须紧跟 `]`；标题为 marker 行剩余文本，
+ * 占满 marker 行时移除该 text token 及紧跟的 softbreak。
+ */
+function stripCalloutMarker(inlineToken: Token): CalloutHead {
+  const head: CalloutHead = { fold: null, title: '' };
+  if (!inlineToken.children || inlineToken.children.length === 0) return head;
 
   const firstChild = inlineToken.children[0];
-  if (firstChild.type !== 'text') return;
+  if (firstChild.type !== 'text') return head;
 
-  // 剥离 [!TYPE]
-  firstChild.content = firstChild.content.replace(/^\[![A-Za-z]+\]/, '');
+  // 完整形态：[!TYPE] + 可选折叠标记（紧跟 ]）+ 可选标题（行内剩余文本）
+  const m = firstChild.content.match(/^\[![A-Za-z]+\]([+-]?)([ \t]*)(.*)$/);
+  if (!m) return head;
 
-  // 如果剥离后文本为空，移除该 token
-  if (!firstChild.content) {
+  const [, foldRaw, , rest] = m;
+  if (foldRaw || rest.trim()) {
+    head.fold = foldRaw === '+' || foldRaw === '-' ? foldRaw : null;
+    head.title = rest.trim();
+    // 标题占满 marker 行：移除该 text token 及紧跟的 softbreak（有正文时）
     inlineToken.children.splice(0, 1);
-    // 如果下一个 sibling 是 softbreak（[!TYPE]\n 中的 \n），一并移除
     if (inlineToken.children.length > 0 && inlineToken.children[0].type === 'softbreak') {
       inlineToken.children.splice(0, 1);
     }
+    return head;
   }
+
+  // marker 独占行（] 后无内容）→ 剥离后为空，移除该 token 与 softbreak
+  firstChild.content = '';
+  inlineToken.children.splice(0, 1);
+  if (inlineToken.children.length > 0 && inlineToken.children[0].type === 'softbreak') {
+    inlineToken.children.splice(0, 1);
+  }
+  return head;
 }
 
 /**
@@ -113,11 +139,15 @@ const calloutTokenInterceptor: (schema: Schema) => TokenInterceptor = (schema) =
     const calloutType = matchCalloutMarker(inlineToken);
     if (!calloutType) return false;
 
-    // 这是 callout blockquote — 剥离 marker 前缀
-    stripCalloutMarker(inlineToken);
+    // 这是 callout blockquote — 剥离 marker 前缀并提取折叠标记/标题（B10）
+    const head = stripCalloutMarker(inlineToken);
 
     // 打开 callout 节点
-    state.openNode(schema.nodes.callout, { calloutType: normalizeCalloutType(calloutType) });
+    state.openNode(schema.nodes.callout, {
+      calloutType: normalizeCalloutType(calloutType),
+      title: head.title,
+      fold: head.fold,
+    });
 
     // C1：委托主 handler 分发 blockquote 内部的所有 token。
     // 之前只认 paragraph_open/close/inline 三种，代码块/列表/表格/分割线等
@@ -158,14 +188,18 @@ const calloutTokenInterceptor: (schema: Schema) => TokenInterceptor = (schema) =
 const calloutNodeSerializers: Record<string, NodeSerializer> = {
   callout(state: MarkdownSerializerState, node) {
     const type = normalizeCalloutType(node.attrs.calloutType as string);
+    // B10：折叠标记与标题回写（`> [!NOTE]+ 标题`），roundtrip 保 Obsidian 语义
+    const fold = node.attrs.fold === '+' || node.attrs.fold === '-' ? node.attrs.fold : '';
+    const title = typeof node.attrs.title === 'string' ? node.attrs.title.trim() : '';
     // C2：与 blockquote 序列化器统一（serializer.ts blockquote）——先渲染到
     // 临时 state 再逐行加 > 前缀。之前只在 renderNode 前写一次 >，代码块/数学块
     // 等多行内容的后续行没有前缀 → 产出非法 Markdown，重解析会吞掉后续内容。
     const inner = state.createChild();
     inner.renderContent(node);
     const lines = inner.output.replace(/\n$/, '').split('\n');
-    state.writeLine(`> [!${type.toUpperCase()}]`);
-    for (const line of lines) state.writeLine(`> ${line}`);
+    state.writeLine(`> [!${type.toUpperCase()}]${fold}${title ? ` ${title}` : ''}`);
+    // B10：空行输出 > 不带尾随空格（字节干净）
+    for (const line of lines) state.writeLine(line ? `> ${line}` : '>');
     state.closeBlock(node);
   },
 };
