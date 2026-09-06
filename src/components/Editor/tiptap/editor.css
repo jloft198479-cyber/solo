@@ -1071,6 +1071,12 @@ html.doc-heavy .tiptap-editor > hr {
   margin-bottom: 6px;
   opacity: 0.8;
 }
+/* B10：有自定义标题时显示标题（保持类型配色），不再强制大写/宽字距 */
+.tiptap-editor .mk-callout[data-title]::before {
+  content: attr(data-title);
+  text-transform: none;
+  letter-spacing: normal;
+}
 .tiptap-editor .mk-callout[data-callout-type='abstract'] {
   background-color: var(--callout-abstract-bg);
 }

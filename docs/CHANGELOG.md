@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **行内代码首尾空格 roundtrip 丢失**：`` ` x ` `` 重开变 `x`（CommonMark 剥 code span 首尾各一个空格）。修复：内容首尾均为空格且非纯空白时补双空格 padding（`` `  x  ` ``），重开剥一层后复原。
 - **mermaid/math 块内容含围栏字符时落盘即损坏**：内容含独立 ` ``` ` / `$$` 行时固定三反引号围栏被提前闭合，重开结构错乱——codeBlock 有围栏升级逻辑，这两个块漏做。修复：新增共享 `computeFence`（最长同字符 run + 1，且逐行检测转义围栏冲突继续加长）；math 块内容含 `$$` 时改用 ```` ```math ```` fence 形式落盘（无冲突时维持 Obsidian 兼容的 `$$` 形式），parser 侧补 `math` fence 语言路由。
 - **含反斜杠的链接 destination 保真 + CommonMark Ex20/603**：Windows 路径 `[x](C:\notes\a.md)` 此前落盘被改写（`%5C` 编码原样落盘）；且 destination 含字面 `\` 时序列化原样输出，重解析「`\`+ASCII 标点」被当作转义吃掉反斜杠（Ex 20 两轮不稳定）、末尾 `\` 转义闭合括号导致整条链接解析失败退化成纯文本（Ex 603）。修复：parser 侧 `decodeLinkDestination` 补 `%5C` 解码还原原始反斜杠形式；serializer 侧 `escapeDestBackslashes` 只转义「后跟 ASCII 标点或位于末尾」的反斜杠（「`\`+非标点」如 `\n` `\a` `\中文` 保留原样——Windows 路径字节干净），两种 destination 形式统一。CommonMark 652 条规范用例 roundtrip 全绿。
+- **表格列宽含中文时 `|` 不对齐（B5）**：列宽按 UTF-16 `length` 计算，东亚宽字符（显示宽 2）被记 1，含中文单元格的表格源码里竖线永远对不齐。修复：serializer 加 `visualWidth`（East Asian Width W/F 区段记 2，按码点迭代防代理对漏判）+ `padEndVisual` 替换 `length`/`padEnd`，纯 ASCII 表格字节不变。
+- **callout 标题/折叠标记不建模，Obsidian 语义漂移（B10）**：`> [!NOTE]+ 标题` 的 `+ 标题` 被当普通内容段落，roundtrip 后 Obsidian 语义变化；callout 内空行序列化带尾随空格 `> `。修复：callout 节点增 `title`/`fold` attrs，parser 提取（折叠标记须紧跟 `]`，含 inline 格式的标题保守不提取保持正文），serializer 回写 `> [!TYPE]±标题`；空行输出 `>` 不带尾随空格；有自定义标题时编辑器显示标题（`data-title` CSS），否则维持类型名。
+- **callout 类型配色在真实编辑器从未生效（B10 顺手修复）**：`Callout` 的 NodeView 创建裸 `div.mk-callout`，不挂任何属性——而 `addAttributes.renderHTML` 只作用于剪贴板/HTML 序列化，不作用于 NodeView DOM，`data-callout-type` 从未出现在真实编辑器里，所有 callout 一直渲染成 note 默认配色、`::before` 类型标签为空（该 NodeView 与类型配色 CSS 同批引入，自引入日起即坏）。修复：NodeView 手动同步 `data-callout-type`/`data-title`/`data-fold`（`update()` 时增量更新），补 NodeView 属性回归锁。
 
 
 ### Added

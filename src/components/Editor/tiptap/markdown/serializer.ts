@@ -457,12 +457,12 @@ const nodeSerializers: Record<string, NodeSerializer> = {
     // 收集列数
     const colCount = rows[0].childCount;
 
-    // 计算每列最大宽度
+    // 计算每列最大宽度（B5：按显示宽度——东亚宽字符记 2，含中文的列视觉对齐）
     const colWidths: number[] = Array(colCount).fill(3); // 最小3（分隔行 ---）
     for (const row of rows) {
       row.forEach((cell, _offset, colIndex) => {
         const text = cellToText(state, cell);
-        colWidths[colIndex] = Math.max(colWidths[colIndex], text.length);
+        colWidths[colIndex] = Math.max(colWidths[colIndex], visualWidth(text));
       });
     }
 
@@ -472,7 +472,7 @@ const nodeSerializers: Record<string, NodeSerializer> = {
       const cells: string[] = [];
       row.forEach((cell, _offset, colIndex) => {
         const text = cellToText(state, cell);
-        cells.push(text.padEnd(colWidths[colIndex]));
+        cells.push(padEndVisual(text, colWidths[colIndex]));
       });
       state.writeLine('| ' + cells.join(' | ') + ' |');
 
@@ -509,6 +509,29 @@ function cellToText(state: MarkdownSerializerState, cell: PMNode): string {
 }
 
 const WORD_CHAR_RE = /[\p{L}\p{N}]/u;
+
+/**
+ * 东亚宽字符（East Asian Width W/F，显示宽 2）判定——表格列对齐用（B5）。
+ * 覆盖：CJK 统一表意/扩展、假名、谚文、全角 ASCII/标点、CJK 兼容区、
+ * 注音/彝文、竖排与小形式变体、扩展 B-F 平面、常见 emoji 区段。
+ * 区间为 wcwidth 类实现的常用子集，非完整 Unicode EAW 表——对表格对齐足够。
+ */
+const WIDE_CHAR_RE =
+  /[\u1100-\u115f\u2e80-\u303e\u3041-\u33ff\u3400-\u4dbf\u4e00-\u9fff\ua000-\ua4cf\ua960-\ua97f\uac00-\ud7a3\uf900-\ufaff\ufe10-\ufe19\ufe30-\ufe6f\uff00-\uff60\uffe0-\uffe6\u{1f300}-\u{1f9ff}\u{20000}-\u{3fffd}]/u;
+
+/** 字符串显示宽度（宽字符记 2，其余记 1），按码点迭代防代理对漏判 */
+function visualWidth(str: string): number {
+  let w = 0;
+  for (const ch of str) {
+    w += WIDE_CHAR_RE.test(ch) ? 2 : 1;
+  }
+  return w;
+}
+
+/** 按显示宽度右侧补空格（padEnd 的东亚宽度版） */
+function padEndVisual(str: string, width: number): string {
+  return str + ' '.repeat(Math.max(0, width - visualWidth(str)));
+}
 
 /**
  * `_` 选择性转义（CommonMark intraword 例外，B1/B2）：

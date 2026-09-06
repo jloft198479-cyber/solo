@@ -5,175 +5,10 @@
  * 这些测试不依赖 DOM/Editor（纯 schema + parser + serializer）。
  */
 import { describe, it, expect } from 'vitest';
-import { Schema, type Node as PMNode } from '@tiptap/pm/model';
+import { Schema } from '@tiptap/pm/model';
 import { parseMarkdown } from '../parser';
 import { serializeMarkdown, serializeMarkdownForClipboard } from '../serializer';
-
-// ── 构建最小可用 schema（模拟 TipTap StarterKit 的核心 nodes + marks） ──
-
-function createTestSchema(): Schema {
-  return new Schema({
-    nodes: {
-      doc: { content: 'block+' },
-      paragraph: { group: 'block', content: 'inline*', parseDOM: [{ tag: 'p' }], toDOM: () => ['p', 0] },
-      heading: {
-        group: 'block',
-        content: 'inline*',
-        attrs: { level: { default: 1 } },
-        defining: true,
-        parseDOM: [1, 2, 3, 4, 5, 6].map((level) => ({ tag: `h${level}`, attrs: { level } })),
-        toDOM: (node: PMNode) => [`h${node.attrs.level}`, 0],
-      },
-      blockquote: { group: 'block', content: 'block+', parseDOM: [{ tag: 'blockquote' }], toDOM: () => ['blockquote', 0] },
-      bulletList: { group: 'block', content: 'listItem+', parseDOM: [{ tag: 'ul' }], toDOM: () => ['ul', 0] },
-      orderedList: { group: 'block', content: 'listItem+', attrs: { start: { default: 1 } }, parseDOM: [{ tag: 'ol' }], toDOM: () => ['ol', 0] },
-      listItem: { content: 'block+', parseDOM: [{ tag: 'li' }], toDOM: () => ['li', 0] },
-      taskList: { group: 'block', content: 'taskItem+', parseDOM: [{ tag: 'ul[data-type="taskList"]' }], toDOM: () => ['ul', { 'data-type': 'taskList' }, 0] },
-      taskItem: { content: 'block+', attrs: { checked: { default: false } }, parseDOM: [{ tag: 'li[data-type="taskItem"]' }], toDOM: (n: PMNode) => ['li', { 'data-type': 'taskItem', 'data-checked': n.attrs.checked }, 0] },
-      codeBlock: {
-        group: 'block', content: 'text*', marks: '', code: true,
-        attrs: { language: { default: null } },
-        parseDOM: [{ tag: 'pre' }], toDOM: () => ['pre', ['code', 0]],
-      },
-      hardBreak: { inline: true, group: 'inline', selectable: false, parseDOM: [{ tag: 'br' }], toDOM: () => ['br'] },
-      horizontalRule: { group: 'block', parseDOM: [{ tag: 'hr' }], toDOM: () => ['hr'] },
-      table: {
-        group: 'block',
-        content: 'tableRow+',
-        tableRole: 'table',
-        parseDOM: [{ tag: 'table' }],
-        toDOM: () => ['table', ['tbody', 0]],
-      },
-      tableRow: {
-        content: '(tableHeader | tableCell)+',
-        tableRole: 'row',
-        parseDOM: [{ tag: 'tr' }],
-        toDOM: () => ['tr', 0],
-      },
-      tableHeader: {
-        content: 'paragraph+',
-        tableRole: 'header_cell',
-        isolating: true,
-        parseDOM: [{ tag: 'th' }],
-        toDOM: () => ['th', 0],
-      },
-      tableCell: {
-        content: 'paragraph+',
-        tableRole: 'cell',
-        isolating: true,
-        parseDOM: [{ tag: 'td' }],
-        toDOM: () => ['td', 0],
-      },
-      image: {
-        inline: true, group: 'inline',
-        attrs: { src: { default: '' }, alt: { default: '' }, title: { default: null } },
-        parseDOM: [{ tag: 'img' }], toDOM: () => ['img'],
-      },
-      mathInline: {
-        inline: true,
-        group: 'inline',
-        atom: true,
-        attrs: { latex: { default: '' } },
-        parseDOM: [{ tag: 'span[data-type="math-inline"]' }],
-        toDOM: () => ['span', { 'data-type': 'math-inline' }, 0],
-      },
-      mathBlock: {
-        group: 'block',
-        content: 'text*',
-        marks: '',
-        code: true,
-        parseDOM: [{ tag: 'div[data-type="math-block"]' }],
-        toDOM: () => ['div', { 'data-type': 'math-block' }, 0],
-      },
-      mermaidBlock: {
-        group: 'block',
-        content: 'text*',
-        marks: '',
-        code: true,
-        parseDOM: [{ tag: 'div[data-type="mermaid-block"]' }],
-        toDOM: () => ['div', { 'data-type': 'mermaid-block' }, 0],
-      },
-      frontmatter: {
-        group: 'block',
-        content: 'text*',
-        marks: '',
-        code: true,
-        defining: true,
-        parseDOM: [{ tag: 'pre[data-frontmatter]' }],
-        toDOM: () => ['pre', { 'data-frontmatter': '' }, ['code', 0]],
-      },
-      callout: {
-        group: 'block',
-        content: 'block+',
-        attrs: {
-          calloutType: { default: 'note' },
-        },
-        parseDOM: [{ tag: 'div.mk-callout' }],
-        toDOM: () => ['div', { 'data-type': 'callout' }, 0],
-      },
-      footnoteRef: {
-        inline: true,
-        group: 'inline',
-        atom: true,
-        attrs: { label: { default: '' } },
-        parseDOM: [{ tag: 'sup[data-footnote-ref]' }],
-        toDOM: () => ['sup', { 'data-footnote-ref': '' }, 0],
-      },
-      footnoteSection: {
-        group: 'block',
-        content: 'footnoteDef+',
-        defining: true,
-        parseDOM: [{ tag: 'div[data-footnote-section]' }],
-        toDOM: () => ['div', { 'data-footnote-section': '' }, 0],
-      },
-      footnoteDef: {
-        group: 'block',
-        content: 'block+',
-        defining: true,
-        attrs: { label: { default: '' } },
-        parseDOM: [{ tag: 'div[data-footnote-def]' }],
-        toDOM: () => ['div', { 'data-footnote-def': '' }, 0],
-      },
-      wikilink: {
-        inline: true,
-        group: 'inline',
-        atom: true,
-        attrs: {
-          target: { default: '' },
-          alias: { default: '' },
-        },
-        parseDOM: [{ tag: 'span[data-wikilink]' }],
-        toDOM: () => ['span', { 'data-wikilink': '' }, 0],
-      },
-      text: { group: 'inline' },
-    },
-    marks: {
-      bold: { parseDOM: [{ tag: 'strong' }], toDOM: () => ['strong', 0] },
-      italic: { parseDOM: [{ tag: 'em' }], toDOM: () => ['em', 0] },
-      strike: { parseDOM: [{ tag: 's' }], toDOM: () => ['s', 0] },
-      code: { parseDOM: [{ tag: 'code' }], toDOM: () => ['code', 0] },
-      highlight: { parseDOM: [{ tag: 'mark' }], toDOM: () => ['mark', 0] },
-      link: {
-        attrs: { href: { default: '' }, target: { default: null }, title: { default: null } },
-        parseDOM: [{ tag: 'a' }],
-        toDOM: () => ['a', 0],
-      },
-      superscript: { parseDOM: [{ tag: 'sup' }], toDOM: () => ['sup', 0] },
-      subscript: { parseDOM: [{ tag: 'sub' }], toDOM: () => ['sub', 0] },
-      dim: { parseDOM: [{ tag: 'span.mk-dim' }], toDOM: () => ['span', { class: 'mk-dim' }, 0] },
-    },
-  });
-}
-
-function roundTrip(md: string): string {
-  const schema = createTestSchema();
-  const doc = parseMarkdown(schema, md);
-  return serializeMarkdown(doc);
-}
-
-function normalize(md: string): string {
-  return md.replace(/\n+$/, '\n');
-}
+import { createTestSchema, roundTrip, normalize } from './test-utils';
 
 // ── 基础 round-trip 测试 ─────────────────────────────────────
 
@@ -682,12 +517,12 @@ describe('Round-trip: parse → serialize', () => {
     });
 
     it('callout with horizontal rule', () => {
-      const md = '> [!TIP]\n> text before\n> \n> ---\n';
+      const md = '> [!TIP]\n> text before\n>\n> ---\n';
       expect(roundTrip(md)).toBe(normalize(md));
     });
 
     it('callout with multi-paragraph content', () => {
-      const md = '> [!NOTE]\n> first para\n> \n> second para\n';
+      const md = '> [!NOTE]\n> first para\n>\n> second para\n';
       expect(roundTrip(md)).toBe(normalize(md));
     });
 
@@ -1003,6 +838,72 @@ describe('Round-trip: parse → serialize', () => {
         expect(src).toBe('assets\\sub\\图.png');
         const out = serializeMarkdown(doc);
         expect(roundTrip(out)).toBe(normalize(out));
+      });
+    });
+
+    // B5：表格列宽东亚对齐
+    describe('B5: table column width East Asian alignment', () => {
+      it('含中文单元格的列宽按显示宽度计算（宽字符记 2，非 UTF-16 长度）', () => {
+        const md = '| 名称 | 说明 |\n| --- | --- |\n| 短 | 中文说明文字 |\n';
+        const out = roundTrip(md);
+        // col0: max('名称'=4, 3, '短'=2)=4；col1: max('说明'=4, 3, '中文说明文字'=12)=12
+        expect(out).toBe(
+          '| 名称 | 说明         |\n' +
+          '| ---- | ------------ |\n' +
+          '| 短   | 中文说明文字 |\n',
+        );
+      });
+
+      it('纯 ASCII 表格字节不变（visualWidth 与 length 等价）', () => {
+        const md = '| Name | Desc |\n| --- | --- |\n| a | longer cell |\n';
+        const out = roundTrip(md);
+        expect(out).toBe(
+          '| Name | Desc        |\n' +
+          '| ---- | ----------- |\n' +
+          '| a    | longer cell |\n',
+        );
+      });
+    });
+
+    // B10：callout 标题/折叠标记建模
+    describe('B10: callout title & fold marker fidelity', () => {
+      it('> [!NOTE]+ 标题：折叠标记与标题 roundtrip 保真', () => {
+        const md = '> [!NOTE]+ 快速备注\n> 内容段落\n';
+        expect(roundTrip(md)).toBe(normalize(md));
+      });
+
+      it('> [!WARNING]- 标题：默认折叠标记保真', () => {
+        const md = '> [!WARNING]- 归档说明\n> 内容段落\n';
+        expect(roundTrip(md)).toBe(normalize(md));
+      });
+
+      it('> [!TIP] 纯标题（无折叠标记）保真，标题不再混入正文', () => {
+        const md = '> [!TIP] 小技巧\n> 内容段落\n';
+        expect(roundTrip(md)).toBe(normalize(md));
+        const schema = createTestSchema();
+        const doc = parseMarkdown(schema, md);
+        const callout = doc.firstChild;
+        expect(callout?.type.name).toBe('callout');
+        expect(callout?.attrs.title).toBe('小技巧');
+        expect(callout?.attrs.fold).toBeNull();
+        expect(callout?.textContent).toBe('内容段落');
+      });
+
+      it('> [!NOTE]+ 仅折叠标记无标题保真', () => {
+        const md = '> [!NOTE]+\n> 内容段落\n';
+        expect(roundTrip(md)).toBe(normalize(md));
+      });
+
+      it('无标题无标记维持现状字节（回归锁）', () => {
+        const md = '> [!NOTE]\n> 内容段落\n';
+        expect(roundTrip(md)).toBe(normalize(md));
+      });
+
+      it('callout 内空行序列化不带尾随空格（> 而非 > 空格）', () => {
+        const md = '> [!NOTE]\n> 第一段\n>\n> 第二段\n';
+        const out = roundTrip(md);
+        expect(out).toBe('> [!NOTE]\n> 第一段\n>\n> 第二段\n');
+        expect(out).not.toContain('> \n');
       });
     });
   });

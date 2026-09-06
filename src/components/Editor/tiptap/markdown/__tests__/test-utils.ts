@@ -60,7 +60,11 @@ export function createTestSchema(): Schema {
       },
       callout: {
         group: 'block', content: 'block+',
-        attrs: { calloutType: { default: 'note' } },
+        attrs: {
+          calloutType: { default: 'note' },
+          title: { default: '' },
+          fold: { default: null }, // '+' | '-' | null（B10）
+        },
         parseDOM: [{ tag: 'div.mk-callout' }],
         toDOM: () => ['div', { 'data-type': 'callout' }, 0],
       },
@@ -101,6 +105,7 @@ export function createTestSchema(): Schema {
       },
       superscript: { parseDOM: [{ tag: 'sup' }], toDOM: () => ['sup', 0] },
       subscript: { parseDOM: [{ tag: 'sub' }], toDOM: () => ['sub', 0] },
+      dim: { parseDOM: [{ tag: 'span.mk-dim' }], toDOM: () => ['span', { class: 'mk-dim' }, 0] },
     },
   });
 }
