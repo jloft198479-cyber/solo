@@ -44,8 +44,9 @@ updates: [docs/PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从
 [ ] 8. 等待 CI 完成（~15min，Rust 编译）
 [ ] 9. 验证 release assets：版本号正确、3 个资产齐全
 [ ] 10. 发布 release（draft → published）
-[ ] 11. 在已安装版本上验证自动更新
-[ ] 12. 更新项目文档（CHANGELOG.md 版本历史；PROFILE.md 版本历史已于 2026-07-21 去重，统一以 CHANGELOG.md 为真理源）
+[ ] 11. 改写 release notes 为中文用户摘要（CI 只生成 commit 列表：`gh release edit v1.x.x --notes-file <file>`）
+[ ] 12. 在已安装版本上验证自动更新
+[ ] 13. 更新项目文档（CHANGELOG.md 版本历史；PROFILE.md 版本历史已于 2026-07-21 去重，统一以 CHANGELOG.md 为真理源）
 ```
 
 ---
@@ -422,6 +423,32 @@ error: Type 'X' is not assignable to type 'Y'.
 **根因**：代码变更后没有在本地跑 `vue-tsc --noEmit` 或 `bun run build`，直接 push 了。
 
 **预防**：**代码变更后、commit 前必须跑 `bun run build`**（见 Phase 0 构建检查）。
+
+### 9.8 🟡 本地 `bun run build` 被 safe-delete 守卫拦截（仅 WorkBuddy 托管 shell）
+
+**现象**：
+```
+[vite:prepare-out-dir] [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED]
+{"count":121,"threshold":50,"scope":"turn","targets":["...\dist\assets"]}
+```
+
+**原因**：vite 构建前会 `emptyDir(dist/assets)`，文件数超阈值触发批量删除守卫。**只发生在 WorkBuddy 托管 shell，真实终端与 CI 不受影响**，不是代码/配置问题。
+
+**处理**：跳过清空目录，覆盖写入即可（类型检查仍要单独跑）：
+```bash
+bunx vue-tsc --noEmit && bunx vite build --emptyOutDir=false
+```
+
+### 9.9 🟡 draft release 的 URL 显示 `untagged-<hash>`、by-tag API 404
+
+**现象**：`gh release view v1.x.x` 输出 `releases/tag/untagged-e1913dcf...`，且 `gh api repos/<owner>/<repo>/releases/tags/v1.x.x` 返回 404。
+
+**判断**：这是 **draft 状态的通用表现**（对比任一历史 draft release 即可确认），**不是 tag 关联失败**。发布后（`--draft=false`）URL 恢复为 `releases/tag/v1.x.x`，by-tag 端点、`releases/latest` 全部正常。
+
+**正确验证方式**：查 API 原始字段而非 URL：
+```bash
+gh api "repos/<owner>/<repo>/releases?per_page=1" --jq '.[0].tag_name'
+```
 
 ---
 
