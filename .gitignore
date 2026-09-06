@@ -17,6 +17,9 @@ src-tauri/target/
 *.swo
 *~
 
+# Tool transient working plans
+.zcode/
+
 # OS
 .DS_Store
 Thumbs.db
