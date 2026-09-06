@@ -299,11 +299,29 @@ gh release download v1.x.x -D .sandbox-cnb/assets --clobber
 
 # 2. 上传到 CNB（令牌已存本机，勿入库）
 export CNB_TOKEN=$(cat ~/.cnb/personal-token)
-node ~/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs \
-  --repo fzz198479/solo --tag v1.x.x --assets-dir .sandbox-cnb/assets
+node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
+  --repo fzz198479/solo --tag v1.x.x \
+  --assets-dir "F:/fzz-Project/md-editor/.sandbox-cnb/assets" \
+  --body-file "F:/fzz-Project/md-editor/.sandbox-cnb/body.md" --target-commitish main
 
 # 3. 完整性校验：自算 sha256 与从 CNB 下载回来的文件比对，必须一致
 ```
+
+> ⚠️ **脚本路径必须给 node 用 Windows 绝对路径**（`C:/Users/...`、`F:/...`）。`~` 展开的
+> `/c/...` 会被 node 解析成 `F:\c\...` 而 MODULE_NOT_FOUND；curl 的 `-T` / `-o` 同理。
+>
+> ⚠️ **第 1 步下载 GitHub 很慢且会断**（本机实测 2-7KB/s，5.7MB 要 25-35 分钟，常在 60-70% 处
+> `stream error: PROTOCOL_ERROR` 断掉，而 `gh release download` 不支持断点续传）。断了别重头跑，
+> 用 Range 请求接上：**必须用 REST 数字 asset id**，`gh release view` 给的 `RA_xxx` 是 GraphQL
+> node id，走 REST 会 404。
+> ```bash
+> # 取数字 id
+> gh api "repos/<owner>/<repo>/releases/tags/v1.x.x" --jq '.assets[]|select(.name|test("exe$"))|.id'
+> # 续传剩余部分（N = 已下载的字节数），再 cat 拼回去
+> gh api -H "Accept: application/octet-stream" -H "Range: bytes=N-" \
+>   repos/<owner>/<repo>/releases/assets/<数字id> > part2.bin
+> cat part2.bin >> solo_x.x.x_x64-setup.exe   # 拼完校验总字节数
+> ```
 
 - 完整流程、令牌权限、13 条踩坑经验：技能 `~/.workbuddy/skills/cnb-publish/`；跨项目通用版 `F:\Agent\公用经验\CNB发版分发-全流程与踩坑经验.md`。
 - **源码隔离**：CNB 仓库只放 release 附件 + 一个说明性 README，**永不推源码**。
