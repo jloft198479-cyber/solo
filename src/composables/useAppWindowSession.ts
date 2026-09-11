@@ -18,6 +18,14 @@ import {
 
 interface AppWindowSessionOptions {
   openDocument: (path: string, silent?: boolean) => void | Promise<void>;
+  /**
+   * 拖入文档时先问编辑器：落在正文内 + 同目录 .md 则就地插互链、返回 true（窗口层不再打开）。
+   * 未提供 / 返回 false 时维持现状（打开首个文档）。
+   */
+  requestWikilinkDrop?: (
+    paths: string[],
+    position: { x: number; y: number },
+  ) => boolean | Promise<boolean>;
   saveDocument: () => Promise<boolean>;
   isDirty: () => boolean;
   windowTitle: Ref<string>;
@@ -207,6 +215,10 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
 
     // 使用共享拖拽监听器：与图片拖入共用同一个 Tauri 事件订阅
     unlistenDragDrop = await subscribeDragDrop(async (payload) => {
+      // 先问编辑器能否把这次拖入就地变成互链（落在正文 + 同目录 .md）；
+      // 未接住则回落下方「打开首个文档」的现状逻辑。
+      const handled = await options.requestWikilinkDrop?.(payload.paths, payload.position);
+      if (handled) return;
       const documentPath = payload.paths.find((path) => /\.(md|markdown|txt)$/i.test(path));
       if (documentPath) {
         await options.openDocument(documentPath);
