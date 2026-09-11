@@ -466,6 +466,11 @@ export function convertPendingLink(tr: Transaction, state: EditorState): Transac
   const match = linkInputRegex.exec(textBeforeCursor);
   if (!match) return null;
 
+  // `![alt](url)` 是图片语法而非链接：链接直输不得吃掉它（否则残成 "!" + 半条链接）。
+  // 与 suggestion-guard 对 `![[` 的守卫同款：`[` 前紧邻 `!` 则跳过。
+  const matchStart = match.index ?? 0;
+  if (matchStart > 0 && textBeforeCursor[matchStart - 1] === '!') return null;
+
   const linkText = match[1];
   const href = match[2];
   if (!linkText || !href) return null;
