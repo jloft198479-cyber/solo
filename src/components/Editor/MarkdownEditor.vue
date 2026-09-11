@@ -235,33 +235,41 @@ async function handleWikilinkNavigate(target: string) {
 }
 
 /**
- * 拖拽落点是否落在编辑器正文内。Tauri 拖拽 position 为窗口内物理像素，
- * elementFromPoint 需 CSS 逻辑像素 → 除以 devicePixelRatio。
- * ⚠️ 坐标换算 / 标题栏偏移**未真机验证**；误判只会退回「打开」（非破坏性、可撤销），安全。
+ * 拖拽落点 → 文档位置；未落在编辑器正文内返回 null（调用方据此回落「打开」）。
+ * Tauri 拖拽 position 为窗口内物理像素，elementFromPoint / posAtCoords 需 CSS 逻辑像素 → 除以
+ * devicePixelRatio。posAtCoords 取不到精确位置时返回 null（插入退回当前光标，非破坏性）。
+ * ⚠️ 坐标换算 / 标题栏偏移**未真机验证**；误判只会退回「打开」或落到光标，安全。
  */
-function isPointInsideEditor(position: { x: number; y: number }): boolean {
+function posFromDropPoint(position: { x: number; y: number }): number | null {
   const ed = editor.value;
-  if (!ed) return false;
+  if (!ed || ed.isDestroyed) return null;
   const root = ed.view.dom;
   const dpr = window.devicePixelRatio || 1;
-  const el = document.elementFromPoint(position.x / dpr, position.y / dpr);
-  return !!el && (el === root || root.contains(el));
+  const left = position.x / dpr;
+  const top = position.y / dpr;
+  const el = document.elementFromPoint(left, top);
+  if (!el || (el !== root && !root.contains(el))) return null;
+  return ed.view.posAtCoords({ left, top })?.pos ?? null;
 }
 
 /**
- * 拖入文件：落在正文内 + 同目录 .md/.markdown + 当前已保存 → 在光标处插入互链并返回 true
- * （窗口层据此不再「打开」）；其余返回 false，交回窗口层按现状「打开」。
+ * 拖入文件：落在正文内 + 同目录 .md/.markdown（非自身）+ 当前已保存 → 在**落点处**插入互链并
+ * 返回 true（窗口层据此不再「打开」）；其余返回 false，交回窗口层按现状「打开」。
  */
 function handleDocumentDrop(paths: string[], position: { x: number; y: number }): boolean {
   const ed = editor.value;
   if (!ed || ed.isDestroyed) return false;
-  const decision = decideDocumentDrop(paths, fileStore.currentFile.path, isPointInsideEditor(position));
+  const dropPos = posFromDropPoint(position);
+  const decision = decideDocumentDrop(paths, fileStore.currentFile.path, dropPos !== null);
   if (decision.kind !== 'insert') return false;
+  const pos = dropPos ?? ed.state.selection.from;
+  // 落点在代码块内不插链（与 [[ 补全 allow 口径一致），回落「打开」
+  if (posInNode(ed.state.doc, pos, 'codeBlock')) return false;
   const content = decision.targets.map((target) => ({
     type: 'wikilink',
     attrs: { target, alias: '' },
   }));
-  ed.chain().focus().insertContent(content).run();
+  ed.chain().focus().insertContentAt(pos, content).run();
   return true;
 }
 
@@ -492,12 +500,12 @@ function buildTableContextMenuItems(ed: TiptapEditor): ContextMenuItem[] {
   ];
 }
 
-/** pos 是否解析在 table 节点内（含祖先链） */
-function posInTable(doc: PMNode, pos: number): boolean {
+/** pos 是否解析在名为 name 的节点内（含祖先链） */
+function posInNode(doc: PMNode, pos: number, name: string): boolean {
   if (pos < 0 || pos > doc.content.size) return false;
   const $pos = doc.resolve(pos);
   for (let d = $pos.depth; d > 0; d--) {
-    if ($pos.node(d).type.name === 'table') return true;
+    if ($pos.node(d).type.name === name) return true;
   }
   return false;
 }
@@ -511,7 +519,7 @@ function onEditorContextMenu(event: MouseEvent) {
   if (!ed.isActive('table')) {
     const hit = ed.view.posAtCoords({ left: event.clientX, top: event.clientY });
     const pos = hit?.pos;
-    if (pos == null || !posInTable(ed.state.doc, pos)) return;
+    if (pos == null || !posInNode(ed.state.doc, pos, 'table')) return;
     ed.chain().focus().setTextSelection(pos).run();
   }
   contextMenuItems.value = buildTableContextMenuItems(ed);
