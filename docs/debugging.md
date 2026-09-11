@@ -15,6 +15,30 @@ updates: [TROUBLESHOOTING.md, BUILD_GUIDE.md, src-tauri/src]
 - 日志约定：项目禁 `console.log`，仅允许 `warn`/`error`（[`AGENTS.md`](../AGENTS.md)）。排查时看 DevTools Console 的 warn/error。
 - 编辑器懒加载：窗口未获焦点时 TipTap 实例不创建 → 编辑器空白，单击编辑区触发 `lazyInitEditor`（非 bug，见 [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) §4）。
 
+### 1.1 无人值守运行时探针（WebView2 CDP）—— 交互需真人鼠标、但要看运行时数据时用
+
+场景：功能依赖真人操作（拖拽、悬停），或需要读运行时状态（`devicePixelRatio`、DOM 几何、组件 expose 对象）。**2026-09-11 定位「拖入互链失效」就是这么做的**，全程无需用户动手。
+
+1. **起 Vite**。注意：默认 Vite 会清 `node_modules/.vite/deps`，被 safe-delete 守卫拦（`SAFE_DELETE_BULK_CONFIRM_REQUIRED`）→ 改用沙盒 `cacheDir` 绕开，不动原有缓存：
+   ```js
+   // .sandbox-dev/vite-dev.mjs
+   import { createServer } from 'vite';
+   const ROOT = 'F:/fzz-Project/md-editor';
+   const server = await createServer({ root: ROOT, configFile: `${ROOT}/vite.config.ts`, cacheDir: `${ROOT}/.sandbox-dev/.vite-cache` });
+   await server.listen(); server.printUrls();
+   ```
+2. **起已编译的 dev 可执行文件**（前端走 Vite 源码、后端复用 `src-tauri/target/debug/solo.exe`，**不需要 cargo / MSVC**）：
+   ```bash
+   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9222' ./src-tauri/target/debug/solo.exe
+   ```
+3. `curl http://127.0.0.1:9222/json/list` 取 `webSocketDebuggerUrl` → 用 **Node 内置 `WebSocket`**（无需装包）发 `Runtime.evaluate`（`awaitPromise: true, returnByValue: true`）在页面里求值。
+
+**读组件内部状态**：`document.querySelector('#app').__vue_app__._instance.setupState` 含 `<script setup>` 的全部顶层绑定（`editorRef` / `fileStore` / `handleOpenFile` …）；`editorRef` 是 `defineExpose` 的代理对象，可直接调其暴露方法（如 `handleDocumentDrop`）做**端到端判定**。
+
+**合成 Tauri 事件**：`window.__TAURI_INTERNALS__.callbacks` 是 `Map<id, handler>`，handler 收到的信封为 `{ event, id, payload }`（同 `@tauri-apps/api` 的 `Event<T>`）→ 逐个调用即可驱动 `tauri://drag-drop` 等完整链路。⚠️ 会把信封喂给**所有**监听器（含 `window-close-requested`），可能顺带触发关窗——只在可丢弃的 dev 实例上做。
+
+⚠️ **它验证的是逻辑与链路，不验证 OS 层输入语义**（真实拖拽的坐标、焦点、IME 时序）。真机手感仍需人工确认一次。
+
 ## 二、Markdown 解析调试（草稿脚本 `_diag.ts`，已退役）
 - 用途：单独验证 markdown-it 的 token 流（排查加粗/中文边界等解析问题）。
 - 状态：该草稿脚本已于 2026-07-21 移出工作区（现位于 `.trash-垃圾站/2026-07-21/_diag.ts`）。如需复用，从回收站取回；它用 CommonJS `require('jsdom')` 且项目 `type:module`，`jsdom` 不在依赖里，需 `bun add -d jsdom` 后用 `bun _diag.ts` 跑。
