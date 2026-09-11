@@ -71,6 +71,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`project-plan-2026-08-29.md`](./project-plan-2026-08-29.md)                  | proposal  | maintainer       | proposal | 产品演进建议清单（**非强制任务**，逐项可执行可不执行）                    |
 | [`solo互链方案-2026-09-11.md`](./solo互链方案-2026-09-11.md)                  | archive   | maintainer/agent | archive  | 互链一期方案（v5 定稿，已实施）：修 `[[`/`![` + 拖入即在落点成链（含审核收口） |
 | [`执行记录-互链方案-2026-09-11.md`](./执行记录-互链方案-2026-09-11.md)        | archive   | maintainer       | active   | 互链一期执行/自检/回滚记录（执行人 qianwen；含落点收口补记；拖拽坐标待真机验证）  |
+| [`solo深度审查报告-2026-09-11.md`](./solo深度审查报告-2026-09-11.md)          | archive   | maintainer       | active   | 四层只读审查（渲染/交互/速度/结构）：8 条发现 + 逐条处置记录（5 修 3 缓）        |
 | [`solo-tour.html`](./solo-tour.html)                                         | product   | user             | active   | 产品功能导览 HTML 页（非 md，无 frontmatter）                            |
 
 ### wiki/（用户知识库）

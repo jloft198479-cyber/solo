@@ -235,6 +235,9 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
           onKeyDown: (props: SuggestionKeyDownProps) => {
             const { event } = props;
             if (event.key === 'Escape') {
+              // stopPropagation：关 Slash 菜单不应顺带触发 window 级 Esc（焦点模式切换），
+              // 与 Emoji / Wikilink 菜单一致
+              event.stopPropagation();
               slashMenuRef.value?.hide();
               return true;
             }

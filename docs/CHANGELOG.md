@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - **拖入文档在正文空白处完全无效**（v1.2.51 回归，用户实测报障）：「在不在正文内」原先按 `elementFromPoint` 是否命中 **ProseMirror 内容根**（`view.dom`）判定，而空文档的内容区只有一行高（实测 584×27），视觉上的"正文区"（滚动容器 703×774）几乎整片被判成"纸外" → 必然回落「打开」，表现就是"拖进去变成打开了被拖的那篇"。修复：改为按**编辑器可视区**（`editorWrapRef` 滚动容器）判定归属，`posAtCoords` 在留白处取不到精确位置时按纵向贴到**文档末 / 首**。标题栏、状态栏、大纲栏仍被正确排除。**验证**：在真实运行的应用内用 CDP 合成 `tauri://drag-drop` 事件跑通全链路（事件层 → 窗口层 → 编辑器），文字行 / 正文中部空白 / 正文下方空白均成功插入，标题栏 / 状态栏 / 拖自身 / 跨目录 / 拖图片均正确回落。
 
+- **代码块 / 行内码被注入不可见字符（零宽非连接符 U+200C）**：CJK 边界预处理在 `md.parse` 之前对**整篇原文**插 `\u200C`，未排除代码区；而序列化只在 `escapeInline`（普通文本）剥离，行内码走 `child.text`、代码块走 `textContent` 原样写出 → 含「中文标点 + `**`」组合的代码保存后混入肉眼不可见的脏字符，外部编辑器 / 版本比对时现形。修复：预处理前把围栏代码块与行内 code span 占位保护（替换后还原，代码内容逐字保真），序列化侧对代码内容一并剥离 ZWNJ，顺带清洗存量已污染文档。**回归锁**：`roundtrip.spec.ts` Phase A3 五条，其中两条直接断言「解析后的 doc 不含 ZWNJ」——只测往返会被序列化侧的剥离兜底掩盖（实测确认：去掉保护后，仅往返断言仍全绿、doc 断言才转红）。
+- **大纲侧栏「当前段落高亮」在刚打开文档时可能永久失灵**：`attachScroll` 取不到编辑器视图时直接 `return` 且无重试，而它只有 onMounted / editorRef 变化两个 `nextTick` 触发点——编辑器是 rAF 懒建的，微任务早于 rAF，那一刻 view 必为 null，此后 editorRef 不再变 → 滚动大纲永不跟高。修复：编辑器建好后派发 `solo:editor-ready` 信号，大纲监听后重挂；`attachScroll` 加「容器未变不重挂」守卫，避免重复监听。
+- **斜杠菜单按 Esc 会顺带退出焦点模式**：Emoji / Wikilink 的 Esc 都 `stopPropagation`（注释亦如此声明），唯独 Slash 漏了，事件冒泡到 window 触发 `toggleFocusMode`。修复：补齐，并修正两处「与 Slash 一致」的过期注释。
+- **打印时 mermaid / 公式块仍带编辑态灰条与标签**：`@media print` 里写的是 `.mk-mermaid-delete` / `.mk-math-delete` 两个**代码中不存在**的类名（真实类为 `.mk-block-delete-button`、`.mk-mermaid-header`、`.mk-mermaid-badge` 等），失配导致灰条、标签、删除/缩放按钮照常打印。修复：改用实现侧真类名，并补齐代码块语言 / 复制按钮。
+- **roundtrip 测试用「镜像 schema」，与生产两处并行维护**：测试 schema 的 table cell 缺 colspan/rowspan/colwidth、image 缺 width/height，相关往返「静默通过」给假绿灯。修复：属性与生产对齐（`extensions/table.ts` / `extensions/image.ts`），补 `![alt|100x200](src)` 尺寸往返回归。
+
 ## [1.2.51] — 2026-09-11
 
 ### Added

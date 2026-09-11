@@ -135,6 +135,34 @@ describe('Round-trip: parse → serialize', () => {
         expect(roundTrip(md)).toBe(normalize(md));
       });
     });
+
+    describe('Phase A3: ZWNJ 预处理不进入代码区', () => {
+      const codeWithPunct = '```python\n# 说明：「**参数**」必填\nx = 1\n```\n';
+
+      // 断言解析后的 doc 本身不含 ZWNJ：只测往返会被序列化侧的剥离兜底掩盖
+      it('围栏代码块解析后不含零宽字符', () => {
+        const doc = parseMarkdown(createTestSchema(), codeWithPunct);
+        expect(doc.textContent.includes('\u200C')).toBe(false);
+      });
+
+      it('行内 code span 解析后不含零宽字符', () => {
+        const doc = parseMarkdown(createTestSchema(), '写作时用 `「**加粗**」` 包裹。\n');
+        expect(doc.textContent.includes('\u200C')).toBe(false);
+      });
+
+      it('代码区往返保真', () => {
+        expect(roundTrip(codeWithPunct)).toBe(normalize(codeWithPunct));
+      });
+
+      it('代码内容里的存量 ZWNJ 在序列化时被清洗', () => {
+        const dirty = '```\n「\u200C**参数**」\n```\n';
+        expect(roundTrip(dirty)).toBe(normalize('```\n「**参数**」\n```\n'));
+      });
+
+      it('正文的 CJK 边界修正不受影响', () => {
+        expect(roundTrip('嘿**「注意**\n')).toBe(normalize('嘿**「注意**\n'));
+      });
+    });
   });
 
   describe('headings', () => {
@@ -231,6 +259,11 @@ describe('Round-trip: parse → serialize', () => {
 
     it('inline image', () => {
       const md = '![doocs](https://cdn-doocs.oss-cn-shenzhen.aliyuncs.com/gh/doocs/md/images/logo-2.png)\n';
+      expect(roundTrip(md)).toBe(normalize(md));
+    });
+
+    it('inline image with size syntax keeps width/height', () => {
+      const md = '![封面|100x200](assets/a.png)\n';
       expect(roundTrip(md)).toBe(normalize(md));
     });
 

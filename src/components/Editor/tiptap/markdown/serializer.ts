@@ -9,7 +9,17 @@ import { Fragment } from '@tiptap/pm/model';
 import { getPluginNodeSerializers } from './plugins';
 import { computeFence } from './plugins/fence';
 
-// ── 序列化状态 ────────────────────────────────────���─────────────
+/**
+ * 移除零宽非连接符（U+200C）。
+ * 该字符是解析阶段修正 CJK flanking 的临时手段，不应出现在任何输出里。
+ * 代码内容（围栏块 / 行内码）不经过 escapeInline，故需单独剥离，
+ * 顺带清洗历史上已被污染（解析期误插 ZWNJ）的存量文档。
+ */
+function stripZwnj(text: string): string {
+  return text.includes('\u200C') ? text.replace(/\u200C/g, '') : text;
+}
+
+// ── 序列化状态 ──────────────────────────────────────────────────
 
 export class MarkdownSerializerState {
   output = '';
@@ -78,7 +88,8 @@ export class MarkdownSerializerState {
       if (child.isText) {
         this.renderMarks(child, parent, index, true, codeDelims);
         const hasCodeMark = child.marks.some((mark) => mark.type.name === 'code');
-        this.write(hasCodeMark ? (child.text ?? '') : this.escapeInline(child.text ?? ''));
+        // 行内 code 不属于 flanking 处理对象，一并剥离 ZWNJ（顺带清洗存量脏数据）
+        this.write(hasCodeMark ? stripZwnj(child.text ?? '') : this.escapeInline(child.text ?? ''));
         this.renderMarks(child, parent, index, false, codeDelims);
       } else {
         this.renderMarks(child, parent, index, true, codeDelims);
@@ -265,9 +276,7 @@ export class MarkdownSerializerState {
     }
 
     // ZWNJ 仅供解析阶段使用，序列化时移除以避免污染输出
-    result = result.replace(/\u200C/g, '');
-
-    return result;
+    return stripZwnj(result);
   }
 
   /** 序列化节点 */
@@ -409,7 +418,7 @@ const nodeSerializers: Record<string, NodeSerializer> = {
 
   codeBlock(state, node) {
     const lang = node.attrs.language || '';
-    const content = node.textContent;
+    const content = stripZwnj(node.textContent);
     // CommonMark: backtick fence 的 info string 不能含反引号,
     // 遇到含反引号的 language 时改用 ~~~ fence
     const hasLangBackticks = lang.includes('`');

@@ -373,6 +373,11 @@ function createEditor(content: string) {
 
   // 触发初始字数统计
   emitImmediateStats(e);
+
+  // 编辑器就绪信号：编辑器是 rAF 懒建的，消费方（大纲 scroll-spy 等）若在此前取
+  // view 只能拿到 null。用事件明确告知「现在可以安全取 view」，不赌 nextTick（微任务）
+  // 与 rAF（宏任务）的先后顺序。
+  window.dispatchEvent(new Event('solo:editor-ready'));
 }
 
 // ── 文件切换：复用 editor 实例替换文档（避免全量重建） ─────────
