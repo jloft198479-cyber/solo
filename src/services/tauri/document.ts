@@ -59,6 +59,19 @@ export async function renameFile(oldPath: string, newName: string) {
   return invokeCommand<DocumentRenameResult>(TAURI_COMMANDS.renameFile, { oldPath, newName });
 }
 
+/**
+ * 改名后同步「指向本文档」的互链。
+ * dryRun=true 只读预览、返回将被改动的同目录文件名（供先列清单让用户确认）；
+ * dryRun=false 真正原子改写并返回已改动的文件名。路径解析全在 Rust 侧，前端只递旧/新路径。
+ */
+export async function syncWikilinksOnRename(oldPath: string, newPath: string, dryRun: boolean) {
+  return invokeCommand<string[]>(TAURI_COMMANDS.syncWikilinksOnRename, {
+    oldPath,
+    newPath,
+    dryRun,
+  });
+}
+
 export async function importDocumentImage(sourcePath: string, documentPath: string, storageDir?: string) {
   return invokeCommand<DocumentImageImportResult>(TAURI_COMMANDS.importDocumentImage, {
     sourcePath,

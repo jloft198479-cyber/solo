@@ -258,10 +258,10 @@ md-editor/
 
 1. **注册插件**：opener、dialog、clipboard-manager、cli、store、window-state（持久化 SIZE/POSITION/MAXIMIZED）、updater（自动更新，见 `autoCheckForUpdate`）。
 2. **`setup()`**：管理 state → 回收早期开打请求 → 解析 CLI/raw args → 建菜单 → 挂关闭拦截 →（macOS）设置窗口背景。
-3. **`invoke_handler`**：注册 **23 个命令**（以 `lib.rs` 实际 `generate_handler!` 为准）。
+3. **`invoke_handler`**：注册 **24 个命令**（以 `lib.rs` 实际 `generate_handler!` 为准）。
 4. **`run()` 回调**：macOS/iOS 的 `Opened { urls }` 事件转成开打请求。
 
-### 4.2 命令清单（实际 23 个）
+### 4.2 命令清单（实际 24 个）
 
 > 以 `src-tauri/src/lib.rs` 的 `generate_handler!` 宏为唯一真相源。新增/改名必须同步更新此表。
 > 注：`detect_proxy_for_update` 定义在 `lib.rs`（**不存在 `proxy.rs`**，勿被旧文档误导）。
@@ -273,6 +273,7 @@ md-editor/
 | `get_file_mtime` | document.rs | 读文件 mtime（互链跳转前的存在性检查） |
 | `list_markdown_files` | document.rs | 列同目录 .md 文件名（互链 `[[` 补全候选，排序 + 上限 500） |
 | `rename_file` | document.rs | 重命名文件（去后缀、防冲突、大小写敏感） |
+| `sync_wikilinks_on_rename` | document.rs | 改名后同步「指向本文档」的互链：扫同目录，`dry_run` 预览 / 原子改写 `[[旧名]]`→`[[新名]]`（见 KNOWN-ISSUES §一 #23） |
 | `import_document_image` | document.rs | 图片复制到 `assets/`，同名自动加后缀 |
 | `save_clipboard_image` | document.rs | 解析 data URL → base64 解码 → 写入 assets |
 | `read_clipboard_html` | clipboard.rs | 从系统剪贴板读 HTML 富文本（绕开 webview `clipboardData` 空值问题，外部应用/跨源粘贴保格式） |
@@ -695,7 +696,7 @@ destroy() {
 | 字体依赖本地安装 | **已解决**。改为按需远程下载 + 文件系统缓存，安装包不再内嵌字体文件 |
 | 字体栈分散 | **已收口**到 `fontStack.ts::buildFontStack`，编辑器+导出共享 |
 | 序列化防抖 300ms | **实际分层**：150ms（字数）/ 100ms（光标）/ 500ms（大纲+序列化），见 §8.2 / §6.3 |
-| Rust 命令 ~20 个 | **实际 23 个**（见 `lib.rs::generate_handler!`，含 `resolve_image_display`/`read_clipboard_html`/`read_font_bytes`/`detect_proxy_for_update`） |
+| Rust 命令 ~20 个 | **实际 24 个**（见 `lib.rs::generate_handler!`，含 `resolve_image_display`/`read_clipboard_html`/`read_font_bytes`/`detect_proxy_for_update`/`sync_wikilinks_on_rename`） |
 | 快捷键表 / 发布清单列有「导出 HTML / PDF / 微信」 | **已移除**（v1.2.18）。复制为 HTML 用状态栏「复制为 HTML」按钮，无导出命令；`utils/export/` 整个目录已删除 |
 | 脏态用 `setContent` + `markUserEdit` 双函数（按 hasUserEdit 标志判定） | **A1 重构**：改为 `setContent`（仅基线）+ `syncEditedContent`（语义比对唯一真相源），`hasUserEdit`/`markUserEdit` 已废弃，见 §7.1 / §11.1 |
 | composables 10 个 / `utils/shortcuts.ts` 存在 | **实际 12 个**；`utils/shortcuts.ts` **已删除**（registry 内联 `getShortcut`/`getShortcutCommands`） |

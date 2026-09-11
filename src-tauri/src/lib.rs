@@ -356,6 +356,7 @@ pub fn run() {
             get_file_mtime,
             list_markdown_files,
             rename_file,
+            sync_wikilinks_on_rename,
             import_document_image,
             save_clipboard_image,
             authorize_image_asset,

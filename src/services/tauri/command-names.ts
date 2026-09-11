@@ -23,6 +23,7 @@ export const TAURI_COMMANDS = {
   saveDocument: 'save_document',
   setWindowBackgroundColor: 'set_window_background_color',
   startupReady: 'startup_ready',
+  syncWikilinksOnRename: 'sync_wikilinks_on_rename',
   unregisterShellNew: 'unregister_shell_new',
 } as const;
 
