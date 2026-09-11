@@ -557,10 +557,24 @@ node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
 4. `git tag v1.x.x && env -u GH_TOKEN -u GITHUB_TOKEN git push origin v1.x.x`（tag 指向 bump commit）
 5. `gh run watch <id> --exit-status` 等 CI 双绿
 6. **先 undraft**：`gh release edit v1.x.x --draft=false`（11.4）
-7. 发布后 `gh release download`（不再卡）核 latest.json
-8. CNB 同步（11.5，`--target-commitish main` + 个人令牌）+ sha256 三方校验
+7. 发布后 `gh release download`（不再卡）核资产：**核大小 + `sha256sum` 对比 release API 的 `digest`**，别看管道退出码（11.8）
+8. CNB 同步（**按用户当次指示**，非默认必做；11.5，`--target-commitish main` + 个人令牌）+ sha256 校验
 9. **SECURITY.md 当前版本字段**同步到新版本（易漏项，见 §7.4）—— 别只改三处版本号
 10. `git clean -fdx -- .sandbox-*` 清掉沙盒目录，工作树留干净
+
+### 11.8 🔴 `gh release download` 大资产经代理被静默截断（2026-09-11 实证）
+
+**现象**：v1.2.51 核资产时，`gh release download v1.2.51 -D <dir>` 下回来的 **exe 只有 67,701 B**（真实 5,714,701 B），耗时 3 分钟；而同一批的 `latest.json`（1 KB）与 `.sig`（418 B）**哈希完全匹配** —— 小文件正常、大文件残废。**重下一次即成功**（58 秒，大小 + sha256 全对）。
+
+**根因**：经本机代理（`http.proxy=127.0.0.1:9098`）拉 GitHub 大文件时链路中断/限速，`gh` 未报错即退出，留下半截文件。
+
+**⚠️ 最坑的是假绿**：命令写成 `gh release download ... | tail -5; echo "EXIT=$?"` 时，`$?` 取到的是**管道末端 `tail` 的退出码**，恒为 0 —— 看起来成功，实则文件残缺。
+
+**对策**：
+1. **判成功必须核事实**：`stat` 看字节数 + `sha256sum` 对比 release API 的 `digest` 字段（GitHub 服务端权威值，`gh release view v1.x.x --json assets` 可取）。
+2. 大小不符就**重下一次**（多为偶发，不需要改代理配置）。
+3. 网络差时的轻量交叉校验（不必下全大文件）：`.sig` 文件内容 与 `latest.json.platforms["<target>"].signature` **逐字一致**；签名 base64 解码后内嵌 `timestamp:<unix>` 与 `file:<名字>`，时间戳换算后应**等于 `latest.json.pub_date`**。三者自洽 ⇒ 上传链路与签名配对无误。
+4. 下载落沙盒（`.sandbox-relcheck/`），验完 `git clean -fdx -- .sandbox-*`。
 
 ---
 
