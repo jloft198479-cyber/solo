@@ -80,6 +80,7 @@ import {
   releaseRemoteImageCache,
 } from './tiptap/extensions/image';
 import { resolveWikilinkTarget } from './tiptap/extensions/wikilink';
+import { decideDocumentDrop } from './tiptap/extensions/wikilink-drop';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch, pulseJumpTarget } from './tiptap/useEditorSearch';
 import { getBlockElFromPos, scrollElementIntoView } from './tiptap/editor-dom';
@@ -231,6 +232,37 @@ async function handleWikilinkNavigate(target: string) {
   }
 
   emit('navigate-wikilink', resolved);
+}
+
+/**
+ * 拖拽落点是否落在编辑器正文内。Tauri 拖拽 position 为窗口内物理像素，
+ * elementFromPoint 需 CSS 逻辑像素 → 除以 devicePixelRatio。
+ * ⚠️ 坐标换算 / 标题栏偏移**未真机验证**；误判只会退回「打开」（非破坏性、可撤销），安全。
+ */
+function isPointInsideEditor(position: { x: number; y: number }): boolean {
+  const ed = editor.value;
+  if (!ed) return false;
+  const root = ed.view.dom;
+  const dpr = window.devicePixelRatio || 1;
+  const el = document.elementFromPoint(position.x / dpr, position.y / dpr);
+  return !!el && (el === root || root.contains(el));
+}
+
+/**
+ * 拖入文件：落在正文内 + 同目录 .md/.markdown + 当前已保存 → 在光标处插入互链并返回 true
+ * （窗口层据此不再「打开」）；其余返回 false，交回窗口层按现状「打开」。
+ */
+function handleDocumentDrop(paths: string[], position: { x: number; y: number }): boolean {
+  const ed = editor.value;
+  if (!ed || ed.isDestroyed) return false;
+  const decision = decideDocumentDrop(paths, fileStore.currentFile.path, isPointInsideEditor(position));
+  if (decision.kind !== 'insert') return false;
+  const content = decision.targets.map((target) => ({
+    type: 'wikilink',
+    attrs: { target, alias: '' },
+  }));
+  ed.chain().focus().insertContent(content).run();
+  return true;
 }
 
 // ── 图片路径解析缓存：同一 src + docPath + storagePath 的解析结果不会变，缓存避免重复 IPC ──
@@ -747,6 +779,8 @@ defineExpose({
     openSearch();
   },
   closeSearch,
+  /** 拖入文档时的互链接线（App 经 requestWikilinkDrop 调用）；未命中返回 false 回落「打开」 */
+  handleDocumentDrop,
 });
 </script>
 

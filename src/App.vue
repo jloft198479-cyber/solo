@@ -155,6 +155,9 @@ const windowTitle = computed(() => {
 
 const windowSession = useAppWindowSession({
   openDocument: handleOpenFile,
+  // 拖入文档先交给编辑器判「正文内 + 同目录 .md → 就地成链」；未命中回落上面的打开逻辑
+  requestWikilinkDrop: (paths, position) =>
+    editorRef.value?.handleDocumentDrop?.(paths, position) ?? false,
   saveDocument: documentSession.saveCurrentDocument,
   isDirty: () => documentSession.evaluateDirtyFromEditor(),
   windowTitle,

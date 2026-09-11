@@ -13,6 +13,8 @@ export type AppEditorExpose = {
   getEditorView: () => EditorView | null;
   hasFocus?: () => boolean;
   executeCommand?: (commandId: string) => boolean;
+  /** 拖入文档：命中「正文内 + 同目录 .md」则就地插互链并返回 true（窗口层不再打开） */
+  handleDocumentDrop?: (paths: string[], position: { x: number; y: number }) => boolean;
 };
 
 export type AppEditorUpdatePayload = {
