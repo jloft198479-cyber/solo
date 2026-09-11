@@ -236,9 +236,11 @@ async function handleWikilinkNavigate(target: string) {
 
 /**
  * 拖拽落点 → 文档位置；未落在编辑器正文内返回 null（调用方据此回落「打开」）。
- * Tauri 拖拽 position 为窗口内物理像素，elementFromPoint / posAtCoords 需 CSS 逻辑像素 → 除以
- * devicePixelRatio。posAtCoords 取不到精确位置时返回 null（插入退回当前光标，非破坏性）。
- * ⚠️ 坐标换算 / 标题栏偏移**未真机验证**；误判只会退回「打开」或落到光标，安全。
+ * 坐标系依据（wry 0.55.1 `webview2/drag_drop.rs`：`ScreenToClient(container HWND)`）：
+ * position 相对**webview 内容区左上角**、单位为**物理像素**、**不含标题栏**（标题栏属非客户区）
+ * → 除以 devicePixelRatio 即得与 elementFromPoint / posAtCoords 同源的 CSS 逻辑像素。
+ * posAtCoords 取不到精确位置时返回 null（插入退回当前光标，非破坏性）。
+ * ⚠️ 仍需真机确认跟手性（多屏混合 DPI、显示缩放等场景）。
  */
 function posFromDropPoint(position: { x: number; y: number }): number | null {
   const ed = editor.value;
