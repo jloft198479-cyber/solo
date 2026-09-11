@@ -20,14 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.2.51] — 2026-09-11
 
 ### Added
-- **拖入同目录文档即在落点处生成互链**（方案 B·看落点，一期）：把 `.md`/`.markdown` 拖进**正文内**且与当前文档**同目录**、当前文档已保存时，在**松手处**插入一条 `[[链接]]`（`view.posAtCoords` 反查落点 → `insertContentAt`；落点取不到时退回当前光标）；落在正文外 / 跨目录 / `.txt` / 未保存 / **拖当前文档自身** / 落点在代码块内 → 维持原「打开」行为（安全默认，误判非破坏、可撤销）。决策为纯函数 `wikilink-drop.ts::decideDocumentDrop`（返回 `insert | fallback` 两态，各分支均有单测）。**未做（守一期范围）**：子目录递归、跨盘绝对路径、悬停提示、vault。⚠️ 拖拽落点坐标换算（物理像素→CSS、标题栏偏移）**未真机验证**，误判一律回落「打开」或退回光标。
+- **拖入同目录文档即在落点处生成互链**（方案 B·看落点，一期）：把 `.md`/`.markdown` 拖进**正文内**且与当前文档**同目录**、当前文档已保存时，在**松手处**插入一条 `[[链接]]`（`view.posAtCoords` 反查落点 → `insertContentAt`；落点取不到即回落「打开」）；落在正文外 / 跨目录 / `.txt` / 未保存 / **拖当前文档自身** / 落点在代码块内 → 维持原「打开」行为（安全默认，误判非破坏、可撤销）。决策为纯函数 `wikilink-drop.ts::decideDocumentDrop`（返回 `insert | fallback` 两态，各分支均有单测）。**未做（守一期范围）**：子目录递归、跨盘绝对路径、悬停提示、vault。⚠️ 拖拽落点**跟手性未真机验证**（坐标系已据 wry 0.55.1 源码确认：相对 webview 内容区左上角的物理像素、不含标题栏 → `÷devicePixelRatio` 与 `elementFromPoint`/`posAtCoords` 同源）；误判一律回落「打开」。
 
 ### Fixed
 - **拖当前文档自身会生成一条指向自己的死链**：两条入口口径不一致——`[[` 补全明确排除自身（`filterWikilinkCandidates` 比文件名），拖入却直接成链。修复：`decideDocumentDrop` 归一化路径后排除自身（分隔符混用、重复分隔符都能识别；仅大小写形式不同仍按不同文件处理，宁可放过不误链）。
-- **光标在代码块内拖入 `.md` 会插出无效互链**：`[[` 补全的 `allow` 有 `!editor.isActive('codeBlock')` 守卫，拖入路径无同类检查，只能靠 schema 兜底、插入位置不可预期。修复：落点（或当前光标）解析在 `codeBlock` 内则回落「打开」。
+- **光标在代码块内拖入 `.md` 会插出无效互链**：`[[` 补全的 `allow` 有 `!editor.isActive('codeBlock')` 守卫，拖入路径无同类检查，只能靠 schema 兜底、插入位置不可预期。修复：落点解析在 `codeBlock` 内则回落「打开」。
 - **「可打开文档」扩展名判定曾写三处**：窗口层 `useAppWindowSession` 与图片拖入 `editor-image-drop` 各自内联 `/\.(md|markdown|txt)$/i`，与 `wikilink-drop.ts` 的 `DOC_EXT` 是同一事实。修复：导出 `isDocumentPath` 单一定义，三处共用（AGENTS §一 SSOT）；`DropDecision` 同时收窄为 `insert | fallback`，删掉从未被读的 `path` 字段。
 - **敲 `[[` 弹不出文件候选**（自 v1.2.43 起对所有保存状态永久失效）：`WikilinkSuggest` 的 `allow` 门控读扩展级 `this.options.getDocumentPath`，但 `WikilinkSuggest.configure(...)` 只传了 `suggestion`、漏传扩展级 `getDocumentPath` → 恒为默认 `()=>null`。修复：configure 顶层补接线；`editor-extensions.spec.ts` 加「接线生效」回归锁（零件测试测不到这类漏递）。整串 `[[x]]` 与单击跳转本不受影响。
 - **敲 `![说明](路径)` 被链接直输吃成 `!` + 半条链接**：`convertPendingLink` 的 `linkInputRegex` 无 `!` 前缀判别，匹配 `[说明](路径)`（index=1）后把"说明"转链接、残一个光秃秃 `!`。修复：`[` 前紧邻 `!` 则跳过（与 `suggestion-guard.ts` 对 `![[` 的守卫同款）；`markdown-input.spec.ts` 加回归（图片语法保持字面、普通链接不误伤）。
