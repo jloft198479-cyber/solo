@@ -235,24 +235,31 @@ async function handleWikilinkNavigate(target: string) {
 }
 
 /**
- * 拖拽落点 → 文档位置；未落在编辑器正文内返回 null（调用方据此回落「打开」）。
+ * 拖拽落点 → 文档位置；未落在编辑器可视区内返回 null（调用方据此回落「打开」）。
  * 坐标系依据（wry 0.55.1 `webview2/drag_drop.rs`：`ScreenToClient(container HWND)`）：
  * position 相对**webview 内容区左上角**、单位为**物理像素**、**不含标题栏**（标题栏属非客户区）
  * → 除以 devicePixelRatio 即得与 elementFromPoint / posAtCoords 同源的 CSS 逻辑像素。
- * 落点不在正文内（或 posAtCoords 取不到位置）一律返回 null，调用方据此回落「打开」——
- * 不做「退回当前光标插入」的兜底，避免链接落在用户没指望的地方。
+ * ⚠️「在不在纸上」按**编辑器可视区**（`editorWrapRef` 滚动容器）判定，而不是 ProseMirror 内容根：
+ * 正文留白（内容下方、段落之间）视觉上就是纸面，压不到文字节点也不该判成纸外——空文档内容区
+ * 仅一行高，按内容根判定会让「拖到正文里」几乎必然落空。标题栏 / 状态栏 / 大纲栏都在该容器
+ * 之外，命中它们仍然回落「打开」。
  * ⚠️ 仍需真机确认跟手性（多屏混合 DPI、显示缩放等场景）。
  */
 function posFromDropPoint(position: { x: number; y: number }): number | null {
   const ed = editor.value;
-  if (!ed || ed.isDestroyed) return null;
-  const root = ed.view.dom;
+  const wrap = editorWrapRef.value;
+  if (!ed || ed.isDestroyed || !wrap) return null;
   const dpr = window.devicePixelRatio || 1;
   const left = position.x / dpr;
   const top = position.y / dpr;
   const el = document.elementFromPoint(left, top);
-  if (!el || (el !== root && !root.contains(el))) return null;
-  return ed.view.posAtCoords({ left, top })?.pos ?? null;
+  if (!el || (el !== wrap && !wrap.contains(el))) return null;
+
+  const coords = ed.view.posAtCoords({ left, top });
+  if (coords) return coords.pos;
+  // 落在纸面留白：内容覆盖不到的纵向区域取不到精确位置 → 贴到文档末 / 首（丢在哪就落在哪）
+  const content = ed.view.dom.getBoundingClientRect();
+  return top > content.bottom ? ed.state.doc.content.size : 1;
 }
 
 /**
