@@ -85,23 +85,37 @@ function onScroll() {
   });
 }
 
+function detachScroll() {
+  scrollContainer?.removeEventListener('scroll', onScroll);
+  containerResizeObserver?.disconnect();
+  containerResizeObserver = null;
+  window.removeEventListener('resize', invalidateContainerRect);
+  scrollContainer = null;
+  cachedContainerRect = null;
+}
+
 function attachScroll() {
   const view = props.editorRef?.getEditorView?.();
   if (!view) return;
-  scrollContainer = (view.dom as HTMLElement).closest('.mk-editor') as HTMLElement | null;
-  if (scrollContainer) {
-    scrollContainer.addEventListener('scroll', onScroll, { passive: true });
-    // P5-03：用 ResizeObserver 监听滚动容器布局变化，失效缓存。
-    // 滚动中 top 不变，但 resize / 窗口移动 / 侧栏开合会改 top。
-    containerResizeObserver = new ResizeObserver(() => invalidateContainerRect());
-    containerResizeObserver.observe(scrollContainer);
-    // 窗口 resize 也会影响（ResizeObserver 监听元素自身尺寸变化，不包含窗口移动）
-    window.addEventListener('resize', invalidateContainerRect, { passive: true });
-    updateActive();
-  }
+  const container = (view.dom as HTMLElement).closest('.mk-editor') as HTMLElement | null;
+  if (!container || container === scrollContainer) return;
+  // 编辑器会被重建（懒初始化 / 视图切换），旧容器须先解绑再挂新的，避免重复监听
+  detachScroll();
+  scrollContainer = container;
+  scrollContainer.addEventListener('scroll', onScroll, { passive: true });
+  // P5-03：用 ResizeObserver 监听滚动容器布局变化，失效缓存。
+  // 滚动中 top 不变，但 resize / 窗口移动 / 侧栏开合会改 top。
+  containerResizeObserver = new ResizeObserver(() => invalidateContainerRect());
+  containerResizeObserver.observe(scrollContainer);
+  // 窗口 resize 也会影响（ResizeObserver 监听元素自身尺寸变化，不包含窗口移动）
+  window.addEventListener('resize', invalidateContainerRect, { passive: true });
+  updateActive();
 }
 
 onMounted(() => {
+  // 编辑器是 rAF 懒建的：这里的 nextTick 早于它，取 view 只会拿到 null 且此后不再重试，
+  // 会导致「刚打开文档时大纲高亮永不跟随滚动」。故补一个就绪信号（编辑器建好即派发）。
+  window.addEventListener('solo:editor-ready', attachScroll);
   if (props.editorRef) nextTick(attachScroll);
 });
 
@@ -122,12 +136,8 @@ watch(
 
 onBeforeUnmount(() => {
   if (rafId != null) cancelAnimationFrame(rafId);
-  scrollContainer?.removeEventListener('scroll', onScroll);
-  window.removeEventListener('resize', invalidateContainerRect);
-  containerResizeObserver?.disconnect();
-  containerResizeObserver = null;
-  scrollContainer = null;
-  cachedContainerRect = null;
+  window.removeEventListener('solo:editor-ready', attachScroll);
+  detachScroll();
 });
 
 // ── 交互 ─────────────────────────────────────────────

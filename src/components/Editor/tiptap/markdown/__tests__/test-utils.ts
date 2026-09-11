@@ -2,7 +2,9 @@ import { Schema, type Node as PMNode } from '@tiptap/pm/model';
 import { parseMarkdown } from '../parser';
 import { serializeMarkdown, serializeMarkdownForClipboard } from '../serializer';
 
-/** 构建最小 schema（匹配 solo 实际使用的 nodes + marks） */
+/** 构建最小 schema（匹配 solo 实际使用的 nodes + marks）
+ *  注意：这是生产 schema 的镜像，属性必须与 extensions/*.ts 保持同步——
+ *  缺属性会让相关 roundtrip「静默通过」，给假绿灯（表格跨格、图片尺寸曾如此）。 */
 export function createTestSchema(): Schema {
   return new Schema({
     nodes: {
@@ -30,11 +32,21 @@ export function createTestSchema(): Schema {
       horizontalRule: { group: 'block', parseDOM: [{ tag: 'hr' }], toDOM: () => ['hr'] },
       table: { group: 'block', content: 'tableRow+', tableRole: 'table', parseDOM: [{ tag: 'table' }], toDOM: () => ['table', ['tbody', 0]] },
       tableRow: { content: '(tableHeader | tableCell)+', tableRole: 'row', parseDOM: [{ tag: 'tr' }], toDOM: () => ['tr', 0] },
-      tableHeader: { content: 'paragraph+', tableRole: 'header_cell', isolating: true, parseDOM: [{ tag: 'th' }], toDOM: () => ['th', 0] },
-      tableCell: { content: 'paragraph+', tableRole: 'cell', isolating: true, parseDOM: [{ tag: 'td' }], toDOM: () => ['td', 0] },
+      tableHeader: {
+        content: 'paragraph+', tableRole: 'header_cell', isolating: true,
+        // 与生产一致：CustomTableHeader/TableCell 未覆盖 addAttributes，用 Tiptap 默认
+        attrs: { colspan: { default: 1 }, rowspan: { default: 1 }, colwidth: { default: null } },
+        parseDOM: [{ tag: 'th' }], toDOM: () => ['th', 0],
+      },
+      tableCell: {
+        content: 'paragraph+', tableRole: 'cell', isolating: true,
+        attrs: { colspan: { default: 1 }, rowspan: { default: 1 }, colwidth: { default: null } },
+        parseDOM: [{ tag: 'td' }], toDOM: () => ['td', 0],
+      },
       image: {
         inline: true, group: 'inline',
-        attrs: { src: { default: '' }, alt: { default: '' }, title: { default: null } },
+        // width/height 与生产 image.ts 的 addAttributes 同步（决定 `![alt|WxH](src)` 往返）
+        attrs: { src: { default: '' }, alt: { default: '' }, title: { default: null }, width: { default: null }, height: { default: null } },
         parseDOM: [{ tag: 'img' }], toDOM: () => ['img'],
       },
       mathInline: {

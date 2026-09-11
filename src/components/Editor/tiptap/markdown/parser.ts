@@ -25,6 +25,29 @@ import {
 import type { Preprocessor, TokenInterceptor } from './plugins';
 import { extractDimsFromAlt } from '../extensions/image';
 
+/**
+ * 把「代码区」替换为占位符，返回替换后的文本与还原函数。
+ *
+ * 用途：ZWNJ 预处理只在普通文本上有意义，代码内容必须逐字保真。覆盖范围：
+ * 围栏代码块（``` / ~~~，含未闭合到文末的兜底分支）与行内 code span。
+ * 说明：缩进式代码块（4 空格）不在覆盖内——它与列表续行难以静态区分，
+ * 误判成本高于收益；此类内容仍走原逻辑。
+ */
+function protectCodeRegions(content: string): { text: string; restore: (value: string) => string } {
+  const saved: string[] = [];
+  const pattern =
+    /^ {0,3}(`{3,})[^\n]*\n[\s\S]*?^ {0,3}`{3,}[^\n]*$|^ {0,3}(~{3,})[^\n]*\n[\s\S]*?^ {0,3}~{3,}[^\n]*$|`+[^`\n]+`+|^ {0,3}(?:`{3,}|~{3,})[^\n]*\n[\s\S]*$/gm;
+  const text = content.replace(pattern, (match) => {
+    saved.push(match);
+    return `\u0000${saved.length - 1}\u0000`;
+  });
+  if (saved.length === 0) return { text: content, restore: (value) => value };
+  return {
+    text,
+    restore: (value) => value.replace(/\u0000(\d+)\u0000/g, (_m, index: string) => saved[Number(index)] ?? ''),
+  };
+}
+
 // ── markdown-it 实例 ───────────────────────────────────────────
 
 // texmath 插件需要一个 KaTeX 引擎用于渲染 HTML，但解析器只调用 md.parse()（仅分词），
@@ -541,26 +564,33 @@ export function parseMarkdown(schema: Schema, content: string): PMNode {
   // 排除 ASCII 标点（!-/:;?@[-`{-~），它们是 markdown 语法字符而非内容标点。
   // 注意：不能按"是否含 CJK 字符"短路，因为 ™(U+2122) 等 Unicode 符号(\p{S})
   // 同样需要 flanking 处理，而它们不在 CJK 范围内。
-  content = content.replace(
-    /(?<!\*)(?<=[\p{P}\p{S}])(\*+)(?=[^\s\p{P}\p{S}])/gu,
-    (_match, delim: string, offset: number) => {
-      const prevChar = content[offset - 1];
-      if (prevChar && /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/.test(prevChar)) {
-        return delim;
-      }
-      return '\u200C' + delim;
-    },
-  );
-  // 开启方向：word**punct → word**\u200Cpunct（如 嘿**「→ left_flanking=false）
-  content = content.replace(
-    /(?<!\*)(?<=[^\s\p{P}\p{S}])(\*{1,2})(?=[\p{P}\p{S}])(?!\*)/gu,
-    (_match, delim: string, offset: number) => {
-      const nextChar = content[offset + delim.length];
-      if (nextChar && /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/.test(nextChar)) {
-        return delim;
-      }
-      return delim + '\u200C';
-    },
+  // 代码区先占位保护：ZWNJ 落进代码内容会随代码原样存盘（序列化只有普通文本走
+  // escapeInline 剥离），在外部编辑器 / 版本比对时现形。
+  const codeRegions = protectCodeRegions(content);
+  const zwnjSource = codeRegions.text;
+  content = codeRegions.restore(
+    zwnjSource
+      .replace(
+        /(?<!\*)(?<=[\p{P}\p{S}])(\*+)(?=[^\s\p{P}\p{S}])/gu,
+        (_match, delim: string, offset: number) => {
+          const prevChar = zwnjSource[offset - 1];
+          if (prevChar && /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/.test(prevChar)) {
+            return delim;
+          }
+          return '\u200C' + delim;
+        },
+      )
+      // 开启方向：word**punct → word**\u200Cpunct（如 嘿**「→ left_flanking=false）
+      .replace(
+        /(?<!\*)(?<=[^\s\p{P}\p{S}])(\*{1,2})(?=[\p{P}\p{S}])(?!\*)/gu,
+        (_match, delim: string, offset: number) => {
+          const nextChar = zwnjSource[offset + delim.length];
+          if (nextChar && /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/.test(nextChar)) {
+            return delim;
+          }
+          return delim + '\u200C';
+        },
+      ),
   );
 
   // 2. 用 markdown-it 解析主体内容

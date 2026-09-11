@@ -470,11 +470,16 @@ html.theme-transitioning .sidebar {
     content-visibility: visible !important;
   }
 
-  /* 打印时去掉编辑态 chrome：代码块语言按钮、heading gutter、
-     mermaid/math 删除按钮、图片选中 outline */
+  /* 打印时去掉编辑态 chrome：代码块语言/复制按钮、mermaid/math 工具栏
+     （顶部灰条 = header，内含标签与删除/缩放按钮）、frontmatter 头、图片源文本。
+     类名取实现侧 className 真值（mermaid-block.ts / math-block.ts / code-block）；
+     旧写法 .mk-mermaid-delete / .mk-math-delete 是不存在的类名，导致打印仍带灰条。 */
   .mk-code-block-language-button,
-  .mk-mermaid-delete,
-  .mk-math-delete,
+  .mk-code-block-copy-button,
+  .mk-mermaid-header,
+  .mk-math-header,
+  .mk-block-delete-button,
+  .mk-block-zoom-button,
   .mk-frontmatter-header,
   .tiptap-editor .mk-image-source-text {
     display: none !important;
