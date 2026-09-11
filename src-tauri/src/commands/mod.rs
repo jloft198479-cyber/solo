@@ -9,6 +9,7 @@ pub use desktop::{register_shell_new, unregister_shell_new};
 pub use document::{
     authorize_image_asset, get_file_mtime, import_document_image, list_markdown_files,
     open_document, rename_file, resolve_image_display, save_clipboard_image, save_document,
+    sync_wikilinks_on_rename,
 };
 pub use font::{fetch_font_data, get_cached_font_path, read_font_bytes, save_font_cache};
 pub use image::fetch_remote_image;

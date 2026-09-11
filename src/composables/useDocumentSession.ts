@@ -3,6 +3,7 @@ import {
   openDocument,
   saveDocument,
   renameFile,
+  syncWikilinksOnRename,
   getFileMtime,
   type DocumentOpenResult,
 } from '../services/tauri/document';
@@ -312,6 +313,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     const currentFile = fileStore.currentFile;
     if (!currentFile.path) return saveCurrentDocumentAs();
 
+    // 捕获改名前的旧路径与旧名（setFile 之后 originalBaseName 会被重置为新名，故先存）
+    const oldPath = currentFile.path;
+    const oldStem = currentFile.originalBaseName;
+
     isSaving = true;
     // rename 成功后会拿到新路径——即使后续写内容失败，也必须让 store 跟到新路径，
     // 否则磁盘文件已是新名而 store.path 仍指向已不存在的旧路径，下次保存会
@@ -327,6 +332,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
       fileStore.setFile(savedContent, saveResult.path, saveResult.lastModifiedMs);
       autoSaveFailCount = 0;
+
+      // 3. 改名已落盘成功，同步「指向本文档」的互链（先预览列清单、用户确认后才改写）。
+      //    失败只留痕、不影响改名结果。
+      await syncInboundWikilinks(oldPath, renamedPath, oldStem);
       return true;
     } catch (error) {
       if (renamedPath) {
@@ -340,6 +349,32 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       return false;
     } finally {
       isSaving = false;
+    }
+  }
+
+  /**
+   * 改名成功后同步「指向本文档」的互链：先只读预览哪些同目录文档链到旧名，
+   * 有则列清单让用户确认，确认后才真正改写。任何失败只留痕、绝不影响改名主流程。
+   * 跨窗口若另有窗口正开着被改的文件，靠既有的「外部修改」提示（checkExternalModification）
+   * 与保存冲突检测（mtime 乐观锁）兜底，此处不新增机制。
+   */
+  async function syncInboundWikilinks(oldPath: string, newPath: string, oldStem: string) {
+    try {
+      const affected = await syncWikilinksOnRename(oldPath, newPath, true);
+      if (affected.length === 0) return;
+
+      const ok = await confirm(
+        `有 ${affected.length} 篇文档链接到改名前的「${oldStem}」，要不要把里面的链接一并更新为新名字？\n\n${affected.join('\n')}`,
+        { title: '更新指向本文档的链接', kind: 'info', okLabel: '一并更新', cancelLabel: '先不动' },
+      );
+      if (!ok) return;
+
+      const changed = await syncWikilinksOnRename(oldPath, newPath, false);
+      if (changed.length > 0) {
+        updateAutoSaveStatus(`已更新 ${changed.length} 篇文档里的链接`);
+      }
+    } catch (error) {
+      console.warn('[wikilink-sync] failed:', normalizeTauriError(error).message);
     }
   }
 

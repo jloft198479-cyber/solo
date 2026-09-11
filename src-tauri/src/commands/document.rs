@@ -22,6 +22,10 @@ const OPEN_EXTENSIONS: [&str; 3] = ["md", "markdown", "txt"];
 // （见 ThemeSelector.vue 的 downloadTemplate），只按 OPEN 白名单卡会让导出功能报无效参数。
 const WRITE_EXTENSIONS: [&str; 4] = ["md", "markdown", "txt", "json"];
 
+// 同目录文档扫描/列举的数量上限：防 node_modules 一类病态目录里有成千上万个 .md
+// 把 IPC 或改名后的链接同步扫描拖垮。list_markdown_files 与 sync_wikilinks_on_rename 共用此上限。
+const SAME_DIR_DOC_LIMIT: usize = 500;
+
 /// 校验文件扩展名在白名单内（大小写不敏感）。
 /// 在 IPC 入口把关，避免恶意文档内容诱导前端读写任意类型文件；
 /// 本地绝对路径本身是合法用例（用户引用 D:/docs/x.md），故只卡扩展名不做目录约束。
@@ -99,7 +103,7 @@ pub async fn list_markdown_files(path: String) -> Result<Vec<String>, AppError> 
             })
             .collect();
         names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
-        names.truncate(500);
+        names.truncate(SAME_DIR_DOC_LIMIT);
         Ok(names)
     })
     .await
@@ -213,6 +217,116 @@ pub async fn rename_file(old_path: String, new_name: String) -> Result<DocumentR
     .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))??;
 
     Ok(DocumentRenameResult { path: new_path_str })
+}
+
+/// 把文档正文里指向 `old_stem` 的互链目标改成 `new_stem`；无改动返回 `None`。
+///
+/// 只动 `[[目标]]` 与 `[[目标|别名]]` 的**目标段**（`|` 后的别名原样保留），
+/// 覆盖「裸名」与「带 .md」两种写法。精确整词匹配——`old=笔记` 时不会误伤
+/// `[[笔记本]]`，也不碰普通链接 `[x](y)` 或正文里出现的同名词。
+/// 预览（dry_run）与真正改写共用本函数，保证「列给用户看的」与「实际改的」完全一致。
+fn rewrite_wikilink_targets(content: &str, old_stem: &str, new_stem: &str) -> Option<String> {
+    let mut out = content.to_string();
+    // 目标可能带或不带 .md：[[old]] / [[old|..]] 与 [[old.md]] / [[old.md|..]] 都要覆盖。
+    // 先替换裸名不会误伤带 .md 的形态——`[[old]]` 要求 `old` 后紧跟 `]]`，
+    // 而 `[[old.md]]` 里 `old` 后是 `.`，两者字面不重叠。
+    for (old_t, new_t) in [
+        (old_stem.to_string(), new_stem.to_string()),
+        (format!("{}.md", old_stem), format!("{}.md", new_stem)),
+    ] {
+        out = out
+            .replace(&format!("[[{}]]", old_t), &format!("[[{}]]", new_t))
+            .replace(&format!("[[{}|", old_t), &format!("[[{}|", new_t));
+    }
+    if out == content {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+/// 改名后同步「指向本文档」的互链：扫描同目录其它文档，把 `[[旧名]]` 改成 `[[新名]]`。
+///
+/// - `dry_run = true`：只读预览，返回**将被改动**的文件名，不写盘（供前端先列清单让用户确认）。
+/// - `dry_run = false`：真正改写，每个文件走 `atomic_write`（整篇写成功才算数，绝不出现半篇），
+///   返回**已改动**的文件名。
+///
+/// 边界与安全：路径解析全在本函数（从 `new_path` 取父目录、从两路径取 `file_stem`）；
+/// 只处理同目录、扩展名白名单（`OPEN_EXTENSIONS`）内的文档，扫描上限 `SAME_DIR_DOC_LIMIT`；
+/// 单个文件读/写失败一律静默跳过，**任何情况下都不阻断改名主流程**。
+/// 跨窗口若另有窗口正开着被改的文件，靠既有的「外部修改」提示（`checkExternalModification`）
+/// 与保存冲突检测（mtime 乐观锁）兜底，不在此新增机制。
+#[tauri::command]
+pub async fn sync_wikilinks_on_rename(
+    old_path: String,
+    new_path: String,
+    dry_run: bool,
+) -> Result<Vec<String>, AppError> {
+    validate_document_extension(&new_path, &OPEN_EXTENSIONS, "同步链接")?;
+
+    let new_ref = Path::new(&new_path);
+    let old_ref = Path::new(&old_path);
+    let dir = new_ref
+        .parent()
+        .ok_or_else(|| AppError::validation("无法获取父目录"))?
+        .to_path_buf();
+    let old_stem = old_ref
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_string();
+    let new_stem = new_ref
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_string();
+
+    // 名字为空或没变（如仅大小写、扩展名不同的等价改名）→ 无需同步
+    if old_stem.is_empty() || new_stem.is_empty() || old_stem == new_stem {
+        return Ok(Vec::new());
+    }
+
+    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<String>, AppError> {
+        let mut affected: Vec<String> = Vec::new();
+        let entries = match fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            // 目录读不了（被删/权限）：静默返回空，不报错、不阻断改名
+            Err(_) => return Ok(affected),
+        };
+        for entry in entries.flatten() {
+            if affected.len() >= SAME_DIR_DOC_LIMIT {
+                break;
+            }
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let name = match path.file_name().and_then(|n| n.to_str()) {
+                Some(n) => n.to_string(),
+                None => continue,
+            };
+            // 只碰可编辑文档类型（扩展名闸门），防越权读写任意文件
+            if validate_document_extension(&name, &OPEN_EXTENSIONS, "同步链接").is_err() {
+                continue;
+            }
+            let content = match fs::read_to_string(&path) {
+                Ok(c) => c,
+                // 非 UTF-8 / 权限等读失败：跳过这一个，继续处理其它文件
+                Err(_) => continue,
+            };
+            if let Some(updated) = rewrite_wikilink_targets(&content, &old_stem, &new_stem) {
+                // 预览模式不写盘；改写模式写失败则跳过（不计入 affected）
+                if !dry_run && atomic_write(&path, updated.as_bytes()).is_err() {
+                    continue;
+                }
+                affected.push(name);
+            }
+        }
+        affected.sort();
+        Ok(affected)
+    })
+    .await
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?
 }
 
 #[tauri::command]
@@ -673,8 +787,8 @@ fn unique_asset_target(assets_dir: &Path, filename: &str) -> (PathBuf, String) {
 mod tests {
     use super::{
         atomic_write, import_document_image, list_markdown_files, open_document, rename_file,
-        resolve_image_src, save_document, validate_document_extension, validate_image_asset_path,
-        OPEN_EXTENSIONS, WRITE_EXTENSIONS,
+        resolve_image_src, rewrite_wikilink_targets, save_document, sync_wikilinks_on_rename,
+        validate_document_extension, validate_image_asset_path, OPEN_EXTENSIONS, WRITE_EXTENSIONS,
     };
     use crate::error::AppError;
     use std::fs;
@@ -1206,5 +1320,87 @@ mod tests {
             AppError::Validation(msg) => assert!(msg.contains("缺少文档目录")),
             other => panic!("expected validation error, got {:?}", other),
         }
+    }
+
+    // ---- 改名后同步互链：rewrite_wikilink_targets（纯函数）+ sync_wikilinks_on_rename ----
+
+    #[test]
+    fn rewrite_wikilink_matches_exact_target_not_prefix() {
+        // old=笔记：[[笔记]] 改，[[笔记本]] 不动（精确整词，不误伤近名）
+        let out = rewrite_wikilink_targets("见 [[笔记]] 与 [[笔记本]]", "笔记", "文章").unwrap();
+        assert_eq!(out, "见 [[文章]] 与 [[笔记本]]");
+    }
+
+    #[test]
+    fn rewrite_wikilink_keeps_alias_and_ignores_plain_link() {
+        // 别名段（| 后）原样保留；普通 markdown 链接 [x](y) 不碰
+        let out =
+            rewrite_wikilink_targets("[[笔记|我的笔记]] 和 [笔记](笔记.md)", "笔记", "文章").unwrap();
+        assert_eq!(out, "[[文章|我的笔记]] 和 [笔记](笔记.md)");
+    }
+
+    #[test]
+    fn rewrite_wikilink_handles_md_suffix_and_multiple_occurrences() {
+        // 带 .md 的目标形态也覆盖；同一篇多处链接全部改
+        let out = rewrite_wikilink_targets("[[笔记.md]] 见 [[笔记]] 再看 [[笔记]]", "笔记", "文章")
+            .unwrap();
+        assert_eq!(out, "[[文章.md]] 见 [[文章]] 再看 [[文章]]");
+    }
+
+    #[test]
+    fn rewrite_wikilink_returns_none_when_no_match() {
+        assert!(rewrite_wikilink_targets("正文没有链接", "笔记", "文章").is_none());
+    }
+
+    #[tokio::test]
+    async fn sync_wikilinks_dry_run_previews_then_apply_writes() {
+        let dir = test_dir();
+        // 模拟改名已落盘：new.md 已存在；link.md 里有指向旧名 old 的链接
+        let new_path = dir.join("new.md");
+        atomic_write(&new_path, b"# new").unwrap();
+        let link = dir.join("link.md");
+        atomic_write(&link, b"see [[old]] here").unwrap();
+        // 干扰项：近名 oldbook、普通链接、子目录同名——都不该被动
+        atomic_write(&dir.join("near.md"), b"[[oldbook]] and [old](x)").unwrap();
+        let sub = dir.join("sub");
+        fs::create_dir_all(&sub).unwrap();
+        atomic_write(&sub.join("deep.md"), b"[[old]]").unwrap();
+
+        // 旧文件已被 rename 走，无需真实存在（命令只据路径取 stem + 扫同目录）
+        let old_str = dir.join("old.md").to_string_lossy().to_string();
+        let new_str = new_path.to_string_lossy().to_string();
+
+        // 预览：只报 link.md，且不写盘；子目录不碰
+        let preview = sync_wikilinks_on_rename(old_str.clone(), new_str.clone(), true)
+            .await
+            .unwrap();
+        assert_eq!(preview, vec!["link.md".to_string()]);
+        assert_eq!(fs::read_to_string(&link).unwrap(), "see [[old]] here");
+        assert_eq!(fs::read_to_string(sub.join("deep.md")).unwrap(), "[[old]]");
+
+        // 改写：真正落盘；近名/普通链接/子目录均不受影响
+        let changed = sync_wikilinks_on_rename(old_str, new_str, false).await.unwrap();
+        assert_eq!(changed, vec!["link.md".to_string()]);
+        assert_eq!(fs::read_to_string(&link).unwrap(), "see [[new]] here");
+        assert_eq!(
+            fs::read_to_string(dir.join("near.md")).unwrap(),
+            "[[oldbook]] and [old](x)"
+        );
+        assert_eq!(fs::read_to_string(sub.join("deep.md")).unwrap(), "[[old]]");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn sync_wikilinks_noop_when_name_unchanged() {
+        let dir = test_dir();
+        let link = dir.join("link.md");
+        atomic_write(&link, b"[[same]]").unwrap();
+        // 新旧名相同 → 直接返回空，不扫描不改写
+        let p = dir.join("same.md").to_string_lossy().to_string();
+        let res = sync_wikilinks_on_rename(p.clone(), p, false).await.unwrap();
+        assert!(res.is_empty());
+        assert_eq!(fs::read_to_string(&link).unwrap(), "[[same]]");
+        let _ = fs::remove_dir_all(dir);
     }
 }
