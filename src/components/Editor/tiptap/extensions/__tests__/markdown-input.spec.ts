@@ -168,6 +168,18 @@ describe('convertPendingLink', () => {
       content: [{ type: 'paragraph', content: [{ type: 'text', text: '[text](https://x.com a)' }] }],
     });
   });
+
+  it('does not eat image syntax `![alt](url)` (regression: was mangled into "!" + link)', () => {
+    expect(convertLinkSyntax('![图](https://x.com/i.png)')).toEqual({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: '![图](https://x.com/i.png)' }] },
+      ],
+    });
+    // 守卫只挡 `!` 紧邻：前置非 `!` 的普通链接仍正常转换，不被误伤
+    const ok = convertLinkSyntax('看 [docs](https://x.com)');
+    expect(ok.content[0].content[1].marks[0].type).toBe('link');
+  });
 });
 
 describe('convertPendingHeading', () => {
