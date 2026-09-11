@@ -239,7 +239,8 @@ async function handleWikilinkNavigate(target: string) {
  * 坐标系依据（wry 0.55.1 `webview2/drag_drop.rs`：`ScreenToClient(container HWND)`）：
  * position 相对**webview 内容区左上角**、单位为**物理像素**、**不含标题栏**（标题栏属非客户区）
  * → 除以 devicePixelRatio 即得与 elementFromPoint / posAtCoords 同源的 CSS 逻辑像素。
- * posAtCoords 取不到精确位置时返回 null（插入退回当前光标，非破坏性）。
+ * 落点不在正文内（或 posAtCoords 取不到位置）一律返回 null，调用方据此回落「打开」——
+ * 不做「退回当前光标插入」的兜底，避免链接落在用户没指望的地方。
  * ⚠️ 仍需真机确认跟手性（多屏混合 DPI、显示缩放等场景）。
  */
 function posFromDropPoint(position: { x: number; y: number }): number | null {
@@ -262,16 +263,16 @@ function handleDocumentDrop(paths: string[], position: { x: number; y: number })
   const ed = editor.value;
   if (!ed || ed.isDestroyed) return false;
   const dropPos = posFromDropPoint(position);
-  const decision = decideDocumentDrop(paths, fileStore.currentFile.path, dropPos !== null);
+  if (dropPos === null) return false; // 不在正文内 → 交回窗口层「打开」
+  const decision = decideDocumentDrop(paths, fileStore.currentFile.path, true);
   if (decision.kind !== 'insert') return false;
-  const pos = dropPos ?? ed.state.selection.from;
   // 落点在代码块内不插链（与 [[ 补全 allow 口径一致），回落「打开」
-  if (posInNode(ed.state.doc, pos, 'codeBlock')) return false;
+  if (posInNode(ed.state.doc, dropPos, 'codeBlock')) return false;
   const content = decision.targets.map((target) => ({
     type: 'wikilink',
     attrs: { target, alias: '' },
   }));
-  ed.chain().focus().insertContentAt(pos, content).run();
+  ed.chain().focus().insertContentAt(dropPos, content).run();
   return true;
 }
 
