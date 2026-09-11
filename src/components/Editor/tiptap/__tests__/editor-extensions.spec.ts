@@ -84,7 +84,10 @@ describe('Suggestion 触发配置契约（allowedPrefixes=null）', () => {
    * 本测试直接断言 createEditorExtensions 产出的实际配置，锁死「null」契约，
    * 防止未来误改回默认值或漏传。
    */
-  function extensionOptions(name: string): Record<string, unknown> | undefined {
+  function extensionOptions(
+    name: string,
+    getDocumentPath?: () => string | null,
+  ): Record<string, unknown> | undefined {
     const extensions = createEditorExtensions({
       slashMenuRef: ref(null as never),
       slashMenuItems: ref([] as never),
@@ -96,6 +99,7 @@ describe('Suggestion 触发配置契约（allowedPrefixes=null）', () => {
       wikilinkMenuItems: ref([] as never),
       wikilinkMenuCommand: ref((() => {}) as never),
       searchHighlightOptions: {} as never,
+      getDocumentPath,
     });
     const found = extensions.find((ext) => ext.name === name);
     return found?.options as Record<string, unknown> | undefined;
@@ -121,5 +125,15 @@ describe('Suggestion 触发配置契约（allowedPrefixes=null）', () => {
       | undefined;
     expect(opts?.suggestion?.allowedPrefixes).toBeNull();
     expect(opts?.suggestion?.char).toBe('[[');
+  });
+
+  it('Wikilink：getDocumentPath 已接线到扩展级 option（allow 门控拿得到路径，[[ 才会弹）', () => {
+    // 回归锁：v1.2.43 起 WikilinkSuggest.configure 漏传扩展级 getDocumentPath →
+    // allow 恒见默认 ()=>null → [[ 菜单永不弹（零件测试全绿也测不出，因未走接线）。
+    // 断言接线生效，防止再犯。
+    const opts = extensionOptions('wikilinkSuggest', () => 'C:\\docs\\a.md') as
+      | { getDocumentPath?: () => string | null }
+      | undefined;
+    expect(opts?.getDocumentPath?.()).toBe('C:\\docs\\a.md');
   });
 });
