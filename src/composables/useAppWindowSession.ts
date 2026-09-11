@@ -2,6 +2,7 @@ import type { Ref } from 'vue';
 import { onUnmounted, watch } from 'vue';
 import type { AppOpenPathsPayload } from '../services/tauri/events';
 import { listenWindowCloseRequested, subscribeDragDrop } from '../services/tauri/events';
+import { isDocumentPath } from '../components/Editor/tiptap/extensions/wikilink-drop';
 import { saveWindowState, StateFlags } from '@tauri-apps/plugin-window-state';
 import { normalizeTauriError } from '../services/tauri/client';
 import { message } from '../services/tauri/dialog';
@@ -19,7 +20,7 @@ import {
 interface AppWindowSessionOptions {
   openDocument: (path: string, silent?: boolean) => void | Promise<void>;
   /**
-   * 拖入文档时先问编辑器：落在正文内 + 同目录 .md 则就地插互链、返回 true（窗口层不再打开）。
+   * 拖入文档时先问编辑器：落在正文内 + 同目录 .md 则**在落点处**插互链、返回 true（窗口层不再打开）。
    * 未提供 / 返回 false 时维持现状（打开首个文档）。
    */
   requestWikilinkDrop?: (
@@ -215,11 +216,11 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
 
     // 使用共享拖拽监听器：与图片拖入共用同一个 Tauri 事件订阅
     unlistenDragDrop = await subscribeDragDrop(async (payload) => {
-      // 先问编辑器能否把这次拖入就地变成互链（落在正文 + 同目录 .md）；
+      // 先问编辑器能否把这次拖入就地变成互链（落在正文 + 同目录 .md，插到落点处）；
       // 未接住则回落下方「打开首个文档」的现状逻辑。
       const handled = await options.requestWikilinkDrop?.(payload.paths, payload.position);
       if (handled) return;
-      const documentPath = payload.paths.find((path) => /\.(md|markdown|txt)$/i.test(path));
+      const documentPath = payload.paths.find(isDocumentPath);
       if (documentPath) {
         await options.openDocument(documentPath);
       }

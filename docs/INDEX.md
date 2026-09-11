@@ -69,8 +69,8 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`large-document-performance.md`](./large-document-performance.md)            | proposal  | dev              | proposal | 大文档卡顿根因清单与分阶段方案（**P0/P1 已实施、P2 已砍、P3 简化**）      |
 | [`optimization-plan-2026-09-06.md`](./optimization-plan-2026-09-06.md)        | proposal  | maintainer       | proposal | 全面审查优化方案：30 条发现（已逐条核实，交互/兼容/性能）+ P0-P3 分批路线图（**执行待拍板**） |
 | [`project-plan-2026-08-29.md`](./project-plan-2026-08-29.md)                  | proposal  | maintainer       | proposal | 产品演进建议清单（**非强制任务**，逐项可执行可不执行）                    |
-| [`solo互链方案-2026-09-11.md`](./solo互链方案-2026-09-11.md)                  | proposal  | maintainer/agent | active   | 互链一期方案：修 `[[`/`![` + 拖入即互链（第一性校准 + 审计复核），已落地  |
-| [`执行记录-互链方案-2026-09-11.md`](./执行记录-互链方案-2026-09-11.md)        | archive   | maintainer       | active   | 互链一期执行/自检/回滚记录（执行人 qianwen；拖拽落点待真机验证）          |
+| [`solo互链方案-2026-09-11.md`](./solo互链方案-2026-09-11.md)                  | archive   | maintainer/agent | archive  | 互链一期方案（v5 定稿，已实施）：修 `[[`/`![` + 拖入即在落点成链（含审核收口） |
+| [`执行记录-互链方案-2026-09-11.md`](./执行记录-互链方案-2026-09-11.md)        | archive   | maintainer       | active   | 互链一期执行/自检/回滚记录（执行人 qianwen；含落点收口补记；拖拽坐标待真机验证）  |
 | [`solo-tour.html`](./solo-tour.html)                                         | product   | user             | active   | 产品功能导览 HTML 页（非 md，无 frontmatter）                            |
 
 ### wiki/（用户知识库）
