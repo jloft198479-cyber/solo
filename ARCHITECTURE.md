@@ -558,6 +558,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 11 | 字体渲染 CORS + 资源错配 | [`fontLoader.ts`](./src/services/fontLoader.ts) + [`font.rs`](./src-tauri/src/commands/font.rs) | [字体手册](./docs/font-handling.md) |
 | 12 | NodeView 事件/定时器成对清理 | [`extensions/code-block.ts`](./src/components/Editor/tiptap/extensions/code-block.ts) + [`image.ts`](./src/components/Editor/tiptap/extensions/image.ts) | §11.7 |
 | 13 | 文件 vs 剪贴板两种转义模式，嵌套 state 必须继承 | [`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts) | §11.8 |
+| 14 | Suggestion/输入扩展的「扩展级 option 接线」+ 拖拽落点路由（漏递使 `[[` 全版本不弹；混拖让路/坐标换算） | [`editor-extensions.ts`](./src/components/Editor/tiptap/editor-extensions.ts) + [`markdown-input.ts`](./src/components/Editor/tiptap/extensions/markdown-input.ts) + [`wikilink-drop.ts`](./src/components/Editor/tiptap/extensions/wikilink-drop.ts) + [`useAppWindowSession.ts`](./src/composables/useAppWindowSession.ts) | [KNOWN-ISSUES §一 #21/#22](./docs/KNOWN-ISSUES.md) |
 
 ### 11.1 脏态机制不可随意改动（A1 语义比对模型）
 

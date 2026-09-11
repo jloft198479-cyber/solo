@@ -37,6 +37,8 @@ updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src, docs/RELEASE_PROCESS.
 | 18 | `[[` 互链无文件名补全，需手打名字（D2 拆项，2026-09-06 完成） | Suggestion 基建此前只挂 Slash（`/`）与 Emoji（`:`）两个触发器，`[[` 无补全入口 | 新增 `WikilinkSuggest` 扩展（复用 Suggestion 基建 + `guardedFindSuggestionMatch` 多字符触发支持）+ Rust `list_markdown_files` 命令（同目录 .md，排序 + 上限 500）+ `WikilinkMenu` 组件；候选按文档路径缓存、文档切换/懒初始化预取；排除当前文档自身、菜单上限 50。守卫：代码块内不弹、`![[` 嵌入语法不触发、未闭合 `[[` 内抑制 `/` `:` 菜单；顺手补上 Slash 命令漏加的代码块守卫（A5 当时只给了 Emoji） | [`wikilink-suggest.ts`](../src/components/Editor/tiptap/extensions/wikilink-suggest.ts) / [`WikilinkMenu.vue`](../src/components/Editor/views/WikilinkMenu.vue) / [`suggestion-guard.ts`](../src/components/Editor/tiptap/extensions/suggestion-guard.ts) / [`document.rs`](../src-tauri/src/commands/document.rs) |
 | 19 | 崩溃时 `.tmp` 文件残留（条目漏移：v1.2.40 已修，2026-09-06 核对补登） | `save_document` 原子写产生 `.{文件名}.{毫秒}.tmp`，崩溃路径无清理 | `open_document` 兜底清理 `cleanup_stale_tmp_files`：仅删匹配 `.{原文件名}.{纯数字}.tmp` 且 mtime 超 1h 的残留（避免误伤双开进程正在写的 .tmp），失败静默；含 3 个单测 | [`document.rs`](../src-tauri/src/commands/document.rs):561 |
 | 20 | callout 类型配色在真实编辑器从未生效（2026-09-06 随 B10 审查发现） | `Callout` 扩展的 NodeView 创建裸 `div.mk-callout` 不挂任何属性；`addAttributes.renderHTML` 只作用于剪贴板/HTML 序列化、不作用于 NodeView DOM → `data-callout-type` 从未出现在编辑器 DOM，所有 callout 一直渲染成 note 默认配色、`::before` 类型标签为空（NodeView 与类型配色 CSS 同批引入，自引入日起即坏，剪贴板出站一直正常所以未被察觉） | NodeView 手动同步 `data-callout-type`/`data-title`/`data-fold`（`update()` 增量更新、标题/折叠标记删除时同步移除属性）；补 NodeView 属性回归锁（`callout.spec.ts`） | [`callout.ts`](../src/components/Editor/tiptap/extensions/callout.ts) |
+| 21 | 敲 `[[` 弹不出文件候选（自 v1.2.43 起对所有保存状态永久失效；2026-09-11 用户报，先疑"打包版还是源码"→映射到 v1.2.43+ 皆有） | `WikilinkSuggest` 的 `allow` 门控读扩展级 `this.options.getDocumentPath`（默认 `()=>null`），但 `WikilinkSuggest.configure(...)` 只传了 `suggestion` 对象、漏把 `getDocumentPath` 传到扩展顶层 → 恒判"不弹"。零件测试（`filterWikilinkCandidates`/`refresh`）测不到这类接线漏递 | configure 顶层补 `getDocumentPath: () => options.getDocumentPath?.() ?? null`；`editor-extensions.spec.ts` 加"接线生效"回归锁。整串 `[[x]]` 与单击跳转本不受此门控影响 | [`editor-extensions.ts`](../src/components/Editor/tiptap/editor-extensions.ts):304 / [`wikilink-suggest.ts`](../src/components/Editor/tiptap/extensions/wikilink-suggest.ts):118 |
+| 22 | 敲 `![说明](路径)` 被链接直输吃成 `!` + 半条链接（边敲边坏，非"没做图片"） | `convertPendingLink` 的 `linkInputRegex` 无 `!` 前缀判别，会匹配到 `[说明](路径)`（index=1）、把"说明"转成链接、残一个光秃秃 `!`。旁证：`suggestion-guard.ts` 早已为 `![[` 加同款守卫，唯独漏了 `![` | `convertPendingLink` 加"`[` 起点前紧邻 `!` 则跳过"守卫；`markdown-input.spec.ts` 加回归（图片语法保持字面、普通链接不误伤） | [`markdown-input.ts`](../src/components/Editor/tiptap/extensions/markdown-input.ts):465 / [`suggestion-guard.ts`](../src/components/Editor/tiptap/extensions/suggestion-guard.ts):93 |
 
 ## 二、未解决 / 待办（[未解决]）
 
@@ -65,6 +67,8 @@ updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src, docs/RELEASE_PROCESS.
 - **[`.opencode/PROFILE.md`](../.opencode/PROFILE.md)**：技术档案，含历史快照，可能与当前代码有延迟；以 [`ARCHITECTURE.md`](../ARCHITECTURE.md) + 代码为准。
 - **[`ARCHITECTURE.md`](../ARCHITECTURE.md) 附录 C**：已固化「文档-代码差异」清单，遇到矛盾先查此表。
 - 任何文档若与代码不符，**以代码为准并更新文档**。
+- **Suggestion 扩展的"扩展级 option"接线坑**：`WikilinkSuggest` 等的 `allow` 门控读的是扩展级 `this.options.xxx`（如 `getDocumentPath`），只在 `configure({ suggestion })` 里把值喂给 `suggestion` 闭包**不算接上**——必须在 configure 顶层也显式传。这类"漏递"纯函数单测测不到（见 §一 #21），要靠 `editor-extensions.spec` 那种"组装后断言 option"的集成锁兜底。
+- **`resolveWikilinkTarget` 的扩展名判断是对的，勿误报**：`/\.[^\\/]+$/` 要求点号后一路到结尾不能再有分隔符，故 `v1.2/B`（点号后还有 `/`）会被正确判为"无扩展、补 `.md`"。2026-09-11 外部审计曾报"带点目录名会误判已有扩展"，node 复核不成立——别再当 bug。
 
 ## See also
 

@@ -20,6 +20,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- **拖入同目录文档即在光标处生成互链**（方案 B·看落点，一期）：把 `.md`/`.markdown` 拖进**正文内**且与当前文档**同目录**、当前文档已保存时，在光标处插入一条 `[[链接]]`；落在正文外 / 跨目录 / `.txt` / 未保存 → 维持原「打开」行为（安全默认，误判非破坏、可撤销）。决策为纯函数 `wikilink-drop.ts::decideDocumentDrop`（13 项单测覆盖各分支）。**未做（守一期范围）**：子目录递归、跨盘绝对路径、悬停提示、vault。⚠️ 拖拽落点坐标换算（物理像素→CSS、标题栏偏移）**未真机验证**，误判一律回落「打开」。
+
+### Fixed
+- **敲 `[[` 弹不出文件候选**（自 v1.2.43 起对所有保存状态永久失效）：`WikilinkSuggest` 的 `allow` 门控读扩展级 `this.options.getDocumentPath`，但 `WikilinkSuggest.configure(...)` 只传了 `suggestion`、漏传扩展级 `getDocumentPath` → 恒为默认 `()=>null`。修复：configure 顶层补接线；`editor-extensions.spec.ts` 加「接线生效」回归锁（零件测试测不到这类漏递）。整串 `[[x]]` 与单击跳转本不受影响。
+- **敲 `![说明](路径)` 被链接直输吃成 `!` + 半条链接**：`convertPendingLink` 的 `linkInputRegex` 无 `!` 前缀判别，匹配 `[说明](路径)`（index=1）后把"说明"转链接、残一个光秃秃 `!`。修复：`[` 前紧邻 `!` 则跳过（与 `suggestion-guard.ts` 对 `![[` 的守卫同款）；`markdown-input.spec.ts` 加回归（图片语法保持字面、普通链接不误伤）。
+
 ## [1.2.50] — 2026-09-07
 
 ### Fixed
