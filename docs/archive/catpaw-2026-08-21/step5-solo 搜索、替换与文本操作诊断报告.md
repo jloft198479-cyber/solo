@@ -1,8 +1,8 @@
 ---
 title: solo 搜索、替换与文本操作诊断报告
-type: guide
+type: archive
 audience: agent
-status: active
+status: archive
 tags: [性能诊断, 搜索, 替换, 剪贴板, 选区, 事务]
 summary: Step 5 只读排查：搜索/替换/高频输入/选区/粘贴的响应速度与资源消耗
 updates: [ARCHITECTURE.md]

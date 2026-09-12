@@ -1,8 +1,8 @@
 ---
 title: solo 编辑器整体架构与扩展机制诊断报告
-type: guide
+type: archive
 audience: agent
-status: active
+status: archive
 tags: [性能诊断, 架构, 扩展机制, 状态管理, 撤销栈, 命令体系]
 summary: Step 4 只读排查：编辑器骨架、扩展体系、状态流、撤销栈、命令注册与依赖健康度
 updates: [ARCHITECTURE.md]

@@ -1,3 +1,12 @@
+---
+title: step1-solo 启动与首屏性能诊断报告
+type: archive
+audience: dev/agent
+status: archive
+tags: [历史归档, catpaw诊断, 2026-08-21]
+summary: 2026-08-21 catpaw 性能诊断/优化历史记录（已过时，仅供回溯参考）
+updates: []
+
 # **solo 启动与首屏性能诊断报告**
 
 ## **维度 1：窗口显示时序链路**

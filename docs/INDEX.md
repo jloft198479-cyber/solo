@@ -65,7 +65,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`solo外部文件监听方案.md`](./archive/solo外部文件监听方案.md)                       | archive   | maintainer/agent | archive  | 外部文件监听（Agent Sync）技术方案——**未执行**，已归档           |
 | [`architecture/refactoring-report.md`](./architecture/refactoring-report.md) | archive   | agent            | archive  | 减法重构历史报告（22→17 命令等，**历史快照**，现状以 ARCHITECTURE 为准） |
 | [`archive/settings-audit-report.md`](./archive/settings-audit-report.md)     | archive   | agent            | archive  | 设置面板排查历史报告（P0 死代码已清理，**历史快照**）                    |
-| [`catpaw审核/丝滑体验优化复盘.md`](./catpaw审核/丝滑体验优化复盘.md)         | archive   | dev/agent        | archive  | 丝滑优化（P0-P3）全流程复盘：方案/实施/审查/回退/根因/教训               |
+| [`catpaw审核/丝滑体验优化复盘.md`](./archive/catpaw-2026-08-21/丝滑体验优化复盘.md) | archive | dev/agent | archive | 丝滑优化（P0-P3）全流程复盘（整批 13 份已归档至 archive/catpaw-2026-08-21/） |
 | [`large-document-performance.md`](./archive/large-document-performance.md)            | archive   | dev              | archive  | 大文档卡顿根因清单与分阶段方案（**P0/P1 已实施、P2 已砍、P3 简化**，已归档） |
 | [`optimization-plan-2026-09-06.md`](./archive/optimization-plan-2026-09-06.md)        | archive   | maintainer       | archive  | 全面审查优化方案：30 条发现（已逐条核实，交互/兼容/性能）+ P0-P3 分批路线图（**执行待拍板**，已归档） |
 | [`project-plan-2026-08-29.md`](./archive/project-plan-2026-08-29.md)                  | archive   | maintainer       | archive  | 产品演进建议清单（**非强制任务**，逐项可执行可不执行，已归档）            |

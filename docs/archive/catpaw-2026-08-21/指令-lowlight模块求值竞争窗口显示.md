@@ -1,3 +1,12 @@
+---
+title: 指令-lowlight模块求值竞争窗口显示
+type: archive
+audience: dev/agent
+status: archive
+tags: [历史归档, catpaw诊断, 2026-08-21]
+summary: 2026-08-21 catpaw 性能诊断/优化历史记录（已过时，仅供回溯参考）
+updates: []
+
 # 指令：消除编辑器 chunk 模块求值与窗口显示的竞争
 
 ## 背景

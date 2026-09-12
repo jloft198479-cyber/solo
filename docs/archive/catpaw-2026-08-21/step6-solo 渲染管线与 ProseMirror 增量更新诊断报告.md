@@ -1,3 +1,12 @@
+---
+title: step6-solo 渲染管线与 ProseMirror 增量更新诊断报告
+type: archive
+audience: dev/agent
+status: archive
+tags: [历史归档, catpaw诊断, 2026-08-21]
+summary: 2026-08-21 catpaw 性能诊断/优化历史记录（已过时，仅供回溯参考）
+updates: []
+
 # solo 渲染管线与 ProseMirror 增量更新诊断报告（Step 6 合并版）
 
 > 只读排查，未修改任何代码。排查日期：2026-08-21。
