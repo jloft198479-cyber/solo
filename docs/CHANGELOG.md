@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.2.54] — 2026-09-13
 
 ### Added
 - **命令「复制为 Markdown」（`edit.copyAsMarkdown`，默认 Mod+Shift+M，命令面板可搜）**：把选区（含剥开口层）以 Markdown 源码写入剪贴板，供粘到 Obsidian / Typora 等外部 Markdown 编辑器。刻意**不占用 Mod+Shift+C**（已是 `editor.codeBlock` 的默认值）；命令**作用域定为 app**——窗口级快捷键分发器对「editor 作用域 + 默认快捷键」的组合一律跳过（假定由 ProseMirror 内置 keymap 处理），本命令没有对应的 PM 绑定，标 editor 会让快捷键在编辑区内按不动。
