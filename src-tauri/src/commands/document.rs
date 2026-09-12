@@ -224,10 +224,51 @@ pub async fn rename_file(old_path: String, new_name: String) -> Result<DocumentR
 /// 只动 `[[目标]]` 与 `[[目标|别名]]` 的**目标段**（`|` 后的别名原样保留），
 /// 覆盖「裸名」与「带 .md」两种写法。精确整词匹配——`old=笔记` 时不会误伤
 /// `[[笔记本]]`，也不碰普通链接 `[x](y)` 或正文里出现的同名词。
+/// **围栏代码块（``` / ~~~）内的 `[[旧名]]` 一律跳过**——那是给人看的示例、不是真链接
+/// （互链目标不含换行，故逐行判定安全）。
+/// 已知限制：缩进式代码块与行内代码（单反引号）不在保护范围（误伤需同时满足
+/// 「代码里恰好举例写了旧名」+「旧名正是被改名文档」，概率极低，见方案文档）。
 /// 预览（dry_run）与真正改写共用本函数，保证「列给用户看的」与「实际改的」完全一致。
 fn rewrite_wikilink_targets(content: &str, old_stem: &str, new_stem: &str) -> Option<String> {
-    let mut out = content.to_string();
-    // 目标可能带或不带 .md：[[old]] / [[old|..]] 与 [[old.md]] / [[old.md|..]] 都要覆盖。
+    let mut fence: Option<char> = None;
+    let mut out = String::with_capacity(content.len());
+    for line in content.split_inclusive('\n') {
+        let trimmed = line.trim_start_matches([' ', '\t']);
+        let marker = if trimmed.starts_with("```") {
+            Some('`')
+        } else if trimmed.starts_with("~~~") {
+            Some('~')
+        } else {
+            None
+        };
+        match (fence, marker) {
+            // 围栏起始行：进入围栏，本行原样保留
+            (None, Some(ch)) => {
+                fence = Some(ch);
+                out.push_str(line);
+            }
+            // 同类标记行：闭合围栏，本行原样保留
+            (Some(ch), Some(ch2)) if ch == ch2 => {
+                fence = None;
+                out.push_str(line);
+            }
+            // 围栏内普通行：原样保留，绝不替换
+            (Some(_), _) => out.push_str(line),
+            // 围栏外：做替换
+            (None, None) => out.push_str(&replace_targets_in_line(line, old_stem, new_stem)),
+        }
+    }
+    if out == content {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+/// 对围栏外的单行做精确目标替换：`[[old]]` / `[[old|..]]` 与 `[[old.md]]` / `[[old.md|..]]`
+/// 的目标段改成新名，别名段（`|` 后）原样保留。
+fn replace_targets_in_line(line: &str, old_stem: &str, new_stem: &str) -> String {
+    let mut out = line.to_string();
     // 先替换裸名不会误伤带 .md 的形态——`[[old]]` 要求 `old` 后紧跟 `]]`，
     // 而 `[[old.md]]` 里 `old` 后是 `.`，两者字面不重叠。
     for (old_t, new_t) in [
@@ -238,11 +279,7 @@ fn rewrite_wikilink_targets(content: &str, old_stem: &str, new_stem: &str) -> Op
             .replace(&format!("[[{}]]", old_t), &format!("[[{}]]", new_t))
             .replace(&format!("[[{}|", old_t), &format!("[[{}|", new_t));
     }
-    if out == content {
-        None
-    } else {
-        Some(out)
-    }
+    out
 }
 
 /// 改名后同步「指向本文档」的互链：扫描同目录其它文档，把 `[[旧名]]` 改成 `[[新名]]`。
@@ -252,8 +289,10 @@ fn rewrite_wikilink_targets(content: &str, old_stem: &str, new_stem: &str) -> Op
 ///   返回**已改动**的文件名。
 ///
 /// 边界与安全：路径解析全在本函数（从 `new_path` 取父目录、从两路径取 `file_stem`）；
-/// 只处理同目录、扩展名白名单（`OPEN_EXTENSIONS`）内的文档，扫描上限 `SAME_DIR_DOC_LIMIT`；
-/// 单个文件读/写失败一律静默跳过，**任何情况下都不阻断改名主流程**。
+/// **跳过改名后的这篇自身**（`skip_filename`）——不碰用户正在编辑、内存态未刷新的文档；
+/// 只处理同目录、扩展名白名单（`OPEN_EXTENSIONS`）内的文档，按**已扫描文档数**限流
+/// （`SAME_DIR_DOC_LIMIT`，防 node_modules 病态目录）；改写保护围栏代码块（见
+/// `rewrite_wikilink_targets`）。单个文件读/写失败一律静默跳过，**任何情况都不阻断改名主流程**。
 /// 跨窗口若另有窗口正开着被改的文件，靠既有的「外部修改」提示（`checkExternalModification`）
 /// 与保存冲突检测（mtime 乐观锁）兜底，不在此新增机制。
 #[tauri::command]
@@ -280,53 +319,89 @@ pub async fn sync_wikilinks_on_rename(
         .and_then(|s| s.to_str())
         .unwrap_or_default()
         .to_string();
+    let skip_filename = new_ref
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_string();
 
     // 名字为空或没变（如仅大小写、扩展名不同的等价改名）→ 无需同步
     if old_stem.is_empty() || new_stem.is_empty() || old_stem == new_stem {
         return Ok(Vec::new());
     }
 
-    tauri::async_runtime::spawn_blocking(move || -> Result<Vec<String>, AppError> {
-        let mut affected: Vec<String> = Vec::new();
-        let entries = match fs::read_dir(&dir) {
-            Ok(entries) => entries,
-            // 目录读不了（被删/权限）：静默返回空，不报错、不阻断改名
-            Err(_) => return Ok(affected),
-        };
-        for entry in entries.flatten() {
-            if affected.len() >= SAME_DIR_DOC_LIMIT {
-                break;
-            }
-            let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
-            let name = match path.file_name().and_then(|n| n.to_str()) {
-                Some(n) => n.to_string(),
-                None => continue,
-            };
-            // 只碰可编辑文档类型（扩展名闸门），防越权读写任意文件
-            if validate_document_extension(&name, &OPEN_EXTENSIONS, "同步链接").is_err() {
-                continue;
-            }
-            let content = match fs::read_to_string(&path) {
-                Ok(c) => c,
-                // 非 UTF-8 / 权限等读失败：跳过这一个，继续处理其它文件
-                Err(_) => continue,
-            };
-            if let Some(updated) = rewrite_wikilink_targets(&content, &old_stem, &new_stem) {
-                // 预览模式不写盘；改写模式写失败则跳过（不计入 affected）
-                if !dry_run && atomic_write(&path, updated.as_bytes()).is_err() {
-                    continue;
-                }
-                affected.push(name);
-            }
-        }
-        affected.sort();
-        Ok(affected)
+    let affected = tauri::async_runtime::spawn_blocking(move || {
+        scan_and_rewrite_wikilinks(
+            &dir,
+            &old_stem,
+            &new_stem,
+            &skip_filename,
+            dry_run,
+            SAME_DIR_DOC_LIMIT,
+        )
     })
     .await
-    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?
+    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?;
+
+    Ok(affected)
+}
+
+/// 扫描 `dir`（不递归）下的可编辑文档，把 `[[old_stem]]` 改成 `new_stem`，返回受影响文件名（升序）。
+/// 同步执行（由命令包进 `spawn_blocking`）。抽成独立函数便于用 `limit` 做小样本单测。
+/// - `skip_filename`：跳过改名后的当前文档自身（同目录唯一同名文件，不比对路径全等即可）。
+/// - `limit`：最多**扫描**多少个候选文档（已扫描数，非命中数）——真正给病态大目录兜底。
+/// - `dry_run`：只预览命中、不写盘。
+fn scan_and_rewrite_wikilinks(
+    dir: &Path,
+    old_stem: &str,
+    new_stem: &str,
+    skip_filename: &str,
+    dry_run: bool,
+    limit: usize,
+) -> Vec<String> {
+    let mut affected: Vec<String> = Vec::new();
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        // 目录读不了（被删/权限）：静默返回空，不报错、不阻断改名
+        Err(_) => return affected,
+    };
+    let mut scanned = 0usize;
+    for entry in entries.flatten() {
+        if scanned >= limit {
+            break;
+        }
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let name = match path.file_name().and_then(|n| n.to_str()) {
+            Some(n) => n.to_string(),
+            None => continue,
+        };
+        // 跳过正在改名的这篇自身：它的内存态/基线此刻正被编辑器持有，改写会被下次保存回写
+        if name == skip_filename {
+            continue;
+        }
+        // 只碰可编辑文档类型（扩展名闸门），防越权读写任意文件
+        if validate_document_extension(&name, &OPEN_EXTENSIONS, "同步链接").is_err() {
+            continue;
+        }
+        scanned += 1;
+        let content = match fs::read_to_string(&path) {
+            Ok(c) => c,
+            // 非 UTF-8 / 权限等读失败：跳过这一个，继续处理其它文件
+            Err(_) => continue,
+        };
+        if let Some(updated) = rewrite_wikilink_targets(&content, old_stem, new_stem) {
+            // 预览模式不写盘；改写模式写失败则跳过（不计入 affected）
+            if !dry_run && atomic_write(&path, updated.as_bytes()).is_err() {
+                continue;
+            }
+            affected.push(name);
+        }
+    }
+    affected.sort();
+    affected
 }
 
 #[tauri::command]
@@ -787,8 +862,9 @@ fn unique_asset_target(assets_dir: &Path, filename: &str) -> (PathBuf, String) {
 mod tests {
     use super::{
         atomic_write, import_document_image, list_markdown_files, open_document, rename_file,
-        resolve_image_src, rewrite_wikilink_targets, save_document, sync_wikilinks_on_rename,
-        validate_document_extension, validate_image_asset_path, OPEN_EXTENSIONS, WRITE_EXTENSIONS,
+        resolve_image_src, rewrite_wikilink_targets, scan_and_rewrite_wikilinks, save_document,
+        sync_wikilinks_on_rename, validate_document_extension, validate_image_asset_path,
+        OPEN_EXTENSIONS, WRITE_EXTENSIONS,
     };
     use crate::error::AppError;
     use std::fs;
@@ -1401,6 +1477,58 @@ mod tests {
         let res = sync_wikilinks_on_rename(p.clone(), p, false).await.unwrap();
         assert!(res.is_empty());
         assert_eq!(fs::read_to_string(&link).unwrap(), "[[same]]");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn rewrite_wikilink_skips_fenced_code_block() {
+        // 围栏内的 [[笔记]] 是给人看的示例，不该改；围栏外的真链接才改
+        let content =
+            "见 [[笔记]] 有效。\n```\n示例 [[笔记]] 不该动\n```\n再来 [[笔记]]\n~~~\n[[笔记]] 也不动\n~~~\n";
+        let out = rewrite_wikilink_targets(content, "笔记", "文章").unwrap();
+        assert_eq!(
+            out,
+            "见 [[文章]] 有效。\n```\n示例 [[笔记]] 不该动\n```\n再来 [[文章]]\n~~~\n[[笔记]] 也不动\n~~~\n"
+        );
+    }
+
+    #[tokio::test]
+    async fn sync_wikilinks_skips_the_renamed_file_itself() {
+        let dir = test_dir();
+        let new_path = dir.join("new.md");
+        // 改名后的当前文档：正文含指向自己旧名的自链，也不该被动（用户正在编辑的这篇）
+        atomic_write(&new_path, b"see [[old]] and [[new]] here").unwrap();
+        let link = dir.join("link.md");
+        atomic_write(&link, b"points [[old]]").unwrap();
+
+        let old_str = dir.join("old.md").to_string_lossy().to_string();
+        let new_str = new_path.to_string_lossy().to_string();
+        let changed = sync_wikilinks_on_rename(old_str, new_str, false)
+            .await
+            .unwrap();
+
+        assert_eq!(changed, vec!["link.md".to_string()]);
+        assert_eq!(
+            fs::read_to_string(&new_path).unwrap(),
+            "see [[old]] and [[new]] here"
+        ); // 自身逐字未动
+        assert_eq!(fs::read_to_string(&link).unwrap(), "points [[new]]");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn scan_wikilinks_limits_by_scanned_count() {
+        let dir = test_dir();
+        atomic_write(&dir.join("new.md"), b"# new").unwrap(); // 当前改名文档，跳过、不计入扫描数
+        for f in ["a.md", "b.md", "c.md", "d.md"] {
+            atomic_write(&dir.join(f), b"see [[old]]").unwrap();
+        }
+        // limit=2：只处理 2 个候选（读目录顺序不定，仅断言命中数=2）；证明按"已扫描数"而非"命中数"限流
+        let affected = scan_and_rewrite_wikilinks(&dir, "old", "new", "new.md", true, 2);
+        assert_eq!(affected.len(), 2);
+        // 全量（大 limit）：四个都命中
+        let all = scan_and_rewrite_wikilinks(&dir, "old", "new", "new.md", true, 500);
+        assert_eq!(all, vec!["a.md", "b.md", "c.md", "d.md"].iter().map(|s| s.to_string()).collect::<Vec<_>>());
         let _ = fs::remove_dir_all(dir);
     }
 }
