@@ -250,6 +250,23 @@ describe('serializeClipboardText（纯文本槽：干净文字 / 专有语法回
     expect(whole('---\ntitle: x\n---\n\n正文')).toContain('title: x');
   });
 
+  it('链接：默认只给显示文字，网址不进纯文本（业界通行做法）', () => {
+    // `text/plain` 的定义就是「字符、无标记」（浏览器选中带链接的文字粘到
+    // VS Code 同样是超链接消失、只剩文字），链接因此不触发回落。
+    // 要网址的两个出口：富文本目标（Word / 微信 / 公众号）读 text/html 槽，
+    // 网址本就在；纯文本目标用 edit.copyAsMarkdown（Mod+Shift+M）取源码。
+    expect(whole('打开 [百度](https://www.baidu.com) 看看')).toBe('打开 百度 看看');
+    // 裸网址是普通文字、不属标记，照常保留
+    expect(whole('访问 https://www.baidu.com')).toBe('访问 https://www.baidu.com');
+  });
+
+  it('链接 + 专有语法 → 整段回落源码，网址顺带保住', () => {
+    // 回落判据按「选区里有没有专有节点」，与链接无关——有公式就整体给源码。
+    const out = whole('[百度](https://www.baidu.com) 与 $E=mc^2$');
+    expect(out).toContain('https://www.baidu.com');
+    expect(out).toContain('$E=mc^2$');
+  });
+
   it('专有节点藏在容器里也能识别（不漏判）', () => {
     expect(whole('- 列表里塞公式 $x^2$')).toContain('$x^2$');
     expect(whole('> 引用里塞 [[链接]]')).toContain('[[链接]]');
