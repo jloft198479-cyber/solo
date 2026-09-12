@@ -104,7 +104,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables +
 │                   Rust 核心 (src-tauri/src/)                     │
 │                                                                  │
 │   lib.rs ── run() ── 插件注册 / 启动开打 / 菜单 / 关闭拦截        │
-│   commands/ ── document/font/clipboard/window/desktop ── 23 个 #[command]  │
+│   commands/ ── document/font/clipboard/window/desktop（见 §4.2）  │
 │   models.rs ── DTO（camelCase 序列化）                            │
 │   error.rs ── AppError 枚举（5 变体 + 结构化序列化）              │
 │   events.rs ── 2 个事件常量                                      │
@@ -182,7 +182,7 @@ md-editor/
 │   │   │       ├── useEditorAppearance.ts# 字体/主题/代码高亮注入
 │   │   │       ├── useEditorSearch.ts    # 编辑器内搜索替换
 │   │   │       ├── editor.css            # 编辑区排版（消费 --mk-* 变量）
-│   │   │       ├── extensions/           # 21 个自定义扩展（详见 §8.3）
+│   │   │       ├── extensions/           # 自定义扩展（数量以源码为准，见 §8.3）
 │   │   │       └── markdown/             # parser / serializer / plugins
 │   │   ├── Settings/             #   设置面板（15 个 .vue）
 │   │   ├── Layout/               #   CustomTitlebar / WindowResizeHandles / ErrorBoundary
@@ -465,13 +465,13 @@ currentFile: { path, content, isDirty, lastModifiedTime, displayName, originalBa
 
 > 防抖分层是刻意的：统计要"几乎实时"（150ms），序列化要"停顿后"（500ms）。**改任何防抖值前先理解这个分层**（详见 §6.3 `useEditorSync`）。
 
-### 8.3 扩展（`editor-extensions.ts` 注册 **21 个**，`extensions/` 目录 21 个文件）
+### 8.3 扩展（数量与清单以 `editor-extensions.ts` 的 `createEditorExtensions` 返回数组为唯一真相源，勿在文档硬编码）
 
 注册列表（按 `editor-extensions.ts` `createEditorExtensions` 实际顺序）：
 
-`StarterKit`(禁用内置 `codeBlock`/`link`/`heading`) / `Frontmatter` / `FootnoteRef` / `FootnoteSection` / `FootnoteDef` / `SemanticHeading` / `CustomCodeBlock` / `CustomTable`(+`CustomTableRow`/`CustomTableHeader`/`CustomTableCell`) / `CustomImage` / `Callout` / `Highlight`(multicolor:false) / `ParagraphFocus` / `SearchHighlight` / `Link`(openOnClick:false) / `LinkOpen` / `TaskList` / `TaskItem`(nested) / `Placeholder` / `MathBlock` / `MathInline` / `MermaidBlock` / `MarkdownInput` / `MarkdownPaste` / `Superscript` / `Subscript` / `Dim` / `Wikilink` / `SlashCommands` / `EmojiSuggest`。
+`StarterKit`(禁用内置 `codeBlock`/`link`/`heading`) / `Frontmatter` / `FootnoteRef` / `FootnoteSection` / `FootnoteDef` / `SemanticHeading` / `CustomCodeBlock` / `CustomTable`(+`CustomTableRow`/`CustomTableHeader`/`CustomTableCell`) / `CustomImage` / `Callout` / `Highlight`(multicolor:false) / `ParagraphFocus` / `SearchHighlight` / `Link`(openOnClick:false) / `LinkOpen` / `TaskList` / `TaskItem`(nested) / `Placeholder` / `MathBlock` / `MathInline` / `MermaidBlock` / `MarkdownInput` / `MarkdownPaste` / `Superscript` / `Subscript` / `Dim` / `Wikilink` / `WikilinkSuggest` / `SlashCommands` / `EmojiSuggest`。
 
-> 共 **21 个扩展**（旧文档写的 14 个已过时——漏计了 Frontmatter/Footnote×3/Callout/ParagraphFocus/SearchHighlight/Link/LinkOpen/Dim 及 Table 拆分的 3 个子节点）。
+> 数量请直接数上面的注册列表或以源码为准（旧文档写的 14 / 21 个均已过时——14 漏计了 Frontmatter/Footnote×3/Callout/ParagraphFocus/SearchHighlight/Link/LinkOpen/Dim 及 Table 拆分的 3 个子节点，21 又漏了后续新增的 WikilinkSuggest）。
 
 StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定义版以保 Markdown 保真度与 IME 行为。
 
@@ -703,7 +703,7 @@ destroy() {
 | composables 10 个 / `utils/shortcuts.ts` 存在 | **实际 12 个**；`utils/shortcuts.ts` **已删除**（registry 内联 `getShortcut`/`getShortcutCommands`） |
 | `services/tauri/` 含 `event-names.ts`/`webview.ts`/`opener.ts`/`os.ts`/`window-state.ts` | **均不存在**。实际 10 个文件：`client`/`command-names`/`document`/`window`/`dialog`/`clipboard`/`events`/`font`/`asset`/`store`，见 §3 / §5.3 |
 | 主题 7 套（含 `gray-domain`） | **实际 8 套**：`scholar-light`/`scholar-dark`/`elegant`/`cinnabar`/`cinnabar-dark`/`default`/`jade`/`orchid`，见 §10.1 |
-| 编辑器扩展 14 个 | **实际 21 个**（含 Frontmatter/Footnote×3/Callout/ParagraphFocus/SearchHighlight/Link/LinkOpen/Dim 等），见 §8.3 |
+| 编辑器扩展 14 个 | **已过时**：数量以 `editor-extensions.ts` 的 `createEditorExtensions` 返回数组为准（勿硬编码），见 §8.3 |
 | Tauri 插件 6 个 | **实际 7 个**（多 `updater`，见 `autoCheckForUpdate`） |
 | `proxy.rs` 定义 `detect_proxy_for_update` | **不存在 `proxy.rs`**；该命令定义在 `lib.rs`，见 §4.2 |
 | 启动竞态两层缓冲 | **实际四类 managed state**：`StartupOpenRequests`/`PendingWindowPaths`/`LoadedWindows`/`FocusedWindow`，见 §4.5 |
