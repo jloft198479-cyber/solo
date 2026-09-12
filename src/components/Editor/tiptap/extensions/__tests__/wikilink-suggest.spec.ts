@@ -18,6 +18,7 @@ import {
   filterWikilinkCandidates,
   refreshWikilinkCandidates,
   getWikilinkCandidates,
+  isWikilinkSuggestAllowed,
 } from '../wikilink-suggest';
 
 beforeEach(() => {
@@ -80,8 +81,26 @@ describe('refreshWikilinkCandidates', () => {
     expect(getWikilinkCandidates('F:\\y\\a.md')).toEqual(['a.md']);
   });
 
-  it('无路径时为 no-op（未保存文档不唤出补全）', async () => {
+  it('无路径时为 no-op（无目录可扫；菜单照常弹，空态给引导）', async () => {
     await expect(refreshWikilinkCandidates(null)).resolves.toBeUndefined();
     expect(listMarkdownFilesMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('isWikilinkSuggestAllowed', () => {
+  const ed = (...active: string[]) =>
+    ({ isActive: (name: string) => active.includes(name) }) as unknown as Parameters<
+      typeof isWikilinkSuggestAllowed
+    >[0];
+
+  it('未保存文档（无路径）照常可唤出：空态给引导，不静默禁用', () => {
+    // 回归锁：曾在此叠加 `!!getDocumentPath()`——敲 [[ 毫无反应，
+    // 与「补全坏了」无法区分，只能靠这条断言拦住。
+    expect(isWikilinkSuggestAllowed(ed())).toBe(true);
+  });
+
+  it('代码块 / 行内代码内不唤出（Slash、Emoji 同款守卫）', () => {
+    expect(isWikilinkSuggestAllowed(ed('codeBlock'))).toBe(false);
+    expect(isWikilinkSuggestAllowed(ed('code'))).toBe(false);
   });
 });

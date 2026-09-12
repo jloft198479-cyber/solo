@@ -26,6 +26,7 @@
       ref="wikilinkMenuRef"
       :items="wikilinkMenuItems"
       :command="wikilinkMenuCommand"
+      :has-document-path="!!fileStore.currentFile.path"
     />
 
     <!-- 搜索替换面板 -->
