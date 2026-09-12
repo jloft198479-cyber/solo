@@ -51,19 +51,19 @@ type EmojiSuggestSuggestionProps = SuggestionProps<EmojiItem, EmojiItem>;
 type WikilinkSuggestSuggestionProps = SuggestionProps<WikilinkCandidateItem, WikilinkCandidateItem>;
 
 export interface SlashMenuController {
-  show: (position: { top: number; left: number }) => void;
+  show: (position: MenuPosition) => void;
   hide: () => void;
   onKeyDown: (event: KeyboardEvent) => boolean;
 }
 
 export interface EmojiMenuController {
-  show: (position: { top: number; left: number }) => void;
+  show: (position: MenuPosition) => void;
   hide: () => void;
   onKeyDown: (event: KeyboardEvent) => boolean;
 }
 
 export interface WikilinkMenuController {
-  show: (position: { top: number; left: number }) => void;
+  show: (position: MenuPosition) => void;
   hide: () => void;
   onKeyDown: (event: KeyboardEvent) => boolean;
 }
@@ -79,11 +79,29 @@ export interface WikilinkMenuController {
 //
 // 抽成纯函数便于单测覆盖「下方遮挡 / 上方翻转 / 右侧遮挡 / 极端小视口」等场景。
 //
-// 估算尺寸来源：CSS .mk-slash-menu-scroll { max-height: 320px }，
-// 加 padding + border ≈ 340。EmojiMenu 尺寸略小但用同值偏差可接受。
-const MENU_MAX_HEIGHT = 340;
+// 对齐业界做法（Floating UI 的 `size` + `flip` 组合），两步缺一不可：
+//   flip —— 下方放不下就翻到上方；
+//   size —— 菜单高度**不是常量**，由当侧可用空间裁决，放不下就压缩 + 自身滚动。
+// 只做 flip 而把高度写死，翻上去后菜单会按「最大高度」占座，内容少时底边
+// 离光标一大截（看着像飘在别处，与输入点毫无关联）。
+//
+// 上方改用 bottom 而非 top 定位：菜单是 position: fixed，bottom 相对视口底，
+// 于是「菜单底边贴光标上沿」恒成立——不必事先测量菜单高度，也就没有
+// 「先渲染再校正」的一帧抖动。
+const MENU_IDEAL_HEIGHT = 340; // ≈ CSS max-height 320 + padding/border
+const MENU_MIN_HEIGHT = 120; // 空间再挤也别把菜单压成一条缝（宁可略微溢出）
 const MENU_MIN_WIDTH = 240;
 const VIEWPORT_MARGIN = 8;
+const CURSOR_GAP = 4;
+
+export interface MenuPosition {
+  /** 放光标下方时给 top；放上方时给 bottom（二者互斥） */
+  top?: number;
+  bottom?: number;
+  left: number;
+  /** 该侧可用高度，下发为 CSS max-height；内容超出时菜单自身滚动 */
+  maxHeight: number;
+}
 
 export function computeMenuPosition(
   rect: { top: number; bottom: number; left: number },
@@ -91,24 +109,20 @@ export function computeMenuPosition(
     width: typeof window !== 'undefined' ? window.innerWidth : 1024,
     height: typeof window !== 'undefined' ? window.innerHeight : 768,
   },
-): { top: number; left: number } {
+): MenuPosition {
   const { width: vw, height: vh } = viewport;
-  const belowTop = rect.bottom + 4;
-  const aboveTop = rect.top - MENU_MAX_HEIGHT - 4;
 
-  let top: number;
-  const fitsBelow = belowTop + MENU_MAX_HEIGHT <= vh - VIEWPORT_MARGIN;
-  const fitsAbove = aboveTop >= VIEWPORT_MARGIN;
+  // 两侧可用空间：已扣掉视口边距和与光标之间的缝隙
+  const spaceBelow = vh - VIEWPORT_MARGIN - rect.bottom - CURSOR_GAP;
+  const spaceAbove = rect.top - VIEWPORT_MARGIN - CURSOR_GAP;
 
-  if (fitsBelow) {
-    top = belowTop;
-  } else if (fitsAbove) {
-    // 下方放不下、上方放得下 → 翻转
-    top = aboveTop;
-  } else {
-    // 上下都放不下（菜单比视口高）→ 钉在视口顶部，靠菜单自身 scroll
-    top = VIEWPORT_MARGIN;
-  }
+  // flip：下方优先；下方放不下理想高度时，退到更宽敞的一侧
+  const placeBelow = spaceBelow >= MENU_IDEAL_HEIGHT || spaceBelow >= spaceAbove;
+
+  const vertical: Pick<MenuPosition, 'top' | 'bottom'> = placeBelow
+    ? { top: rect.bottom + CURSOR_GAP }
+    : { bottom: vh - rect.top + CURSOR_GAP };
+  const maxHeight = Math.max(placeBelow ? spaceBelow : spaceAbove, MENU_MIN_HEIGHT);
 
   let left = rect.left;
   if (left + MENU_MIN_WIDTH > vw - VIEWPORT_MARGIN) {
@@ -118,7 +132,7 @@ export function computeMenuPosition(
     left = VIEWPORT_MARGIN;
   }
 
-  return { top, left };
+  return { ...vertical, left, maxHeight };
 }
 
 interface EditorExtensionOptions {

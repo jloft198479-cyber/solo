@@ -46,7 +46,7 @@ describe('useFloatingListMenu', () => {
       const { result, unmount } = setup([{ id: 1, label: 'A' }]);
 
       expect(result.visible.value).toBe(false);
-      expect(result.position.value).toEqual({ top: 0, left: 0 });
+      expect(result.position.value).toEqual({ top: 0, left: 0, maxHeight: 0 });
       expect(result.selectedIndex.value).toBe(0);
 
       unmount();

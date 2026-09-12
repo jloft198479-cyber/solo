@@ -1,9 +1,10 @@
-import { ref, watch, nextTick, type Ref } from 'vue';
+import { ref, computed, watch, nextTick, type Ref } from 'vue';
+import type { MenuPosition } from '../components/Editor/tiptap/editor-extensions';
 
 /**
  * 浮动列表菜单 composable
  *
- * 抽取 SlashMenu / EmojiMenu 共有的浮动菜单逻辑：
+ * 抽取 SlashMenu / EmojiMenu / WikilinkMenu 共有的浮动菜单逻辑：
  * - 显隐与定位
  * - 选中索引管理（items 变化时自动重置）
  * - 键盘导航（ArrowUp / ArrowDown / Enter）
@@ -21,8 +22,22 @@ export function useFloatingListMenu<T>(options: {
   const { items: getItems, command: getCommand, menuRef } = options;
 
   const visible = ref(false);
-  const position = ref({ top: 0, left: 0 });
+  // 隐藏态占位值，show() 时必被覆盖
+  const position = ref<MenuPosition>({ top: 0, left: 0, maxHeight: 0 });
   const selectedIndex = ref(0);
+
+  /**
+   * 直接给模板的 style：放下方给 top、放上方给 bottom（见 MenuPosition），
+   * 并把可用高度作为 --menu-max-height 下发，由 CSS 施加到滚动区。
+   */
+  const menuStyle = computed(() => {
+    const { top, bottom, left, maxHeight } = position.value;
+    return {
+      left: `${left}px`,
+      ...(bottom === undefined ? { top: `${top ?? 0}px` } : { bottom: `${bottom}px` }),
+      '--menu-max-height': `${maxHeight}px`,
+    };
+  });
 
   // 条目列表变化时重置选中项
   watch(getItems, () => {
@@ -62,7 +77,7 @@ export function useFloatingListMenu<T>(options: {
     });
   }
 
-  function show(pos: { top: number; left: number }) {
+  function show(pos: MenuPosition) {
     position.value = pos;
     visible.value = true;
     selectedIndex.value = 0;
@@ -75,6 +90,7 @@ export function useFloatingListMenu<T>(options: {
   return {
     visible,
     position,
+    menuStyle,
     selectedIndex,
     selectItem,
     onKeyDown,

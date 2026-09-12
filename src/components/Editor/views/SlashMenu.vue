@@ -4,7 +4,7 @@
       v-show="visible"
       ref="menuRef"
       class="mk-slash-menu"
-      :style="{ top: position.top + 'px', left: position.left + 'px' }"
+      :style="menuStyle"
     >
       <div class="mk-slash-menu-scroll">
       <template v-for="group in groupedItems" :key="group.category">
@@ -77,7 +77,7 @@ const flatItems = computed(() => {
 
 const {
   visible,
-  position,
+  menuStyle,
   selectedIndex,
   selectItem,
   onKeyDown,

@@ -8,35 +8,68 @@ import { describe, expect, it } from 'vitest';
 import { ref } from 'vue';
 import { computeMenuPosition, createEditorExtensions } from '../editor-extensions';
 
-// 视口常量（与实现里的 MENU_MAX_HEIGHT=340 / MENU_MIN_WIDTH=240 / VIEWPORT_MARGIN=8 对齐）
-const MENU_MAX_HEIGHT = 340;
+// 视口常量（与实现里的 MENU_IDEAL_HEIGHT=340 / MENU_MIN_HEIGHT=120 /
+// MENU_MIN_WIDTH=240 / VIEWPORT_MARGIN=8 / CURSOR_GAP=4 对齐）
+const MENU_IDEAL_HEIGHT = 340;
+const MENU_MIN_HEIGHT = 120;
 const MENU_MIN_WIDTH = 240;
 const MARGIN = 8;
+const GAP = 4;
 
-describe('computeMenuPosition - 浮动菜单边界检测', () => {
-  it('下方放得下：默认放下方（top = rect.bottom + 4）', () => {
+/** 菜单底边在视口中的 y 坐标（上方定位时由 bottom 反推） */
+const bottomEdgeY = (pos: { bottom?: number }, vh: number) => vh - (pos.bottom ?? 0);
+
+describe('computeMenuPosition - 浮动菜单边界检测（size + flip）', () => {
+  it('下方放得下：默认放下方，并把该侧可用高度下发为 max-height', () => {
     const rect = { top: 100, bottom: 120, left: 50 };
     const viewport = { width: 1024, height: 768 };
-    expect(computeMenuPosition(rect, viewport)).toEqual({ top: 124, left: 50 });
-  });
-
-  it('下方遮挡 + 上方放得下：翻转到光标上方', () => {
-    // 视口高 500，光标在 bottom=400，下方剩 100 放不下 340 的菜单
-    // 上方有 400-340-4=56 ≥ 8，放得下 → 翻转
-    const rect = { top: 380, bottom: 400, left: 50 };
-    const viewport = { width: 1024, height: 500 };
     expect(computeMenuPosition(rect, viewport)).toEqual({
-      top: 380 - MENU_MAX_HEIGHT - 4, // = 36
+      top: 120 + GAP,
       left: 50,
+      maxHeight: 768 - MARGIN - 120 - GAP, // = 636
     });
   });
 
-  it('下方遮挡 + 上方也放不下（菜单比视口高）：钉视口顶部', () => {
-    // 视口高 300，光标在 bottom=200；上方 top=200-340-4=-144 < 8 放不下
-    // → 钉在顶部 margin
+  it('下方遮挡 + 上方放得下：翻转到光标上方', () => {
+    // 视口高 500，光标 bottom=400：下方仅剩 88，上方有 368 → 翻转
+    const rect = { top: 380, bottom: 400, left: 50 };
+    const viewport = { width: 1024, height: 500 };
+    const pos = computeMenuPosition(rect, viewport);
+    expect(pos.top).toBeUndefined();
+    expect(pos.bottom).toBe(500 - rect.top + GAP); // = 124
+    expect(pos.maxHeight).toBe(rect.top - MARGIN - GAP); // = 368
+  });
+
+  it('★ 上翻时菜单底边紧贴光标上沿（不按最大高度占座）', () => {
+    // 锁住本次修复的核心：旧实现用「top = 光标上沿 − 最大高度」定位，
+    // 菜单内容少时底边离光标一大截（看着像飘在别处，与输入点毫无关联）。
+    // 改用 bottom 定位后，无论菜单实际多高，底边恒在「光标上沿 − 缝隙」处。
+    const vh = 500;
+    const rect = { top: 380, bottom: 400, left: 50 };
+    const pos = computeMenuPosition(rect, { width: 1024, height: vh });
+    expect(pos.top).toBeUndefined();
+    expect(bottomEdgeY(pos, vh)).toBe(rect.top - GAP); // = 376
+    // 反证：与旧实现的落点明显不同（差 ≈ 最大高度 − 实际高度）
+    expect(bottomEdgeY(pos, vh)).not.toBe(rect.top - MENU_IDEAL_HEIGHT - GAP);
+  });
+
+  it('上下都放不下：退到宽敞的一侧并压缩高度，菜单不越界', () => {
+    // 视口高 300，光标 bottom=200：下方 88、上方 168，都 < 理想 340
+    // → 取上方并压到 168：底边 176、顶边 176−168=8，恰好贴住视口边距
     const rect = { top: 180, bottom: 200, left: 50 };
     const viewport = { width: 1024, height: 300 };
-    expect(computeMenuPosition(rect, viewport)).toEqual({ top: MARGIN, left: 50 });
+    const pos = computeMenuPosition(rect, viewport);
+    expect(pos.bottom).toBe(300 - rect.top + GAP); // = 124
+    expect(pos.maxHeight).toBe(rect.top - MARGIN - GAP); // = 168
+    expect(bottomEdgeY(pos, 300) - (pos.maxHeight ?? 0)).toBe(MARGIN); // 顶边不越界
+  });
+
+  it('空间极小：max-height 不低于下限，菜单仍可用', () => {
+    // 视口 200x200，上方可用仅 88 < 下限 120 → 取 120
+    const rect = { top: 100, bottom: 110, left: 100 };
+    const viewport = { width: 200, height: 200 };
+    const pos = computeMenuPosition(rect, viewport);
+    expect(pos.maxHeight).toBe(MENU_MIN_HEIGHT);
   });
 
   it('右侧遮挡：left 向左收缩到视口内', () => {
@@ -44,36 +77,27 @@ describe('computeMenuPosition - 浮动菜单边界检测', () => {
     // → left = 800 - 240 - 8 = 552
     const rect = { top: 100, bottom: 120, left: 700 };
     const viewport = { width: 800, height: 768 };
-    expect(computeMenuPosition(rect, viewport)).toEqual({
-      top: 124,
-      left: 800 - MENU_MIN_WIDTH - MARGIN, // = 552
-    });
+    const pos = computeMenuPosition(rect, viewport);
+    expect(pos.left).toBe(800 - MENU_MIN_WIDTH - MARGIN); // = 552
   });
 
   it('左侧超出（rect.left 为负或太小）：钉视口左边', () => {
     const rect = { top: 100, bottom: 120, left: -50 };
     const viewport = { width: 1024, height: 768 };
-    expect(computeMenuPosition(rect, viewport)).toEqual({ top: 124, left: MARGIN });
+    const pos = computeMenuPosition(rect, viewport);
+    expect(pos.left).toBe(MARGIN);
   });
 
   it('光标在视口右下角：上下左右都翻转', () => {
     // 视口 800x500，光标在 (780, 480)，下方放不下、右侧也放不下
     const rect = { top: 460, bottom: 480, left: 780 };
     const viewport = { width: 800, height: 500 };
-    expect(computeMenuPosition(rect, viewport)).toEqual({
-      top: 460 - MENU_MAX_HEIGHT - 4, // 翻转上方
-      left: 800 - MENU_MIN_WIDTH - MARGIN, // 左收缩
-    });
-  });
-
-  it('小视口极端场景：菜单比视口还高，至少 top 钉顶、left 钉左', () => {
-    // 视口 200x200，菜单 max-height 340，min-width 240 都超出
-    const rect = { top: 100, bottom: 110, left: 100 };
-    const viewport = { width: 200, height: 200 };
-    expect(computeMenuPosition(rect, viewport)).toEqual({
-      top: MARGIN,
-      left: MARGIN,
-    });
+    const pos = computeMenuPosition(rect, viewport);
+    expect(pos.top).toBeUndefined(); // 翻到上方
+    expect(pos.bottom).toBe(500 - rect.top + GAP); // = 44
+    expect(pos.left).toBe(800 - MENU_MIN_WIDTH - MARGIN); // = 552
+    // 压缩后顶边仍在视口内
+    expect(bottomEdgeY(pos, 500) - (pos.maxHeight ?? 0)).toBeGreaterThanOrEqual(0);
   });
 });
 
