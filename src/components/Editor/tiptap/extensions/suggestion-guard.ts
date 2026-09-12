@@ -16,8 +16,8 @@
  *   右」语义取最后一个匹配——lastIndexOf 会命中与前一匹配触发串重叠的出
  *   现（'[[[' 时 lib 只匹配 @0，lastIndexOf 却找到 @1），语义漂移。
  *
- * 三个有意偏离默认实现的守卫（见下方注释）：URL 上下文、'![' 前缀、
- * 开放互链上下文。
+ * 四个有意偏离默认实现的守卫（见下方注释）：URL 上下文、Windows 盘符、
+ * '![' 前缀、开放互链上下文。
  */
 import type { SuggestionMatch, Trigger } from '@tiptap/suggestion';
 
@@ -76,6 +76,11 @@ export function guardedFindSuggestionMatch(config: Trigger): SuggestionMatch {
     if (charIndex === -1) return null;
   }
 
+  // 反斜杠紧跟冒号：Windows 路径分隔（':' + '\'）——表情名只含 [a-z0-9_+-]，
+  // 不可能以 '\' 开头，故一律不触发。独立于 charIndex > 0：':' 在行首（':\foo'）
+  // 同样成立。
+  if (char === ':' && text[charIndex + 1] === '\\') return null;
+
   // URL 上下文守卫：触发字符落在 URL 里不弹菜单——敲 https://a.com 时
   // ':' 会唤出 Emoji 菜单、'/' 会唤出 Slash 菜单，此时按 Enter 会执行命令
   // 把 URL 文本替换掉。判定：'/' 的前一字符是 ':' 或 '/'（://、// 的斜杠）；
@@ -86,6 +91,10 @@ export function guardedFindSuggestionMatch(config: Trigger): SuggestionMatch {
     if (char === ':') {
       const wordBefore = URL_SCHEME_RE.exec(text.slice(0, charIndex))?.[1] ?? '';
       if (URL_SCHEME_WORDS.has(wordBefore.toLowerCase())) return null;
+      // Windows 盘符守卫：'G:\skills' / 'C:/Users'——':' 前是孤立单字母即盘符，
+      // 冒号后整条路径会沦为表情搜索词（弹「没有匹配的表情」空窗，干扰输入）。
+      // URL scheme 词表只覆盖 http/ftp 等，盘符不在其内，故单独判。
+      if (wordBefore.length === 1) return null;
     }
     // '![' 前缀守卫：Obsidian 嵌入语法 ![[x]] 与互链同前缀，但 solo 不支持
     // 嵌入——'![[foo' 不应唤出互链补全（否则插入的 wikilink 与 '!' 组合出

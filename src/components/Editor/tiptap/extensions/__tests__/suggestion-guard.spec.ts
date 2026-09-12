@@ -135,6 +135,31 @@ describe('URL 上下文守卫（敲 URL 不弹菜单）', () => {
   });
 });
 
+describe('Windows 路径守卫（盘符冒号不唤出 Emoji 菜单）', () => {
+  // 场景：正文里敲 G:\skills-pi\volc-web-search——':' 唤出 Emoji 菜单后，'：'
+  // 之后整条路径成为 query，列表恒空 → 弹「没有匹配的表情」空窗，且菜单会一直
+  // 挂到用户打空格才消失（用户实测报障 2026-09-12）。
+  it('盘符冒号不触发（反斜杠 / 正斜杠分隔均覆盖）', () => {
+    expect(guardedFindSuggestionMatch(trigger('G:\\skills-pi\\volc-web-search', ':', null))).toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('C:\\Users\\a.md', ':', null))).toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('D:\\', ':', null))).toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('路径 G:\\skills', ':', null))).toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('G:/skills', ':', null))).toBeNull();
+  });
+
+  it('冒号后紧跟反斜杠一律不触发（含行首 :\\foo）', () => {
+    expect(guardedFindSuggestionMatch(trigger(':\\foo', ':', null))).toBeNull();
+  });
+
+  it('正常表情触发不受影响', () => {
+    expect(guardedFindSuggestionMatch(trigger(':smile', ':', null))).not.toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('你好:微笑', ':', null))).not.toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('hello :smile', ':', null))).not.toBeNull();
+    // 多字母普通词前缀仍放行（既有 URL 守卫的既有语义）
+    expect(guardedFindSuggestionMatch(trigger('note:', ':', null))).not.toBeNull();
+  });
+});
+
 describe('互链上下文守卫（[[ 补全专属）', () => {
   it('嵌入前缀：![[foo 不触发互链补全（solo 不支持嵌入，防伪嵌入）', () => {
     expect(guardedFindSuggestionMatch(trigger('![[foo', '[[', null))).toBeNull();
