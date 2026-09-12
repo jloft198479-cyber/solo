@@ -191,7 +191,7 @@ md-editor/
 │   │   └── StatusbarQuickActions.vue
 │   │
 │   ├── services/
-│   │   ├── tauri/                #   IPC 服务层（10 个文件）
+│   │   ├── tauri/                #   IPC 服务层（11 个文件）
 │   │   │   ├── client.ts         #     invokeCommand<T> + normalizeTauriError
 │   │   │   ├── command-names.ts  #     TAURI_COMMANDS 常量表
 │   │   │   ├── document.ts       #     打开/保存/图片 API 封装
@@ -201,8 +201,9 @@ md-editor/
 │   │   │   ├── events.ts         #     menu-event / window-close 事件监听封装
 │   │   │   ├── font.ts           #     字体 IPC 封装（fetch/getCache/save/readBytes）
 │   │   │   ├── asset.ts          #     图片资产协议作用域封装
+│   │   │   ├── update.ts         #     更新检查（探代理 → check）
 │   │   │   └── store.ts          #     tauri-plugin-store 封装
-│   │   └── fontLoader.ts         #   内嵌字体按需加载（FontFace 字节通道）
+│   │   └── fontLoader.ts         #   字体按需加载（CSS @font-face 优先，字节通道兜底）
 │   │
 │   ├── themes/                   #   主题系统
 │   │   ├── types.ts              #   Theme / ThemeColors / ThemeTypography
@@ -226,11 +227,12 @@ md-editor/
 │   │   ├── error.rs              #   AppError + 结构化序列化
 │   │   ├── events.rs             #   2 个事件常量 + emit 函数
 │   │   ├── menu.rs               #   原生菜单构建 + attach_menu_events
+│   │   ├── updater.rs            #   更新代理检测（detect_github_proxy）
 │   │   └── commands/
 │   │       ├── mod.rs            #     命令汇总导出
 │   │       ├── document.rs       #     open/save/图片导入/路径/资产授权
 │   │       ├── image.rs          #     fetch_remote_image
-│   │       ├── font.rs           #     fetch_font_data / get_cached_font_path / save_font_cache
+│   │       ├── font.rs           #     fetch_font_data / get_cached_font_path / save_font_cache / read_font_bytes
 │   │       ├── clipboard.rs      #     read_clipboard_html（绕开 webview 读系统剪贴板 HTML）
 │   │       ├── window.rs         #     print/reveal/背景色/关闭拦截
 │   │       └── desktop.rs        #     register/unregister_shell_new（Windows）
@@ -279,8 +281,8 @@ md-editor/
 | `read_clipboard_html` | clipboard.rs | 从系统剪贴板读 HTML 富文本（绕开 webview `clipboardData` 空值问题，外部应用/跨源粘贴保格式） |
 | `authorize_image_asset` | document.rs | 把图片加入 asset 协议作用域（**带安全校验**） |
 | `resolve_image_display` | document.rs | 路径判别（storage/相对/绝对）+ authorize 一步到位（v1.2.23 新增） |
-| `fetch_remote_image` | image.rs | 下载远程图片（≤10MB）→ base64 data URL |
-| `fetch_font_data` | font.rs | 远程字体下载（返回 base64） |
+| `fetch_remote_image` | image.rs | 下载远程图片（≤10MB）→ 落盘缓存返回路径（前端转 asset URL） |
+| `fetch_font_data` | font.rs | 远程字体下载（落盘缓存，返回路径） |
 | `get_cached_font_path` | font.rs | 字体缓存路径查询 |
 | `save_font_cache` | font.rs | 字体缓存写入磁盘 |
 | `read_font_bytes` | font.rs | 读取字体字节（经 IPC 取字节 → FontFace 同源加载；**字节通道兜底**，首选 CSS @font-face 注入 asset:// URL，见 §10.3） |
@@ -598,7 +600,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 ### 11.5 启动开打是竞态敏感的
 
-`StartupOpenRequests` + `PendingWindowPaths` + `LoadedWindows` 两层缓冲（见 §4.5）。动启动事件顺序前务必理解 `startup_ready` 的分支。
+`StartupOpenRequests` + `PendingWindowPaths` 两层缓冲（`LoadedWindows` 为已加载窗口登记，不属缓冲层；见 §4.5）。动启动事件顺序前务必理解 `startup_ready` 的分支。
 
 ### 11.6 真理源自一处
 
@@ -701,7 +703,7 @@ destroy() {
 | 快捷键表 / 发布清单列有「导出 HTML / PDF / 微信」 | **已移除**（v1.2.18）。复制为 HTML 用状态栏「复制为 HTML」按钮，无导出命令；`utils/export/` 整个目录已删除 |
 | 脏态用 `setContent` + `markUserEdit` 双函数（按 hasUserEdit 标志判定） | **A1 重构**：改为 `setContent`（仅基线）+ `syncEditedContent`（语义比对唯一真相源），`hasUserEdit`/`markUserEdit` 已废弃，见 §7.1 / §11.1 |
 | composables 10 个 / `utils/shortcuts.ts` 存在 | **实际 12 个**；`utils/shortcuts.ts` **已删除**（registry 内联 `getShortcut`/`getShortcutCommands`） |
-| `services/tauri/` 含 `event-names.ts`/`webview.ts`/`opener.ts`/`os.ts`/`window-state.ts` | **均不存在**。实际 10 个文件：`client`/`command-names`/`document`/`window`/`dialog`/`clipboard`/`events`/`font`/`asset`/`store`，见 §3 / §5.3 |
+| `services/tauri/` 含 `event-names.ts`/`webview.ts`/`opener.ts`/`os.ts`/`window-state.ts` | **均不存在**。实际 11 个文件：`client`/`command-names`/`document`/`window`/`dialog`/`clipboard`/`events`/`font`/`asset`/`update`/`store`，见 §3 / §5.3 |
 | 主题 7 套（含 `gray-domain`） | **实际 8 套**：`scholar-light`/`scholar-dark`/`elegant`/`cinnabar`/`cinnabar-dark`/`default`/`jade`/`orchid`，见 §10.1 |
 | 编辑器扩展 14 个 | **已过时**：数量以 `editor-extensions.ts` 的 `createEditorExtensions` 返回数组为准（勿硬编码），见 §8.3 |
 | Tauri 插件 6 个 | **实际 7 个**（多 `updater`，见 `autoCheckForUpdate`） |

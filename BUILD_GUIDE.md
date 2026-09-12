@@ -501,7 +501,7 @@ tauri-plugin-cli = "2" (2.4.1)
 tauri-plugin-store = "2.4.3" (2.4.3)
 tauri-plugin-window-state = "2.4.1" (2.4.1)
 serde = "1" (with derive)
-reqwest = "0.12" (with json)
+reqwest = "0.12" (rustls-tls, system-proxy)
 tokio = "1" (with macros, rt-multi-thread)
 base64 = "0.22"
 webview2-com = "0.38.2"         # Windows only
@@ -518,7 +518,7 @@ windows-core = "0.61"           # Windows only
 @tauri-apps/plugin-dialog: ^2.7.1
 @tauri-apps/plugin-clipboard-manager: ^2.3.2
 @tauri-apps/plugin-opener: ^2.5.4
-@tauri-apps/plugin-os: ^2.3.2
+@tauri-apps/plugin-updater: ^2.10.0
 vue-tsc: ^3.3.4
 vite: ^7.0.0
 typescript: ~6.0.3
