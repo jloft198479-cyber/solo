@@ -322,6 +322,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     // 否则磁盘文件已是新名而 store.path 仍指向已不存在的旧路径，下次保存会
     // 再次 rename（报“原文件不存在”）而永久死锁。
     let renamedPath: string | null = null;
+    let saveOk = false;
     try {
       // 1. Rust fs::rename：原子移动文件到新名字
       const renameResult = await renameFile(currentFile.path, currentFile.displayName);
@@ -332,11 +333,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
       fileStore.setFile(savedContent, saveResult.path, saveResult.lastModifiedMs);
       autoSaveFailCount = 0;
-
-      // 3. 改名已落盘成功，同步「指向本文档」的互链（先预览列清单、用户确认后才改写）。
-      //    失败只留痕、不影响改名结果。
-      await syncInboundWikilinks(oldPath, renamedPath, oldStem);
-      return true;
+      saveOk = true;
     } catch (error) {
       if (renamedPath) {
         // 磁盘文件已是新名，同步 store 路径；isDirty 保持 true，
@@ -346,10 +343,18 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       const appError = normalizeTauriError(error);
       console.error('Failed to save renamed document:', appError.message);
       await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
-      return false;
     } finally {
       isSaving = false;
     }
+
+    // 改名已落盘成功、且已释放 isSaving 锁，才同步「指向本文档」的互链：
+    // 先预览列清单、用户确认后才改写。放在锁外跑，弹框等用户点选期间不会再持有 isSaving
+    // （否则 saveCurrentDocumentAs 遇 isSaving 会直接 return false，用户点"另存为"没反应无提示）。
+    // 失败只留痕、不影响改名结果。
+    if (saveOk && renamedPath) {
+      await syncInboundWikilinks(oldPath, renamedPath, oldStem);
+    }
+    return saveOk;
   }
 
   /**

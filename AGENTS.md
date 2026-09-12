@@ -145,7 +145,7 @@ updates: [本文事实来源 / 联动对象——改这些代码或文档必须�
 
 | 改什么                | 必查/必改                                                                                                |
 | ------------------ | ---------------------------------------------------------------------------------------------------- |
-| Tauri 命令（新增/改名/删除） | `src/services/tauri/command-names.ts`（命令名真理源）→ `ARCHITECTURE.md`（命令清单 22）→ `docs/HANDOVER.md` 真理源表   |
+| Tauri 命令（新增/改名/删除） | `src/services/tauri/command-names.ts`（命令名真理源）→ `ARCHITECTURE.md`（§4.2 命令清单，数量以 `generate_handler!` 为准勿硬编码）→ `docs/HANDOVER.md` 真理源表   |
 | 字体/主题/排版 CSS       | `ARCHITECTURE.md`（技术栈/目录）→ `docs/font-handling.md` → `docs/ui-typography-eval.md`                    |
 | parser/serializer  | roundtrip 测试 + `docs/cjk-boundary.md`（CJK 边界）                                                        |
 | 发版相关（版本号/tag/CI）   | `CHANGELOG.md` → `docs/RELEASE_PROCESS.md` → `docs/PUBLISH_GUIDE.md` → `docs/发布流程科普*.md`             |

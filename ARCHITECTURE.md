@@ -38,7 +38,7 @@ updates: [package.json, src-tauri/Cargo.toml, src-tauri/tauri.conf.json, src-tau
 三层结构：
 
 ```
-Rust 核心 (src-tauri/)   ──23 个命令 + 2 类事件──▶  文件/图片/窗口/字体/剪贴板/注册表/代理
+Rust 核心 (src-tauri/)   ──命令 + 事件──▶  文件/图片/窗口/字体/剪贴板/注册表/代理
         ▲ invoke / emit
 IPC 服务层 (src/services/tauri/)  ──契约封装，前端不直接碰 invoke
         ▲
@@ -258,10 +258,10 @@ md-editor/
 
 1. **注册插件**：opener、dialog、clipboard-manager、cli、store、window-state（持久化 SIZE/POSITION/MAXIMIZED）、updater（自动更新，见 `autoCheckForUpdate`）。
 2. **`setup()`**：管理 state → 回收早期开打请求 → 解析 CLI/raw args → 建菜单 → 挂关闭拦截 →（macOS）设置窗口背景。
-3. **`invoke_handler`**：注册 **24 个命令**（以 `lib.rs` 实际 `generate_handler!` 为准）。
+3. **`invoke_handler`**：注册命令（**数量以 `lib.rs` 的 `generate_handler!` 为准，勿在文档硬编码**）。
 4. **`run()` 回调**：macOS/iOS 的 `Opened { urls }` 事件转成开打请求。
 
-### 4.2 命令清单（实际 24 个）
+### 4.2 命令清单
 
 > 以 `src-tauri/src/lib.rs` 的 `generate_handler!` 宏为唯一真相源。新增/改名必须同步更新此表。
 > 注：`detect_proxy_for_update` 定义在 `lib.rs`（**不存在 `proxy.rs`**，勿被旧文档误导）。
@@ -292,9 +292,10 @@ md-editor/
 | `new_editor_window` | lib.rs | 创建新编辑器窗口（原子递增 label） |
 | `reveal_startup_open_log` | lib.rs | 返回 startup-open.log 路径（调试启动开打竞态） |
 | `request_app_quit` | window.rs | 应用级退出：向所有已加载窗口定向发 `window-close-requested`，各窗口自行确认/保存后关闭，全部关闭后进程自然退出（原 `exit_app` 强杀进程，多窗口丢未保存内容） |
+| `report_window_close` | window.rs | 窗口处理完 `window-close-requested`（已保存/已放弃）后回报，app 侧据此放行该窗口关闭 |
 | `detect_proxy_for_update` | lib.rs | 检测系统代理（给自动更新用，见 `autoCheckForUpdate`） |
 
-> **共 23 个命令**。
+> **命令数量以 `lib.rs::generate_handler!` 为唯一真相源，此处不硬编码**（曾三处数字漂移，见 KNOWN-ISSUES §二 #3）。
 
 ### 4.3 事件（2 个）
 
@@ -696,7 +697,7 @@ destroy() {
 | 字体依赖本地安装 | **已解决**。改为按需远程下载 + 文件系统缓存，安装包不再内嵌字体文件 |
 | 字体栈分散 | **已收口**到 `fontStack.ts::buildFontStack`，编辑器+导出共享 |
 | 序列化防抖 300ms | **实际分层**：150ms（字数）/ 100ms（光标）/ 500ms（大纲+序列化），见 §8.2 / §6.3 |
-| Rust 命令 ~20 个 | **实际 24 个**（见 `lib.rs::generate_handler!`，含 `resolve_image_display`/`read_clipboard_html`/`read_font_bytes`/`detect_proxy_for_update`/`sync_wikilinks_on_rename`） |
+| Rust 命令 ~20 个 | 旧数量已过时；**当前命令数以 `lib.rs::generate_handler!` 为唯一真相源，勿在文档硬编码**（§4.2） |
 | 快捷键表 / 发布清单列有「导出 HTML / PDF / 微信」 | **已移除**（v1.2.18）。复制为 HTML 用状态栏「复制为 HTML」按钮，无导出命令；`utils/export/` 整个目录已删除 |
 | 脏态用 `setContent` + `markUserEdit` 双函数（按 hasUserEdit 标志判定） | **A1 重构**：改为 `setContent`（仅基线）+ `syncEditedContent`（语义比对唯一真相源），`hasUserEdit`/`markUserEdit` 已废弃，见 §7.1 / §11.1 |
 | composables 10 个 / `utils/shortcuts.ts` 存在 | **实际 12 个**；`utils/shortcuts.ts` **已删除**（registry 内联 `getShortcut`/`getShortcutCommands`） |
