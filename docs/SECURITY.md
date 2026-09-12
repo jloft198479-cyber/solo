@@ -34,7 +34,7 @@ updates: [package.json, ARCHITECTURE.md §11.4]
 
 我们只对**最新正式版**提供安全修复。安全漏洞请在最新版上复现并报告。
 
-- 当前版本：`v1.2.52`（以 `package.json` 为准）。
+- 当前版本：`v1.2.53`（以 `package.json` 为准）。
 - 旧版本（< 最新版）不再单独打安全补丁；请升级到最新版。
 
 ---
@@ -65,6 +65,7 @@ updates: [package.json, ARCHITECTURE.md §11.4]
 - **IPC 路径 / URL 信任边界**：Rust 侧对前端传入的路径与 URL 做白名单校验（扩展名白名单 + `canonicalize` 后校验 + 协议/主机限制），是本地编辑器唯一的实质安全边界，改动需格外谨慎。具体校验规则与改动铁律以 `ARCHITECTURE.md` §11.4 为真理源，本文不复制。
 - **远程 URL 校验只挡字面量主机，挡不住 DNS rebinding**：`validate_remote_image_url` 判断的是 URL 里写出来的主机，攻击者若掌握一个公网域名并让其解析到内网 IP，请求仍会打到内网。彻底修法需要「解析后 IP 再校验 + 用该 IP 建连」，会破坏 TLS SNI 与虚拟主机、且 reqwest 需自定义 resolver——本地优先单文件编辑器的 threat model 下不付这个复杂度。取舍详情见 [`docs/KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) §二 #5。
 - **字体 URL 只限 https，刻意不做主机白名单**：GitHub release 会 302 跳到 `objects.githubusercontent.com`，主机白名单会打断下载。当前唯一调用方 `fontLoader.ts` 用的是硬编码 https 常量，`validate_font_url` 只防命令被传入任意 URL（`file://` / http 明文）；字体链路有「连修四版才修对」的历史，不再引入新的失效面。
+- **第三方依赖按「是否随安装包发布」分级维护**：只有**运行时依赖**（会打进安装包的）的漏洞算产品安全面，构建 / 测试 / lint 链路（`postcss`、`vitest`、`esbuild`、`brace-expansion` 等）不进安装包，不计入。检查用 `bun audit`（bun 内置，无需额外安装）。升级铁律：**只升到修复版、不跨大版本**；传递依赖（如 `dompurify` 经 mermaid、`linkify-it` 经 markdown-it）用 `package.json` 的 `overrides` 钉死。`prosemirror-model` / `prosemirror-view` 也在 `overrides` 中钉死——Tiptap 升级时 bun 可能沿用旧 lock 解析、留下多版本嵌套副本，触发 ProseMirror 的 `looks like multiple versions ... were loaded`（表现为粘贴富文本崩溃），钉死可防复发。升级后**必须跑** `bun run test`（含 131 条 roundtrip + CommonMark 全量）。
 - **自动更新签名**：`TAURI_SIGNING_PRIVATE_KEY` 为 GitHub Secrets，不在仓库中。
 
 ---
