@@ -634,14 +634,24 @@ destroy() {
 
 **易漏的第二半**：销毁后的**异步回写**也要守卫。图片 src 解析是异步的，`requestId` 闭包变量活在同一个已销毁的闭包里、晚到的响应仍会自匹配——**单靠 requestId 挡不住**，必须额外查 `eventController.signal.aborted` 再碰 DOM。
 
-### 11.8 两种转义模式：文件 vs 剪贴板
+### 11.8 剪贴板 text/plain 产出 + 两种转义模式
 
-`escapeInline`（[`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts)）按 `clipboard` 标记分两套转义，两者**故意不同，别互相"修正"**：
+**text/plain 放什么**由 `serializeClipboardText()`（[`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts)）决定，照 Typora 范式：
+
+- 选区**只含文本型内容**（`PLAIN_TEXT_SAFE_NODES` 白名单：段落/标题/引用/列表/任务列表/代码块/表格/分隔线）→ 给**渲染后的干净文字**，去掉标记、不补反斜杠。
+- 选区**含 solo 专有节点**（公式 / 图表 / 互链 / 脚注 / frontmatter / callout / 图片）→ **回落 Markdown 源码**，因为这些语法在纯文本里没有等价表达。
+
+白名单是**退化安全**方向：将来新增扩展节点默认回落，绝不会因为忘了登记而在纯文本槽静默丢内容。
+
+- `text/html` 由 ProseMirror 默认生成；**solo→solo 粘贴走 HTML + 各扩展的 `parseHTML`，不依赖 text/plain**。
+- 需要主动拿 Markdown 源码时用命令 `edit.copyAsMarkdown`（Mod+Shift+M / 命令面板），它复用下面的剪贴板轻量转义。
+
+`escapeInline` 按 `clipboard` 标记分两套转义，两者**故意不同，别互相"修正"**：
 
 | 模式 | 入口 | 行内转义集 | 行首额外转义 |
 |---|---|---|---|
 | 文件落盘（严格） | `serializeMarkdown()` | `` ` [ ] ( ) * ~ ^ = \| $ < > { } `` | `# + - .` |
-| 剪贴板（轻量） | `serializeMarkdownForClipboard()` | `` ` * `` | `# + - . > =` |
+| 剪贴板（轻量） | `serializeMarkdownForClipboard()`（经 `serializeClipboardSlice`：回落路径 + `edit.copyAsMarkdown`） | `` ` * `` | `# + - . > =` |
 
 **改动铁律**：块处理器需要**嵌套序列化**（引用块内部、表格单元格文本）时，必须用 `state.createChild()` 拿内层 state，**不要 `new MarkdownSerializerState()`**——默认构造是文件模式，会把外层 clipboard 标记丢掉，导致粘到外部编辑器的内容多出 `\=` `\$`。只有上面两个真入口允许直接构造。
 
@@ -659,6 +669,7 @@ destroy() {
 | 另存为 | `file.saveAs` | Mod+Shift+S |
 | 查找 | `edit.find` | Mod+F |
 | 替换 | `edit.replace` | Mod+H |
+| 复制为 Markdown（源码） | `edit.copyAsMarkdown` | Mod+Shift+M |
 | 焦点模式 | `view.focusMode` | Mod+Shift+F |
 | 全屏 | `view.fullscreen` | Mod+Ctrl+F / F11 |
 | 设置 | `settings.open` | Mod+, |

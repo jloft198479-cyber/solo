@@ -41,7 +41,7 @@ solo 是一把「专为文字而生的手术刀」——秒开秒关、书卷气
 - **桌面原生** — 无边框窗口、系统菜单、右键新建 .md、双击标题栏最大化、置顶、自动保存。
 - **内存克制** — 多窗口下 WebView2 MemoryUsageTargetLevel 自动降级，编辑器懒初始化，轻量安装包（基于系统 WebView2）。
 - **复制为 HTML** — 一键复制富文本 HTML 到剪贴板，完整主题跟随，所见即所得。
-- **格式保真** — 完整 Markdown round-trip 测试 + CommonMark spec 稳定性验证（618 通过 / 34 设计约束），粘贴 Markdown 自动转换，Ctrl+C 同时写入源码到剪贴板。
+- **格式保真** — 完整 Markdown round-trip 测试 + CommonMark spec 稳定性验证（618 通过 / 34 设计约束），粘贴 Markdown 自动转换；Ctrl+C 复制出去的是干净文字（选区含公式 / 图表 / 互链等专有语法时自动给 Markdown 源码），要源码可按「复制为 Markdown」（Mod+Shift+M）。
 
 ## 技术架构
 

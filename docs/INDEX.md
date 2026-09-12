@@ -71,6 +71,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`project-plan-2026-08-29.md`](./archive/project-plan-2026-08-29.md)                  | archive   | maintainer       | archive  | 产品演进建议清单（**非强制任务**，逐项可执行可不执行，已归档）            |
 | [`solo互链方案-2026-09-11.md`](./solo互链方案-2026-09-11.md)                  | archive   | maintainer/agent | archive  | 互链一期方案（v5 定稿，已实施）：修 `[[`/`![` + 拖入即在落点成链（含审核收口） |
 | [`执行记录-互链方案-2026-09-11.md`](./执行记录-互链方案-2026-09-11.md)        | archive   | maintainer       | active   | 互链一期执行/自检/回滚记录（执行人 qianwen；含落点收口补记；拖拽坐标待真机验证）  |
+| [`执行记录-剪贴板纯文本范式-2026-09-12.md`](./执行记录-剪贴板纯文本范式-2026-09-12.md) | archive | maintainer | active | 剪贴板范式改造执行记录：复制默认改「干净纯文本」+ 显式源码入口；决策依据/证据链/回滚点/残余风险/评审清单（**供第三方评审**） |
 | [`solo深度审查报告-2026-09-11.md`](./solo深度审查报告-2026-09-11.md)          | archive   | maintainer       | active   | 四层只读审查（渲染/交互/速度/结构）：8 条发现 + 逐条处置记录（5 修 3 缓）        |
 | [`architecture-review-2026-09-12.md`](./architecture-review-2026-09-12.md)   | archive   | maintainer       | active   | 核心逻辑与结构架构审查：四维度结论（清晰度/稳定性/灵活性/扩展性）+ P0-P2 建议（待拍板） |
 | [`solo互链改名同步方案-2026-09-11.md`](./archive/solo互链改名同步方案-2026-09-11.md)  | archive   | maintainer/agent | archive  | 互链改名同步方案：改文件名后同步指向本文档的 `[[链接]]`（同目录、先列清单确认再原子改写），**代码已随 v1.2.53 落地** |

@@ -20,6 +20,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- **命令「复制为 Markdown」（`edit.copyAsMarkdown`，默认 Mod+Shift+M，命令面板可搜）**：把选区（含剥开口层）以 Markdown 源码写入剪贴板，供粘到 Obsidian / Typora 等外部 Markdown 编辑器。刻意**不占用 Mod+Shift+C**（已是 `editor.codeBlock` 的默认值）；命令**作用域定为 app**——窗口级快捷键分发器对「editor 作用域 + 默认快捷键」的组合一律跳过（假定由 ProseMirror 内置 keymap 处理），本命令没有对应的 PM 绑定，标 editor 会让快捷键在编辑区内按不动。
+
+### Changed
+- **复制默认产出改为「干净纯文本」（剪贴板范式改造，照 Typora）**：`text/plain` 不再无条件塞 Markdown 源码——选区只含文本型内容（段落 / 标题 / 引用 / 列表 / 任务列表 / 代码块 / 表格 / 分隔线）时给**渲染后的文字**（`## 标题` 粘出去就是 `标题`），只有含 solo 专有节点（公式 / 图表 / 互链 / 脚注 / frontmatter / callout / 图片）才回落 Markdown 源码（这些语法在纯文本里没有等价表达，回落优于静默丢内容）。判定用**白名单 + 退化安全**：新增扩展节点默认回落，不会因漏登记而静默丢内容。
+  - 粘到微信 / Word / 公众号 / 记事本 / 搜索框不再出现 `a\*b`、`\#井号`、`\[重点\]` 一类转义噪音。
+  - **不受影响**：`text/html`（富格式目标）仍由 ProseMirror 默认生成；solo→solo 粘贴走 HTML + 各扩展 `parseHTML`，不依赖 `text/plain`；**文件落盘序列化一行未动**。
+  - 证据：19 份 roundtrip 夹具在改动前后各跑一次整篇「解析 → 序列化」快照，**逐字节 diff 为空**（4503 → 4503 字节）；两次快照确系不同代码版本（改动前那次日志中 `serializeClipboardText` 输出「函数不存在」）。
+
+### Fixed
+- **复制路径反斜杠被无条件翻倍**：`G:\skills-pi\x` 复制出来变 `G:\\skills-pi\\x`。`escapeInline` 里的 `text.replace(/\\/g, '\\\\')` 改为 `escapeBackslashes()` **逐字符判定**，仅「`\` + ASCII 标点」与「行尾 `\`」补转义（markdown-it 实测：`\` 后跟字母 / 数字 / 中文不是转义序列，无需补）。**行为变化**：磁盘上已存成 `\\` 的老文件重开保存会归一化成 `\`（语义等价）。
+- **文中出现 `:\` 就弹「没有匹配的表情」**：Emoji 触发符的 URL 上下文守卫只认 `http/https/ftp/file/mailto/tel`，漏了 Windows 盘符，叠加 `allowedPrefixes: null` 使 `G:` 必触发、`:` 后整条路径被当搜索词。新增两条守卫：`:` 后紧跟 `\`、`:` 前是单字母盘符，均不唤出菜单。
+
+---
+
 ## [1.2.53] — 2026-09-12
 
 ### Added
