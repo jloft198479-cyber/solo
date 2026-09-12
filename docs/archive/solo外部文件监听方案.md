@@ -1,8 +1,8 @@
 ---
 title: solo 外部文件监听（Agent Sync）技术方案
-type: proposal
+type: archive
 audience: maintainer
-status: proposal
+status: archive
 tags: [提案, 文件监听, watcher, 待拍板]
 summary: 外部文件监听技术方案——未执行，待拍板（加 notify 依赖需确认）
 updates: [src-tauri/src/commands/document.rs, src/composables/useDocumentSession.ts, docs/KNOWN-ISSUES.md]

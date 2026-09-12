@@ -1,8 +1,8 @@
 ---
 title: solo 产品演进计划（建议稿）
-type: proposal
+type: archive
 audience: maintainer
-status: proposal
+status: archive
 tags: [计划, 建议, 阅读体验, 写作体验, 性能, 字体]
 summary: 2026-08-29 梳理的产品演进建议清单，非强制任务，逐项可执行可不执行
 updates:
@@ -11,7 +11,7 @@ updates:
   - src/stores/file.ts
   - src/services/fontLoader.ts
   - src/components/Editor/MarkdownEditor.vue
-  - docs/large-document-performance.md
+  - ./large-document-performance.md
   - ARCHITECTURE.md
   - AGENTS.md
 ---
@@ -50,7 +50,7 @@ updates:
 ### 2. 大文档关闭卡死 / 强制序列化
 - **现象**：打开 4–10MB 文档，关窗瞬间卡死甚至关不掉。
 - **证据**：`useDocumentSession.ts:117-122 evaluateDirtyFromEditor` 在未改动时也调 `getContent()` 全量序列化；与条目 1 同源。
-- **建议方向**：加 `docVersion` 版本号，未改动则不序列化；关窗加「逃生舱」强制关闭通道；粘贴超阈值时温和提示（而非等卡死）。详细热点与分阶段方案见 `docs/large-document-performance.md`（该文档以「追超长文档」为前提，本计划下**仅 P0 保命部分适用**，分块装载等 P2 项已搁置）。
+- **建议方向**：加 `docVersion` 版本号，未改动则不序列化；关窗加「逃生舱」强制关闭通道；粘贴超阈值时温和提示（而非等卡死）。详细热点与分阶段方案见 `./large-document-performance.md`（该文档以「追超长文档」为前提，本计划下**仅 P0 保命部分适用**，分块装载等 P2 项已搁置）。
 
 ---
 

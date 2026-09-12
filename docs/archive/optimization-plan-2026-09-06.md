@@ -1,8 +1,8 @@
 ---
 title: 全面审查优化方案（2026-09-06）
-type: proposal
+type: archive
 audience: maintainer
-status: proposal
+status: archive
 tags: [优化方案, 审查, 交互体验, 响应速度, 格式兼容, 提案]
 summary: 2026-09-06 三方向全面审查 30 条发现与 P0-P3 分批修复路线图，已全部收口（B3 放弃定为设计取舍）
 updates: [docs/KNOWN-ISSUES.md, src/components/Editor/, src-tauri/src/]

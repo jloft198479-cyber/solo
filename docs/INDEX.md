@@ -62,18 +62,18 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`project_rules：工作原则和纪律.md`](./project_rules：工作原则和纪律.md)     | principle | agent            | active   | 最高准则：实事求是/第一性原理/共识前置/多层验证（通用底线真理源）        |
 | [`architecture：产品开发总原则.md`](./architecture：产品开发总原则.md)       | principle | dev/agent        | active   | 技术设计原则：SSOT/高内聚低耦合/决策阶梯/绝不硬编码/退化安全             |
 | [`solo产品精神.md`](./solo产品精神.md)                                       | principle | dev              | active   | 产品理念：极简/极速/优雅 + 灵活/高效/可拓展                              |
-| [`solo外部文件监听方案.md`](./solo外部文件监听方案.md)                       | proposal  | maintainer/agent | proposal | 外部文件监听（Agent Sync）技术方案——**未执行**，待拍板                   |
+| [`solo外部文件监听方案.md`](./archive/solo外部文件监听方案.md)                       | archive   | maintainer/agent | archive  | 外部文件监听（Agent Sync）技术方案——**未执行**，已归档           |
 | [`architecture/refactoring-report.md`](./architecture/refactoring-report.md) | archive   | agent            | archive  | 减法重构历史报告（22→17 命令等，**历史快照**，现状以 ARCHITECTURE 为准） |
 | [`archive/settings-audit-report.md`](./archive/settings-audit-report.md)     | archive   | agent            | archive  | 设置面板排查历史报告（P0 死代码已清理，**历史快照**）                    |
 | [`catpaw审核/丝滑体验优化复盘.md`](./catpaw审核/丝滑体验优化复盘.md)         | archive   | dev/agent        | archive  | 丝滑优化（P0-P3）全流程复盘：方案/实施/审查/回退/根因/教训               |
-| [`large-document-performance.md`](./large-document-performance.md)            | proposal  | dev              | proposal | 大文档卡顿根因清单与分阶段方案（**P0/P1 已实施、P2 已砍、P3 简化**）      |
-| [`optimization-plan-2026-09-06.md`](./optimization-plan-2026-09-06.md)        | proposal  | maintainer       | proposal | 全面审查优化方案：30 条发现（已逐条核实，交互/兼容/性能）+ P0-P3 分批路线图（**执行待拍板**） |
-| [`project-plan-2026-08-29.md`](./project-plan-2026-08-29.md)                  | proposal  | maintainer       | proposal | 产品演进建议清单（**非强制任务**，逐项可执行可不执行）                    |
+| [`large-document-performance.md`](./archive/large-document-performance.md)            | archive   | dev              | archive  | 大文档卡顿根因清单与分阶段方案（**P0/P1 已实施、P2 已砍、P3 简化**，已归档） |
+| [`optimization-plan-2026-09-06.md`](./archive/optimization-plan-2026-09-06.md)        | archive   | maintainer       | archive  | 全面审查优化方案：30 条发现（已逐条核实，交互/兼容/性能）+ P0-P3 分批路线图（**执行待拍板**，已归档） |
+| [`project-plan-2026-08-29.md`](./archive/project-plan-2026-08-29.md)                  | archive   | maintainer       | archive  | 产品演进建议清单（**非强制任务**，逐项可执行可不执行，已归档）            |
 | [`solo互链方案-2026-09-11.md`](./solo互链方案-2026-09-11.md)                  | archive   | maintainer/agent | archive  | 互链一期方案（v5 定稿，已实施）：修 `[[`/`![` + 拖入即在落点成链（含审核收口） |
 | [`执行记录-互链方案-2026-09-11.md`](./执行记录-互链方案-2026-09-11.md)        | archive   | maintainer       | active   | 互链一期执行/自检/回滚记录（执行人 qianwen；含落点收口补记；拖拽坐标待真机验证）  |
 | [`solo深度审查报告-2026-09-11.md`](./solo深度审查报告-2026-09-11.md)          | archive   | maintainer       | active   | 四层只读审查（渲染/交互/速度/结构）：8 条发现 + 逐条处置记录（5 修 3 缓）        |
 | [`architecture-review-2026-09-12.md`](./architecture-review-2026-09-12.md)   | archive   | maintainer       | active   | 核心逻辑与结构架构审查：四维度结论（清晰度/稳定性/灵活性/扩展性）+ P0-P2 建议（待拍板） |
-| [`solo互链改名同步方案-2026-09-11.md`](./solo互链改名同步方案-2026-09-11.md)  | proposal  | maintainer/agent | active   | 互链改名同步方案：改文件名后同步指向本文档的 `[[链接]]`（同目录、先列清单确认再原子改写），**代码已落地待发版** |
+| [`solo互链改名同步方案-2026-09-11.md`](./archive/solo互链改名同步方案-2026-09-11.md)  | archive   | maintainer/agent | archive  | 互链改名同步方案：改文件名后同步指向本文档的 `[[链接]]`（同目录、先列清单确认再原子改写），**代码已随 v1.2.53 落地** |
 | [`solo-tour.html`](./solo-tour.html)                                         | product   | user             | active   | 产品功能导览 HTML 页（非 md，无 frontmatter）                            |
 
 ### wiki/（用户知识库）

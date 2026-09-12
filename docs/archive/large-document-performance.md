@@ -1,8 +1,8 @@
 ---
 title: 大文档（4–10MB）卡顿根因排查与优化方案
-type: proposal
+type: archive
 audience: dev
-status: proposal
+status: archive
 tags: [performance, editor, tiptap, large-document]
 summary: 大文档打开/编辑/关闭卡死的全链路热点清单与分阶段优化方案（P0/P1 已实施，P2 已砍，P3 简化）
 updates:
