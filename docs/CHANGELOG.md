@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - **复制路径反斜杠被无条件翻倍**：`G:\skills-pi\x` 复制出来变 `G:\\skills-pi\\x`。`escapeInline` 里的 `text.replace(/\\/g, '\\\\')` 改为 `escapeBackslashes()` **逐字符判定**，仅「`\` + ASCII 标点」与「行尾 `\`」补转义（markdown-it 实测：`\` 后跟字母 / 数字 / 中文不是转义序列，无需补）。**行为变化**：磁盘上已存成 `\\` 的老文件重开保存会归一化成 `\`（语义等价）。
 - **文中出现 `:\` 就弹「没有匹配的表情」**：Emoji 触发符的 URL 上下文守卫只认 `http/https/ftp/file/mailto/tel`，漏了 Windows 盘符，叠加 `allowedPrefixes: null` 使 `G:` 必触发、`:` 后整条路径被当搜索词。新增两条守卫：`:` 后紧跟 `\`、`:` 前是单字母盘符，均不唤出菜单。
+- **光标靠下时补全菜单翻到上方后「飘走」**：旧逻辑用常量 `MENU_MAX_HEIGHT=340` 占座（`top = 光标上沿 − 340`），内容只有 1 项时底边空出约 310px，看着与输入点毫无关联（曾据此误判「互链补全失效」）。改为对齐业界的 `size` + `flip` 组合（Floating UI 思路，未引库）：`max-height` 由当侧可用空间动态裁决、经 CSS 变量下发给滚动区；上翻改用 `bottom` 定位，底边恒贴光标，**无需事先测量菜单高度**（也就没有「先渲染再校正」的一帧抖动）。Slash `/`、Emoji `:`、互链 `[[` 三个菜单共用该函数，一并受益。
+- **未保存文档输入 `[[` 毫无反应**：`allow` 门控误加 `!!getDocumentPath()`，无路径直接不弹菜单；而自动保存会跳过无路径文档（`useDocumentSession.ts`），「未保存」是长期稳态、不会自愈 ⇒ 补全被静默禁用（违反项目「退化安全必有 fallback」铁律，实为 fail-closed）。改为照常弹出，空态说明「存到文件夹后，可链接同目录文档」。文案刻意避开「保存」二字——solo 每次改动都显示「未保存」，说「请先保存」会让人以为要 Ctrl+S，存完再敲 `[[` 又显示未保存，陷入死循环。
 
 ---
 

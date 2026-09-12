@@ -477,9 +477,9 @@ currentFile: { path, content, isDirty, lastModifiedTime, displayName, originalBa
 
 StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定义版以保 Markdown 保真度与 IME 行为。
 
-**IME 友好细节**：`SlashCommands` 与 `EmojiSuggest` 的 suggestion 均设 `allowedPrefixes: null`（支持中文「你好/」「标题/」后唤出菜单，默认 `allowedPrefixes:[' ']` 会过滤掉无空格前缀，对中文场景致命）。
+**IME 友好细节**：`SlashCommands` / `EmojiSuggest` / `WikilinkSuggest` 三个 suggestion 均设 `allowedPrefixes: null`（支持中文「你好/」「标题/」「你好[[」后唤出菜单，默认 `allowedPrefixes:[' ']` 会过滤掉无空格前缀，对中文场景致命）。
 
-复杂渲染用 `addNodeView()` **内联在扩展文件里**，不拆独立 Vue 文件。浮动菜单定位抽成纯函数 `computeMenuPosition`（`editor-extensions.ts`，`MENU_MAX_HEIGHT=340` / `MENU_MIN_WIDTH=240` / `VIEWPORT_MARGIN=8`）。
+复杂渲染用 `addNodeView()` **内联在扩展文件里**，不拆独立 Vue 文件。浮动菜单定位抽成纯函数 `computeMenuPosition`（`editor-extensions.ts`），对齐业界 `size` + `flip`：高度**不是常量**而由当侧可用空间裁决（常量 `MENU_IDEAL_HEIGHT=340` / `MENU_MIN_HEIGHT=120` / `MENU_MIN_WIDTH=240` / `VIEWPORT_MARGIN=8` / `CURSOR_GAP=4`），经 CSS 变量 `--menu-max-height` 下发给滚动区；上翻时改用 `bottom` 定位使菜单底边贴住光标。Slash / Emoji / 互链三个菜单共用此函数。
 
 ### 8.4 Markdown 解析链（`tiptap/markdown/`）
 
@@ -562,7 +562,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 11 | 字体渲染 CORS + 资源错配 | [`fontLoader.ts`](./src/services/fontLoader.ts) + [`font.rs`](./src-tauri/src/commands/font.rs) | [字体手册](./docs/font-handling.md) |
 | 12 | NodeView 事件/定时器成对清理 | [`extensions/code-block.ts`](./src/components/Editor/tiptap/extensions/code-block.ts) + [`image.ts`](./src/components/Editor/tiptap/extensions/image.ts) | §11.7 |
 | 13 | 文件 vs 剪贴板两种转义模式，嵌套 state 必须继承 | [`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts) | §11.8 |
-| 14 | Suggestion/输入扩展的「扩展级 option 接线」+ 拖拽落点路由（漏递使 `[[` 全版本不弹；混拖让路/坐标换算） | [`editor-extensions.ts`](./src/components/Editor/tiptap/editor-extensions.ts) + [`markdown-input.ts`](./src/components/Editor/tiptap/extensions/markdown-input.ts) + [`wikilink-drop.ts`](./src/components/Editor/tiptap/extensions/wikilink-drop.ts) + [`useAppWindowSession.ts`](./src/composables/useAppWindowSession.ts) | [KNOWN-ISSUES §一 #21/#22](./docs/KNOWN-ISSUES.md) |
+| 14 | Suggestion 输入扩展门控（**`[[` 曾两度不弹**：v1.2.43 漏递扩展级 option、后又误加「无路径不弹」；现只判代码上下文，未保存文档弹空态引导）+ 拖拽落点路由（混拖让路/坐标换算） | [`editor-extensions.ts`](./src/components/Editor/tiptap/editor-extensions.ts) + [`markdown-input.ts`](./src/components/Editor/tiptap/extensions/markdown-input.ts) + [`wikilink-drop.ts`](./src/components/Editor/tiptap/extensions/wikilink-drop.ts) + [`useAppWindowSession.ts`](./src/composables/useAppWindowSession.ts) | [KNOWN-ISSUES §一 #21/#22](./docs/KNOWN-ISSUES.md) |
 
 ### 11.1 脏态机制不可随意改动（A1 语义比对模型）
 
