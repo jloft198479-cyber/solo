@@ -20,10 +20,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.2.53] — 2026-09-12
 
 ### Added
 - **改名后自动更新「指向本文档」的互链**（解决 `[[ ]]` 双链改名断链 / 显示旧名，KNOWN-ISSUES §一 #23）：在标题栏改文件名并保存成功后，新增 Rust 命令 `sync_wikilinks_on_rename` 扫描**同目录**可编辑文档，把其中 `[[旧名]]` / `[[旧名|别名]]` 的目标段精确改成新名（别名段原样保留，覆盖带/不带 `.md` 两种写法）。落地保守：先 `dry_run` 只读预览、前端列出将被改动的文档清单让用户确认，**确认后才逐文件 `atomic_write` 改写**；单个文件读/写失败静默跳过，任何情况都不阻断改名主流程。`[[近名]]`、普通 `[文字](链接)`、子目录内文件均不受影响。跨窗口若有别的窗口正开着被改的文件，靠既有的「文件已被外部修改」提示与保存冲突检测（mtime 乐观锁）兜底，不新增机制。**审查强化（2026-09-12）**：扫描**跳过改名后的当前文档自身**；限流按**已扫描文档数**（真正兜底病态大目录）；逐行处理、**跳过 ``` / ~~~ 围栏代码块**内的示例；前端同步移到 `isSaving` 保存锁**之外**（弹框确认期间不再挡"另存为"）。回归锁 9 条（`cargo test --lib wikilink`）+ 前端 happy-path 测试。**刻意不做 / 已知限制**：不做跨目录 / 全盘 / 反向链接面板 / 链接跟随正文标题；只覆盖同目录、裸名与 `.md`（手打或粘贴的 `[[子/文]]`、`[[x.markdown]]`/`[[x.txt]]` 不覆盖），缩进/行内代码内的示例不保护。方案与边界见 [互链改名同步方案](./solo互链改名同步方案-2026-09-11.md)。**链路验证（2026-09-12，CDP 探针）**：「改名 → 弹框列清单 → 点一并更新 → 实际落盘」全链路实跑通过——实测裸名与带别名均正确替换（别名段保留）、无关链接与围栏代码块不动、自链因「排除自身」不动、apply 后状态提示正确；行内代码内的示例被改属本段已声明的已知限制。弹框为系统原生窗口（webview 之外），本次以沙盒 Vite transform 劫持 `confirm` 完成驱动，**弹框原生观感仍建议人工过一眼**（方法见 [debugging §1.1](./debugging.md)）。
+
+### Changed
+- **CI 门禁补全**：`test.yml` 新增 `bun run lint` 与 `cargo test` 两步——Rust 侧 78 条回归锁与 ESLint 此前只在开发者本机生效，现在进 CI。（随本次依赖维护一并落地。）
+
+### Fixed
+- **ESLint 存量 6 个 error 清零**（此前 lint 从未进 CI，故一直未暴露；补 `bun run lint` 后会一推就红，故先修）：`parser.ts:47` 的 `no-control-regex`（`\u0000` 是成对使用的占位哨兵，属**故意**控制字符，加内联豁免并写明理由，**不改逻辑**）；`mermaid-block.ts:250` 的 `no-irregular-whitespace`（全角空格 U+3000 以字面量写入正则，改写为 `\u3000-\u303F` 转义，13 份样本验证逐字等价）；`markdown-paste.ts:172` 的 `no-useless-escape`（字符类内 `\$` → `$`，类内 `$` 无特殊含义，语义等价）；`commonmark.spec.ts` 补 `{ cause }` ×2；`paragraph-focus.spec.ts` 改 `prefer-const`。**全部为语义零变化**，改后 1289 条测试与类型检查均通过。
+
+### Security
+- **运行时依赖安全升级（`bun audit` 20 → 10 漏洞，运行时包零残留）**：只升「会随安装包发布」的运行时依赖，**不改一行业务代码、不改任何行为**。
+  - `@tiptap/*` 3.27.1 → **3.31.3**：修掉 **Markdown 块级/行内属性解析的二次复杂度 ReDoS**（GHSA-j95f-988m-3j2f）——正中 solo「接住从别处复制来的内容」的主路径；另修 `mergeAttributes()` 把 `__proto__` 键转成可执行 DOM 属性（GHSA-cp6q-959q-f8rh）。
+  - `mermaid` 11.15.0 → **11.17.2**、`dompurify` 3.4.11 → **3.4.15**（修 hook 残留可执行子树致 XSS）、`linkify-it` 5.0.1 → **5.0.2**（修 `mailto:` 校验器二次复杂度 DoS）。
+  - **刻意不跨大版本**：`mermaid` 最新为 12.0.0、`linkify-it` 最新为 6.1.0，均**只升到修复版**，不引入破坏性变更。`dompurify` / `linkify-it` 为传递依赖（经 mermaid / markdown-it），与 `prosemirror-model`、`prosemirror-view` 一并通过 `package.json` 的 `overrides` 钉死版本。
+  - 剩余 10 个漏洞全部位于构建 / 测试 / lint 链路（`postcss`、`nanoid`、`brace-expansion`、`vitest`、`esbuild`），**不进安装包**，按「稳定期收敛维护」原则本次不动。
+- **格式兼容性实测（逐字节）**：升级前后对 **19 份 roundtrip 夹具 + 1 份覆盖全节点类型的综合样本**跑同一份「解析 → 序列化」探针，**20/20 输出完全一致、0 差异**——依赖升级没有改变任何 Markdown 的解析与序列化结果。
+- **升级途中修掉的依赖去重故障**：Tiptap 升级后 bun 沿用旧 lock 的解析、未重新 dedupe，导致 `prosemirror-model` 顶层 1.25.11 与 8 个嵌套 1.25.9 副本并存（`prosemirror-view` 同病：1.42.3 vs 5×1.41.9），触发 ProseMirror 的 `RangeError: looks like multiple versions of prosemirror-model were loaded`——**表现为粘贴富文本直接崩溃**，并伴随 `vue-tsc` 13 个类型错误。修法：`overrides` 钉死单一版本 + `bun install --force` + 清理 `--force` 未清干净的残留副本，嵌套副本归零；再跑 `bun install` 确认不会重建。
+- **验证**：单元测试 **1289/1289**、`vue-tsc --noEmit` 0 错误、`eslint` 0 错误、`vite build` 通过；并在真实运行的应用内用 CDP 探针打开全节点样本，确认标题层级 / 粗斜删高亮 / 嵌套列表 / 任务框 / 引用 / 三种 Callout / 表格 / 代码高亮 / 行内与块级公式 / mermaid 图 / 互链 / 脚注**全部正常渲染**。
 
 ## [1.2.52] — 2026-09-11
 
