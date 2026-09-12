@@ -250,7 +250,7 @@ export class MarkdownSerializerState {
       this.output.length === 0 ||
       this.output.endsWith('\n');
 
-    let result = text.replace(/\\/g, '\\\\');
+    let result = escapeBackslashes(text);
 
     // `_` 选择性转义（B1/B2）：必须在 `\` 转义**之后**（否则自己产出的 `\_`
     // 会被二次转义成 `\\_`，parse 后还原为 `\` + 未转义 `_`，反而变斜体）；
@@ -551,6 +551,42 @@ function padEndVisual(str: string, width: number): string {
  * 全局转义虽也正确，但会让代码标识符满屏反斜杠；选择性转义在保真正确性前提下
  * 最小化字节改动。
  */
+/** ASCII 可打印标点（CommonMark 转义序列的标点集：0x21-2F / 3A-40 / 5B-60 / 7B-7E） */
+const ASCII_PUNCT_RE = /[!-/:-@[-`{-~]/;
+
+/**
+ * 行内文本的反斜杠选择性转义（CommonMark 规则，实测 markdown-it）。
+ *
+ * 只有会构成转义序列、重解析后反斜杠会消失的位置才补一个反斜杠：
+ * - 「\ + ASCII 标点」是合法转义，重解析吞掉反斜杠（`\*` → `*`）→ 补成 `\\`
+ * - 「\ + 行尾」（换行 / 文本末）转义换行成硬换行，反斜杠本身消失 → 补成 `\\`
+ * - 「\ + 其它」（字母 / 数字 / CJK / 空格）不是转义序列，重解析保留字面反斜杠
+ *   → 原样输出。Windows 路径 `G:\skills`、LaTeX `\alpha` 保持字节干净。
+ *
+ * 修复 2026-09-12 用户报障：此前为无条件全转义（`text.replace(/\\/g, '\\\\')`），
+ * 把正文里每条路径 / 公式的反斜杠都翻倍，复制到微信 / Word 满屏多余 `\`；
+ * 且该行位于 clipboard 分支**之前**，保存与复制两条路一起中招。
+ *
+ * 逐字符判定而非全局正则——CommonMark 的转义是「\ 与紧跟字符」逐对配对，
+ * 必须按每个反斜杠的紧邻字符单独决定，连续反斜杠的奇偶才能自动正确
+ * （`\\*` → `\\\\*`：首反斜杠后是 `\`、次反斜杠后是 `*`，两个都补）。
+ */
+function escapeBackslashes(text: string): string {
+  if (!text.includes('\\')) return text;
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch !== '\\') {
+      out += ch;
+      continue;
+    }
+    const next = text[i + 1];
+    // next === undefined → 文本末尾；next === '\n' → 行尾（软换行前）
+    out += next === undefined || next === '\n' || ASCII_PUNCT_RE.test(next) ? '\\\\' : '\\';
+  }
+  return out;
+}
+
 function escapeUnderscores(text: string): string {
   let out = '';
   let prevIsWord = false;
