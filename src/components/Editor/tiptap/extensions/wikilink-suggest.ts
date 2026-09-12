@@ -6,7 +6,7 @@
  * 提供（同目录、仅 .md、排序、上限 500）；菜单每次唤起后台刷新一次
  * （本地磁盘毫秒级），刷新完成前先显示缓存/空列表，完成后无缝更新。
  */
-import { Extension } from '@tiptap/vue-3';
+import { Extension, type Editor } from '@tiptap/vue-3';
 import Suggestion from '@tiptap/suggestion';
 import type { SuggestionOptions } from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
@@ -90,10 +90,20 @@ export function filterWikilinkCandidates(
   return items;
 }
 
+/**
+ * 互链补全是否可唤出：**只受代码上下文限制**。
+ *
+ * 未保存文档（无路径）**照常返回 true**——候选自然退化为空列表
+ * （`getWikilinkCandidates(null)` → `[]`），菜单空态换成引导文案。
+ * 早前这里还叠了一道 `!!getDocumentPath()`，等于静默禁用：敲 `[[` 毫无
+ * 反应，用户只能以为补全坏了。弹出来把规则说清楚，不打断输入。
+ */
+export function isWikilinkSuggestAllowed(editor: Pick<Editor, 'isActive'>): boolean {
+  return !editor.isActive('codeBlock') && !editor.isActive('code');
+}
+
 export interface WikilinkSuggestOptions {
   suggestion: Omit<SuggestionOptions<WikilinkCandidateItem, WikilinkCandidateItem>, 'editor'>;
-  /** 当前文档路径；无路径 = 未保存文档，不唤出补全（互链无法解析相对目标） */
-  getDocumentPath: () => string | null;
 }
 
 export const WikilinkSuggest = Extension.create<WikilinkSuggestOptions>({
@@ -115,23 +125,16 @@ export const WikilinkSuggest = Extension.create<WikilinkSuggestOptions>({
             .run();
         },
       },
-      getDocumentPath: () => null,
     };
   },
 
   addProseMirrorPlugins() {
-    const getDocumentPath = this.options.getDocumentPath;
     return [
       Suggestion({
         editor: this.editor,
         pluginKey: wikilinkPluginKey,
         findSuggestionMatch: guardedFindSuggestionMatch,
-        // 代码上下文不弹菜单（Slash/Emoji 同款守卫）；未保存文档不弹
-        //（无基准目录，互链目标解析不了）
-        allow: ({ editor }) =>
-          !editor.isActive('codeBlock') &&
-          !editor.isActive('code') &&
-          !!getDocumentPath(),
+        allow: ({ editor }) => isWikilinkSuggestAllowed(editor),
         ...this.options.suggestion,
       }),
     ];

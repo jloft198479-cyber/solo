@@ -151,13 +151,4 @@ describe('Suggestion 触发配置契约（allowedPrefixes=null）', () => {
     expect(opts?.suggestion?.char).toBe('[[');
   });
 
-  it('Wikilink：getDocumentPath 已接线到扩展级 option（allow 门控拿得到路径，[[ 才会弹）', () => {
-    // 回归锁：v1.2.43 起 WikilinkSuggest.configure 漏传扩展级 getDocumentPath →
-    // allow 恒见默认 ()=>null → [[ 菜单永不弹（零件测试全绿也测不出，因未走接线）。
-    // 断言接线生效，防止再犯。
-    const opts = extensionOptions('wikilinkSuggest', () => 'C:\\docs\\a.md') as
-      | { getDocumentPath?: () => string | null }
-      | undefined;
-    expect(opts?.getDocumentPath?.()).toBe('C:\\docs\\a.md');
-  });
 });

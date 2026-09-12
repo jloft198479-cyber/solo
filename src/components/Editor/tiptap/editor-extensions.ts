@@ -318,10 +318,10 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
         }),
       },
     }),
+    // 历史坑：`[[` 菜单曾因扩展级门控未接线而永不弹出（v1.2.43 起回归）。
+    // 现门控只判代码上下文，文档路径只在 items / render 里按需读
+    // options.getDocumentPath——不下沉到扩展，避免同一份状态两处维护。
     WikilinkSuggest.configure({
-      // allow 门控读的是扩展级 this.options.getDocumentPath（不是 suggestion 闭包里的 options.*），
-      // 必须在此显式接线，否则恒为默认 ()=>null → [[ 菜单永不弹（v1.2.43 起回归，勿再漏）。
-      getDocumentPath: () => options.getDocumentPath?.() ?? null,
       suggestion: {
         // 中文无词间空格习惯（Slash/Emoji 同款教训），任意前缀后输入 [[ 都应唤出
         allowedPrefixes: null,
