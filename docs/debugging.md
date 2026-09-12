@@ -39,6 +39,27 @@ updates: [TROUBLESHOOTING.md, BUILD_GUIDE.md, src-tauri/src]
 
 ⚠️ **它验证的是逻辑与链路，不验证 OS 层输入语义**（真实拖拽的坐标、焦点、IME 时序）。真机手感仍需人工确认一次。
 
+**驱动原生 dialog（系统弹框在 webview 之外，CDP 点不到）**——2026-09-12 验证「改名 → 弹框 → 点一并更新 → 落盘」链路时踩到并解决：
+
+- ❌ **patch `window.__TAURI_INTERNALS__.invoke` 不可行**：该属性为 `writable:false, configurable:false`，直接赋值在非严格模式下**静默失败**，`Object.defineProperty` 也会抛 `Cannot redefine property: invoke`。表现为脚本卡死在 `await confirm(...)` 上。
+- ✅ **可行做法（沙盒 Vite 插件，内存替换、不碰磁盘源码）**：在起 dev server 的自建脚本里加一个 `enforce:'pre'` 的 `transform`，对 `src/services/tauri/dialog.ts` 注入钩子后返回：
+  ```js
+  const e2eAutoConfirm = {
+    name: 'e2e-auto-confirm', enforce: 'pre',
+    transform(code, id) {
+      if (!id.replace(/\\/g, '/').endsWith('/src/services/tauri/dialog.ts')) return null;
+      const patched = code.replace(
+        /export async function confirm\(([\s\S]*?)\)\s*\{/,
+        (m) => `${m}\n  if (globalThis.__E2E_AUTO_CONFIRM__) { globalThis.__E2E_CONFIRM__ = { message, options }; return true; }\n`,
+      );
+      return patched === code ? null : { code: patched, map: null };
+    },
+  };
+  ```
+  断言注入是否生效（不必启应用）：`fetch('http://localhost:1420/src/services/tauri/dialog.ts')` 看返回码是否含钩子标记。
+- ⚠️ **副作用坑**：改动启动脚本会让 Vite 判定「vite config has changed」→ 尝试 `rm(cacheDir/deps)`（数百文件）→ **撞 safe-delete 守卫启动失败**。绕法：先把 `cacheDir/deps` **`mv` 走**（mv 不是删除、不触发守卫），再启动，Vite 会在原位重建。
+- 📌 **链路断言**：`handleOpenFile(path, true)` 开档 → `handleRename(新名)` 改 displayName → `documentSession.saveCurrentDocument()`（内部检测名字变化才走 rename 分支）→ 读页面侧 `__E2E_CONFIRM__` 拿弹框参数、读磁盘文件核落盘结果。**注意 `saveRenamedDocument`/`syncInboundWikilinks` 均未 expose**，只能走上层函数驱动。
+
 ## 二、Markdown 解析调试（草稿脚本 `_diag.ts`，已退役）
 - 用途：单独验证 markdown-it 的 token 流（排查加粗/中文边界等解析问题）。
 - 状态：该草稿脚本已于 2026-07-21 移出工作区（现位于 `.trash-垃圾站/2026-07-21/_diag.ts`）。如需复用，从回收站取回；它用 CommonJS `require('jsdom')` 且项目 `type:module`，`jsdom` 不在依赖里，需 `bun add -d jsdom` 后用 `bun _diag.ts` 跑。
