@@ -750,3 +750,64 @@ export function serializeClipboardSlice(doc: PMNode, slice: Slice): string {
   const sliced = doc.copy(inner);
   return serializeMarkdownForClipboard(sliced);
 }
+
+// ── 剪贴板 text/plain：干净文字 vs Markdown 源码 ────────────────
+
+/**
+ * 纯文本能「去掉标记后仍是原文」的节点白名单。
+ *
+ * 用白名单而非黑名单：将来新增扩展节点默认走 Markdown 回落，
+ * 绝不会因为忘了登记而在纯文本槽里静默丢内容（退化安全）。
+ */
+const PLAIN_TEXT_SAFE_NODES = new Set([
+  'doc',
+  'paragraph',
+  'heading',
+  'text',
+  'hardBreak',
+  'blockquote',
+  'bulletList',
+  'orderedList',
+  'listItem',
+  'taskList',
+  'taskItem',
+  'codeBlock',
+  'horizontalRule',
+  'table',
+  'tableRow',
+  'tableHeader',
+  'tableCell',
+]);
+
+/** 无文字内容的叶子在纯文本里的替身：分隔线留 `---`、硬换行留换行 */
+const PLAIN_TEXT_LEAF: Record<string, string> = {
+  horizontalRule: '---',
+  hardBreak: '\n',
+};
+
+/** 选区是否含 solo 专有节点（公式 / 图表 / 互链 / 脚注 / frontmatter / callout / 图片） */
+function hasProprietaryNode(frag: Fragment): boolean {
+  for (let i = 0; i < frag.childCount; i++) {
+    const child = frag.child(i);
+    if (!PLAIN_TEXT_SAFE_NODES.has(child.type.name)) return true;
+    if (child.childCount > 0 && hasProprietaryNode(child.content)) return true;
+  }
+  return false;
+}
+
+/**
+ * 剪贴板 text/plain 内容（照 Typora 范式：纯文本槽里放「渲染后的文字」）。
+ *
+ * - 选区只含文本型内容 → 干净纯文本。`## 标题` 粘到微信/Word/记事本得到
+ *   `标题`，不再有 `\*` `\#` `\=` 这类「为 Markdown 目标做的」转义噪音。
+ * - 选区含 solo 专有节点 → 回落 Markdown 源码。这些语法在纯文本里没有等价
+ *   表达（回落总比静默丢公式强），顺带让「粘到外部 Markdown 编辑器」拿到原文。
+ *
+ * solo 内部粘贴不依赖这条路径——HTML 槽 + 各扩展的 parseHTML 负责还原。
+ * 需要主动拿 Markdown 源码时用「复制为 Markdown 源码」命令。
+ */
+export function serializeClipboardText(doc: PMNode, slice: Slice): string {
+  const inner = stripOpenLayers(slice.content, slice.openStart, slice.openEnd);
+  if (hasProprietaryNode(inner)) return serializeMarkdownForClipboard(doc.copy(inner));
+  return inner.textBetween(0, inner.size, '\n\n', (node) => PLAIN_TEXT_LEAF[node.type.name] ?? '');
+}

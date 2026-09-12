@@ -53,7 +53,7 @@ import { useFileStore } from '../../stores/file';
 import { useSettingsStore } from '../../stores/settings';
 import { useEditorSync } from '../../composables/useEditorSync';
 import { parseMarkdown } from './tiptap/markdown/parser';
-import { serializeMarkdown, serializeClipboardSlice } from './tiptap/markdown/serializer';
+import { serializeMarkdown, serializeClipboardText } from './tiptap/markdown/serializer';
 import type { Node as PMNode, Slice } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import { CellSelection, selectedRect } from '@tiptap/pm/tables';
@@ -329,11 +329,13 @@ function createEditor(content: string) {
         class: 'tiptap-editor',
         spellcheck: settingsStore.settings.spellCheck ? 'true' : 'false',
       },
-      // 出站修复：选区复制时产出 Markdown 纯文本，确保 callout / 数学公式 /
-      // mermaid / wikilink / frontmatter / 脚注等扩展语法粘到外部 MD 编辑器不丢。
-      // text/html 仍由 ProseMirror 默认生成（标准格式走 HTML 还原，不受影响）。
+      // text/plain 的产出（照 Typora 范式）：选区是文本型内容就给「渲染后的
+      // 干净文字」，含 solo 专有语法（公式/图表/互链/脚注/frontmatter/callout/
+      // 图片）才回落 Markdown 源码——见 serializeClipboardText。
+      // text/html 由 ProseMirror 默认生成（富格式目标走 HTML），solo 内部粘贴
+      // 也走 HTML + 各扩展的 parseHTML，不受这里影响。
       clipboardTextSerializer: (slice: Slice, view: EditorView) => {
-        return serializeClipboardSlice(view.state.doc, slice);
+        return serializeClipboardText(view.state.doc, slice);
       },
     },
     onUpdate: ({ editor: ed }) => {

@@ -76,6 +76,11 @@ export function useCommandDispatcher(options: CommandDispatcherOptions) {
           return true;
         }
         return false;
+      case 'edit.copyAsMarkdown':
+        if (activeViewMode.value === 'editor') {
+          return editorRef.value?.executeCommand?.('edit.copyAsMarkdown') ?? false;
+        }
+        return false;
       case 'view.focusMode':
         await options.toggleFocusMode();
         return true;

@@ -94,9 +94,23 @@ describe('useCommandDispatcher', () => {
     expect(spies.toggleFocusMode).toHaveBeenCalled();
   });
 
+  it('routes 复制为 Markdown to the editor, and blocks it outside editor view', async () => {
+    const { dispatcher, spies, state } = createDispatcher();
+    spies.editorExecute.mockReturnValue(true);
+
+    await expect(dispatcher.executeCommand('edit.copyAsMarkdown', 'shortcut')).resolves.toBe(true);
+    expect(spies.editorExecute).toHaveBeenCalledWith('edit.copyAsMarkdown');
+
+    state.activeViewMode.value = 'image';
+    await expect(dispatcher.executeCommand('edit.copyAsMarkdown', 'shortcut')).resolves.toBe(false);
+  });
+
   it('handles every registered app command', async () => {
     const { dispatcher, spies, state } = createDispatcher();
     state.activeViewMode.value = 'editor';
+    // edit.copyAsMarkdown 走 editorRef（同 edit.find 的 app 作用域范式），
+    // 需让编辑器桥返回「已处理」
+    spies.editorExecute.mockReturnValue(true);
 
     const appCommands = COMMANDS.filter((command) => command.scope === 'app');
 
