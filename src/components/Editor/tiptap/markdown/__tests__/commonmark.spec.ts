@@ -108,6 +108,7 @@ describe('CommonMark spec roundtrip', () => {
           } catch (e) {
             throw new Error(
               `Parse1 failed (ex ${example.number}): ${e instanceof Error ? e.message : e}`,
+              { cause: e },
             );
           }
 
@@ -123,6 +124,7 @@ describe('CommonMark spec roundtrip', () => {
           } catch (e) {
             throw new Error(
               `Parse2 failed (ex ${example.number}): ${e instanceof Error ? e.message : e}`,
+              { cause: e },
             );
           }
 

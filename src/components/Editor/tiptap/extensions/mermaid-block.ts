@@ -247,7 +247,7 @@ function getErrorMessage(error: unknown): string {
 
 // CJK 统一表意文字 + 全角标点/符号
 function hasCjkOrFullwidth(text: string): boolean {
-  return /[一-鿿　-〿＀-￯]/.test(text);
+  return /[\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]/.test(text);
 }
 
 /**

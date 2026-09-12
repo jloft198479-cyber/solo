@@ -169,7 +169,7 @@ export function hasMarkdownOnlySyntax(text: string): boolean {
     if (/^```/.test(line.trim())) { inFence = !inFence; continue; }
     if (inFence) continue;
     // 匹配 $...$，要求内部不含 $ 和空格，排除 $$ 与转义 \$
-    if (/(?<!\$)\$(?!\$)([^\$\s]+)\$(?!\$)/.test(line)) return true;
+    if (/(?<!\$)\$(?!\$)([^$\s]+)\$(?!\$)/.test(line)) return true;
   }
 
   return false;
