@@ -362,6 +362,20 @@ export const COMMANDS: CommandDefinition[] = [
     palette: true,
   },
   {
+    id: 'edit.copyAsMarkdown',
+    title: '复制为 Markdown',
+    description: '把选区以 Markdown 源码写入剪贴板（粘到其他 Markdown 编辑器）',
+    // 作用域必须是 app：窗口级快捷键分发器对「editor 作用域 + 默认快捷键」的组合
+    // 一律跳过（假定由 ProseMirror 内置 keymap 处理，见 useAppDomEvents），本命令
+    // 没有对应的 PM 绑定，标 editor 会让快捷键在编辑区内彻底按不动。
+    // 与 edit.find / edit.replace 同款——app 作用域、经 editorRef 落到编辑器上。
+    scope: 'app',
+    group: 'edit',
+    // 不占用 Mod-Shift-c（已是 editor.codeBlock 的默认值）
+    defaultShortcut: 'Mod-Shift-m',
+    palette: true,
+  },
+  {
     id: 'view.focusMode',
     title: '焦点模式',
     description: '切换焦点模式',

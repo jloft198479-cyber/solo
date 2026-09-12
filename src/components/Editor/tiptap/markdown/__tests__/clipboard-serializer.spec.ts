@@ -4,7 +4,12 @@ import { NodeSelection, TextSelection } from '@tiptap/pm/state';
 import { Fragment, Slice } from '@tiptap/pm/model';
 
 import { parseMarkdown } from '../parser';
-import { serializeClipboardSlice, serializeMarkdown, serializeMarkdownForClipboard } from '../serializer';
+import {
+  serializeClipboardSlice,
+  serializeClipboardText,
+  serializeMarkdown,
+  serializeMarkdownForClipboard,
+} from '../serializer';
 import { createTestSchema } from './test-utils';
 
 // 出站复制修复：选区序列化为 Markdown 纯文本，确保 solo 扩展语法粘到外部
@@ -189,5 +194,74 @@ describe('clipboard 模式向嵌套 state 传播', () => {
     const file = serializeMarkdown(parseMarkdown(schema, `> ${TEXT}`));
     expect(file).toContain('x \\= 1');
     expect(file).toContain('100\\$');
+  });
+});
+
+// 默认复制照 Typora 范式：纯文本槽 = 渲染后的文字（去掉标记、不补反斜杠），
+// 只有选区含 solo 专有语法时才回落 Markdown 源码——这些语法纯文本表达不了，
+// 与其静默丢公式，不如给源码。
+describe('serializeClipboardText（纯文本槽：干净文字 / 专有语法回落）', () => {
+  const schema = createTestSchema();
+  const whole = (md: string): string => {
+    const doc = parseMarkdown(schema, md);
+    return serializeClipboardText(doc, new Slice(doc.content, 0, 0));
+  };
+
+  it('文本型内容只留文字，不留标记', () => {
+    expect(whole('## 标题')).toBe('标题');
+    expect(whole('**粗体** 与 *斜体*')).toBe('粗体 与 斜体');
+    expect(whole('> 引用一句')).toBe('引用一句');
+    expect(whole('`code`')).toBe('code');
+  });
+
+  it('关键回归：`=` `$` `*` 不再被补反斜杠', () => {
+    expect(whole('x = 1 与 100$ 报价')).toBe('x = 1 与 100$ 报价');
+    expect(whole('a*b')).toBe('a*b');
+    expect(whole('C:\\Users\\me\\notes')).toBe('C:\\Users\\me\\notes');
+  });
+
+  it('真实场景：整篇笔记复制出去零反斜杠', () => {
+    const md = ['# 标题', '', '价格 100$ 与 x=1，含 `代码` 与 *强调*。', '', '- 甲', '- 乙'].join('\n');
+    expect(whole(md)).not.toContain('\\');
+  });
+
+  it('列表项逐行给出，不残留 marker', () => {
+    expect(whole('- 苹果\n- 香蕉')).toBe('苹果\n\n香蕉');
+    expect(whole('1. 第一\n2. 第二')).toBe('第一\n\n第二');
+  });
+
+  it('分隔线用 --- 占位（属可纯文本化，不触发回落）', () => {
+    const out = whole('第一段\n\n---\n\n第二段');
+    expect(out).toContain('---');
+    expect(out).not.toContain('\\');
+  });
+
+  it('硬换行保留为换行', () => {
+    expect(whole('上一行\\\n下一行')).toBe('上一行\n下一行');
+  });
+
+  it('含专有语法 → 回落 Markdown 源码', () => {
+    expect(whole('行内公式 $E=mc^2$ 在此')).toContain('$E=mc^2$');
+    expect(whole('参考 [[我的页面]]')).toContain('[[我的页面]]');
+    expect(whole('> [!NOTE]\n> 提示')).toContain('> [!NOTE]');
+    expect(whole('```mermaid\nflowchart TD\n```')).toContain('```mermaid');
+    expect(whole('![图](a.png)')).toContain('![图](a.png)');
+    expect(whole('文本[^1]\n\n[^1]: 脚注')).toContain('[^1]');
+    expect(whole('---\ntitle: x\n---\n\n正文')).toContain('title: x');
+  });
+
+  it('专有节点藏在容器里也能识别（不漏判）', () => {
+    expect(whole('- 列表里塞公式 $x^2$')).toContain('$x^2$');
+    expect(whole('> 引用里塞 [[链接]]')).toContain('[[链接]]');
+  });
+
+  it('开口 slice 剥层对两条路都生效', () => {
+    const doc = parseMarkdown(schema, ['| 应用 |', '| --- |', '| 剪映 |'].join('\n'));
+    let from = -1;
+    doc.descendants((node, pos) => {
+      if (from < 0 && node.isText && node.text === '剪映') from = pos;
+    });
+    const slice = TextSelection.create(doc, from, from + 2).content();
+    expect(serializeClipboardText(doc, slice)).toBe('剪映');
   });
 });

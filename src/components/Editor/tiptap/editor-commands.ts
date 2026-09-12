@@ -1,4 +1,5 @@
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
+import { serializeClipboardSlice } from './markdown/serializer';
 
 export interface BubbleMenuActionData {
   href?: string;
@@ -112,6 +113,18 @@ export function executeEditorCommand(editor: TiptapEditor | null, commandId: str
       return chain.toggleHeaderRow().run();
     case 'editor.tableDeleteTable':
       return chain.deleteTable().run();
+    // 默认复制给的是「渲染后的干净文字」，需要 Markdown 源码时走这条
+    // （见 registry 的 edit.copyAsMarkdown 说明）。刻意不碰 chain.focus()：
+    // 复制不该改变光标与焦点。
+    case 'edit.copyAsMarkdown': {
+      const { state } = editor;
+      void navigator.clipboard
+        .writeText(serializeClipboardSlice(state.doc, state.selection.content()))
+        .catch(() => {
+          // 剪贴板不可用（权限 / 非安全上下文）时静默失败，不打断编辑
+        });
+      return true;
+    }
     default:
       return false;
   }
