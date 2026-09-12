@@ -1407,7 +1407,9 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
 }
 
 .mk-slash-menu-scroll {
-  max-height: 320px;
+  /* 由 computeMenuPosition 按「当侧可用空间」下发，保证菜单不越界；
+     无变量时退回 320（与历史默认值一致） */
+  max-height: var(--menu-max-height, 320px);
   overflow-y: auto;
   padding: 4px 0;
 }

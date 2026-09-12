@@ -4,7 +4,7 @@
       v-show="visible"
       ref="menuRef"
       class="mk-slash-menu mk-emoji-menu"
-      :style="{ top: position.top + 'px', left: position.left + 'px' }"
+      :style="menuStyle"
     >
     <div class="mk-slash-menu-scroll">
       <div
@@ -38,7 +38,7 @@ const menuRef = ref<HTMLElement>();
 
 const {
   visible,
-  position,
+  menuStyle,
   selectedIndex,
   selectItem,
   onKeyDown,
