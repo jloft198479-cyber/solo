@@ -30,7 +30,7 @@ updates: [README.md, docs/INDEX.md]
 - **纯本地**：无账号、无后端、无云同步，文档就是本地 `.md` 文件。
 - **多窗口**：每个文件独立窗口，可并排对比、互不牵连。
 - **扩展语法**：KaTeX 数学公式、Mermaid 图表、GFM 表格、脚注、Frontmatter、12 色 Callout、WikiLink、高亮、上下标。
-- **格式保真**：全量 Markdown roundtrip 测试（618 通过 / 34 项设计约束），粘贴 Markdown 自动转换，`Ctrl+C` 同时写出 Markdown 源与 HTML。
+- **格式保真**：全量 Markdown roundtrip 测试（618 通过 / 34 项设计约束），粘贴 Markdown 自动转换；`Ctrl+C` 默认给干净文字，含专有语法才回落源码，要纯源码按 `Ctrl+Shift+M`「复制为 Markdown」。
 - **复制为 HTML**：状态栏一键复制富文本 HTML，跟随主题，所见即所得。
 
 ## 相关链接
