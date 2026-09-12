@@ -221,7 +221,7 @@ describe('paragraph-focus 组字冻结（IME 防御）', () => {
 
   it('组字期间块内打字：装饰坐标随映射平移，class 不变', () => {
     const v = mountView(docOf(paragraph('hello'), heading(1, 'world')), 1);
-    let browserComposing = true;
+    const browserComposing = true;
     Object.defineProperty(v, 'composing', {
       configurable: true,
       get: () => browserComposing,

@@ -44,7 +44,9 @@ function protectCodeRegions(content: string): { text: string; restore: (value: s
   if (saved.length === 0) return { text: content, restore: (value) => value };
   return {
     text,
-    restore: (value) => value.replace(/\u0000(\d+)\u0000/g, (_m, index: string) => saved[Number(index)] ?? ''),
+    restore: (value) =>
+      // eslint-disable-next-line no-control-regex -- \u0000 是故意的占位哨兵，与上方 replace 成对，非误入的控制字符
+      value.replace(/\u0000(\d+)\u0000/g, (_m, index: string) => saved[Number(index)] ?? ''),
   };
 }
 
