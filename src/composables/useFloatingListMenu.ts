@@ -89,7 +89,6 @@ export function useFloatingListMenu<T>(options: {
 
   return {
     visible,
-    position,
     menuStyle,
     selectedIndex,
     selectItem,

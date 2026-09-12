@@ -479,7 +479,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 **IME 友好细节**：`SlashCommands` / `EmojiSuggest` / `WikilinkSuggest` 三个 suggestion 均设 `allowedPrefixes: null`（支持中文「你好/」「标题/」「你好[[」后唤出菜单，默认 `allowedPrefixes:[' ']` 会过滤掉无空格前缀，对中文场景致命）。
 
-复杂渲染用 `addNodeView()` **内联在扩展文件里**，不拆独立 Vue 文件。浮动菜单定位抽成纯函数 `computeMenuPosition`（`editor-extensions.ts`），对齐业界 `size` + `flip`：高度**不是常量**而由当侧可用空间裁决（常量 `MENU_IDEAL_HEIGHT=340` / `MENU_MIN_HEIGHT=120` / `MENU_MIN_WIDTH=240` / `VIEWPORT_MARGIN=8` / `CURSOR_GAP=4`），经 CSS 变量 `--menu-max-height` 下发给滚动区；上翻时改用 `bottom` 定位使菜单底边贴住光标。Slash / Emoji / 互链三个菜单共用此函数。
+复杂渲染用 `addNodeView()` **内联在扩展文件里**，不拆独立 Vue 文件。浮动菜单定位抽成纯函数 `computeMenuPosition`（`editor-extensions.ts`），对齐业界 `size` + `flip`：高度**不是常量**，取「当侧可用空间」并夹在 `[MENU_MIN_HEIGHT=120, MENU_IDEAL_HEIGHT=340]` 内（有上限，否则菜单会随窗口高度忽高忽低），经 CSS 变量 `--menu-max-height` 下发给滚动区；上翻时改用 `bottom` 定位使菜单底边贴住光标（`position: fixed` 下可免去「先渲染再测高」的一帧抖动）。Slash / Emoji / 互链三个菜单共用此函数。
 
 ### 8.4 Markdown 解析链（`tiptap/markdown/`）
 

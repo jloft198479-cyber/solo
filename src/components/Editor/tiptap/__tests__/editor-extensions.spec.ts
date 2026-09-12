@@ -20,14 +20,26 @@ const GAP = 4;
 const bottomEdgeY = (pos: { bottom?: number }, vh: number) => vh - (pos.bottom ?? 0);
 
 describe('computeMenuPosition - 浮动菜单边界检测（size + flip）', () => {
-  it('下方放得下：默认放下方，并把该侧可用高度下发为 max-height', () => {
+  it('下方放得下：默认放下方，max-height 取理想高度（空间再富余也不超）', () => {
     const rect = { top: 100, bottom: 120, left: 50 };
     const viewport = { width: 1024, height: 768 };
+    // 下方可用 636 ≫ 理想 340：封顶到 340，否则菜单会随窗口高度忽高忽低
     expect(computeMenuPosition(rect, viewport)).toEqual({
       top: 120 + GAP,
       left: 50,
-      maxHeight: 768 - MARGIN - 120 - GAP, // = 636
+      maxHeight: MENU_IDEAL_HEIGHT,
     });
+  });
+
+  it('★ max-height 永不超出理想高度（防菜单随光标位置忽高忽低）', () => {
+    // 回归锁：只做下限不封顶时，大屏上方输入会让 max-height 涨到 600~1000，
+    // slash 条目多（约 40 条）时菜单展开成近全屏高——与「固定 320 + 滚动」
+    // 的历史行为相悖。size 必须是 clamp(下限, 可用空间, 理想高度)。
+    for (const vh of [400, 768, 1200, 2160]) {
+      const rect = { top: 60, bottom: 80, left: 50 };
+      const pos = computeMenuPosition(rect, { width: 1024, height: vh });
+      expect(pos.maxHeight).toBeLessThanOrEqual(MENU_IDEAL_HEIGHT);
+    }
   });
 
   it('下方遮挡 + 上方放得下：翻转到光标上方', () => {
@@ -37,7 +49,7 @@ describe('computeMenuPosition - 浮动菜单边界检测（size + flip）', () =
     const pos = computeMenuPosition(rect, viewport);
     expect(pos.top).toBeUndefined();
     expect(pos.bottom).toBe(500 - rect.top + GAP); // = 124
-    expect(pos.maxHeight).toBe(rect.top - MARGIN - GAP); // = 368
+    expect(pos.maxHeight).toBe(MENU_IDEAL_HEIGHT); // 上方 368 略富余 → 封顶 340
   });
 
   it('★ 上翻时菜单底边紧贴光标上沿（不按最大高度占座）', () => {

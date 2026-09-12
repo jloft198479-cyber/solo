@@ -46,7 +46,11 @@ describe('useFloatingListMenu', () => {
       const { result, unmount } = setup([{ id: 1, label: 'A' }]);
 
       expect(result.visible.value).toBe(false);
-      expect(result.position.value).toEqual({ top: 0, left: 0, maxHeight: 0 });
+      expect(result.menuStyle.value).toEqual({
+        left: '0px',
+        top: '0px',
+        '--menu-max-height': '0px',
+      });
       expect(result.selectedIndex.value).toBe(0);
 
       unmount();
@@ -58,10 +62,14 @@ describe('useFloatingListMenu', () => {
       const { result, unmount } = setup([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);
 
       result.selectedIndex.value = 1;
-      result.show({ top: 100, left: 200 });
+      result.show({ top: 100, left: 200, maxHeight: 300 });
 
       expect(result.visible.value).toBe(true);
-      expect(result.position.value).toEqual({ top: 100, left: 200 });
+      expect(result.menuStyle.value).toEqual({
+        left: '200px',
+        top: '100px',
+        '--menu-max-height': '300px',
+      });
       expect(result.selectedIndex.value).toBe(0);
 
       unmount();
@@ -70,7 +78,7 @@ describe('useFloatingListMenu', () => {
     it('hide 隐藏菜单', () => {
       const { result, unmount } = setup([{ id: 1, label: 'A' }]);
 
-      result.show({ top: 0, left: 0 });
+      result.show({ top: 0, left: 0, maxHeight: 0 });
       result.hide();
 
       expect(result.visible.value).toBe(false);

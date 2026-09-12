@@ -88,7 +88,10 @@ export interface WikilinkMenuController {
 // 上方改用 bottom 而非 top 定位：菜单是 position: fixed，bottom 相对视口底，
 // 于是「菜单底边贴光标上沿」恒成立——不必事先测量菜单高度，也就没有
 // 「先渲染再校正」的一帧抖动。
-const MENU_IDEAL_HEIGHT = 340; // ≈ CSS max-height 320 + padding/border
+// 下发为滚动区（.mk-slash-menu-scroll）的 max-height，非菜单总高：
+// 菜单还要再加 padding(4*2) + border(1*2) = 10px，故超出该值的部分由
+// VIEWPORT_MARGIN=8 吸收，内容填满时净越界 ≤2px，肉眼不可见，不值得为它加码。
+const MENU_IDEAL_HEIGHT = 340; // 富余空间下的高度上限（≈ 历史 320 + padding/border）
 const MENU_MIN_HEIGHT = 120; // 空间再挤也别把菜单压成一条缝（宁可略微溢出）
 const MENU_MIN_WIDTH = 240;
 const VIEWPORT_MARGIN = 8;
@@ -122,7 +125,14 @@ export function computeMenuPosition(
   const vertical: Pick<MenuPosition, 'top' | 'bottom'> = placeBelow
     ? { top: rect.bottom + CURSOR_GAP }
     : { bottom: vh - rect.top + CURSOR_GAP };
-  const maxHeight = Math.max(placeBelow ? spaceBelow : spaceAbove, MENU_MIN_HEIGHT);
+  // size：菜单高度由当侧可用空间裁决，并夹在 [下限, 理想高度] 内——
+  // 上限不可省：空间富余时若不封顶，菜单会随光标位置忽高忽低（同目录文件多
+  // 或 slash 条目多时，屏幕上方输入会展开成近全屏高，退回到「菜单高度写死」
+  // 的反面）。下限则保证再挤也还有几行可用（宁可略微溢出，不压成一条缝）。
+  const maxHeight = Math.min(
+    Math.max(placeBelow ? spaceBelow : spaceAbove, MENU_MIN_HEIGHT),
+    MENU_IDEAL_HEIGHT,
+  );
 
   let left = rect.left;
   if (left + MENU_MIN_WIDTH > vw - VIEWPORT_MARGIN) {
