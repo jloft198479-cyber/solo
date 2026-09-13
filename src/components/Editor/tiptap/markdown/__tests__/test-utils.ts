@@ -1,126 +1,41 @@
-import { Schema, type Node as PMNode } from '@tiptap/pm/model';
+import { Schema } from '@tiptap/pm/model';
+import { ref } from 'vue';
+import { getSchema } from '@tiptap/core';
 import MarkdownIt from 'markdown-it';
+import { createEditorExtensions } from '../../editor-extensions';
 import { parseMarkdown } from '../parser';
 import { serializeMarkdown, serializeMarkdownForClipboard } from '../serializer';
 
-/** 构建最小 schema（匹配 solo 实际使用的 nodes + marks）
- *  注意：这是生产 schema 的镜像，属性必须与 extensions/*.ts 保持同步——
- *  缺属性会让相关 roundtrip「静默通过」，给假绿灯（表格跨格、图片尺寸曾如此）。 */
+/**
+ * 测试用 schema —— 直接复用**生产编辑 schema**，不再手抄镜像。
+ *
+ * 历史（#11）：本函数曾是 124 行手抄的「最小 schema」，文件头自陈
+ * 「属性必须与 extensions/*.ts 保持同步，缺属性会给假绿灯（表格跨格、图片尺寸曾如此）」。
+ * 实测证明镜像**双向骗人**：生产真丢的它接得住（假绿）；生产不丢的它却丢（假红）。
+ * 更早的误判是以为 paste 通道用另一套 schema——实际 `markdown-paste.ts` 全程用
+ * `view.state.schema`（即本 schema），手抄镜像只有测试在用。
+ *
+ * ⇒ 现在测试永远测真身。改 `extensions/*.ts` 自动反映到全部 markdown 单测。
+ * 详见 `KNOWN-ISSUES.md` §二 #11 与 `topics/schema-drift.md` §⑥。
+ */
+let cachedSchema: Schema | null = null;
+
 export function createTestSchema(): Schema {
-  return new Schema({
-    nodes: {
-      doc: { content: 'block+' },
-      paragraph: { group: 'block', content: 'inline*', parseDOM: [{ tag: 'p' }], toDOM: () => ['p', 0] },
-      heading: {
-        group: 'block', content: 'inline*',
-        attrs: { level: { default: 1 } },
-        defining: true,
-        parseDOM: [1, 2, 3, 4, 5, 6].map((l) => ({ tag: `h${l}`, attrs: { level: l } })),
-        toDOM: (n: PMNode) => [`h${n.attrs.level}`, 0],
-      },
-      blockquote: { group: 'block', content: 'block+', parseDOM: [{ tag: 'blockquote' }], toDOM: () => ['blockquote', 0] },
-      bulletList: { group: 'block', content: '(listItem | taskItem)+', parseDOM: [{ tag: 'ul' }], toDOM: () => ['ul', 0] },
-      orderedList: { group: 'block', content: '(listItem | taskItem)+', attrs: { start: { default: 1 } }, parseDOM: [{ tag: 'ol' }], toDOM: () => ['ol', 0] },
-      listItem: { content: 'block+', parseDOM: [{ tag: 'li' }], toDOM: () => ['li', 0] },
-      taskList: { group: 'block', content: 'taskItem+', parseDOM: [{ tag: 'ul[data-type="taskList"]' }], toDOM: () => ['ul', { 'data-type': 'taskList' }, 0] },
-      taskItem: { content: 'block+', attrs: { checked: { default: false } }, parseDOM: [{ tag: 'li[data-type="taskItem"]' }], toDOM: (n: PMNode) => ['li', { 'data-type': 'taskItem', 'data-checked': n.attrs.checked }, 0] },
-      codeBlock: {
-        group: 'block', content: 'text*', marks: '', code: true,
-        attrs: { language: { default: null } },
-        parseDOM: [{ tag: 'pre' }], toDOM: () => ['pre', ['code', 0]],
-      },
-      hardBreak: { inline: true, group: 'inline', selectable: false, parseDOM: [{ tag: 'br' }], toDOM: () => ['br'] },
-      horizontalRule: { group: 'block', parseDOM: [{ tag: 'hr' }], toDOM: () => ['hr'] },
-      table: { group: 'block', content: 'tableRow+', tableRole: 'table', parseDOM: [{ tag: 'table' }], toDOM: () => ['table', ['tbody', 0]] },
-      tableRow: { content: '(tableHeader | tableCell)+', tableRole: 'row', parseDOM: [{ tag: 'tr' }], toDOM: () => ['tr', 0] },
-      tableHeader: {
-        content: 'paragraph+', tableRole: 'header_cell', isolating: true,
-        // 与生产一致：CustomTableHeader/TableCell 未覆盖 addAttributes，用 Tiptap 默认
-        attrs: { colspan: { default: 1 }, rowspan: { default: 1 }, colwidth: { default: null } },
-        parseDOM: [{ tag: 'th' }], toDOM: () => ['th', 0],
-      },
-      tableCell: {
-        content: 'paragraph+', tableRole: 'cell', isolating: true,
-        attrs: { colspan: { default: 1 }, rowspan: { default: 1 }, colwidth: { default: null } },
-        parseDOM: [{ tag: 'td' }], toDOM: () => ['td', 0],
-      },
-      image: {
-        inline: true, group: 'inline',
-        // width/height 与生产 image.ts 的 addAttributes 同步（决定 `![alt|WxH](src)` 往返）
-        attrs: { src: { default: '' }, alt: { default: '' }, title: { default: null }, width: { default: null }, height: { default: null } },
-        parseDOM: [{ tag: 'img' }], toDOM: () => ['img'],
-      },
-      mathInline: {
-        inline: true, group: 'inline', atom: true,
-        attrs: { latex: { default: '' } },
-        parseDOM: [{ tag: 'span[data-type="math-inline"]' }],
-        toDOM: () => ['span', { 'data-type': 'math-inline' }, 0],
-      },
-      mathBlock: {
-        group: 'block', content: 'text*', marks: '', code: true,
-        parseDOM: [{ tag: 'div[data-type="math-block"]' }],
-        toDOM: () => ['div', { 'data-type': 'math-block' }, 0],
-      },
-      mermaidBlock: {
-        group: 'block', content: 'text*', marks: '', code: true,
-        parseDOM: [{ tag: 'div[data-type="mermaid-block"]' }],
-        toDOM: () => ['div', { 'data-type': 'mermaid-block' }, 0],
-      },
-      frontmatter: {
-        group: 'block', content: 'text*', marks: '', code: true, defining: true,
-        parseDOM: [{ tag: 'pre[data-frontmatter]' }],
-        toDOM: () => ['pre', { 'data-frontmatter': '' }, ['code', 0]],
-      },
-      callout: {
-        group: 'block', content: 'block+',
-        attrs: {
-          calloutType: { default: 'note' },
-          title: { default: '' },
-          fold: { default: null }, // '+' | '-' | null（B10）
-        },
-        parseDOM: [{ tag: 'div.mk-callout' }],
-        toDOM: () => ['div', { 'data-type': 'callout' }, 0],
-      },
-      footnoteRef: {
-        inline: true, group: 'inline', atom: true,
-        attrs: { label: { default: '' } },
-        parseDOM: [{ tag: 'sup[data-footnote-ref]' }],
-        toDOM: () => ['sup', { 'data-footnote-ref': '' }, 0],
-      },
-      footnoteSection: {
-        group: 'block', content: 'footnoteDef+', defining: true,
-        parseDOM: [{ tag: 'div[data-footnote-section]' }],
-        toDOM: () => ['div', { 'data-footnote-section': '' }, 0],
-      },
-      footnoteDef: {
-        group: 'block', content: 'block+', defining: true,
-        attrs: { label: { default: '' } },
-        parseDOM: [{ tag: 'div[data-footnote-def]' }],
-        toDOM: () => ['div', { 'data-footnote-def': '' }, 0],
-      },
-      wikilink: {
-        inline: true, group: 'inline', atom: true,
-        attrs: { target: { default: '' }, alias: { default: '' } },
-        parseDOM: [{ tag: 'span[data-wikilink]' }],
-        toDOM: () => ['span', { 'data-wikilink': '' }, 0],
-      },
-      text: { group: 'inline' },
-    },
-    marks: {
-      bold: { parseDOM: [{ tag: 'strong' }], toDOM: () => ['strong', 0] },
-      italic: { parseDOM: [{ tag: 'em' }], toDOM: () => ['em', 0] },
-      strike: { parseDOM: [{ tag: 's' }, { tag: 'del' }], toDOM: () => ['s', 0] },
-      code: { parseDOM: [{ tag: 'code' }], toDOM: () => ['code', 0] },
-      highlight: { parseDOM: [{ tag: 'mark' }], toDOM: () => ['mark', 0] },
-      link: {
-        attrs: { href: { default: '' }, target: { default: null }, title: { default: null } },
-        parseDOM: [{ tag: 'a' }], toDOM: () => ['a', 0],
-      },
-      superscript: { parseDOM: [{ tag: 'sup' }], toDOM: () => ['sup', 0] },
-      subscript: { parseDOM: [{ tag: 'sub' }], toDOM: () => ['sub', 0] },
-      dim: { parseDOM: [{ tag: 'span.mk-dim' }], toDOM: () => ['span', { class: 'mk-dim' }, 0] },
-    },
-  });
+  // 单例缓存：构建扩展树开销大，而测试内 schema 恒定
+  return (cachedSchema ??= getSchema(
+    createEditorExtensions({
+      slashMenuRef: ref(null),
+      slashMenuItems: ref([]),
+      slashMenuCommand: ref(() => {}),
+      emojiMenuRef: ref(null),
+      emojiMenuItems: ref([]),
+      emojiMenuCommand: ref(() => {}),
+      wikilinkMenuRef: ref(null),
+      wikilinkMenuItems: ref([]),
+      wikilinkMenuCommand: ref(() => {}),
+      searchHighlightOptions: {} as never,
+    }),
+  ));
 }
 
 export function normalize(md: string): string {
