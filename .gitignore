@@ -85,6 +85,7 @@ solo_1.2.22_x64-setup.sig
 .dumate/
 .sandbox-theme-audit/
 .sandbox-cnb/
+.sandbox-ime/
 
 # Windows 系统文件
 desktop.ini
