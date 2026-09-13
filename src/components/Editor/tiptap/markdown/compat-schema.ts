@@ -32,7 +32,7 @@ export function createMarkdownCompatSchema(): Schema {
       },
       orderedList: {
         group: 'block',
-        content: 'listItem+',
+        content: '(listItem | taskItem)+',
         attrs: { start: { default: 1 } },
         parseDOM: [{ tag: 'ol' }],
         toDOM: () => ['ol', 0],

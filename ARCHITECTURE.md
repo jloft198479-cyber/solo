@@ -487,7 +487,9 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 - `serializer.ts`：ProseMirror Doc → MD。自研，精确控制输出。**强制末尾恰好一个换行**。
 - `plugins/` + `compat-schema.ts`：解析插件与兼容处理。
 - `__tests__/roundtrip.spec.ts`：**Markdown 保真度的主要安全网**——动 parser/serializer 前先看它。
-- `__tests__/commonmark.spec.ts`：CommonMark spec 652 条全量 roundtrip 验证（618 pass + 34 skip 设计约束）。
+- `__tests__/fixtures.spec.ts`：19 个 fixture 的**保真回归**——「重开等价」（参照系是 markdown-it，抓内容丢失）+ 字节保真（差异须登记在 `KNOWN_FIDELITY_GAPS`）；未登记缺口与「登记项已修好」都会红（**双向锁**）。
+- `__tests__/fuzz.spec.ts`：随机**结构块**组合压测（标题/列表/嵌套/任务列表/代码围栏/引用/表格/分隔线 + 行内样式），断言重开等价 + 收敛。**随机源种子化**（同种子 → 同序列，失败可原样重放；`FUZZ_SEED` 可覆盖）。
+- `__tests__/commonmark.spec.ts`：CommonMark spec 652 条全量 roundtrip 验证（618 pass + 34 skip 设计约束）。**只验收敛，不是保真防线**——收敛 ≠ 内容不丢。
 
 ---
 
@@ -563,6 +565,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 12 | NodeView 事件/定时器成对清理 | [`extensions/code-block.ts`](./src/components/Editor/tiptap/extensions/code-block.ts) + [`image.ts`](./src/components/Editor/tiptap/extensions/image.ts) | §11.7 |
 | 13 | 文件 vs 剪贴板两种转义模式，嵌套 state 必须继承 | [`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts) | §11.8 |
 | 14 | Suggestion 输入扩展门控（**`[[` 曾两度不弹**：v1.2.43 漏递扩展级 option、后又误加「无路径不弹」；现只判代码上下文；Slash/Emoji 菜单「零命中即隐藏」——互链是唯一豁免者，因其空态承载用法引导且依赖异步补数据链路）+ 拖拽落点路由（混拖让路/坐标换算） | [`editor-extensions.ts`](./src/components/Editor/tiptap/editor-extensions.ts) + [`useFloatingListMenu.ts`](./src/composables/useFloatingListMenu.ts) + [`markdown-input.ts`](./src/components/Editor/tiptap/extensions/markdown-input.ts) + [`wikilink-drop.ts`](./src/components/Editor/tiptap/extensions/wikilink-drop.ts) + [`useAppWindowSession.ts`](./src/composables/useAppWindowSession.ts) | [KNOWN-ISSUES §一 #21/#22](./docs/KNOWN-ISSUES.md) |
+| 15 | 列表容器与项类型判定（**「容器肯不肯装」直接决定内容存亡**：`bulletList`/`orderedList` 的 content 须为 `(listItem \| taskItem)+`，`taskList` 保持 `taskItem+`；容器判定须为「本层**全部**项都是任务项」且**跳过嵌套层**。任一处收紧 ⇒ `createAndFill` 失败 ⇒ `closeNode()` 静默丢弃整段。**动前先看 `schema-consistency.spec.ts` 的正向契约锁**——差异集校验看不出「三套一致地错」） | [`parser.ts`](./src/components/Editor/tiptap/markdown/parser.ts)（`areAllTopLevelItemsTasks`）+ [`editor-extensions.ts`](./src/components/Editor/tiptap/editor-extensions.ts) + [`compat-schema.ts`](./src/components/Editor/tiptap/markdown/compat-schema.ts) + [`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts) | [KNOWN-ISSUES §二 #10](./docs/KNOWN-ISSUES.md) |
 
 ### 11.1 脏态机制不可随意改动（A1 语义比对模型）
 
@@ -687,7 +690,7 @@ destroy() {
 | 我想改… | 从这里入手 |
 |---|---|
 | 编辑器行为 bug | `MarkdownEditor.vue` + 对应 `extensions/*.ts` |
-| Markdown 保真度 | `parser.ts` / `serializer.ts` → 先看 `roundtrip.spec.ts` |
+| Markdown 保真度 | `parser.ts` / `serializer.ts` → 先看 `roundtrip.spec.ts` + `fixtures.spec.ts`（`KNOWN_FIDELITY_GAPS` 是已知缺口台账）；三套 schema 的差异台账在 `schema-consistency.spec.ts` |
 | 文件打开/保存 bug | `useDocumentSession.ts` + `commands/document.rs` |
 | 菜单/快捷键行为 | `registry.ts` + `useCommandDispatcher.ts` + Rust `menu.rs` |
 | 搜索/替换 | `useEditorSearch.ts` + `extensions/search-highlight.ts` + 搜索面板模板（`MarkdownEditor.vue`） |

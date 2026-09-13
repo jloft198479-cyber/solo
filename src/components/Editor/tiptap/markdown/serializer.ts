@@ -388,12 +388,34 @@ const nodeSerializers: Record<string, NodeSerializer> = {
   },
 
   bulletList(state, node) {
-    state.renderList(node, () => '- ');
+    // 容器可同时容纳普通项与待办项（见 editor-extensions 的 content 放开），
+    // 故 marker 逐项决定：待办项必须带上勾选框，否则 checked 状态在往返中被抹平。
+    state.renderList(
+      node,
+      (_index, child) => {
+        if (child.type.name !== 'taskItem') return '- ';
+        return child.attrs.checked ? '- [x] ' : '- [ ] ';
+      },
+      // 勾选框属于列表项内容，marker 实际是 '- '（宽 2）
+      () => 2,
+    );
   },
 
   orderedList(state, node) {
     const start = node.attrs.start ?? 1;
-    state.renderList(node, (index) => `${start + index}. `);
+    state.renderList(
+      node,
+      (index, child) => {
+        const marker = `${start + index}. `;
+        if (child.type.name !== 'taskItem') return marker;
+        return marker + (child.attrs.checked ? '[x] ' : '[ ] ');
+      },
+      // 缩进宽度只算 marker（勾选框属内容）：有勾选框时取 '[' 之前的长度
+      (delim) => {
+        const checkboxAt = delim.indexOf('[');
+        return checkboxAt >= 0 ? checkboxAt : delim.length;
+      },
+    );
   },
 
   listItem(state, node) {
