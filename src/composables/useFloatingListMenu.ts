@@ -77,7 +77,25 @@ export function useFloatingListMenu<T>(options: {
     });
   }
 
-  function show(pos: MenuPosition) {
+  /**
+   * 显示菜单。**列表为空时不显示**（已显示则收起）——「没有内容可展示的菜单」
+   * 对用户只是噪音，且会一直挂在光标下遮挡正文（如中文里打「类型/属性」：
+   * `/` 后是汉字，与唤出命令长得一样，程序分不出，只能等 query 零命中后收场）。
+   *
+   * 唯一例外是「空态承载的是用法说明而非无结果提示」——互链菜单未保存文档时
+   * 显示「存到文件夹后，可链接同目录文档」，那句是在教用户怎么用，必须留。
+   * 此类菜单显式传 `allowEmpty: true`（见 editor-extensions.ts 的 WikilinkSuggest）。
+   *
+   * 注意：不要给 WikilinkSuggest 去掉 allowEmpty——它的 onStart 先显示缓存、
+   * 再靠后台 refreshWikilinkCandidates().then(updateItems()) 异步补数据；
+   * 缓存为空时若在此收掉，异步数据到达后无人重唤 show，互链补全会静默失效
+   *（同类事故见 docs/CHANGELOG.md「`[[` 曾两度不弹」）。
+   */
+  function show(pos: MenuPosition, options?: { allowEmpty?: boolean }) {
+    if (getItems().length === 0 && !options?.allowEmpty) {
+      visible.value = false;
+      return;
+    }
     position.value = pos;
     visible.value = true;
     selectedIndex.value = 0;

@@ -63,7 +63,8 @@ export interface EmojiMenuController {
 }
 
 export interface WikilinkMenuController {
-  show: (position: MenuPosition) => void;
+  /** allowEmpty：互链菜单豁免「空态即 hide」规则（唯一豁免者，见 useFloatingListMenu.show） */
+  show: (position: MenuPosition, options?: { allowEmpty?: boolean }) => void;
   hide: () => void;
   onKeyDown: (event: KeyboardEvent) => boolean;
 }
@@ -353,7 +354,13 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
               wikilinkMenuCommand.value = props.command;
               updateItems();
               const rect = props.clientRect?.();
-              if (rect) wikilinkMenuRef.value?.show(computeMenuPosition(rect));
+              // allowEmpty：互链菜单是「空态即 hide」规则（useFloatingListMenu.show）
+              // 的唯一豁免者——未保存文档时那句「存到文件夹后，可链接同目录文档」
+              // 是用法说明，不是无结果提示；且这里先显示缓存、异步再补数据，
+              // 收起会导致数据到达后无人重唤（详见 show() 注释）。
+              if (rect) {
+                wikilinkMenuRef.value?.show(computeMenuPosition(rect), { allowEmpty: true });
+              }
               // 后台刷新同目录候选（去重并发）；菜单先显示缓存，刷新后无缝更新
               void refreshWikilinkCandidates(options.getDocumentPath?.() ?? null).then(() => {
                 updateItems();
@@ -364,7 +371,10 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
               wikilinkMenuCommand.value = props.command;
               updateItems();
               const rect = props.clientRect?.();
-              if (rect) wikilinkMenuRef.value?.show(computeMenuPosition(rect));
+              // allowEmpty：同 onStart，互链菜单豁免「空态即 hide」
+              if (rect) {
+                wikilinkMenuRef.value?.show(computeMenuPosition(rect), { allowEmpty: true });
+              }
             },
             onKeyDown: (props: SuggestionKeyDownProps) => {
               const { event } = props;
