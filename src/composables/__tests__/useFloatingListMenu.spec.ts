@@ -87,6 +87,61 @@ describe('useFloatingListMenu', () => {
     });
   });
 
+  /**
+   * 「空态即 hide」契约：列表为空时菜单不显示——中文里打「类型/属性」这类
+   * 词内斜杠，`/` 后零命中，菜单不该举着「没有匹配的命令」挂在光标下遮正文。
+   * 唯一豁免是互链菜单（空态是用法说明，且异步补数据链路依赖它）。
+   */
+  describe('空列表不显示（空态即 hide）', () => {
+    it('空列表时 show 不显示菜单', () => {
+      const { result, unmount } = setup([]);
+
+      result.show({ top: 10, left: 20, maxHeight: 30 });
+
+      expect(result.visible.value).toBe(false);
+
+      unmount();
+    });
+
+    it('已显示后列表变空，再 show 会收起菜单', () => {
+      const { result, unmount, itemsRef } = setup([{ id: 1, label: 'A' }]);
+
+      result.show({ top: 10, left: 20, maxHeight: 30 });
+      expect(result.visible.value).toBe(true);
+
+      itemsRef.value = [];
+      result.show({ top: 10, left: 20, maxHeight: 30 });
+
+      expect(result.visible.value).toBe(false);
+
+      unmount();
+    });
+
+    it('列表由空变回有内容后，show 能重新显示（收起不是单向门）', () => {
+      const { result, unmount, itemsRef } = setup([]);
+
+      result.show({ top: 10, left: 20, maxHeight: 30 });
+      expect(result.visible.value).toBe(false);
+
+      itemsRef.value = [{ id: 1, label: 'A' }];
+      result.show({ top: 10, left: 20, maxHeight: 30 });
+
+      expect(result.visible.value).toBe(true);
+
+      unmount();
+    });
+
+    it('allowEmpty: true 时空列表也显示（互链菜单豁免契约）', () => {
+      const { result, unmount } = setup([]);
+
+      result.show({ top: 10, left: 20, maxHeight: 30 }, { allowEmpty: true });
+
+      expect(result.visible.value).toBe(true);
+
+      unmount();
+    });
+  });
+
   describe('items 变化时重置选中索引', () => {
     it('替换 items 后 selectedIndex 归零', async () => {
       const { result, unmount, itemsRef } = setup([{ id: 1, label: 'A' }, { id: 2, label: 'B' }]);

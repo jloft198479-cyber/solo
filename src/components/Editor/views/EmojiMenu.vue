@@ -18,7 +18,6 @@
         <span class="mk-emoji-menu-icon">{{ item.emoji }}</span>
         <span class="mk-emoji-menu-name">{{ item.name }}</span>
       </div>
-      <div v-if="items.length === 0" class="mk-slash-menu-empty">没有匹配的表情</div>
     </div>
   </div>
   </Transition>

@@ -24,7 +24,6 @@
           </div>
         </div>
       </template>
-      <div v-if="items.length === 0" class="mk-slash-menu-empty">没有匹配的命令</div>
     </div>
   </div>
   </Transition>
