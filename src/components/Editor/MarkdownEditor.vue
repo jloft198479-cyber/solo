@@ -91,6 +91,7 @@ import { confirm, message } from '../../services/tauri/dialog';
 import { toAssetUrl } from '../../services/tauri/asset';
 import { listenEditorFocus } from '../../services/tauri/events';
 import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
+import { isFrozen } from './tiptap/composition-freeze';
 import BubbleMenuComponent from './views/BubbleMenu.vue';
 import ContextMenuComponent, { type ContextMenuItem } from './views/ContextMenu.vue';
 import SlashMenu from './views/SlashMenu.vue';
@@ -463,7 +464,7 @@ function repositionBubbleMenu() {
 function updateBubbleMenu(ed: TiptapEditor) {
   const { from, to, empty } = ed.state.selection;
   // IME 输入法组合输入期间抑制 BubbleMenu，避免中文标点输入时闪烁
-  if (empty || (ed.view as unknown as { composing?: boolean }).composing) {
+  if (empty || isFrozen(ed.view)) {
     bubbleMenuRef.value?.update(false, 0, 0, {});
     return;
   }

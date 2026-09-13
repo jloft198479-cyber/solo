@@ -38,6 +38,7 @@ import type { EditorState, Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 import type { MarkType, Node as PMNode, NodeType } from '@tiptap/pm/model';
+import { createCompositionTracker, isFrozen } from '../composition-freeze';
 
 // 输入法上屏后等待 DOM/composition 稳定再扫描的延迟（毫秒）。
 const IME_SETTLE_DELAY_MS = 50;
@@ -138,9 +139,9 @@ export type { MarkdownInputState };
 
 function markdownInputPlugin(): Plugin<MarkdownInputState> {
   // prosemirror-state 调 appendTransaction 只传 (transactions, oldState, newState)，
-  // 拿不到 view（prosemirror-state/dist/index.js:807）。用工厂闭包登记 view 实例，
+  // 拿不到 view（prosemirror-state/dist/index.js:807）。用共享登记器挂住本实例，
   // 让 appendTransaction 能读 view.composing —— 浏览器 composition 的权威信号。
-  let liveView: EditorView | null = null;
+  const tracker = createCompositionTracker();
 
   return new Plugin<MarkdownInputState>({
     key: markdownInputPluginKey,
@@ -174,7 +175,7 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
     },
 
     view(editorView) {
-      liveView = editorView;
+      const untrack = tracker.track(editorView);
       let checkTimer: number | null = null;
 
       function clearCheckTimer() {
@@ -190,7 +191,7 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
           if (view.isDestroyed) return;
           // 到点时用户已在敲下一个词（新的活跃 composition）→ 放弃本次转换，
           // 由那次组字的 compositionend 重新排定检查。
-          if (view.composing) return;
+          if (isFrozen(view)) return;
           setMarkdownInputState(view, {
             composing: false,
             forceCheck: true,
@@ -232,7 +233,7 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
 
         destroy() {
           clearCheckTimer();
-          liveView = null;
+          untrack();
         },
       };
     },
@@ -260,7 +261,7 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
           // compositionend 重新排定检查。
           window.setTimeout(() => {
             if (view.isDestroyed) return;
-            if (view.composing) return;
+            if (isFrozen(view)) return;
             setMarkdownInputState(view, {
               composing: false,
               forceCheck: true,
@@ -281,11 +282,11 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
       if (pluginState?.composing) return null;
       if (pluginState && pluginState.suppressUntil > Date.now()) return null;
 
-      // 兜底闸门：liveView.composing 是浏览器 DOM composition 的权威信号。
+      // 兜底闸门：view.composing 是浏览器 DOM composition 的权威信号。
       // 正常路径下 pluginState.composing 已拦截（compositionstart 的 meta 先于一切转换），
       // 这里再挡一道绕过插件状态的活跃组字。被挡下的转换不会丢：组字结束时的
       // compositionend 会另排一次 forceCheck，期间任何 docChanged 也走增量扫描。
-      if (liveView?.composing) return null;
+      if (tracker.isFrozen()) return null;
 
       const docChanged = transactions.some((tr) => tr.docChanged);
       if (!docChanged && !pluginState?.forceCheck) return null;

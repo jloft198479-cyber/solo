@@ -5,6 +5,7 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 import { isHeavyDocument } from '../../document-scale';
+import { createCompositionTracker, mapFrozenDecorations } from '../composition-freeze';
 
 export const paragraphFocusKey = new PluginKey<ParagraphFocusState>('paragraphFocus');
 
@@ -90,16 +91,16 @@ function isWholeDocReplace(tr: Transaction): boolean {
 
 /** 插件工厂：测试直接调用（先例同 markdown-input 导出插件工厂） */
 export function createParagraphFocusPlugin(): Plugin<ParagraphFocusState> {
-  // 组字权威信号：apply 拿不到 view，用工厂闭包登记实例（markdown-input 同款套路）。
+  // 组字权威信号：apply 拿不到 view，用共享登记器挂住本实例（composition-freeze）。
   // 组字期间冻结 active/dimmed 装饰的 class swap，避免改动正在组字的 DOM。
-  let liveView: EditorView | null = null;
+  const tracker = createCompositionTracker();
   return new Plugin<ParagraphFocusState>({
     key: paragraphFocusKey,
     view(editorView) {
-      liveView = editorView;
+      const untrack = tracker.track(editorView);
       return {
         destroy() {
-          liveView = null;
+          untrack();
         },
       };
     },
@@ -122,11 +123,11 @@ export function createParagraphFocusPlugin(): Plugin<ParagraphFocusState> {
         // （swap 会改动正在组字段落的 class → WebView2 IME 候选窗失锚变形，横条塌成小方块）。
         // activeBlock 保持旧值，组字结束后光标落定的事务会重新 swap。
         // meta reset（切焦点模式）不在组字期发生，放行重建。
-        if (liveView?.composing && !tr.getMeta(paragraphFocusKey)) {
-          const decorations = tr.docChanged
-            ? value.decorations.map(tr.mapping, tr.doc)
-            : value.decorations;
-          return { decorations, activeBlock: value.activeBlock };
+        if (tracker.isFrozen() && !tr.getMeta(paragraphFocusKey)) {
+          return {
+            decorations: mapFrozenDecorations(value.decorations, tr),
+            activeBlock: value.activeBlock,
+          };
         }
         // 焦点模式切换后的强制重建
         if (tr.getMeta(paragraphFocusKey)) {
