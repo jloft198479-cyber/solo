@@ -1,5 +1,7 @@
 import type { Ref } from 'vue';
 import StarterKit from '@tiptap/starter-kit';
+import BulletList from '@tiptap/extension-bullet-list';
+import OrderedList from '@tiptap/extension-ordered-list';
 import Highlight from '@tiptap/extension-highlight';
 import Link from '@tiptap/extension-link';
 import TaskList from '@tiptap/extension-task-list';
@@ -184,6 +186,9 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
       codeBlock: false,
       link: false,
       heading: false,
+      // 列表容器需要放开 content 约束，故关闭内置版本、改用下方的 extend 版本
+      bulletList: false,
+      orderedList: false,
     }),
     Frontmatter,
     FootnoteRef,
@@ -205,6 +210,13 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
       HTMLAttributes: { class: '' },
     }),
     LinkOpen,
+    // 列表容器放开的理由：同层混排（普通项 + 待办项）是合法且常见的 Markdown
+    // —— markdown-it 会把空行分隔的两个 `-` 列表合并为一个，所以「一个列表里既有
+    // 普通项又有待办项」必然出现。若容器只肯装单一类型，混排时 createAndFill 失败，
+    // closeNode 兜底成空段落并丢弃已收集内容 ⇒ 整段静默消失（数据丢失级缺陷）。
+    // taskList 保持 `taskItem+`：容器判定已保证它只收任务项，语义更纯。
+    BulletList.extend({ content: '(listItem | taskItem)+' }),
+    OrderedList.extend({ content: '(listItem | taskItem)+' }),
     TaskList,
     TaskItem.configure({ nested: true }),
     Placeholder.configure({

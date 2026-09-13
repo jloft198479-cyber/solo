@@ -228,6 +228,42 @@ export type TokenHandler = (
   index: number,
 ) => void;
 
+/** 任务列表项判据：`markdown-it-task-lists` 在 `list_item_open` 的 class 上打标 */
+function isTaskListItem(token: Token): boolean {
+  return token.attrGet('class')?.includes('task-list-item') ?? false;
+}
+
+/**
+ * 本层列表项是否「全部是任务项」（用于决定容器用 `taskList` 还是 `bulletList`）。
+ *
+ * 为什么要判「全部」：容器类型决定子项能是什么 —— `taskList` 的约束是
+ * `taskItem+`，混入 `listItem` 会让容器 `createAndFill` 失败，内容被静默丢弃。
+ *
+ * 扫描必须**跳过嵌套层**：`- 父\n  - [ ] 子` 的外层不能被内层的任务项带跑
+ * （旧实现只判「任意一项」，嵌套与混排都会踩中）。
+ */
+function areAllTopLevelItemsTasks(tokens: Token[], index: number): boolean {
+  let depth = 0;
+  let sawItem = false;
+  for (let i = index + 1; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t.type === 'bullet_list_open' || t.type === 'ordered_list_open') {
+      depth += 1;
+      continue;
+    }
+    if (t.type === 'bullet_list_close' || t.type === 'ordered_list_close') {
+      if (depth === 0) break;
+      depth -= 1;
+      continue;
+    }
+    if (depth === 0 && t.type === 'list_item_open') {
+      sawItem = true;
+      if (!isTaskListItem(t)) return false;
+    }
+  }
+  return sawItem;
+}
+
 const handlersCache = new WeakMap<Schema, Record<string, TokenHandler>>();
 const preprocessorsCache = new WeakMap<Schema, Preprocessor[]>();
 const interceptorsCache = new WeakMap<Schema, TokenInterceptor[]>();
@@ -264,19 +300,16 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   };
 
   handlers.bullet_list_open = (state, _token, tokens, index) => {
-    // 前看：检查列表项是否包含任务列表标记（class="task-list-item"）
-    if (schema.nodes.taskList && schema.nodes.taskItem) {
-      for (let i = index + 1; i < tokens.length; i++) {
-        const t = tokens[i];
-        if (t.type === 'bullet_list_close') break;
-        if (t.type === 'list_item_open') {
-          const cls = t.attrGet('class');
-          if (cls?.includes('task-list-item')) {
-            state.openNode(schema.nodes.taskList);
-            return;
-          }
-        }
-      }
+    // 仅当本层**每一项**都是任务项时才用 taskList（语义：任务列表 = 全待办）。
+    // 混排（普通项 + 任务项）交给 bulletList —— 其 content 已放开为
+    // `(listItem | taskItem)+`，两类项都装得下。
+    //
+    // ⚠️ 不能按「任意一项是任务」判 taskList：`taskList` 的约束是 `taskItem+`，
+    // 混排时其中的 `listItem` 会让 `createAndFill` 返回 null，`closeNode` 兜底成
+    // 空段落且**丢弃已收集内容** ⇒ 整段静默消失（长期存在的丢失级缺陷）。
+    if (schema.nodes.taskList && areAllTopLevelItemsTasks(tokens, index)) {
+      state.openNode(schema.nodes.taskList);
+      return;
     }
     state.openNode(schema.nodes.bulletList);
   };
@@ -293,11 +326,11 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   };
 
   handlers.list_item_open = (state, token) => {
-    // 检测是否是任务列表项
-    // markdown-it-task-lists 在 li_open 的 class 中标记 task-list-item
-    // checked 状态实际在子 html_inline 的 <input checked="" ...> 中，不在 class 里
-    const isTask = token.attrGet('class')?.includes('task-list-item') ?? false;
-    if (isTask) {
+    // 项类型逐项判断，与容器判定共用 isTaskListItem —— 两处判据只写一处，
+    // 避免「容器说这是任务列表、项说我不是」这类漂移。
+    // checked 状态不在 class 里，而在子 html_inline 的 <input checked="">，由
+    // html_inline handler 回溯补齐。
+    if (isTaskListItem(token)) {
       state.openNode(schema.nodes.taskItem, { checked: false });
     } else {
       state.openNode(schema.nodes.listItem);
