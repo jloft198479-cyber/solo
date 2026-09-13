@@ -485,7 +485,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 - `parser.ts`：MD → ProseMirror Doc。基于 markdown-it（commonmark + table + strikethrough + task-lists + mark + sub + sup + texmath）。**frontmatter / callout / `$$`数学块在 markdown-it 之前先抽取占位，之后还原**。texmath 传**空壳 KaTeX 引擎**（解析器只分词不渲染），让真正的 KaTeX 可懒加载、不进热路径。
 - `serializer.ts`：ProseMirror Doc → MD。自研，精确控制输出。**强制末尾恰好一个换行**。
-- `plugins/` + `compat-schema.ts`：解析插件与兼容处理。
+- `plugins/`：解析插件（frontmatter / callout / 数学 / mermaid / wikilink 等扩展语法的 token 与序列化钩子）。
 - `__tests__/roundtrip.spec.ts`：**Markdown 保真度的主要安全网**——动 parser/serializer 前先看它。
 - `__tests__/fixtures.spec.ts`：19 个 fixture 的**保真回归**——「重开等价」（参照系是 markdown-it，抓内容丢失）+ 字节保真（差异须登记在 `KNOWN_FIDELITY_GAPS`）；未登记缺口与「登记项已修好」都会红（**双向锁**）。
 - `__tests__/fuzz.spec.ts`：随机**结构块**组合压测（标题/列表/嵌套/任务列表/代码围栏/引用/表格/分隔线 + 行内样式），断言重开等价 + 收敛。**随机源种子化**（同种子 → 同序列，失败可原样重放；`FUZZ_SEED` 可覆盖）。
@@ -565,7 +565,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 12 | NodeView 事件/定时器成对清理 | [`extensions/code-block.ts`](./src/components/Editor/tiptap/extensions/code-block.ts) + [`image.ts`](./src/components/Editor/tiptap/extensions/image.ts) | §11.7 |
 | 13 | 文件 vs 剪贴板两种转义模式，嵌套 state 必须继承 | [`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts) | §11.8 |
 | 14 | Suggestion 输入扩展门控（**`[[` 曾两度不弹**：v1.2.43 漏递扩展级 option、后又误加「无路径不弹」；现只判代码上下文；Slash/Emoji 菜单「零命中即隐藏」——互链是唯一豁免者，因其空态承载用法引导且依赖异步补数据链路）+ 拖拽落点路由（混拖让路/坐标换算） | [`editor-extensions.ts`](./src/components/Editor/tiptap/editor-extensions.ts) + [`useFloatingListMenu.ts`](./src/composables/useFloatingListMenu.ts) + [`markdown-input.ts`](./src/components/Editor/tiptap/extensions/markdown-input.ts) + [`wikilink-drop.ts`](./src/components/Editor/tiptap/extensions/wikilink-drop.ts) + [`useAppWindowSession.ts`](./src/composables/useAppWindowSession.ts) | [KNOWN-ISSUES §一 #21/#22](./docs/KNOWN-ISSUES.md) |
-| 15 | 列表容器与项类型判定（**「容器肯不肯装」直接决定内容存亡**：`bulletList`/`orderedList` 的 content 须为 `(listItem \| taskItem)+`，`taskList` 保持 `taskItem+`；容器判定须为「本层**全部**项都是任务项」且**跳过嵌套层**。任一处收紧 ⇒ `createAndFill` 失败 ⇒ `closeNode()` 静默丢弃整段。**动前先看 `schema-consistency.spec.ts` 的正向契约锁**——差异集校验看不出「三套一致地错」） | [`parser.ts`](./src/components/Editor/tiptap/markdown/parser.ts)（`areAllTopLevelItemsTasks`）+ [`editor-extensions.ts`](./src/components/Editor/tiptap/editor-extensions.ts) + [`compat-schema.ts`](./src/components/Editor/tiptap/markdown/compat-schema.ts) + [`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts) | [KNOWN-ISSUES §二 #10](./docs/KNOWN-ISSUES.md) |
+| 15 | 列表容器与项类型判定（**「容器肯不肯装」直接决定内容存亡**：`bulletList`/`orderedList` 的 content 须为 `(listItem \| taskItem)+`，`taskList` 保持 `taskItem+`；容器判定须为「本层**全部**项都是任务项」且**跳过嵌套层**。任一处收紧 ⇒ `createAndFill` 失败 ⇒ `closeNode()` 静默丢弃整段。**动前先看 `schema-contract.spec.ts` 的正向契约锁**——差异集校验看不出「约束被一致地改错」） | [`parser.ts`](./src/components/Editor/tiptap/markdown/parser.ts)（`areAllTopLevelItemsTasks`）+ [`editor-extensions.ts`](./src/components/Editor/tiptap/editor-extensions.ts) + [`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts) | [KNOWN-ISSUES §二 #10](./docs/KNOWN-ISSUES.md) |
 | 16 | mark 定界符的开合顺序（**「后开先关」是硬契约**：`renderMarks` 关闭时须按**实际打开顺序**逆序遍历 `activeMarks`（该数组按打开时间追加），**不能**按 `node.marks` 数组序——后者是 schema 的 marks 定义序（`link` rank 0 早于 `italic` rank 3），错序会把外层收尾符写进内层收尾符**之前**，输出即坏语法（`*foo [bar](/url)*` → `*foo [bar*](/url)`），用户保存一次就改坏文件。另两处同源禁忌：`code` mark 已放开 `excludes`（须与 bold/italic 共存，别再改回 `'_'`）；`renderContent` 须跳过列表项内「首块空段落且后面还有块」的**模型补位段**（独块空段落不跳，`- ` 空项照常）） | [`serializer.ts`](./src/components/Editor/tiptap/markdown/serializer.ts)（`renderMarks` / `renderContent`）+ [`editor-extensions.ts`](./src/components/Editor/tiptap/editor-extensions.ts)（`Code.extend`） | [KNOWN-ISSUES §一 #26](./docs/KNOWN-ISSUES.md) |
 
 ### 11.1 脏态机制不可随意改动（A1 语义比对模型）
@@ -691,7 +691,7 @@ destroy() {
 | 我想改… | 从这里入手 |
 |---|---|
 | 编辑器行为 bug | `MarkdownEditor.vue` + 对应 `extensions/*.ts` |
-| Markdown 保真度 | `parser.ts` / `serializer.ts` → 先看 `roundtrip.spec.ts` + `fixtures.spec.ts`（`KNOWN_FIDELITY_GAPS` 是已知缺口台账）；三套 schema 的差异台账在 `schema-consistency.spec.ts` |
+| Markdown 保真度 | `parser.ts` / `serializer.ts` → 先看 `roundtrip.spec.ts` + `fixtures.spec.ts`（`KNOWN_FIDELITY_GAPS` 是已知缺口台账）；schema 侧的**正向契约锁**在 `schema-contract.spec.ts`（列表容器 / `code` 互斥 / 信息载体 attrs） |
 | 文件打开/保存 bug | `useDocumentSession.ts` + `commands/document.rs` |
 | 菜单/快捷键行为 | `registry.ts` + `useCommandDispatcher.ts` + Rust `menu.rs` |
 | 搜索/替换 | `useEditorSearch.ts` + `extensions/search-highlight.ts` + 搜索面板模板（`MarkdownEditor.vue`） |

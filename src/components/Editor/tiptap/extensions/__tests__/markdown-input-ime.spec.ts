@@ -22,10 +22,10 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import type { Transaction } from '@tiptap/pm/state';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
+import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import { markdownInputPlugin, markdownInputPluginKey } from '../markdown-input';
 
-const schema = createMarkdownCompatSchema();
+const schema = createTestSchema();
 
 function paragraph(text?: string): PMNode {
   return schema.nodes.paragraph.create(null, text ? [schema.text(text)] : []);

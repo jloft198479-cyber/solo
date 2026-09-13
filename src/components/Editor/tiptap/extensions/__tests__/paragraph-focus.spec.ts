@@ -4,11 +4,11 @@ import { DecorationSet, EditorView } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
+import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import { setDocumentTier } from '../../../document-scale';
 import { createParagraphFocusPlugin, paragraphFocusKey } from '../paragraph-focus';
 
-const schema = createMarkdownCompatSchema();
+const schema = createTestSchema();
 
 function paragraph(text = ''): PMNode {
   return schema.nodes.paragraph.create(null, text ? [schema.text(text)] : []);

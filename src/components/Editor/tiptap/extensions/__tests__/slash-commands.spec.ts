@@ -15,9 +15,9 @@ import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { describe, expect, it } from 'vitest';
 import { findSuggestionMatch } from '@tiptap/suggestion';
 
-import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
+import { createTestSchema } from '../../markdown/__tests__/test-utils';
 
-const schema = createMarkdownCompatSchema();
+const schema = createTestSchema();
 
 /**
  * 构造一个 paragraph 文档，光标停在文本末尾，调用 findSuggestionMatch

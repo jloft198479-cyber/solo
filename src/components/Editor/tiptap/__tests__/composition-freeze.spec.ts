@@ -13,10 +13,10 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 import { describe, expect, it } from 'vitest';
 
-import { createMarkdownCompatSchema } from '../markdown/compat-schema';
+import { createTestSchema } from '../markdown/__tests__/test-utils';
 import { createCompositionTracker, isFrozen, mapFrozenDecorations } from '../composition-freeze';
 
-const schema = createMarkdownCompatSchema();
+const schema = createTestSchema();
 
 const DOC = schema.nodes.doc.create(null, [
   schema.nodes.paragraph.create(null, [schema.text('甲乙丙')]),

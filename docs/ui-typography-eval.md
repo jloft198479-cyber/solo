@@ -50,7 +50,7 @@ updates: [src/components/Editor/tiptap/editor.css]
 ### 2.2 依据
 
 1. **架构有先例**：solo 已有非标准 markdown 扩展的完整链路——高亮 `==text==`（markdown-it-mark → `<mark>`）、上/下标（markdown-it-sub/sup），含 parser/serializer/roundtrip。「变浅」是同类工作，走同一套架构即可，无新风险面。
-2. **当前无颜色类 mark**：`compat-schema.ts` 只注册了 highlight/sub/sup 等，`editor-extensions.ts` 无 TextColor。需新增一枚 mark，不与现有冲突。
+2. **当前无颜色类 mark**：生产 schema（`createEditorExtensions()`）只注册了 highlight/sub/sup 等，无 TextColor。需新增一枚 mark，不与现有冲突。
 3. **视觉直接复用现有 token**：效果图 `p.dim` 用的就是编辑器统一的 muted token `--muted-color`（亮 `#7a6e5e` / 暗 `#94887a`，见 `main.css`），主题已自带，无需新配色。
 4. **与焦点淡化语义互补**：焦点模式的 0.22 淡化是"临时的沉浸遮罩"；新功能是"用户主动标记的永久弱化"，两级不冲突。
 

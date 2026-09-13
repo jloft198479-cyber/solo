@@ -5,7 +5,7 @@ import javascript from 'highlight.js/lib/languages/javascript';
 import { createLowlight } from 'lowlight';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
+import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import { setDocumentTier } from '../../../document-scale';
 import {
   createIncrementalLowlightPlugin,
@@ -68,7 +68,7 @@ describe('createIncrementalLowlightPlugin 增量高亮', () => {
   }
 
   function setup() {
-    const schema = createMarkdownCompatSchema();
+    const schema = createTestSchema();
     const doc = schema.node('doc', null, [
       schema.node('paragraph', null, schema.text('hello')),
       schema.node('codeBlock', { language: 'javascript' }, schema.text('const x = 1;')),
@@ -204,7 +204,7 @@ describe('createIncrementalLowlightPlugin 组字冻结（IME 防御）', () => {
   });
 
   function mountView() {
-    const schema = createMarkdownCompatSchema();
+    const schema = createTestSchema();
     // hello [0,7) + js codeBlock [7,21)（内容区 [8,20)）
     const doc = schema.node('doc', null, [
       schema.node('paragraph', null, schema.text('hello')),

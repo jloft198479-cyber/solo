@@ -1,7 +1,7 @@
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { describe, expect, it } from 'vitest';
 
-import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
+import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import {
   convertPendingHeading,
   convertPendingInlineMarks,
@@ -10,7 +10,7 @@ import {
 } from '../markdown-input';
 
 function convertInlineSyntax(text: string) {
-  const schema = createMarkdownCompatSchema();
+  const schema = createTestSchema();
   const paragraph = schema.nodes.paragraph.create(null, [schema.text(text)]);
   const doc = schema.nodes.doc.create(null, [paragraph]);
   const state = EditorState.create({
@@ -95,7 +95,7 @@ describe('convertPendingInlineMarks', () => {
 });
 
 function convertLinkSyntax(text: string) {
-  const schema = createMarkdownCompatSchema();
+  const schema = createTestSchema();
   const paragraph = schema.nodes.paragraph.create(null, [schema.text(text)]);
   const doc = schema.nodes.doc.create(null, [paragraph]);
   const state = EditorState.create({
@@ -118,7 +118,20 @@ describe('convertPendingLink', () => {
           content: [
             {
               type: 'text',
-              marks: [{ type: 'link', attrs: { href: 'https://openai.com', target: null, title: null } }],
+              // 生产 Link 扩展对站外链接自动补安全和打开方式属性（rel/target），
+              // 并带 HTMLAttributes.class —— 三者皆为生产真实输出，非测试臆造。
+              marks: [
+                {
+                  type: 'link',
+                  attrs: {
+                    href: 'https://openai.com',
+                    target: '_blank',
+                    rel: 'noopener noreferrer nofollow',
+                    class: '',
+                    title: null,
+                  },
+                },
+              ],
               text: 'OpenAI',
             },
           ],
@@ -141,7 +154,18 @@ describe('convertPendingLink', () => {
       { type: 'text', text: 'see ' },
       {
         type: 'text',
-        marks: [{ type: 'link', attrs: { href: 'https://x.com', target: null, title: null } }],
+        marks: [
+          {
+            type: 'link',
+            attrs: {
+              href: 'https://x.com',
+              target: '_blank',
+              rel: 'noopener noreferrer nofollow',
+              class: '',
+              title: null,
+            },
+          },
+        ],
         text: 'docs',
       },
     ]);
@@ -184,7 +208,7 @@ describe('convertPendingLink', () => {
 
 describe('convertPendingHeading', () => {
   it('converts a `# 文字` paragraph into a heading once it has content', () => {
-    const schema = createMarkdownCompatSchema();
+    const schema = createTestSchema();
     const state = EditorState.create({
       schema,
       doc: schema.nodes.doc.create(null, [
@@ -202,7 +226,7 @@ describe('convertPendingHeading', () => {
   });
 
   it('does not convert a `# ` prefix with no content yet', () => {
-    const schema = createMarkdownCompatSchema();
+    const schema = createTestSchema();
     const state = EditorState.create({
       schema,
       doc: schema.nodes.doc.create(null, [
@@ -216,7 +240,7 @@ describe('convertPendingHeading', () => {
 
 describe('revertEmptyHeading', () => {
   it('reverts an empty heading back to a `# ` paragraph', () => {
-    const schema = createMarkdownCompatSchema();
+    const schema = createTestSchema();
     const state = EditorState.create({
       schema,
       doc: schema.nodes.doc.create(null, [schema.nodes.heading.create({ level: 2 })]),
@@ -231,7 +255,7 @@ describe('revertEmptyHeading', () => {
   });
 
   it('does not revert a heading that still has content', () => {
-    const schema = createMarkdownCompatSchema();
+    const schema = createTestSchema();
     const state = EditorState.create({
       schema,
       doc: schema.nodes.doc.create(null, [

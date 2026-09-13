@@ -5,8 +5,7 @@
  * 视觉上以次要文字色（`--muted-color`）显示，用于弱化非重点内容。
  *
  * 运行时（编辑器）识别 + 命令 `toggleDim()`；parser/serializer 的编解码
- * 见 `compat-schema.ts`（mark 声明）与 `markdown/parser.ts`（inline ruler）、
- * `markdown/serializer.ts`（markDelimiter）。
+ * 见 `markdown/parser.ts`（inline ruler）与 `markdown/serializer.ts`（markDelimiter）。
  */
 import { Mark } from '@tiptap/vue-3';
 
