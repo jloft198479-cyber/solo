@@ -3,10 +3,10 @@ import { findSuggestionMatch } from '@tiptap/suggestion';
 import type { Trigger } from '@tiptap/suggestion';
 import { describe, expect, it } from 'vitest';
 
-import { createMarkdownCompatSchema } from '../../markdown/compat-schema';
+import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import { guardedFindSuggestionMatch } from '../suggestion-guard';
 
-const schema = createMarkdownCompatSchema();
+const schema = createTestSchema();
 
 /** 构造光标在文本末尾的 $position（段落内坐标从 1 起）。 */
 function cursorAtEnd(text: string) {

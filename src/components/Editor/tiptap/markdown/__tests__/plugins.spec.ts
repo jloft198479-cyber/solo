@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import Token from 'markdown-it/lib/token.mjs';
-import { createMarkdownCompatSchema } from '../compat-schema';
+import { createTestSchema } from './test-utils';
 import { MarkdownParseState } from '../parser';
 import {
   getPluginFenceHandlers,
@@ -12,7 +12,7 @@ import {
 } from '../plugins';
 
 describe('markdown syntax plugin registry', () => {
-  const schema = createMarkdownCompatSchema();
+  const schema = createTestSchema();
 
   it('keeps feature plugins registered in preprocessing order', () => {
     expect(markdownSyntaxPlugins.map((plugin) => plugin.name)).toEqual([

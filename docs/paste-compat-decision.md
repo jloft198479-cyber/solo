@@ -38,7 +38,7 @@ updates: [src/components/Editor/tiptap/extensions/markdown-paste.ts, src-tauri/s
 ## 踩坑提醒（防止被原报告误导）
 
 - **远程图片缓存**：不是 50MB LRU，实际是 **10MB 永久缓存、无并发、无 TTL**（`image.rs`）。如需治理是独立任务（加 LRU 淘汰），与粘贴兼容性无关。
-- **strike parseDOM**：只认 `<s>`，不认 `<del>`（[compat-schema.ts](../src/components/Editor/tiptap/markdown/compat-schema.ts)）——从网页复制 `<del>` 会丢删除线。
+- **strike parseDOM**：只认 `<s>`，不认 `<del>`——从网页复制 `<del>` 会丢删除线。⚠️ 原出处 `compat-schema.ts` 已于 2026-09-14 删除（死代码），**该结论未随生产 schema 复核**；若要据此处置，请先实测生产路径。
 - **callout 内不嵌套 blockquote**：是设计约束，不是 bug（[callout.ts](../src/components/Editor/tiptap/markdown/plugins/callout.ts)）。
 
 ## 相关真理源

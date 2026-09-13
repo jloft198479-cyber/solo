@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { EditorState } from '@tiptap/pm/state';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 
-import { createMarkdownCompatSchema } from '../../components/Editor/tiptap/markdown/compat-schema';
+import { createTestSchema } from '../../components/Editor/tiptap/markdown/__tests__/test-utils';
 import { setDocumentTier } from '../../components/Editor/document-scale';
 import { useFileStore } from '../../stores/file';
 import { useEditorSync } from '../useEditorSync';
@@ -32,7 +32,7 @@ vi.mock('vue', async () => {
   return { ...actual, onBeforeUnmount: vi.fn() };
 });
 
-const schema = createMarkdownCompatSchema();
+const schema = createTestSchema();
 
 function fakeEditor(text: string): TiptapEditor {
   const doc = schema.nodes.doc.create(null, [

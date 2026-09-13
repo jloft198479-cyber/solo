@@ -86,7 +86,7 @@ CJK 文本中，`，**继续` 场景：
 | `roundtrip.spec.ts` | parse→serialize→re-parse 闭环（手写用例，**真保真主防线**） |
 | `fuzz.spec.ts` | 随机**结构块**组合压测 + 重开等价（种子化随机） |
 | `fixtures.spec.ts` | 预置文件**保真回归**：「重开等价」+ 字节保真（差异须登记） |
-| `schema-consistency.spec.ts` | 三套 schema 字段级一致性（差异台账 + 双向锁） |
+| `schema-contract.spec.ts` | 生产 schema 正向契约锁（列表容器 / `code` 互斥 / 信息载体 attrs） |
 | `_cjk-diag.spec.ts` | CJK 边界用例专项 |
 
 ## CJK 边界用例目录
