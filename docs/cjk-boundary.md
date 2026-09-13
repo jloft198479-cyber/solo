@@ -82,10 +82,11 @@ CJK 文本中，`，**继续` 场景：
 
 | 测试文件 | 覆盖场景 |
 |----------|----------|
-| `commonmark.spec.ts` | CommonMark 标准合规 |
-| `roundtrip.spec.ts` | parse→serialize→re-parse 闭环 |
-| `fuzz.spec.ts` | 随机输入稳定性 |
-| `fixtures.spec.ts` | 预设文件对比 |
+| `commonmark.spec.ts` | CommonMark 标准合规（**只验收敛**） |
+| `roundtrip.spec.ts` | parse→serialize→re-parse 闭环（手写用例，**真保真主防线**） |
+| `fuzz.spec.ts` | 随机**结构块**组合压测 + 重开等价（种子化随机） |
+| `fixtures.spec.ts` | 预置文件**保真回归**：「重开等价」+ 字节保真（差异须登记） |
+| `schema-consistency.spec.ts` | 三套 schema 字段级一致性（差异台账 + 双向锁） |
 | `_cjk-diag.spec.ts` | CJK 边界用例专项 |
 
 ## CJK 边界用例目录
