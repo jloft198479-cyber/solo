@@ -7,6 +7,10 @@
  *
  * 不验证 HTML 输出正确性（那不是 roundtrip 关心的），
  * 只验证 md → PM doc → md → PM doc 是否收敛。
+ *
+ * ⚠️ 本文件**不是保真防线**：「收敛」不等于「内容没丢」——丢了内容的输出同样可以稳定
+ * （两轮丢同一份 ⇒ 依然收敛）。保真由 `fixtures.spec.ts`（重开等价 + 双向锁）与
+ * `roundtrip.spec.ts`（md' === md）负责。详见 KNOWN-ISSUES §二 #12。
  */
 import { describe, it, expect, onTestFailed } from 'vitest';
 import spec from 'commonmark-spec';

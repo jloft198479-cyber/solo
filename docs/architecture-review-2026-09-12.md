@@ -74,7 +74,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, .github/workflows/test.yml]
 
 ## 五、测试与 CI（支撑重构的能力）
 
-- 前端安全网教科书级：43 个 spec / 约 543 用例，markdown 保真三层防线（手写 roundtrip + CommonMark 全量收敛 + fixture/fuzz）。
+- 前端安全网「教科书级」——**〔2026-09-14 更正：此结论不成立〕** 原判断按**用例数量**得出，未验证断言有效性。实测（详见 `KNOWN-ISSUES.md` §二 #12）：43 spec / 543 用例中，真断言「输出 === 输入」的只有手写 roundtrip 那 131 条；CommonMark 全量**只验收敛**、fixture/fuzz 当时只断幂等 ⇒「**稳定地丢内容**」对后三者完全免疫（丢完两轮仍一致 ⇒ 永远绿）。后三者已补真断言（`fixtures` 重开等价 + 双向锁、`fuzz` 扩展结构块覆盖、`commonmark` 补定位声明）。教训：**用「买了几把锁」判断安全，没试过钥匙能不能开**。
 - Rust 78 个测试质量好，但 **CI（test.yml）只跑到 `cargo check`，没有 `cargo test`**——`sync_wikilinks_on_rename` 等高风险回归锁实际只在开发者本机生效。
 - `release.yml`（tag 触发）零质量门禁直接构建发布。
 - 安全关键纯函数（containment 本体、`validate_font_bytes`、`mime_to_extension`）零测试。
