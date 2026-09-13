@@ -2,6 +2,7 @@ import type { Ref } from 'vue';
 import StarterKit from '@tiptap/starter-kit';
 import BulletList from '@tiptap/extension-bullet-list';
 import OrderedList from '@tiptap/extension-ordered-list';
+import Code from '@tiptap/extension-code';
 import Highlight from '@tiptap/extension-highlight';
 import Link from '@tiptap/extension-link';
 import TaskList from '@tiptap/extension-task-list';
@@ -186,6 +187,8 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
       codeBlock: false,
       link: false,
       heading: false,
+      // code 需放开 excludes，故关闭内置版本、改用下方的 extend 版本
+      code: false,
       // 列表容器需要放开 content 约束，故关闭内置版本、改用下方的 extend 版本
       bulletList: false,
       orderedList: false,
@@ -202,6 +205,12 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     CustomTableCell,
     CustomImage,
     Callout,
+    // Code mark 放开 excludes —— Tiptap 默认 `excludes: '_'`（排斥所有其他 mark），
+    // 导致 `**加粗 `代码` 加粗**` 里的 bold 被 code 截断且无法跨过：中文写作中
+    // 「强调里包行内代码」很常见，截断既改坏文件内容、又让 round-trip 不收敛
+    // （fixture `all-marks.md` 与 CommonMark Ex 478 / 479 实测命中）。
+    // 放开后 code 可与 bold/italic 共存，序列化按嵌套正确输出。
+    Code.extend({ excludes: '' }),
     Highlight.configure({ multicolor: false }),
     ParagraphFocus,
     SearchHighlight.configure(options.searchHighlightOptions),

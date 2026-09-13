@@ -334,9 +334,12 @@ describe('Round-trip: parse → serialize', () => {
         .toBe(normalize('[text](https://example.com "title")\n'));
     });
 
-    it('link with bold inside (PM normalizes bold outside link)', () => {
+    it('link with bold inside (mark 顺序由 PM schema 归一，不重排)', () => {
+      // PM 的 marks 是**集合**（非嵌套），数组序 = schema 定义序（link 在 bold 前）。
+      // 打开顺序即 link → bold，故输出保持 `[**bold link**](…)`；语义等价于
+      // `**[bold link](…)**`，两者渲染一致，不视为差异。
       expect(roundTrip('[**bold link**](https://example.com)\n'))
-        .toBe(normalize('**[bold link](https://example.com)**\n'));
+        .toBe(normalize('[**bold link**](https://example.com)\n'));
     });
 
     it('link in list item', () => {
@@ -347,6 +350,67 @@ describe('Round-trip: parse → serialize', () => {
     it('link in blockquote', () => {
       expect(roundTrip('> [link](https://example.com)\n'))
         .toBe(normalize('> [link](https://example.com)\n'));
+    });
+  });
+
+  /**
+   * Phase E: mark 嵌套边界 —— 「后开先关」契约
+   *
+   * 病灶（KNOWN-ISSUES §二 #11-A）：关闭定界符曾按 schema 的 marks **定义序**逆序，
+   * 而定义序与真实打开层次无关 —— `link`(rank 0) 比 `italic`(rank 3) 先关，
+   * 于是 `*foo [bar](/url)*` 输出成 `*foo [bar*](/url)`：斜体收尾 `*` 被写进链接
+   * 收尾 `]` 之前，语法当场损坏（CommonMark spec Ex 404 / 422 / 433 实测命中）。
+   *
+   * 契约：**按实际打开顺序逆序关闭（后进先出）**。本组逐条钉死，防回退。
+   */
+  describe('Phase E: mark 嵌套边界（后开先关）', () => {
+    it('italic 跨链接', () => {
+      expect(roundTrip('*foo [bar](/url)*\n')).toBe(normalize('*foo [bar](/url)*\n'));
+    });
+
+    it('bold 跨链接', () => {
+      expect(roundTrip('**foo [bar](/url)**\n')).toBe(normalize('**foo [bar](/url)**\n'));
+    });
+
+    it('bold 跨链接且链接内含 italic（三层：bold > link > italic）', () => {
+      expect(roundTrip('**foo [*bar*](/url)**\n')).toBe(normalize('**foo [*bar*](/url)**\n'));
+    });
+
+    it('italic 跨 bold 与链接（三层：italic 最外）', () => {
+      expect(roundTrip('*a **b** [c](/u) d*\n')).toBe(normalize('*a **b** [c](/u) d*\n'));
+    });
+
+    it('链接内 italic', () => {
+      expect(roundTrip('[a *b*](u)\n')).toBe(normalize('[a *b*](u)\n'));
+    });
+
+    it('链接内 bold', () => {
+      expect(roundTrip('[a **b**](u)\n')).toBe(normalize('[a **b**](u)\n'));
+    });
+
+    it('链接内 bold + italic', () => {
+      expect(roundTrip('[a ***b***](u)\n')).toBe(normalize('[a ***b***](u)\n'));
+    });
+
+    it('同段多个独立嵌套互不串层', () => {
+      expect(roundTrip('*a [b](u)* 与 *c [d](v)*\n'))
+        .toBe(normalize('*a [b](u)* 与 *c [d](v)*\n'));
+    });
+
+    it('mark 断续重开（同 mark 前后两处）', () => {
+      expect(roundTrip('*a* b *c*\n')).toBe(normalize('*a* b *c*\n'));
+    });
+
+    it('无 mark 的链接近邻强调', () => {
+      expect(roundTrip('a **b** [c](/u) d\n')).toBe(normalize('a **b** [c](/u) d\n'));
+    });
+
+    it('列表项内 italic 跨链接', () => {
+      expect(roundTrip('- *a [b](u)*\n')).toBe(normalize('- *a [b](u)*\n'));
+    });
+
+    it('strike 跨链接（PM 把 link 归一到外层，语义等价）', () => {
+      expect(roundTrip('~~[a](u)~~\n')).toBe(normalize('[~~a~~](u)\n'));
     });
   });
 

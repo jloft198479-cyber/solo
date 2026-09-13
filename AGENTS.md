@@ -147,7 +147,7 @@ updates: [本文事实来源 / 联动对象——改这些代码或文档必须�
 | ------------------ | ---------------------------------------------------------------------------------------------------- |
 | Tauri 命令（新增/改名/删除） | `src/services/tauri/command-names.ts`（命令名真理源）→ `ARCHITECTURE.md`（§4.2 命令清单，数量以 `generate_handler!` 为准勿硬编码）→ `docs/HANDOVER.md` 真理源表   |
 | 字体/主题/排版 CSS       | `ARCHITECTURE.md`（技术栈/目录）→ `docs/font-handling.md` → `docs/ui-typography-eval.md`                    |
-| parser/serializer / **列表容器约束** | `fixtures.spec.ts`（重开等价）+ `schema-consistency.spec.ts`（容器契约锁，防「三套一致地错」）+ `docs/cjk-boundary.md`（CJK 边界）                                                        |
+| parser/serializer / schema（列表容器、mark 定界符、`excludes`） | `fixtures.spec.ts`（重开等价）+ `roundtrip.spec.ts` **Phase E**（mark 嵌套「后开先关」契约）+ `schema-consistency.spec.ts`（容器/差异锁）+ `docs/cjk-boundary.md`（CJK 边界）+ `ARCHITECTURE.md §11` 敏感区 #15 / #16                                                        |
 | 发版相关（版本号/tag/CI）   | `CHANGELOG.md` → `docs/RELEASE_PROCESS.md` → `docs/PUBLISH_GUIDE.md` → `docs/发布流程科普*.md`             |
 | 设置项/面板             | `docs/archive/settings-audit-report.md`（历史审计结论）→ `KNOWN-ISSUES.md`                                   |
 | 版本号变更              | `package.json` / `Cargo.toml` / `tauri.conf.json` 三处同步 → `CHANGELOG.md` → `docs/SECURITY.md`（当前版本字段） |

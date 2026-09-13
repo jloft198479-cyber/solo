@@ -1,16 +1,18 @@
 /**
- * 三套 Schema 一致性校验
+ * Schema 一致性校验
  *
- * solo 同时维护三套 schema，各服务不同通道：
- *   edit   生产编辑  `createEditorExtensions()`      → 打开文件（`parseMarkdown` 的 schema）
- *   parse  生产解析  `createMarkdownCompatSchema()`  → 粘贴 / 剪贴板
- *   test   测试镜像  `createTestSchema()`            → 全部 markdown 单测
+ * solo 历史上并行维护三套 schema；2026-09-14 按调用链核实后，实际只有两套独立存在：
+ *   edit   生产编辑  `createEditorExtensions()`      → 打开文件 **和粘贴**（实参是 `view.state.schema`）
+ *   parse  兼容解析  `createMarkdownCompatSchema()`  → ⚠️ **死代码**，生产零调用（见 #11）
+ *   test   测试镜像  `createTestSchema()`            → 已改为复用 edit（换真身），恒等于 edit
  *
- * 三者本就不该完全一致（`parse` 刻意宽松以兼容外部文本；`test` 是最小镜像），
- * 但每处差异都必须是**有理由且被记录的**——否则就是漂移，而漂移会静默影响某一通道。
- * （实测后果见 KNOWN-ISSUES §二 #11：粘贴丢 frontmatter / 图片尺寸 / callout 标题。）
+ * ⚠️ 更正（2026-09-14）：原「粘贴通道走 compat schema」的定性系照文件头注释所写，
+ * **已被调用链推翻** —— `markdown-paste.ts` 从未 import 它（`git log -S` 为空，
+ * 4 处 `parseMarkdown(schema, …)` 实参皆为 `view.state.schema`）。故本表 `parse` 列的差异
+ * **不落在任何真实用户路径上**，其价值仅剩「记录死代码的存在」。
+ * 待 #11 清理 compat schema 后，本文件应改写为 `edit` 的**正向契约锁**（如列表容器混排）。
  *
- * 本测试锁定「差异集合 + 每处差异的三方取值」：
+ * 本测试锁定「差异集合 + 每处差异的取值」：
  *   - 出现未登记的差异 → 红（新漂移）
  *   - 登记项消失或取值变化 → 红（提示清理台账）
  *
@@ -67,81 +69,50 @@ const DIVERGENCES: Record<string, Divergence> = {
   'node.tableCell.attrs': {
     edit: 'align,colspan,colwidth,rowspan',
     parse: '∅',
-    test: 'colspan,colwidth,rowspan',
+    test: 'align,colspan,colwidth,rowspan',
     status: 'bug',
-    note: '#11：粘贴通道无 attrs → 单元格对齐丢失；test 亦缺 align',
+    note: '#11：粘贴通道无 attrs → 单元格对齐丢失',
   },
   'node.tableHeader.attrs': {
     edit: 'align,colspan,colwidth,rowspan',
     parse: '∅',
-    test: 'colspan,colwidth,rowspan',
+    test: 'align,colspan,colwidth,rowspan',
     status: 'bug',
     note: '#11（同上，表头）',
   },
   'mark.underline.attrs': {
     edit: '∅',
     parse: '-',
-    test: '-',
+    test: '∅',
     status: 'bug',
-    note: '#11：粘贴通道无 underline 标记 → 下划线丢失（test 镜像同样缺）',
+    note: '#11：粘贴通道无 underline 标记 → 下划线丢失',
   },
 
-  // ── 测试镜像漂移（createTestSchema 与生产不同步，会给出与实际不符的结论）────
-  'node.codeBlock.attrs': {
-    edit: 'language,languageLabel',
-    parse: 'language,languageLabel',
-    test: 'language',
-    status: 'mirror',
-    note: '镜像缺 languageLabel → 相关回归在测试里测不出',
-  },
-  'node.listItem.content': {
-    edit: 'paragraph block*',
-    parse: 'paragraph block*',
-    test: 'block+',
-    status: 'mirror',
-    note: '镜像比生产宽松（生产限定首块必须是 paragraph）',
-  },
-  'node.taskItem.content': {
-    edit: 'paragraph block*',
-    parse: 'paragraph block*',
-    test: 'block+',
-    status: 'mirror',
-    note: '同 listItem：镜像比生产宽松',
-  },
-  'node.tableCell.content': {
-    edit: 'block+',
-    parse: 'block+',
-    test: 'paragraph+',
-    status: 'mirror',
-    note: '镜像比生产**严格** → 可能在测试里制造生产中不存在的失败',
-  },
-  'node.tableHeader.content': {
-    edit: 'block+',
-    parse: 'block+',
-    test: 'paragraph+',
-    status: 'mirror',
-    note: '同 tableCell（表头）',
-  },
+  // ── 测试镜像漂移：2026-09-14 换真身后**已全部消除** ────────────────────
+  // `createTestSchema()` 改为直接复用生产编辑 schema，故 `test` 列恒等于 `edit` 列，
+  // 原 5 项 mirror 差异（codeBlock.attrs / listItem.content / taskItem.content /
+  // tableCell.content / tableHeader.content）随之消失。
+  // 本表待「兼容 schema 死代码清理」（KNOWN-ISSUES §二 #11）后整体收敛为单列契约锁。
 
   // ── 设计意图（各通道职责不同，无需动作）────────────────────────────────
   'mark.link.attrs': {
     edit: 'class,href,rel,target,title',
     parse: 'href,target,title',
-    test: 'href,target,title',
+    test: 'class,href,rel,target,title',
     status: 'intended',
     note: '编辑侧为外链补安全属性（rel/target/class），解析侧不需要',
   },
   'node.orderedList.attrs': {
     edit: 'start,type',
     parse: 'start',
-    test: 'start',
+    test: 'start,type',
     status: 'intended',
     note: '编辑侧多保留有序列表样式类型（1/a/i）',
   },
   'node.tableRow.content': {
     edit: '(tableCell | tableHeader)*',
     parse: '(tableHeader | tableCell)+',
-    test: '(tableHeader | tableCell)+',
+    test: '(tableCell | tableHeader)*',
     status: 'intended',
     note: '编辑侧更宽松（允许空行）；差异来源待确认，暂不动作',
   },

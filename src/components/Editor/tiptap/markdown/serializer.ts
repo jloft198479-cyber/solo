@@ -21,6 +21,11 @@ function stripZwnj(text: string): string {
 
 // ── 序列化状态 ──────────────────────────────────────────────────
 
+/** 空段落（无子节点）——常为 parser 为满足 schema 约束补的占位，非用户内容 */
+function isEmptyParagraph(node: PMNode): boolean {
+  return node.type.name === 'paragraph' && node.childCount === 0;
+}
+
 export class MarkdownSerializerState {
   output = '';
   private closed: PMNode | null = null;
@@ -99,35 +104,56 @@ export class MarkdownSerializerState {
     });
   }
 
-  private activeMarks: readonly Mark[] = [];
+  /**
+   * 已开启的 marks，**按打开时间排序**（不是 schema 的 rank 序）。
+   *
+   * 关闭时必须逆此序（后开先关），定界符才会落在正确的嵌套层。
+   * 反例：`*foo [bar](/url)*` 的 doc 是 `T"foo"[italic] T"bar"[link,italic]`，
+   * 两个 mark 的打开顺序为 italic → link，但数组序（schema rank）为 link → italic
+   * （`link` rank 0 < `italic` rank 3）。若照数组逆序关，link 的收尾 `](…)` 会写在
+   * italic 的 `*` **之前**，输出 `*foo [bar*](/url)` —— 语法当场损坏。
+   * 见 `KNOWN-ISSUES.md` §二 #11-A。
+   */
+  private activeMarks: Mark[] = [];
 
-  /** 开启/关闭 marks */
+  /** 写入单个 mark 的定界符：code 走反引号围栏（含内容含反引号时的加长计算），其余走 markDelimiter */
+  private writeMarkDelim(
+    mark: Mark,
+    opening: boolean,
+    node: PMNode,
+    parent: PMNode,
+    index: number,
+    codeDelims?: Map<number, { open: string; close: string }>,
+  ) {
+    if (mark.type.name !== 'code') {
+      this.write(this.markDelimiter(mark, opening));
+      return;
+    }
+    const delims = codeDelims?.get(index) ?? this._codeSpanDelims(node, parent, index);
+    this.write(opening ? delims.open : delims.close);
+  }
+
+  /** 开启/关闭 marks（关闭按「打开顺序」逆序，理由见 activeMarks） */
   private renderMarks(node: PMNode, parent: PMNode, index: number, opening: boolean, codeDelims?: Map<number, { open: string; close: string }>) {
     const marks = node.marks;
+
     if (opening) {
       for (const mark of marks) {
-        if (!mark.isInSet(this.activeMarks)) {
-          this.activeMarks = mark.addToSet(this.activeMarks);
-          if (mark.type.name === 'code') {
-            this.write(codeDelims?.get(index)?.open ?? this._codeSpanDelims(node, parent, index).open);
-          } else {
-            this.write(this.markDelimiter(mark, true));
-          }
-        }
+        if (mark.isInSet(this.activeMarks)) continue;
+        // 追加而非 addToSet：数组即「打开时间栈」，关闭时要靠它定序
+        this.activeMarks = [...this.activeMarks, mark];
+        this.writeMarkDelim(mark, true, node, parent, index, codeDelims);
       }
-    } else {
-      const next = this.findNextNonToken(parent, index);
-      for (let i = marks.length - 1; i >= 0; i--) {
-        const mark = marks[i];
-        if (!next || !mark.isInSet(next.marks)) {
-          this.activeMarks = mark.removeFromSet(this.activeMarks);
-          if (mark.type.name === 'code') {
-            this.write(codeDelims?.get(index)?.close ?? this._codeSpanDelims(node, parent, index).close);
-          } else {
-            this.write(this.markDelimiter(mark, false));
-          }
-        }
-      }
+      return;
+    }
+
+    const next = this.findNextNonToken(parent, index);
+    for (let i = this.activeMarks.length - 1; i >= 0; i--) {
+      const mark = this.activeMarks[i];
+      if (!mark.isInSet(marks)) continue; // 本节点不含此 mark（防御）
+      if (next && mark.isInSet(next.marks)) continue; // 下一节点延续，不关
+      this.activeMarks = this.activeMarks.filter((m) => !m.eq(mark));
+      this.writeMarkDelim(mark, false, node, parent, index, codeDelims);
     }
   }
 
@@ -297,15 +323,19 @@ export class MarkdownSerializerState {
 
   /** 递归序列化子节点 */
   renderContent(parent: PMNode) {
+    // 首块是空段落、且后面还有块 ⇒ 它是**模型补位**而非用户内容，跳过不输出。
+    // 例：`- # 标题` 解析后 listItem 首块被补成空 paragraph（为满足 schema 的
+    // `paragraph block*` 约束），不跳过就会写出 `-  \n\n# 标题`，把列表拆散。
+    // 独块的空段落不跳：那是 `- ` 这类真实的空列表项。
+    const skipLeadingEmpty = parent.childCount > 1 && isEmptyParagraph(parent.child(0));
     let prev: PMNode | null = null;
     parent.forEach((child, _offset, index) => {
-      if (index > 0) {
-        if (child.isBlock) {
-          if (prev?.type.name === 'horizontalRule' && child.type.name === 'horizontalRule') {
-            this.ensureNewline();
-          } else {
-            this.blankLine();
-          }
+      if (skipLeadingEmpty && index === 0) return;
+      if (prev && child.isBlock) {
+        if (prev.type.name === 'horizontalRule' && child.type.name === 'horizontalRule') {
+          this.ensureNewline();
+        } else {
+          this.blankLine();
         }
       }
       prev = child;
