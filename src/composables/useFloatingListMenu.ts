@@ -90,9 +90,16 @@ export function useFloatingListMenu<T>(options: {
    * 再靠后台 refreshWikilinkCandidates().then(updateItems()) 异步补数据；
    * 缓存为空时若在此收掉，异步数据到达后无人重唤 show，互链补全会静默失效
    *（同类事故见 docs/CHANGELOG.md「`[[` 曾两度不弹」）。
+   *
+   * `options.items`：调用方**当帧的列表快照**，判空优先用它。Suggestion 回调里
+   * items 经 Vue props 传播滞后一帧（父组件重渲染在下个微任务），`getItems()`
+   * 读到的是上一帧旧列表——启动后首次唤出时旧列表恰为初始空数组，判空误收，
+   * 菜单死且无人重唤（「/ 不弹出」事故，2026-09-14 修）。快照与 props 在绘制前
+   * 会合，实际渲染内容不受影响；只有判空这个同步读必须用快照。
    */
-  function show(pos: MenuPosition, options?: { allowEmpty?: boolean }) {
-    if (getItems().length === 0 && !options?.allowEmpty) {
+  function show(pos: MenuPosition, options?: { allowEmpty?: boolean; items?: T[] }) {
+    const currentItems = options?.items ?? getItems();
+    if (currentItems.length === 0 && !options?.allowEmpty) {
       visible.value = false;
       return;
     }
