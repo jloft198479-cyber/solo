@@ -20,9 +20,6 @@
 
 /* 通用入场动效工具类：scale + opacity 轻量跟手，所有面板/菜单共用，
    保证「这儿弹那儿滑」的不一致感消失。 */
-.smooth-enter {
-  animation: smooth-enter var(--motion-fast) var(--ease-out);
-}
 @keyframes smooth-enter {
   from { opacity: 0; transform: scale(0.98); }
   to   { opacity: 1; transform: scale(1); }
@@ -315,10 +312,6 @@ body {
 }
 
 /* ── 标题栏拖拽 ────────────────────────────────────────────── */
-.custom-titlebar-drag-area {
-  cursor: default;
-}
-
 [data-tauri-drag-region] {
   -webkit-app-region: drag;
 }
@@ -391,22 +384,18 @@ html.theme-transitioning .mk-editor-inner,
 html.theme-transitioning .custom-titlebar,
 html.theme-transitioning aside,
 html.theme-transitioning .statusbar-container,
-html.theme-transitioning .toolbar-container,
 html.theme-transitioning .outline-panel,
-html.theme-transitioning .settings-panel,
 html.theme-transitioning .sidebar {
+
   transition: background-color var(--motion-base) var(--ease-out), color var(--motion-base) var(--ease-out), border-color var(--motion-base) var(--ease-out) !important;
 }
 
 /* ── 打印样式 ──────────────────────────────────────────────── */
 @media print {
-  .toolbar-container,
   .statusbar-container,
   aside,
-  .link-tooltip,
-  .bubble-menu,
-  .table-toolbar,
-  .search-bar {
+  .bubble-menu {
+
     display: none !important;
   }
 
@@ -458,8 +447,7 @@ html.theme-transitioning .sidebar {
   }
 
   /* focus-mode 下未聚焦段落强制不透明，避免打印丢段落（bug 级修复） */
-  html.focus-mode .paragraph-dimmed,
-  html.focus-mode .is-dimmed {
+  html.focus-mode .paragraph-dimmed {
     opacity: 1 !important;
   }
 
@@ -483,10 +471,6 @@ html.theme-transitioning .sidebar {
   .mk-frontmatter-header,
   .tiptap-editor .mk-image-source-text {
     display: none !important;
-  }
-
-  .tiptap-editor img.mk-image.is-selected {
-    outline: none !important;
   }
 
   /* 打印时容器不限制宽度，让内容贴满 A4 printable area */
