@@ -54,13 +54,15 @@ type EmojiSuggestSuggestionProps = SuggestionProps<EmojiItem, EmojiItem>;
 type WikilinkSuggestSuggestionProps = SuggestionProps<WikilinkCandidateItem, WikilinkCandidateItem>;
 
 export interface SlashMenuController {
-  show: (position: MenuPosition) => void;
+  /** options.items：Suggestion 回调当帧快照，判空必须用它（props 传播滞后一帧，见 useFloatingListMenu.show） */
+  show: (position: MenuPosition, options?: { items?: SlashCommandItem[] }) => void;
   hide: () => void;
   onKeyDown: (event: KeyboardEvent) => boolean;
 }
 
 export interface EmojiMenuController {
-  show: (position: MenuPosition) => void;
+  /** options.items：Suggestion 回调当帧快照，判空必须用它（props 传播滞后一帧，见 useFloatingListMenu.show） */
+  show: (position: MenuPosition, options?: { items?: EmojiItem[] }) => void;
   hide: () => void;
   onKeyDown: (event: KeyboardEvent) => boolean;
 }
@@ -270,13 +272,14 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
             slashMenuItems.value = props.items;
             slashMenuCommand.value = props.command;
             const rect = props.clientRect?.();
-            if (rect) slashMenuRef.value?.show(computeMenuPosition(rect));
+            // items 快照：props 传播滞后一帧，判空必须用当帧数据（否则启动后首次 / 不弹）
+            if (rect) slashMenuRef.value?.show(computeMenuPosition(rect), { items: props.items });
           },
           onUpdate: (props: SlashCommandSuggestionProps) => {
             slashMenuItems.value = props.items;
             slashMenuCommand.value = props.command;
             const rect = props.clientRect?.();
-            if (rect) slashMenuRef.value?.show(computeMenuPosition(rect));
+            if (rect) slashMenuRef.value?.show(computeMenuPosition(rect), { items: props.items });
           },
           onKeyDown: (props: SuggestionKeyDownProps) => {
             const { event } = props;
@@ -325,13 +328,14 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
             emojiMenuItems.value = props.items;
             emojiMenuCommand.value = props.command;
             const rect = props.clientRect?.();
-            if (rect) emojiMenuRef.value?.show(computeMenuPosition(rect));
+            // items 快照：props 传播滞后一帧，判空必须用当帧数据（与 Slash 同病灶）
+            if (rect) emojiMenuRef.value?.show(computeMenuPosition(rect), { items: props.items });
           },
           onUpdate: (props: EmojiSuggestSuggestionProps) => {
             emojiMenuItems.value = props.items;
             emojiMenuCommand.value = props.command;
             const rect = props.clientRect?.();
-            if (rect) emojiMenuRef.value?.show(computeMenuPosition(rect));
+            if (rect) emojiMenuRef.value?.show(computeMenuPosition(rect), { items: props.items });
           },
           onKeyDown: (props: SuggestionKeyDownProps) => {
             const { event } = props;

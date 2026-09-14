@@ -140,6 +140,44 @@ describe('useFloatingListMenu', () => {
 
       unmount();
     });
+
+    /**
+     * 「当帧快照」契约（2026-09-14 修「/ 不弹出」事故立）：
+     * Suggestion 回调里 items 经 Vue props 传播滞后一帧，getItems() 读到旧列表。
+     * 判空必须以调用方传入的当帧快照为准——快照非空即使 getter 仍为旧空值也显示；
+     * 快照为空即使 getter 仍是旧非空值也收起（零命中即收起行为不回退）。
+     */
+    describe('options.items 当帧快照判空（时序差契约）', () => {
+      it('getter 滞后为空、快照非空 → 显示（启动后首次 / 不再死）', () => {
+        // 复刻事故现场：菜单数据初始为 []，Suggestion 回调当帧传入全量列表
+        const { result, unmount, itemsRef } = setup([]);
+        itemsRef.value = [{ id: 1, label: 'A' }, { id: 2, label: 'B' }];
+
+        // 同一同步帧内：getter 尚读不到新值（Vue props 异步传播），快照已是新列表
+        result.show({ top: 10, left: 20, maxHeight: 30 }, {
+          items: [{ id: 1, label: 'A' }, { id: 2, label: 'B' }],
+        });
+
+        expect(result.visible.value).toBe(true);
+
+        unmount();
+      });
+
+      it('快照为空 → 收起（零命中即收起不回退）', () => {
+        const { result, unmount, itemsRef } = setup([{ id: 1, label: 'A' }]);
+
+        result.show({ top: 10, left: 20, maxHeight: 30 });
+        expect(result.visible.value).toBe(true);
+
+        // 零命中：快照空（getter 里的旧值是否为空无关紧要，快照是当帧真相）
+        itemsRef.value = [{ id: 1, label: 'A' }];
+        result.show({ top: 10, left: 20, maxHeight: 30 }, { items: [] });
+
+        expect(result.visible.value).toBe(false);
+
+        unmount();
+      });
+    });
   });
 
   describe('items 变化时重置选中索引', () => {
