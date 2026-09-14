@@ -65,7 +65,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | --- | --- | --- | --- |
 | 所见即所得（无分栏预览） | ✅ | [`MarkdownEditor.vue`](../src/components/Editor/MarkdownEditor.vue) + TipTap | 产品定位，非缺陷 |
 | TipTap 实例复用（切文件不重建） | ✅ | `MarkdownEditor.vue` `shallowRef` + `setContent` | 性能关键路径，勿改成重建 |
-| 懒初始化（无焦点不建编辑器） | ✅ | 同文件；`solo:editor-focus` 事件 + 50ms 兜底 | — |
+| 懒初始化（无焦点不建编辑器） | ✅ | 同文件；`solo:editor-focus` 事件 + `requestAnimationFrame` 兜底 | — |
 | 撤销 / 重做 | ✅ | `registry.ts` `editor.undo`/`editor.redo`（PM history） | — |
 | 粘贴 Markdown 自动转换 | ✅ | [`markdown-paste.ts`](../src/components/Editor/tiptap/extensions/markdown-paste.ts) | ⚠️ 兜底判据 `isLowQualityParse` 会被 `font-weight` 骗过 → 漏救援（**§二 #13 未修**） |
 | 粘贴 Word 列表 | ⚠️ | `markdown-paste.ts` `stripMsoMarkup` | **放弃重建**：塌成平段落（§三 设计取舍，非 bug） |
@@ -128,7 +128,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 
 | 功能 | 状态 | 实现锚点 | 已知缺口 / 边界 |
 | --- | --- | --- | --- |
-| 8 套内置主题 | ✅ | [`presets/`](../src/themes/presets/) + [`manager.ts`](../src/themes/manager.ts) | `scholar-light`/`scholar-dark`/`elegant`/`cinnabar`/`cinnabar-dark`/`default`/`jade`/`orchid`；**无 `gray-domain`** |
+| 8 套内置主题 | ✅ | [`presets/`](../src/themes/presets/) + [`manager.ts`](../src/themes/manager.ts) | `scholar-light`/`scholar-dark`/`elegant-light`/`cinnabar-light`/`cinnabar-dark`/`default-light`/`jade-light`/`orchid-light`（部分文件名无 `-light` 后缀，但 JSON 内 `id` 有）；**无 `gray-domain`** |
 | 自定义主题 CRUD / 导入导出 | ✅ | `manager.ts` `importTheme` + `ThemeSelector.vue` | 兼容 legacy（light/dark 双色）旧格式 |
 | 明暗独立 + 系统主题跟随 | ✅ | `applyDarkClass` + `ensureThemeId()` 回退 | 主题 id 失效按当前外观回退，不黑屏 |
 | 排版随主题（行高/字号/段距/字距） | ✅ | `manager.ts` `injectTypography` → `--mk-*` → [`editor.css`](../src/components/Editor/tiptap/editor.css) | 先 `removeProperty` 再注入；`editor.css` 13 处全量消费 |
@@ -182,7 +182,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 标题栏自动隐藏 | ✅ | `settings.titlebarAutoHide` | 编辑器偏好页可关 |
 | 窗口尺寸/位置/最大化记忆 | ✅ | tauri-plugin-window-state | — |
 | 全屏 | ✅ | `registry.ts` `view.fullscreen`（`F11`） | — |
-| 启动开打竞态（CLI / OS open / 新窗口） | ✅ | [`state.rs`](../src-tauri/src/state.rs) 四类 managed state + `lib.rs` `startup_ready` | 四类：`StartupOpenRequests`/`PendingWindowPaths`/`LoadedWindows`/`FocusedWindow`。**动事件顺序前必读 §11.5** |
+| 启动开打竞态（CLI / OS open / 新窗口） | ✅ | [`state.rs`](../src-tauri/src/state.rs) 五类 managed state + `lib.rs` `startup_ready` | 五类：`StartupOpenRequests`/`PendingWindowPaths`/`LoadedWindows`/`FocusedWindow`/`CloseGuard`（关窗看门狗）。**动事件顺序前必读 §11.5** |
 | 菜单事件定向到焦点窗口 | ✅ | `menu.rs` + `FocusedWindow` | 防多窗口重复执行同一菜单动作 |
 | 启动诊断日志 | ✅ | `lib.rs` `reveal_startup_open_log` + 菜单「打开启动诊断日志」 | 写 `startup-open.log` |
 | 错误边界（编辑器崩溃不白屏） | ✅ | [`ErrorBoundary.vue`](../src/components/Layout/ErrorBoundary.vue) | ⚠️ 是双根 fragment，布局 class 必须由外层 `div.editor-area` 承载（豁免 IME 相关的历史坑） |
@@ -273,11 +273,9 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 1 | `wiki/快速上手.md` / `wiki/图片与文档管理.md`：「文档修改后 **2 秒自动保存**」 | `settings.ts` `autoSave: false`（默认**关闭**）、`autoSaveInterval: 30`（30 秒）；`2000ms` 只是「已保存」提示的显示时长（`AUTOSAVE_STATUS_DISPLAY_MS`） | 🔴 高：用户以为有自动保存，实际默认不保存，**可能丢稿** |
 | 2 | `wiki/快捷键速查.md` / `wiki/编辑器功能指南.md` / `wiki/快速上手.md`：查找 `Mod+G`、替换 `Mod+Shift+G` | `registry.ts:350/360`：`Mod-f` / `Mod-h`（代码注释明确写了「旧默认 Mod-g 与跳转行心智冲突」） | 🟡 中：用户按键无效，文档三处同错 |
 | 3 | `wiki/编辑器功能指南.md`「菜单『打印』」、`docs/TROUBLESHOOTING.md §5`「工具栏『导出 PDF』改名『打印』」 | **全仓无打印实现**（`src/` 无 print、Rust 菜单无该项）；v1.2.18 已连导出系统一起删 | 🟡 中：文档描述不存在的功能，用户会去找 | 
-| 4 | 状态栏按钮 `title="复制 Markdown"`；`ARCHITECTURE.md §10.2` 称「复制为 HTML」 | `StatusbarQuickActions.vue` 实际写双槽：`text/plain` = Markdown 源码 + `text/html` = 渲染富文本 | 🟢 低：三处口径不一，易误判行为 |
-| 5 | `wiki/快捷键速查.md` 声称「全部默认快捷键」 | 仅剩 `Mod+Backspace`（删特殊块）定义在块组件内（不在 registry）；**大纲 / 命令面板已于 2026-09-14 收编进 registry** | 🟢 低 |
-| 6 | `README.md` / `wiki/Home.md`：「618 pass / 34 design constraints」（硬编码测试数） | `KNOWN-ISSUES §二 #3` 明令**任何文档不要再硬编码测试数**，统一写「以 `bun run test` 为准」 | 🟢 低：违反自身纪律，数字必然漂移 |
-| 7 | `ARCHITECTURE.md §7.2`：「持久化 / 迁移 / 防抖写入 / `normalizeSettings` / 主题回退」段落**重复出现两遍** | 同一份文档内重复 | 🟢 低：文档冗余 |
-| 8 | `registry.ts` `help.diagnostics` 描述：「在 **Finder** 中定位冷启动诊断日志」 | `reveal_startup_open_log` 走系统文件管理器；Windows 用户看到 macOS 文案 | 🟢 低：文案残留 |
+| 4 | `wiki/快捷键速查.md` 声称「全部默认快捷键」 | 仅剩 `Mod+Backspace`（删特殊块）定义在块组件内（不在 registry）；**大纲 / 命令面板已于 2026-09-14 收编进 registry** | 🟢 低 |
+| 5 | `README.md` / `wiki/Home.md`：「618 pass / 34 design constraints」（硬编码测试数） | `KNOWN-ISSUES §二 #3` 明令**任何文档不要再硬编码测试数**，统一写「以 `bun run test` 为准」 | 🟢 低：违反自身纪律，数字必然漂移 |
+| 6 | `registry.ts` `help.diagnostics` 描述：「在 **Finder** 中定位冷启动诊断日志」 | `reveal_startup_open_log` 走系统文件管理器；Windows 用户看到 macOS 文案 | 🟢 低：文案残留 |
 
 > 修法纪律：文档与代码不符，**改文档**（除非代码确实错）。改完按 [`AGENTS.md`](../AGENTS.md) §5 跑死链扫描。
 
