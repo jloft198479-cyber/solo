@@ -1,7 +1,7 @@
 import { isMac } from '../utils/platform';
 
 export type CommandScope = 'app' | 'editor';
-export type CommandSource = 'shortcut' | 'menu' | 'palette' | 'titlebar' | 'ui';
+export type CommandSource = 'shortcut' | 'menu' | 'palette';
 export type CommandGroup =
   | 'file'
   | 'edit'
@@ -88,7 +88,7 @@ export const COMMANDS: CommandDefinition[] = [
   {
     id: 'help.diagnostics',
     title: '打开启动诊断日志',
-    description: '在 Finder 中定位冷启动文件打开诊断日志',
+    description: '在系统文件管理器中定位冷启动文件打开诊断日志',
     scope: 'app',
     group: 'help',
     menuSection: 'help',

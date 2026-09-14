@@ -12,6 +12,7 @@ import type { SuggestionOptions } from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 
 import { guardedFindSuggestionMatch } from './suggestion-guard';
+import { basename } from './wikilink-drop';
 import { listMarkdownFiles } from '../../../../services/tauri/document';
 
 const wikilinkPluginKey = new PluginKey('wikilinkSuggest');
@@ -60,11 +61,6 @@ export function refreshWikilinkCandidates(docPath: string | null): Promise<void>
     });
   inflight = { docPath, promise };
   return promise;
-}
-
-function basename(path: string): string {
-  const lastSep = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
-  return lastSep < 0 ? path : path.slice(lastSep + 1);
 }
 
 /** 过滤候选：排除当前文档自身，按 query 大小写不敏感子串匹配 target。 */

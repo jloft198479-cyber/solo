@@ -28,7 +28,7 @@ function dirOf(path: string): string {
   return i < 0 ? '' : p.slice(0, i);
 }
 
-function basename(path: string): string {
+export function basename(path: string): string {
   const p = normalizePath(path);
   return p.slice(p.lastIndexOf('/') + 1);
 }
