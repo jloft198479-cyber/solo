@@ -20,6 +20,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.55] — 2026-09-14
+
+### Fixed
+- **混排列表整段静默丢失（#10）**：修复含任务列表 / 有序+无序混排的列表在保存时整段内容丢失；顺带修正有序任务列表内容丢失。
+- **强调跨链接 / 行内代码时保存即改坏内容（#11-A/B/C）**：修复保存序列化在强调标记跨越 wikilink、行内代码等节点时破坏内容。
+- **IME 候选窗失锚**：WebView2 下禁用 TSF 回退 IMM32 通道，规避中文输入法候选窗定位失锚。
+- **Slash / Emoji 菜单启动后首次不弹出**：判空改用当帧 items 快照，修启动后首次唤出失败。
+- **大纲 / 命令面板快捷键三处硬编码**：收编进命令注册表（`registry.ts`），消除键位散落三处导致的「改一处漏两处」。
+- **菜单「零命中即收起」**：修 `/` 后跟中文时空态粘屏不收起的问题。
+
+### Changed
+- **编辑器组字态（IME）总闸收敛**：抽出 `composition-freeze` 总闸，收敛 4 处组字态守卫；新增 decoration / appendTransaction / NodeView / 浮动菜单统一走它，杜绝再造第 5 份 `let liveView`。
+
+### Chore
+- **CSS 死类清理（约 154 行）**：删除失效旧类名（`theme-transitioning` / `focus-mode` / `@media print` 旧类 / `mk-frontmatter-*` 误名）与「设计过但从未接线」的样式（Typora 风格内联源码提示 + 拖拽视觉提示；后者已登记 KNOWN-ISSUES #17 为待实现）。删除前以「四判据死代码取证（源码 / 产物 / 运行时 / 动态拼接）+ 逐元素 computed style diff = 0 差异」自证零视觉影响。
+- **保真防线假绿修复**：补真断言与 schema 一致性锁。
+- **文档治理**：AGENTS.md 重写为行为契约；敏感区安全网独立成 `docs/sensitive-areas.md`；ARCHITECTURE / KNOWN-ISSUES 多处修正与去噪。
+
+---
+
 ## [1.2.54] — 2026-09-13
 
 ### Added
