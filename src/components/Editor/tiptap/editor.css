@@ -1271,7 +1271,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   border-radius: var(--radius-sm, 4px);
   background: transparent;
   /* 主题不变例外：lightbox 全屏幕布（--modal-overlay）明暗两套都是深色半透明，
-     白字/白 hover 在两套外观下对比度都成立，故不走主题 token（§11.6 已登记例外）。 */
+     白字/白 hover 在两套外观下对比度都成立，故不走主题 token（docs/sensitive-areas.md §11.6 已登记例外）。 */
   color: #fff;
   font-size: 18px;
   font-family: var(--font-mono);

@@ -5,7 +5,7 @@ audience: agent
 status: active
 tags: [UI, 交接, 红线, 回滚]
 summary: UI 改造交接（活跃分支 refactor/editor-decouple）：结构红线/回滚点/盲区
-updates: [ARCHITECTURE.md §11, design-samples/]
+updates: [docs/sensitive-areas.md, design-samples/]
 ---
 
 # UI 改造交接文档（给 workbuddy）
