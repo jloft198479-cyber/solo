@@ -86,7 +86,7 @@ bun run build:tauri              # 打安装包
 
 1. **先读 [ARCHITECTURE.md](../ARCHITECTURE.md)**，它比任何对话摘要都准。
 2. **不要信任 `.trae/documents/`**；遇到「文件树/workspace watcher」等描述，那是旧架构。
-3. 找「改 X 去哪个文件」→ 直接查 [ARCHITECTURE.md](../ARCHITECTURE.md) 附录 B 或 §11 敏感区速查表。
+3. 找「改 X 去哪个文件」→ 直接查 [ARCHITECTURE.md](../ARCHITECTURE.md) 附录 B 或 敏感区速查表。
 4. 验证改动：**必须跑完整 `bun run test`**，不要信「我试了子集应该没问题」。
 5. 改 parser/serializer 后，roundtrip + commonmark 测试必须通过（见上方真理源）。
 6. 遇到环境/构建问题 → [docs/debugging.md](./debugging.md)。
@@ -95,7 +95,7 @@ bun run build:tauri              # 打安装包
 
 - [项目工作手册](../AGENTS.md)
 - [架构权威地图](../ARCHITECTURE.md)
-- [bug 易发区地图（ARCHITECTURE §11）](../ARCHITECTURE.md)
+- [bug 易发区地图（敏感区速查）](../docs/sensitive-areas.md)
 - [已知问题与技术债](./KNOWN-ISSUES.md)
 - [调试指南](./debugging.md)
 - [文档索引与术语表](./INDEX.md)

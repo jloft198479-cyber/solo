@@ -58,7 +58,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, docs/FEATURE-MATRIX.md]
 | TS target ES2020（禁 `replaceAll`） | **0 违规**（全 src 非测试文件零命中） |
 | 前端 invoke 走 `client.ts` 统一入口 | **0 违规**（全仓唯一 `invoke(` 在 `client.ts:62`） |
 | 命令名 SSOT（`command-names.ts`） | 前端 26 条 ↔ Rust `generate_handler!` 26 条，**集合完全一致** |
-| 颜色走主题 token（§11.6） | token 定义层（main.css/manager.ts/presets）合规；散落违规仅 1 处（`editor.css` lightbox 白字），**判定为主题不变 scrim 例外**（`--modal-overlay` 明暗两套都是深色半透明，白字恒正确），已加注释登记；`mermaid-block.ts:182` 的 `'#888888'` 是 token 读取失败的**防御性兜底**，保留 |
+| 颜色走主题 token（敏感区 §11.6） | token 定义层（main.css/manager.ts/presets）合规；散落违规仅 1 处（`editor.css` lightbox 白字），**判定为主题不变 scrim 例外**（`--modal-overlay` 明暗两套都是深色半透明，白字恒正确），已加注释登记；`mermaid-block.ts:182` 的 `'#888888'` 是 token 读取失败的**防御性兜底**，保留 |
 | 图片扩展名三处一致 | `document.rs` / `editor-image-drop.ts` / `mime_to_extension` 一致（含 `.bmp/.ico`） |
 | 文档 frontmatter + 索引 | wiki/docs 主体合规；`solo-tour.html` 内嵌快照漂移（见 §7） |
 | NodeView 清理成对 | `nodeview-destroy.spec.ts` 6 测试全绿 |

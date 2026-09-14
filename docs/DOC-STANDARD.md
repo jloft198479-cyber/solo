@@ -16,7 +16,7 @@ updates: [docs/INDEX.md, AGENTS.md]
 ## 一、单一真实源（SSOT）
 
 - 每个事实只在一处写（真理源），别处只放「一句指向它的话 + 链接」，不抄内容。
-- **代码级 SSOT**：命令名 → `src/services/tauri/command-names.ts`；命令定义/快捷键 → `src/commands/registry.ts`；字体 → `src/constants/fonts.ts` + `src/utils/fontStack.ts`；主题色彩 → `src/themes/types.ts::CSS_VAR_MAP`。完整地图见 [AGENTS.md §2](../AGENTS.md) 与 [ARCHITECTURE §11.6](../ARCHITECTURE.md)。
+- **代码级 SSOT**：命令名 → `src/services/tauri/command-names.ts`；命令定义/快捷键 → `src/commands/registry.ts`；字体 → `src/constants/fonts.ts` + `src/utils/fontStack.ts`；主题色彩 → `src/themes/types.ts::CSS_VAR_MAP`。完整地图见 [AGENTS.md §2](../AGENTS.md) 与 [docs/sensitive-areas.md §11.6](../docs/sensitive-areas.md)。
 - **代码真相优先**：文档与代码不符时，**以代码为准并更新文档**（不以注释、不以记忆）。
 
 ## 二、不要重复自己（DRY）

@@ -86,7 +86,7 @@ updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src, docs/RELEASE_PROCESS.
 
 ## See also
 
-- [bug 易发区地图（ARCHITECTURE §11）](../ARCHITECTURE.md)
+- [bug 易发区地图（敏感区速查）](../docs/sensitive-areas.md)
 - [调试指南](./debugging.md)
 - [文档索引与术语表](./INDEX.md)
 - [接手指南](./HANDOVER.md)

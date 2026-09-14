@@ -25,14 +25,14 @@ updates: [docs/KNOWN-ISSUES.md, ARCHITECTURE.md, AGENTS.md]
 - **现象**：字体下载完成却不显示，连修四版（system-proxy → CSP → CORS → blob URL）全不中。终极根因是 GitHub release 的字体文件**被截断**（只剩头部 + 表目录）。
 - **根因**：一直在「猜」加载机制哪里错，从没验证「这个文件本身是不是好的」。
 - **教训**：① 遇到「资源加载失败」，**第一步验证资源完整性**——文件大小、magic bytes（OTF `OTTO` / TTF `00 01 00 00`）、表目录每条 `offset+length ≤ 文件大小`；② 加载机制问题**先看真实报错再定方向**。
-- **索引**：[KNOWN-ISSUES §一 #7](./KNOWN-ISSUES.md)、[ARCHITECTURE §11 第 11 条](../ARCHITECTURE.md)、[与 A2 / C1 同源]
+- **索引**：[KNOWN-ISSUES §一 #7](./KNOWN-ISSUES.md)、[敏感区第 11 条](../docs/sensitive-areas.md)、[与 A2 / C1 同源]
 
 ### A2 · prod-only 问题不能用 dev 验证
 
 - **现象**：mermaid 图表生产构建全黑，`tauri dev` 一切正常，三版才修对。
 - **根因**：Tauri `tauri build` 才给 CSP `style-src` 注入随机 nonce（dev 不附加 CSP）⇒ `'unsafe-inline'` 被忽略 ⇒ mermaid 运行时 innerHTML 注入的 `<style>` 被静默拦截、形状回退黑色。
 - **教训**：① **CSP / 打包差异类问题必须 `tauri build` 后跑 release 二进制**；② 任何**运行时注入 `<style>`** 的库（mermaid / lit / KaTeX）在 Tauri prod 都会踩 CSP nonce，解法 `dangerousDisableAssetCspModification: ["style-src"]`（`script-src` 的 nonce 保留，XSS 防护不降级）；③ 真因未定位时**不要基于推测改无关代码**（当时先改了 `manualChunks`，无效）。
-- **索引**：[KNOWN-ISSUES §一 #1](./KNOWN-ISSUES.md)、[ARCHITECTURE §11 第 17 条](../ARCHITECTURE.md)
+- **索引**：[KNOWN-ISSUES §一 #1](./KNOWN-ISSUES.md)、[敏感区第 17 条](../docs/sensitive-areas.md)
 
 ### A3 · 跨层 bug：先加运行时诊断，别逐层猜
 
@@ -54,28 +54,28 @@ updates: [docs/KNOWN-ISSUES.md, ARCHITECTURE.md, AGENTS.md]
 - **现象**：`*foo [bar](/url)*` 保存后变 `*foo [bar*](/url)`，**用户保存一次就改坏文件**（数据事故级）。
 - **根因**：关闭 mark 定界符时按 `node.marks` 数组逆序——而该序是 **schema 的定义序**（`link` rank 0 早于 `italic` rank 3），与真实打开层次无关。
 - **教训**：① 排序键必须是**实际发生顺序**（打开时间栈），不能用**声明顺序**；② 这类 bug 单测全绿也测不出（原测试用「手抄 schema 镜像」掩盖了），**测试要换真身**（见 F4）。
-- **索引**：[KNOWN-ISSUES §一 #26](./KNOWN-ISSUES.md)、[ARCHITECTURE §11 第 16 条](../ARCHITECTURE.md)
+- **索引**：[KNOWN-ISSUES §一 #26](./KNOWN-ISSUES.md)、[敏感区第 16 条](../docs/sensitive-areas.md)
 
 ### B2 · NodeView 不走 Vue 生命周期，必须成对清理
 
 - **现象**：代码块 / 图片 NodeView 的监听器与闭包在节点销毁后仍存活，长会话线性积累内存 + 幽灵回调。
 - **根因**：NodeView 的 `dom` 由 ProseMirror 直接增删，没有框架替你收尾。
 - **教训**：① 监听器统一挂 `AbortController` 的 `signal`，`destroy()` 里一次 `abort()`；定时器不在 signal 管辖内，**单独清**；② **易漏的第二半**——销毁后的**异步回写**也要守卫：`requestId` 活在同一个已销毁闭包里会自匹配，**单靠它挡不住**，必须额外查 `signal.aborted`。
-- **索引**：[KNOWN-ISSUES §一 #10](./KNOWN-ISSUES.md)、[ARCHITECTURE §11 第 12 条 / §11.7](../ARCHITECTURE.md)
+- **索引**：[KNOWN-ISSUES §一 #10](./KNOWN-ISSUES.md)、[敏感区第 12 条 / §11.7](../docs/sensitive-areas.md)
 
 ### B3 · 收紧容器约束 = 静默丢内容
 
 - **现象**：同层混排「普通项 + 待办项」（同为 `-` 标记、中间无段落）打开后**整段消失**，只剩空段。
 - **根因**：解析器「容器判定」与「子项判定」用了两套判据 ⇒ `taskList` 里塞进 `listItem` ⇒ `createAndFill` 失败 ⇒ `closeNode()` **静默返回空段落**。
 - **教训**：① **「静默丢弃」是最危险的失败模式**——解析失败应给信号，不该悄悄给空；② 容器判定与子项判定**必须同一套判据**；③ 改 schema 约束前先看**正向契约锁**（差异集校验只能发现「多处不一致」，看不出「一起改错」）。
-- **索引**：[KNOWN-ISSUES §二 #10](./KNOWN-ISSUES.md)、[ARCHITECTURE §11 第 15 条](../ARCHITECTURE.md)
+- **索引**：[KNOWN-ISSUES §二 #10](./KNOWN-ISSUES.md)、[敏感区第 15 条](../docs/sensitive-areas.md)
 
 ### B4 · 嵌套序列化必须继承外层模式
 
 - **现象**：复制引用块 / 表格单元格粘到外部编辑器，多出 `\=` `\$` 等反斜杠。
 - **根因**：内层 state 用了**默认构造**（= 文件落盘的严格转义模式），把外层的剪贴板轻量标记丢了。
 - **教训**：块处理器需要嵌套序列化时用 `state.createChild()` 继承模式，**不要 `new MarkdownSerializerState()`**；只有两个真入口允许直接构造。列宽统计与内容输出还必须调**同一个** `cellToText`。
-- **索引**：[KNOWN-ISSUES §一 #11](./KNOWN-ISSUES.md)、[ARCHITECTURE §11.8](../ARCHITECTURE.md)
+- **索引**：[KNOWN-ISSUES §一 #11](./KNOWN-ISSUES.md)、[敏感区 §11.8](../docs/sensitive-areas.md)
 
 ### B5 · ProseMirror slice 的「开口」语义
 
@@ -93,21 +93,21 @@ updates: [docs/KNOWN-ISSUES.md, ARCHITECTURE.md, AGENTS.md]
 - **现象**：修好 CSP `font-src` 后字体仍不生效。
 - **根因**：CSP 管「**能否发起请求**」，CORS 管「**能否读取响应**」。放行请求 ≠ 放行响应。
 - **教训**：先区分**资源类型**——`<img>` / `<script>` / `<link>` 是普通加载（不走 CORS），`fetch()` / `FontFace` / `XHR` **强制走 CORS**。Tauri asset protocol 不返回 `Access-Control-Allow-Origin`，所以 `FontFace` 用 asset URL 必然失败。字体最终解法：CSS `@font-face` 注入（`url()` 不走 CORS），字节通道 `readFontBytes` 作兜底。
-- **索引**：[KNOWN-ISSUES §一 #7](./KNOWN-ISSUES.md)、[ARCHITECTURE §11 第 11 条](../ARCHITECTURE.md)
+- **索引**：[KNOWN-ISSUES §一 #7](./KNOWN-ISSUES.md)、[敏感区第 11 条](../docs/sensitive-areas.md)
 
 ### C2 · 剪贴板有两条独立管道
 
 - **现象**：表格选区粘到外部带表格壳——修了 `text/html`，`text/plain` 照旧漏。
 - **根因**：`text/html` 与 `text/plain` 是**两条独立管道**，只修一条等于没修完。
 - **教训**：动剪贴板必须**两条都验**（外加 solo→solo 粘贴，它走 HTML + `parseHTML`，不依赖 `text/plain`）。
-- **索引**：[KNOWN-ISSUES §一 #16 / #24](./KNOWN-ISSUES.md)、[ARCHITECTURE §11 第 13 条 / §11.8](../ARCHITECTURE.md)
+- **索引**：[KNOWN-ISSUES §一 #16 / #24](./KNOWN-ISSUES.md)、[敏感区第 13 条 / §11.8](../docs/sensitive-areas.md)
 
 ### C3 · 同一份转义函数可能服务两个目标
 
 - **现象**：想「砍掉剪贴板多余转义」，实测证明**文件落盘与剪贴板共用** `escapeInline`，砍了会误伤落盘（79 份真实语料回放，14 份语义漂移）。
 - **根因**：一个产出服务多个目标 ⇒ 必然有目标受委屈。
 - **教训**：① 对外产出**按目标分流**（富格式走 HTML、纯文本走渲染后文字、源码走显式入口）；② **动产出策略前先查谁还共享这条路径**，用真实语料回放验证，别只看函数名。
-- **索引**：[KNOWN-ISSUES §一 #24](./KNOWN-ISSUES.md)、[ARCHITECTURE §11.8](../ARCHITECTURE.md)
+- **索引**：[KNOWN-ISSUES §一 #24](./KNOWN-ISSUES.md)、[敏感区 §11.8](../docs/sensitive-areas.md)
 
 ### C4 · 「要不要回落」用白名单，不用黑名单
 
@@ -192,7 +192,7 @@ updates: [docs/KNOWN-ISSUES.md, ARCHITECTURE.md, AGENTS.md]
 
 - **现象**：① 测试用「手抄 schema 镜像」，与生产 schema 漂移，**12 条失真用例被掩盖**，换用生产 schema 后当场现形；② `fixtures`/`fuzz` 只断言 `round2 === round1`，对「**稳定地丢内容**」完全免疫（丢完两轮依然一致，永远绿）。
 - **教训**：① 测试**复用生产对象**，不手抄镜像；② 保真断言的**参照系必须是第三方**（markdown-it），不能拿自己当参照——用自己当参照会把缺陷**对称复制**到参照侧（实测「丢一半内容」也判等价）；③ 随机测试**必须种子化**（mulberry32），失败报文带 `seed` 可原样重放。
-- **索引**：[KNOWN-ISSUES §二 #11 / #12](./KNOWN-ISSUES.md)、[ARCHITECTURE §11 第 15/16 条](../ARCHITECTURE.md)
+- **索引**：[KNOWN-ISSUES §二 #11 / #12](./KNOWN-ISSUES.md)、[敏感区第 15/16 条](../docs/sensitive-areas.md)
 
 ---
 
@@ -200,4 +200,4 @@ updates: [docs/KNOWN-ISSUES.md, ARCHITECTURE.md, AGENTS.md]
 
 - [已知问题与技术债（事实台账）](./KNOWN-ISSUES.md)
 - [Agent 契约（禁令清单可执行版）](../AGENTS.md)
-- [架构权威地图（§11 敏感区）](../ARCHITECTURE.md)
+- [架构权威地图（敏感区速查）](../docs/sensitive-areas.md)

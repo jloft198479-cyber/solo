@@ -24,7 +24,8 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | ------------------------------------------------------ | ------- | --------- | ------ | ----------------------------------------------------------------- |
 | [`README.md`](../README.md)（+ zh-CN / ja-JP / ko-KR） | product | user      | active | 产品导览：介绍、安装、dev 起步。4 语言本地化，DOC-STANDARD §二 确认保留 |
 | [`AGENTS.md`](../AGENTS.md)                            | core    | agent     | active | Agent 契约：禁令清单 + 真理源地图 + 敏感区索引 + 工作流 + 协作方式 |
-| [`ARCHITECTURE.md`](../ARCHITECTURE.md)                | core    | dev/agent | active | 架构真相：技术栈版本/命令清单/目录树/§11 敏感区速查表             |
+| [`ARCHITECTURE.md`](../ARCHITECTURE.md)                | core    | dev/agent | active | 架构真相：技术栈版本/命令清单/目录树（敏感区速查见 ./sensitive-areas.md）             |
+| [`docs/sensitive-areas.md`](./sensitive-areas.md) | core | dev/agent | active | 敏感区安全网：易错区速查表 + §11.1–§11.8 详解（改码前必读） |
 | [`BUILD_GUIDE.md`](../BUILD_GUIDE.md)                  | core    | dev       | active | 构建手册真理源：工具链/环境变量/编译命令/故障排查                 |
 | [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md)           | guide   | user      | active | 用户侧运行时故障排查（症状→修法）                                 |
 | [`CLAUDE.md`](../CLAUDE.md)                            | guide   | agent     | active | Agent 入口指路牌（Claude Code）：仅指向 AGENTS.md，不复制规则内容 |
@@ -113,7 +114,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | 项目是什么 / 怎么装          | `README.md` → `docs/solo产品精神.md`                                                                              |
 | 接手项目从哪开始             | `docs/HANDOVER.md` → `AGENTS.md` → `ARCHITECTURE.md`                                                              |
-| 代码结构 / 命令清单 / 敏感区 | `ARCHITECTURE.md`（§11 速查表）                                                                                   |
+| 代码结构 / 命令清单 / 敏感区 | `ARCHITECTURE.md`（总览）+ `./sensitive-areas.md`（速查表）                                                                                   |
 | 怎么编译 / 环境怎么配        | `BUILD_GUIDE.md`                                                                                                  |
 | 有什么已知坑 / 待办          | `docs/KNOWN-ISSUES.md`                                                                                            |
 | 同类坑怎么想 / 踩坑方法论     | `docs/LESSONS.md`（思维模式）→ `AGENTS.md` §1（禁令清单）                                                          |
@@ -136,7 +137,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | capabilities 权限  | [`src-tauri/capabilities/`](../src-tauri/capabilities/)，最小权限白名单，新增 IPC 须登记。                                                                                                                                                         |
 | 原子写             | 先写 `.tmp` 再 `rename`（`MoveFileExW`），防写入中断损坏原文件。                                                                                                                                                                                   |
 | 规范化基线         | 编辑器加载后立即序列化写回 store，消除 parser/serializer 归一化差异导致的假脏态。                                                                                                                                                                  |
-| 启动开打竞态       | 前端未 ready 就收到开文件请求；两层缓冲兜底（`PendingWindowPaths` + `StartupOpenRequests`，[`state.rs`](../src-tauri/src/state.rs) + [`lib.rs`](../src-tauri/src/lib.rs)，详见架构 §11.5）。                                                          |
+| 启动开打竞态       | 前端未 ready 就收到开文件请求；两层缓冲兜底（`PendingWindowPaths` + `StartupOpenRequests`，[`state.rs`](../src-tauri/src/state.rs) + [`lib.rs`](../src-tauri/src/lib.rs)，详见 `./sensitive-areas.md` §11.5）。                                                          |
 | 多窗口进程模型     | 每 `.md` 独立进程（v1.2.5+），关最后一窗默认不退出。                                                                                                                                                                                               |
 | 主题色彩映射       | [`src/themes/types.ts`](../src/themes/types.ts)`::CSS_VAR_MAP`，主题颜色 token 全量映射 → CSS 变量（**数量以 `CSS_VAR_MAP` 实际为准，勿硬编码**）。                                                                                                  |
 | 防抖分层           | 字数 150ms / 光标 100ms / 大纲 500ms / 序列化 500ms，刻意分离（见 [`useEditorSync.ts`](../src/composables/useEditorSync.ts)）。                                                                                                                                 |

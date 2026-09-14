@@ -243,6 +243,6 @@ bun run dev:tauri:inspect
 
 - [已知问题与技术债（字体条目索引）](./KNOWN-ISSUES.md)
 - [调试指南](./debugging.md)
-- [bug 易发区地图（ARCHITECTURE §11）](../ARCHITECTURE.md)
+- [bug 易发区地图（敏感区速查）](../docs/sensitive-areas.md)
 - [文档索引与术语表](./INDEX.md)
 - 核心代码：[`fontLoader.ts`](../src/services/fontLoader.ts) · [`tauri/font.ts`](../src/services/tauri/font.ts) · [`commands/font.rs`](../src-tauri/src/commands/font.rs) · [`constants/fonts.ts`](../src/constants/fonts.ts) · [`utils/fontStack.ts`](../src/utils/fontStack.ts)

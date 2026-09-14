@@ -16,7 +16,7 @@
  *   改动越界即红，且红的时候能直接读到「为什么这条不能动」。
  *
  * 约定：改 `editor-extensions.ts` 的节点/mark 定义后，本文件必须重跑；
- *      若确实要改契约，请连同 KNOWN-ISSUES / ARCHITECTURE §11 一并更新。
+ *      若确实要改契约，请连同 KNOWN-ISSUES / docs/sensitive-areas.md 一并更新。
  */
 import { describe, it, expect } from 'vitest';
 import { ref } from 'vue';

@@ -93,25 +93,25 @@ solo 是一款**本地优先**的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + 
 
 ---
 
-## 3. ⚠️ 敏感区索引（碰这些 → 先读 §11）
+## 3. ⚠️ 敏感区索引（碰这些 → 先读敏感区速查表）
 
-> 完整表（含原因与禁忌）在 [ARCHITECTURE.md §11](./ARCHITECTURE.md)，**改码前必读对应行**。下表是「按动作查」的视图。
+> 完整表（含原因与禁忌）在 [docs/sensitive-areas.md](./docs/sensitive-areas.md)，**改码前必读对应行**。下表是「按动作查」的视图。
 
 | 你要动 | 先读 |
 |---|---|
-| 脏态 / 保存冲突 / 序列化尾换行 / 路径与 URL 信任边界 | §11 第 1–5 条 |
-| 防抖分层 / 主题注入 / 多窗口 / 构建环境 / 字体 CORS | §11 第 6–11 条 |
-| NodeView 生命周期（事件 / 定时器 / 异步回写） | §11 第 12 条 + §11.7 |
-| 剪贴板出站（**text/html 与 text/plain 是两条独立管道**） | §11 第 13 条 + §11.8 |
-| Suggestion 门控（`/` `:` `[[`）/ 拖拽落点 | §11 第 14 条 |
-| parser / serializer / **列表容器判定** | §11 第 15 条 |
-| parser / serializer / **mark 定界符开合** | §11 第 16 条 |
-| mermaid / 任何**运行时注入 `<style>`** 的库（lit / KaTeX） | §11 第 17 条（prod CSP nonce） |
-| callout NodeView 属性同步 | §11 第 18 条 |
-| 互链改名同步（围栏代码块跳过） | §11 第 19 条 |
-| `.tmp` 原子写残留清理 | §11 第 20 条 |
+| 脏态 / 保存冲突 / 序列化尾换行 / 路径与 URL 信任边界 | 敏感区第 1–5 条 |
+| 防抖分层 / 主题注入 / 多窗口 / 构建环境 / 字体 CORS | 敏感区第 6–11 条 |
+| NodeView 生命周期（事件 / 定时器 / 异步回写） | 敏感区第 12 条 + 敏感区 §11.7 |
+| 剪贴板出站（**text/html 与 text/plain 是两条独立管道**） | 敏感区第 13 条 + 敏感区 §11.8 |
+| Suggestion 门控（`/` `:` `[[`）/ 拖拽落点 | 敏感区第 14 条 |
+| parser / serializer / **列表容器判定** | 敏感区第 15 条 |
+| parser / serializer / **mark 定界符开合** | 敏感区第 16 条 |
+| mermaid / 任何**运行时注入 `<style>`** 的库（lit / KaTeX） | 敏感区第 17 条（prod CSP nonce） |
+| callout NodeView 属性同步 | 敏感区第 18 条 |
+| 互链改名同步（围栏代码块跳过） | 敏感区第 19 条 |
+| `.tmp` 原子写残留清理 | 敏感区第 20 条 |
 
-> §11 每条另有 KNOWN-ISSUES 溯源编号（如 #15→§二 #10、#16→§一 #26），详见 [ARCHITECTURE.md §11](./ARCHITECTURE.md) 表格末列。
+> 敏感区每条另有 KNOWN-ISSUES 溯源编号（如 #15→§二 #10、#16→§一 #26），详见 [docs/sensitive-areas.md](./docs/sensitive-areas.md) 表格末列。
 
 ---
 
@@ -134,7 +134,7 @@ solo 是一款**本地优先**的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + 
 
 **退化安全**：任何加载 / 优化必有 fallback（字体 / 图片 / 主题），不假设环境永远正常。
 
-**发版前**：升版本号（[`package.json`](./package.json) / [`Cargo.toml`](./src-tauri/Cargo.toml) / [`tauri.conf.json`](./src-tauri/tauri.conf.json) **三处同步**）→ 查 `replaceAll` → tag 与版本号一致 → 完整流程见 [RELEASE_PROCESS.md](./docs/RELEASE_PROCESS.md)（WorkBuddy 托管 shell 有 6 个环境坑，照 **§11.7** 可一遍成功）。
+**发版前**：升版本号（[`package.json`](./package.json) / [`Cargo.toml`](./src-tauri/Cargo.toml) / [`tauri.conf.json`](./src-tauri/tauri.conf.json) **三处同步**）→ 查 `replaceAll` → tag 与版本号一致 → 完整流程见 [RELEASE_PROCESS.md](./docs/RELEASE_PROCESS.md)（WorkBuddy 托管 shell 有 6 个环境坑，照 **敏感区 §11.7** 可一遍成功）。
 
 ---
 
@@ -145,7 +145,7 @@ solo 是一款**本地优先**的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + 
 | 目的 | 读 |
 |---|---|
 | 新接手 | [docs/HANDOVER.md](./docs/HANDOVER.md) → [ARCHITECTURE.md](./ARCHITECTURE.md) |
-| 找 bug | [ARCHITECTURE.md §11](./ARCHITECTURE.md) → [docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md) → [docs/debugging.md](./docs/debugging.md) |
+| 找 bug | [docs/sensitive-areas.md](./docs/sensitive-areas.md) → [docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md) → [docs/debugging.md](./docs/debugging.md) |
 | 核查功能完善度 | [docs/FEATURE-MATRIX.md](./docs/FEATURE-MATRIX.md) |
 | 踩坑方法论 | [docs/LESSONS.md](./docs/LESSONS.md) |
 | 编译不通过 | [BUILD_GUIDE.md](./BUILD_GUIDE.md) §7 → [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md) |
@@ -156,7 +156,7 @@ solo 是一款**本地优先**的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + 
 |---|---|
 | Tauri 命令（新增/改名/删除） | `command-names.ts` → `commands/mod.rs` → `lib.rs` |
 | 字体 / 主题 / 排版 CSS | `ARCHITECTURE.md` → [docs/font-handling.md](./docs/font-handling.md) → [docs/ui-typography-eval.md](./docs/ui-typography-eval.md) |
-| parser / serializer / schema | `fixtures.spec.ts` + `roundtrip.spec.ts` Phase E + `schema-contract.spec.ts` + [docs/cjk-boundary.md](./docs/cjk-boundary.md) + §11 #15/#16 |
+| parser / serializer / schema | `fixtures.spec.ts` + `roundtrip.spec.ts` Phase E + `schema-contract.spec.ts` + [docs/cjk-boundary.md](./docs/cjk-boundary.md) + 敏感区 #15/#16 |
 | 发版 / 版本号 | 三处同步 → [docs/CHANGELOG.md](./docs/CHANGELOG.md) → [docs/RELEASE_PROCESS.md](./docs/RELEASE_PROCESS.md) → [docs/SECURITY.md](./docs/SECURITY.md) |
 | **任意改动** | `grep -rn "<改动文件>" --include=*.md` 跑死链扫描 —— **死链即 Bug** |
 

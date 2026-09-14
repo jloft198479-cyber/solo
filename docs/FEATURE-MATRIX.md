@@ -44,8 +44,8 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 功能 | 状态 | 实现锚点 | 已知缺口 / 边界 |
 | --- | --- | --- | --- |
 | 新建 / 打开 / 保存 / 另存为 | ✅ | [`registry.ts`](../src/commands/registry.ts) `file.new`/`file.open`/`file.save`/`file.saveAs` → [`useDocumentSession.ts`](../src/composables/useDocumentSession.ts) | — |
-| 原子写（防写一半损坏） | ✅ | [`document.rs`](../src-tauri/src/commands/document.rs) `atomic_write`（先 `.tmp` 再 `MoveFileExW` rename） | 不做「先删后改名」，避免竞态窗口（ARCHITECTURE §11.2） |
-| 保存冲突检测（mtime） | ✅ | [`document.rs`](../src-tauri/src/commands/document.rs) `save_document` + [`useDocumentSession.ts`](../src/composables/useDocumentSession.ts) | 冲突 → 弹「强制覆盖」，非静默（§11.2） |
+| 原子写（防写一半损坏） | ✅ | [`document.rs`](../src-tauri/src/commands/document.rs) `atomic_write`（先 `.tmp` 再 `MoveFileExW` rename） | 不做「先删后改名」，避免竞态窗口（敏感区 §11.2） |
+| 保存冲突检测（mtime） | ✅ | [`document.rs`](../src-tauri/src/commands/document.rs) `save_document` + [`useDocumentSession.ts`](../src/composables/useDocumentSession.ts) | 冲突 → 弹「强制覆盖」，非静默（敏感区 §11.2） |
 | 外部修改提示 + 重载 | ✅ | [`file.ts`](../src/stores/file.ts) `reloadToken` + `App.vue` `externalFileWarning` | 同路径重载靠 `reloadToken`（KNOWN-ISSUES 一/14） |
 | 重命名（含改标题即另存） | ✅ | [`document.rs`](../src-tauri/src/commands/document.rs) `rename_file` + `handleRename` | 实际改名走 save-as 流程 |
 | 改名后同步入链文档 | ✅ | `document.rs` `sync_wikilinks_on_rename`（`dry_run` 预览 → 用户确认 → 原子改写） | **仅同目录、裸名与 `.md`**；手打的 `[[子/文]]`、`[[x.markdown]]` 不覆盖；缩进/行内代码不保护（§二 一/23 已知限制） |
@@ -55,7 +55,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 阅读位置记忆 | ⛔ | 无 | 无任何 scroll 恢复代码 |
 | 拖 `.md` 进窗口打开 | ✅ | [`events.ts`](../src/services/tauri/events.ts) `Set<DragDropHandler>` 广播 | KNOWN-ISSUES 一/2 已修（原单值变量被覆盖） |
 | Windows 文件关联（右键新建） | ✅ | [`desktop.rs`](../src-tauri/src/commands/desktop.rs) `register_shell_new` | 需在设置「保存策略」里手动开启 |
-| 扩展名白名单（读 md/markdown/txt，写多 json） | ✅ | `document.rs` `validate_document_extension` + `lib.rs` `supported_open_path` | **新增可编辑类型须两处同改**（§11.4）。`json` 是给主题模板导出复用的 |
+| 扩展名白名单（读 md/markdown/txt，写多 json） | ✅ | `document.rs` `validate_document_extension` + `lib.rs` `supported_open_path` | **新增可编辑类型须两处同改**（敏感区 §11.4）。`json` 是给主题模板导出复用的 |
 
 > **核查要点**：开两个窗口改同一文件 → 应弹冲突/外部修改提示，不许静默覆盖；崩一次看同目录是否有 `.tmp` 且在 1h 后被清。
 
@@ -95,7 +95,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | mark 定界符「后开先关」契约 | ✅ | [`serializer.ts`](../src/components/Editor/tiptap/markdown/serializer.ts) `renderMarks` | 一/26 已修，`roundtrip.spec.ts` Phase E 12 条锁死。**改 renderMarks 前必读** |
 | 标题 1–6 / 普通段落 | ✅ | [`semantic-heading.ts`](../src/components/Editor/tiptap/extensions/semantic-heading.ts) + `registry.ts` | 自定义 heading 替代 StarterKit 内置 |
 | 链接 + Ctrl 单击打开 | ✅ | [`link-open.ts`](../src/components/Editor/tiptap/extensions/link-open.ts) | 一/17 已修（曾是 PM 4px 门控 + 光标语义矛盾）；非 http/https/mailto 会提示 |
-| 列表：无序 / 有序 / 任务 / 嵌套 / 同层混排 | ✅ | [`parser.ts`](../src/components/Editor/tiptap/markdown/parser.ts) `areAllTopLevelItemsTasks` + `editor-extensions.ts` `BulletList`/`OrderedList` content 放开 | 一/10 已修（曾是**数据丢失级**，整段消失含有序任务列表）。**改列表 schema/parser 前必读 §11 敏感区 #15** |
+| 列表：无序 / 有序 / 任务 / 嵌套 / 同层混排 | ✅ | [`parser.ts`](../src/components/Editor/tiptap/markdown/parser.ts) `areAllTopLevelItemsTasks` + `editor-extensions.ts` `BulletList`/`OrderedList` content 放开 | 一/10 已修（曾是**数据丢失级**，整段消失含有序任务列表）。**改列表 schema/parser 前必读 敏感区 #15** |
 | 引用块 | ✅ | StarterKit `blockquote` + [`serializer.ts`](../src/components/Editor/tiptap/markdown/serializer.ts) `state.createChild()` | 一/11 已修（内层 state 曾丢 clipboard 标记，粘出去多出 `\$`） |
 | 代码块（语法高亮 + 语言标签） | ✅ | [`code-block.ts`](../src/components/Editor/tiptap/extensions/code-block.ts) | 高亮色走主题 token，禁止外部配色 |
 | 表格（GFM 管道） | ✅ | [`table.ts`](../src/components/Editor/tiptap/extensions/table.ts) + `registry.ts` `editor.table*` | 拖拽列宽**不持久**（§二 #6，GFM 无列宽语义） |
@@ -120,7 +120,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 表格节点（自定义 4 件套） | ✅ | `CustomTable` / `Row` / `Header` / `Cell` | 与 `table.ts` 配套 |
 | 语义标题 | ✅ | `semantic-heading.ts` | — |
 | 占位符（空文档提示） | ✅ | `Placeholder.configure` | — |
-| 删除 callout / 公式 / 图表整块 | ✅ | 三个 NodeView 的 `destroy()` + `AbortController` | 一/10（NodeView 泄漏）已修；**新增 NodeView 必须成对清理**（§11.7） |
+| 删除 callout / 公式 / 图表整块 | ✅ | 三个 NodeView 的 `destroy()` + `AbortController` | 一/10（NodeView 泄漏）已修；**新增 NodeView 必须成对清理**（敏感区 §11.7） |
 
 > **核查要点**：12 类 callout 逐一切换看配色是否真的不同（一/20 就是这么漏掉的）；Mermaid 里写中文标签看是否报错提示。
 
@@ -136,7 +136,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 7 款字体 + 按需下载 | ✅ | [`fonts.ts`](../src/constants/fonts.ts) + [`fontLoader.ts`](../src/services/fontLoader.ts) | `fileName` 有值=下载型；`undefined`=系统字体 |
 | 字体加载双通道 | ✅ | `fontLoader.ts` `registerFontViaCss`（asset:// 首选）→ `readFontBytes`（字节兜底） | 一/7 已修 CORS 静默拦截；**永不删兜底通道** |
 | 编辑器与导出共用字体栈 | ✅ | [`fontStack.ts`](../src/utils/fontStack.ts) `buildFontStack` | 真理源自一处 |
-| 全格式色走主题 token | ✅ | [`types.ts`](../src/themes/types.ts) `CSS_VAR_MAP`（68 字段） | §11.6 硬规矩：hljs / mermaid / KaTeX 颜色也须走 token，禁止硬编码 |
+| 全格式色走主题 token | ✅ | [`types.ts`](../src/themes/types.ts) `CSS_VAR_MAP`（68 字段） | 敏感区 §11.6 硬规矩：hljs / mermaid / KaTeX 颜色也须走 token，禁止硬编码 |
 | 主题切换过渡动效 | ✅ | `.theme-transitioning` 200ms + 编辑区 220ms 淡入 | `prefers-reduced-motion` 需自行核对 |
 
 > **核查要点**：新建自定义主题只许写「性格差异」字段，共享值必须走 `SHARED_LIGHT/DARK_COLORS`；切换主题后状态栏「未保存」指示色也要跟着变（历史 bug：`--dirty-color` 漏登记）。
@@ -165,7 +165,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 状态栏复制按钮 | ✅ | [`StatusbarQuickActions.vue`](../src/components/StatusbarQuickActions.vue) | 实际写**双槽**：`text/plain` = Markdown 源码、`text/html` = 渲染富文本。UI `title` 却写「复制 Markdown」，ARCHITECTURE 称「复制为 HTML」→ 口径不一（附录 B-4） |
 | 表格跨格 / 单元格复制 | ✅ | `MarkdownEditor.vue` `onEditorCopy` + `serializer.ts` `stripOpenLayers` | 一/16 已修：压平为 TSV + 逐行 `<p>` |
 | solo → solo 粘贴保真 | ✅ | 走各扩展 `parseHTML` + `text/html`，**不依赖 text/plain** | — |
-| 文件落盘 vs 剪贴板两套转义 | ✅ | `serializer.ts` `escapeInline` 按 `clipboard` 标记分流 | **故意不同，别互相「修正」**；嵌套序列化必须 `state.createChild()`（§11.8） |
+| 文件落盘 vs 剪贴板两套转义 | ✅ | `serializer.ts` `escapeInline` 按 `clipboard` 标记分流 | **故意不同，别互相「修正」**；嵌套序列化必须 `state.createChild()`（敏感区 §11.8） |
 | 打印 / PDF 导出 | ⛔ | 全仓无实现（`src/` 无 print 调用、Rust 菜单无该项） | v1.2.18 随导出系统整块删除（§三 设计取舍）。⚠️ wiki 与 TROUBLESHOOTING 仍写「菜单『打印』」→ 已失效，见附录 B-3 |
 | 导出系统（HTML/PDF/微信 / `buildExportTree`） | ⛔ | 已删（净删 ~2500 行） | 替代品＝状态栏复制按钮 + 命令面板 `edit.copyAsMarkdown` |
 
@@ -182,7 +182,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 标题栏自动隐藏 | ✅ | `settings.titlebarAutoHide` | 编辑器偏好页可关 |
 | 窗口尺寸/位置/最大化记忆 | ✅ | tauri-plugin-window-state | — |
 | 全屏 | ✅ | `registry.ts` `view.fullscreen`（`F11`） | — |
-| 启动开打竞态（CLI / OS open / 新窗口） | ✅ | [`state.rs`](../src-tauri/src/state.rs) 五类 managed state + `lib.rs` `startup_ready` | 五类：`StartupOpenRequests`/`PendingWindowPaths`/`LoadedWindows`/`FocusedWindow`/`CloseGuard`（关窗看门狗）。**动事件顺序前必读 §11.5** |
+| 启动开打竞态（CLI / OS open / 新窗口） | ✅ | [`state.rs`](../src-tauri/src/state.rs) 五类 managed state + `lib.rs` `startup_ready` | 五类：`StartupOpenRequests`/`PendingWindowPaths`/`LoadedWindows`/`FocusedWindow`/`CloseGuard`（关窗看门狗）。**动事件顺序前必读敏感区 §11.5** |
 | 菜单事件定向到焦点窗口 | ✅ | `menu.rs` + `FocusedWindow` | 防多窗口重复执行同一菜单动作 |
 | 启动诊断日志 | ✅ | `lib.rs` `reveal_startup_open_log` + 菜单「打开启动诊断日志」 | 写 `startup-open.log` |
 | 错误边界（编辑器崩溃不白屏） | ✅ | [`ErrorBoundary.vue`](../src/components/Layout/ErrorBoundary.vue) | ⚠️ 是双根 fragment，布局 class 必须由外层 `div.editor-area` 承载（豁免 IME 相关的历史坑） |
@@ -227,7 +227,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | fuzz 种子化 + 结构块生成 | ✅ | [`fuzz.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/fuzz.spec.ts) | `FUZZ_SEED` 可覆盖，失败报文带种子可原样重放 |
 | CommonMark 652 条收敛 | ⚠️ | [`commonmark.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/commonmark.spec.ts) | **只验收敛，不是保真防线**（收敛 ≠ 不丢）；`list` 类 SKIP 最多 |
 | schema 正向契约锁 | ✅ | [`schema-contract.spec.ts`](../src/components/Editor/tiptap/__tests__/schema-contract.spec.ts) | 防「约束被一致地改错」；差异集变化即红。`compat-schema.ts` 已删（死代码） |
-| NodeView 清理回归锁 | ✅ | [`nodeview-destroy.spec.ts`](../src/components/Editor/tiptap/extensions/__tests__/nodeview-destroy.spec.ts) | 配套 §11.7 的 `AbortController` 套路 |
+| NodeView 清理回归锁 | ✅ | [`nodeview-destroy.spec.ts`](../src/components/Editor/tiptap/extensions/__tests__/nodeview-destroy.spec.ts) | 配套敏感区 §11.7 的 `AbortController` 套路 |
 | 剪贴板序列化回归锁 | ✅ | [`clipboard-serializer.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/clipboard-serializer.spec.ts) | 含「开口 slice 剥层」7 条 |
 | 脏态基线回归锁 | ✅ | [`baseline-dirty.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/baseline-dirty.spec.ts) + [`file.spec.ts`](../src/stores/__tests__/file.spec.ts) | A1 语义比对的护栏 |
 | 测试策略（免责声明 + 覆盖缺口） | ⚠️ | — | **§二 #12**：机制层已修（fixtures 补「重开等价」、fuzz 补结构块），但 GFM 扩展语法仍缺规范级用例 |
@@ -235,7 +235,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 改 parser/serializer 三步闸门 | ✅ | 纪律见 [`AGENTS.md`](../AGENTS.md) | `bun run test` + `vue-tsc --noEmit` + `bun run build` |
 | Rust 改动闸门 | ✅ | 纪律见 [`BUILD_GUIDE.md`](../BUILD_GUIDE.md) | 本机缺 MSVC 时 `cargo check` 不能跳，**CI 是最终闸门** |
 
-> **核查要点**：任何「改 X 必查 Y」的联动矩阵见 [`AGENTS.md`](../AGENTS.md) §5；bug 易发区见 [`ARCHITECTURE.md`](../ARCHITECTURE.md) §11 速查表（条目数以该表实际为准）。
+> **核查要点**：任何「改 X 必查 Y」的联动矩阵见 [`AGENTS.md`](../AGENTS.md) §5；bug 易发区见 [`docs/sensitive-areas.md`](./sensitive-areas.md)（条目数以该表实际为准）。
 
 ---
 
@@ -294,7 +294,7 @@ Rust 侧（本机缺 MSVC 时不能跳过，CI 是最终闸门）与全部命令
 
 ## See also
 
-- [架构真相地图](../ARCHITECTURE.md)（§11 敏感区 16 条）
+- [架构真相地图](../ARCHITECTURE.md)（敏感区速查表）
 - [已知问题与技术债](./KNOWN-ISSUES.md)
 - [文档索引](./INDEX.md) · [接手指南](./HANDOVER.md)
 - [项目工作手册](../AGENTS.md)
