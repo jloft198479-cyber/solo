@@ -197,6 +197,8 @@ const { executeCommand } = useCommandDispatcher({
   toggleFocusMode: () => settingsStore.toggleFocusMode(),
   showAbout,
   toggleFullscreen: windowSession.toggleFullscreen,
+  toggleOutline: toggleOutline,
+  toggleCommandPalette: togglePalette,
   handleQuit: windowSession.handleQuit,
 });
 
@@ -211,8 +213,6 @@ useAppDomEvents({
     isFullscreenPreview.value = false;
   },
   toggleFocusMode: () => settingsStore.toggleFocusMode(),
-  toggleOutline: toggleOutline,
-  toggleCommandPalette: togglePalette,
   showImagePasteWarning: (msg) => message(msg, { title: '粘贴图片', kind: 'warning' }),
   resetViewMode: resetToEditor,
 });

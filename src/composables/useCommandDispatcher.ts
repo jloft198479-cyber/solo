@@ -22,6 +22,8 @@ export interface CommandDispatcherOptions {
   toggleFocusMode: () => void | Promise<void>;
   showAbout: () => void | Promise<void>;
   toggleFullscreen: () => void | Promise<void>;
+  toggleOutline: () => void;
+  toggleCommandPalette: () => void;
   handleQuit: () => void | Promise<void>;
 }
 
@@ -86,6 +88,12 @@ export function useCommandDispatcher(options: CommandDispatcherOptions) {
         return true;
       case 'view.fullscreen':
         await options.toggleFullscreen();
+        return true;
+      case 'view.toggleOutline':
+        options.toggleOutline();
+        return true;
+      case 'view.commandPalette':
+        options.toggleCommandPalette();
         return true;
       case 'settings.open':
         options.openSettings();

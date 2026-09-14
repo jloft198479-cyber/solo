@@ -53,7 +53,7 @@
       <button
         class="titlebar-btn titlebar-outline-btn"
         :class="{ 'titlebar-outline-btn--active': props.outlineOpen }"
-        title="大纲 (Ctrl+/)"
+        :title="outlineTitle"
         @click="emit('toggleOutline')"
       >
         <svg class="outline-list-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
@@ -86,6 +86,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref } from 'vue';
+import { formatShortcutDisplay, getCommand, getShortcut } from '../../commands/registry';
 
 const props = defineProps<{
   title: string;
@@ -112,6 +113,13 @@ const isEditingTitle = ref(false);
 const titleInputRef = ref<HTMLInputElement | null>(null);
 const titleInputValue = ref('');
 let hoverTimer: ReturnType<typeof setTimeout> | null = null;
+
+// 提示文案从命令注册表派生，不再手抄键位（真理源：commands/registry.ts）
+const outlineTitle = computed(() => {
+  const command = getCommand('view.toggleOutline');
+  const shortcut = command ? getShortcut(command) : null;
+  return shortcut ? `大纲 (${formatShortcutDisplay(shortcut)})` : '大纲';
+});
 
 // 鼠标离开后延迟隐藏标题栏，避免边缘抖动导致频繁显隐
 const TITLEBAR_HIDE_DELAY_MS = 300;
