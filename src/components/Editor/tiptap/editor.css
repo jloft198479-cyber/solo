@@ -1263,58 +1263,6 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   /* 暗色背景下的 SVG 自带浅色填充（克隆自编辑器已渲染 SVG），无需额外处理 */
 }
 
-/* ── Typora 风格内联源码提示 ─────────────────────────────────── */
-.mk-syntax-hint {
-  font-family: var(--font-mono);
-  font-size: 0.85em;
-  color: var(--muted-color);
-  opacity: 0.7;
-  user-select: none;
-  pointer-events: none;
-}
-
-.mk-deco-bold {
-  color: var(--primary-color);
-  opacity: 0.6;
-}
-
-.mk-deco-italic {
-  color: var(--primary-color);
-  opacity: 0.6;
-  font-style: normal;
-}
-
-.mk-deco-strike {
-  color: var(--muted-color);
-  text-decoration: none;
-}
-
-.mk-deco-code {
-  color: var(--info-color);
-  opacity: 0.7;
-}
-
-.mk-deco-highlight {
-  color: var(--warning-color);
-  opacity: 0.7;
-}
-
-.mk-deco-sup,
-.mk-deco-sub {
-  color: var(--muted-color);
-  opacity: 0.6;
-  vertical-align: baseline;
-  font-size: 0.85em;
-}
-
-.mk-deco-heading {
-  color: var(--muted-color);
-  opacity: 0.5;
-  font-weight: normal;
-  font-size: 0.6em;
-  vertical-align: baseline;
-}
-
 /* ── Wikilink ────────────────────────────────────────────────── */
 .tiptap-editor .mk-wikilink {
   color: var(--primary-color);
@@ -1454,40 +1402,6 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   white-space: nowrap;
 }
 
-/* ── 拖拽手柄 ────────────────────────────────────────────────── */
-.mk-drag-handle {
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  cursor: grab;
-  color: var(--muted-color);
-  opacity: 0;
-  transition:
-    opacity var(--motion-fast),
-    background-color var(--motion-fast);
-  z-index: 50;
-}
-
-.mk-drag-handle:hover {
-  opacity: 1;
-  background-color: var(--hover-bg);
-  color: var(--text-color);
-}
-
-.tiptap-editor:hover ~ .mk-drag-handle,
-.mk-editor:hover .mk-drag-handle {
-  opacity: 0.4;
-}
-
-.mk-drag-handle--dragging {
-  opacity: 0.8;
-  cursor: grabbing;
-}
-
 /* ── Footnote ──────────────────────────────────────────────── */
 .tiptap-editor sup[data-footnote-ref] {
   font-size: 0.75em;
@@ -1504,16 +1418,6 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
 .tiptap-editor [data-footnote-def] {
   margin: 4px 0;
   line-height: 1.6;
-}
-
-.mk-drop-indicator {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background-color: var(--primary-color);
-  border-radius: 1px;
-  pointer-events: none;
 }
 
 /* ── 焦点写作模式：段落聚焦 ───────────────────────────────── */
