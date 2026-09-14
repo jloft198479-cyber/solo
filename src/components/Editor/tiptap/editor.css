@@ -1174,44 +1174,6 @@ html.doc-heavy .tiptap-editor > hr {
   padding: 2px 0;
 }
 
-.tiptap-editor .mk-frontmatter-row {
-  line-height: 1.7;
-}
-
-.tiptap-editor .mk-frontmatter-key {
-  color: var(--primary-color);
-  font-weight: 500;
-}
-
-.tiptap-editor .mk-frontmatter-value {
-  color: var(--text-color);
-}
-
-.tiptap-editor .mk-frontmatter-empty {
-  color: var(--muted-color);
-  font-style: italic;
-}
-
-.tiptap-editor .mk-frontmatter-edit {
-  padding: 0;
-}
-
-.tiptap-editor .mk-frontmatter-textarea {
-  width: 100%;
-  min-height: 60px;
-  padding: 8px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.6;
-  background-color: var(--code-bg);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  outline: none;
-  resize: vertical;
-  margin-top: 4px;
-}
-
 /* ── Mermaid SVG 主题适配 ──────────────────────────────────── */
 .tiptap-editor .mk-mermaid-render svg {
   max-width: 100%;
