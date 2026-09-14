@@ -19,6 +19,8 @@ function createDispatcher() {
   const toggleFocusMode = vi.fn();
   const showAbout = vi.fn();
   const toggleFullscreen = vi.fn();
+  const toggleOutline = vi.fn();
+  const toggleCommandPalette = vi.fn();
   const handleQuit = vi.fn();
 
   const activeViewMode = ref<'editor' | 'image'>('editor');
@@ -38,6 +40,8 @@ function createDispatcher() {
     toggleFocusMode,
     showAbout,
     toggleFullscreen,
+    toggleOutline,
+    toggleCommandPalette,
     handleQuit,
   });
 
@@ -55,6 +59,8 @@ function createDispatcher() {
       toggleFocusMode,
       showAbout,
       toggleFullscreen,
+      toggleOutline,
+      toggleCommandPalette,
       handleQuit,
     },
     state: {
@@ -94,6 +100,16 @@ describe('useCommandDispatcher', () => {
     expect(spies.toggleFocusMode).toHaveBeenCalled();
   });
 
+  it('routes 大纲 / 命令面板 through the same registry-driven path', async () => {
+    const { dispatcher, spies } = createDispatcher();
+
+    await expect(dispatcher.executeCommand('view.toggleOutline', 'shortcut')).resolves.toBe(true);
+    expect(spies.toggleOutline).toHaveBeenCalled();
+
+    await expect(dispatcher.executeCommand('view.commandPalette', 'shortcut')).resolves.toBe(true);
+    expect(spies.toggleCommandPalette).toHaveBeenCalled();
+  });
+
   it('routes 复制为 Markdown to the editor, and blocks it outside editor view', async () => {
     const { dispatcher, spies, state } = createDispatcher();
     spies.editorExecute.mockReturnValue(true);
@@ -126,6 +142,8 @@ describe('useCommandDispatcher', () => {
     expect(spies.openSearch).toHaveBeenCalledWith(true);
     expect(spies.toggleFocusMode).toHaveBeenCalled();
     expect(spies.toggleFullscreen).toHaveBeenCalled();
+    expect(spies.toggleOutline).toHaveBeenCalled();
+    expect(spies.toggleCommandPalette).toHaveBeenCalled();
     expect(spies.openSettings).toHaveBeenCalled();
     expect(spies.showAbout).toHaveBeenCalled();
     expect(spies.handleQuit).toHaveBeenCalled();

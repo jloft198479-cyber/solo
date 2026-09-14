@@ -1,7 +1,6 @@
 import type { Ref } from 'vue';
 import { onMounted, onUnmounted } from 'vue';
 import type { CommandDefinition } from '../commands/registry';
-import { eventToKeyString } from '../commands/registry';
 
 export interface AppDomEventsOptions {
   activeViewMode: Ref<'editor' | 'image'>;
@@ -15,8 +14,6 @@ export interface AppDomEventsOptions {
   executeCommand: (commandId: string, source: 'shortcut') => Promise<boolean>;
   clearFullscreenPreview: () => void;
   toggleFocusMode: () => void | Promise<void>;
-  toggleOutline: () => void;
-  toggleCommandPalette: () => void;
   showImagePasteWarning: (message: string) => void;
   resetViewMode?: () => void;
 }
@@ -50,20 +47,8 @@ export function useAppDomEvents(options: AppDomEventsOptions) {
       return;
     }
 
-    // 大纲开合：Ctrl+/（Mod-/）。独立于命令注册表，固定快捷键。
-    if (eventToKeyString(event) === 'Mod-/') {
-      event.preventDefault();
-      options.toggleOutline();
-      return;
-    }
-
-    // 命令面板唤起：Ctrl+K（Mod-k）。固定快捷键。
-    if (eventToKeyString(event) === 'Mod-k') {
-      event.preventDefault();
-      options.toggleCommandPalette();
-      return;
-    }
-
+    // 全局快捷键统一查命令注册表（键位真理源：registry.ts）。
+    // 不在此处硬编码键位——硬编码会与注册表形成「改一处漏一处」的漂移。
     const command = options.findCommandByShortcut(event, options.customShortcuts());
     if (command) {
       // 编辑器内置快捷键由 ProseMirror 处理，跳过避免重复触发

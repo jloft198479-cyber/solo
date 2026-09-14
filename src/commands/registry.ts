@@ -25,6 +25,8 @@ export interface CommandDefinition {
   defaultShortcut?: string;
   menuSection?: MenuSection;
   palette?: boolean;
+  /** 键位固定，不进「可自定义快捷键」列表（防自锁：入口键被改坏后无从恢复） */
+  fixedShortcut?: boolean;
 }
 
 export interface ShortcutCommand extends CommandDefinition {
@@ -396,6 +398,27 @@ export const COMMANDS: CommandDefinition[] = [
     palette: true,
   },
   {
+    id: 'view.toggleOutline',
+    title: '大纲',
+    description: '切换大纲面板',
+    scope: 'app',
+    group: 'view',
+    defaultShortcut: 'Mod-/',
+    palette: true,
+  },
+  {
+    id: 'view.commandPalette',
+    title: '命令面板',
+    description: '打开命令面板',
+    scope: 'app',
+    group: 'view',
+    defaultShortcut: 'Mod-k',
+    // 不进命令面板（本就在面板里，无需自我列举）
+    palette: false,
+    // 入口键固定：改坏后用户没有别的入口把面板找回来
+    fixedShortcut: true,
+  },
+  {
     id: 'settings.open',
     title: '打开设置',
     description: '打开应用设置',
@@ -457,6 +480,8 @@ export function getShortcutGroups(customShortcuts: Record<string, string> = {}) 
   const groups = new Map<CommandGroup, ShortcutCommand[]>();
 
   for (const command of getShortcutCommands(customShortcuts)) {
+    // 键位固定的命令不进「可自定义」列表；但仍在 getShortcutCommands 中参与冲突检测
+    if (command.fixedShortcut) continue;
     const current = groups.get(command.group) ?? [];
     current.push(command);
     groups.set(command.group, current);
