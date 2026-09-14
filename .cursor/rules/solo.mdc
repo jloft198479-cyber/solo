@@ -1,0 +1,11 @@
+---
+description: solo 项目规则入口 —— 指向仓库根目录的 AGENTS.md
+globs:
+alwaysApply: true
+---
+
+solo 项目的全部规则（🚫 禁令清单 · 📍 真理源地图 · ⚠️ 敏感区索引 · ✅ 工作流与验收等级）都在仓库根目录的 `AGENTS.md`。
+
+**动手前必读 `AGENTS.md`。**
+
+本规则只做指路，不复制内容 —— 规则的单一真理源是 `AGENTS.md`，在此重复一遍就等于制造第二份会过期的副本。

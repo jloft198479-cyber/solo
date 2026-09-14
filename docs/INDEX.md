@@ -27,6 +27,8 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`ARCHITECTURE.md`](../ARCHITECTURE.md)                | core    | dev/agent | active | 架构真相：技术栈版本/命令清单/目录树/§11 敏感区速查表             |
 | [`BUILD_GUIDE.md`](../BUILD_GUIDE.md)                  | core    | dev       | active | 构建手册真理源：工具链/环境变量/编译命令/故障排查                 |
 | [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md)           | guide   | user      | active | 用户侧运行时故障排查（症状→修法）                                 |
+| [`CLAUDE.md`](../CLAUDE.md)                            | guide   | agent     | active | Agent 入口指路牌（Claude Code）：仅指向 AGENTS.md，不复制规则内容 |
+| [`.cursor/rules/solo.mdc`](../.cursor/rules/solo.mdc)  | guide   | agent     | active | Agent 入口指路牌（Cursor）：仅指向 AGENTS.md，不复制规则内容      |
 
 ### docs/ 核心真理源
 
