@@ -37,6 +37,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`CHANGELOG.md`](./CHANGELOG.md)             | core  | maintainer | active | 版本变更史（唯一真理源，由真实 git log 整理） |
 | [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md) | core  | maintainer | active | 发版流程真理源：Phase 定义/回滚/故障处理      |
 | [`HANDOVER.md`](./HANDOVER.md)               | guide | agent      | active | 接手入口：30 秒定位 + 真理源文件表 + 环境搭建 |
+| [`FEATURE-MATRIX.md`](./FEATURE-MATRIX.md)             | core  | agent      | active | 功能全表：逐项功能 × 实现锚点 × 状态 × 缺口（供 Agent 核查完善程度） |
 
 ### docs/ 指南与决策
 
@@ -111,6 +112,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | 代码结构 / 命令清单 / 敏感区 | `ARCHITECTURE.md`（§11 速查表）                                                                                   |
 | 怎么编译 / 环境怎么配        | `BUILD_GUIDE.md`                                                                                                  |
 | 有什么已知坑 / 待办          | `docs/KNOWN-ISSUES.md`                                                                                            |
+| 有哪些功能 / 各做到什么程度  | `docs/FEATURE-MATRIX.md` → `docs/KNOWN-ISSUES.md`                                                                 |
 | 怎么调 bug                   | `docs/debugging.md` → `TROUBLESHOOTING.md`（用户侧）                                                              |
 | 怎么发版                     | `docs/PLAYBOOK.md` → `docs/RELEASE_PROCESS.md` → `docs/PUBLISH_GUIDE.md`（实操）/ `docs/发布流程科普*.md`（原理） |
 | 字体 / 主题 / 排版           | `docs/font-handling.md` → `docs/ui-typography-eval.md` → `ARCHITECTURE.md`                                        |

@@ -427,12 +427,6 @@ currentFile: { path, content, isDirty, lastModifiedTime, displayName, originalBa
 - **主题回退**：`ensureThemeId()` 在主题 id 失效时按当前外观回退到 `scholar-dark`/`default-light`。
 - **启动两阶段**（见 `App.vue` `onMounted`）：`initThemeOnly`（只读 `activeThemeId` 并 `applyCurrentTheme`，不触发 watcher，避免黑闪）→ `initFull`（读全部设置 + focusMode，版本不符则回写）。`startWatchers` 精确 watch 13 个顶层字段 + `activeThemeId` watcher（重注入 CSS）+ focusMode watcher。
 
-- **持久化**：tauri-plugin-store（经 `services/tauri/store.ts`）。焦点模式用 `focus-mode` class（`<html>` 上 toggle）。
-- **迁移**：`configVersion`（当前 **12**）。加载时若存储的版本 ≠ 当前版本 → 规范化后**回写**，一次性升级。
-- **防抖写入**：设置变更后 300ms 防抖落盘。
-- **`normalizeSettings()`**：合并默认值 + 强制 `autoSaveInterval ≥ 5s` + 刷版本号。
-- **主题回退**：`ensureThemeId()` 在主题 id 失效时按当前外观回退到 `scholar-dark`/`default-light`。
-
 ---
 
 ## 8. 编辑器核心
@@ -532,9 +526,9 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 支持自定义主题 CRUD、导入导出、旧格式（light/dark 双色文件）迁移（`importTheme` 兼容现代与 legacy）。`applyTheme` 附带 `.theme-transitioning` 200ms + 编辑区 `triggerContentCrossfade` 220ms 淡入 + 透传到 localStorage `solo-theme-paint`。
 
-### 10.2 复制为 HTML（v1.2.18 减法重构后）
+### 10.2 状态栏复制按钮（v1.2.18 减法重构后）
 
-> 原导出系统（HTML/PDF/微信，独立 IR 层 `buildExportTree` + HTML/Wechat 渲染器 + `wechat-themes.ts`）已于 v1.2.18 删除（净删 ~2500 行）。现以状态栏 Copy 按钮（`StatusbarQuickActions.vue`）替代：调用 `utils/markdown-to-html.ts::renderMarkdown` 生成富文本 HTML，写入剪贴板 `ClipboardItem({'text/html': ...})`。字体栈仍走 `buildFontStack` 与编辑器共享。
+> 原导出系统（HTML/PDF/微信，独立 IR 层 `buildExportTree` + HTML/Wechat 渲染器 + `wechat-themes.ts`）已于 v1.2.18 删除（净删 ~2500 行）。现以状态栏 Copy 按钮（`StatusbarQuickActions.vue`）替代，写**双槽**剪贴板：`text/plain` = Markdown 源码（`serializer.serializeClipboardText`），`text/html` = 富文本（`utils/markdown-to-html.ts::renderMarkdown`）。字体栈仍走 `buildFontStack` 与编辑器共享。
 
 ### 10.3 字体系统
 
@@ -719,7 +713,7 @@ destroy() {
 | 字体栈分散 | **已收口**到 `fontStack.ts::buildFontStack`，编辑器+导出共享 |
 | 序列化防抖 300ms | **实际分层**：150ms（字数）/ 100ms（光标）/ 500ms（大纲+序列化），见 §8.2 / §6.3 |
 | Rust 命令 ~20 个 | 旧数量已过时；**当前命令数以 `lib.rs::generate_handler!` 为唯一真相源，勿在文档硬编码**（§4.2） |
-| 快捷键表 / 发布清单列有「导出 HTML / PDF / 微信」 | **已移除**（v1.2.18）。复制为 HTML 用状态栏「复制为 HTML」按钮，无导出命令；`utils/export/` 整个目录已删除 |
+| 快捷键表 / 发布清单列有「导出 HTML / PDF / 微信」 | **已移除**（v1.2.18）。复制走状态栏按钮（双槽：`text/plain` = Markdown 源码 + `text/html` = 富文本，见 §10.2），无导出命令；`utils/export/` 整个目录已删除 |
 | 脏态用 `setContent` + `markUserEdit` 双函数（按 hasUserEdit 标志判定） | **A1 重构**：改为 `setContent`（仅基线）+ `syncEditedContent`（语义比对唯一真相源），`hasUserEdit`/`markUserEdit` 已废弃，见 §7.1 / §11.1 |
 | composables 10 个 / `utils/shortcuts.ts` 存在 | **实际 12 个**；`utils/shortcuts.ts` **已删除**（registry 内联 `getShortcut`/`getShortcutCommands`） |
 | `services/tauri/` 含 `event-names.ts`/`webview.ts`/`opener.ts`/`os.ts`/`window-state.ts` | **均不存在**。实际 11 个文件：`client`/`command-names`/`document`/`window`/`dialog`/`clipboard`/`events`/`font`/`asset`/`update`/`store`，见 §3 / §5.3 |

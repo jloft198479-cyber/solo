@@ -52,9 +52,9 @@ updates: [src-tauri/src/commands/document.rs, src-tauri/nsis-hooks.nsh, BUILD_GU
 **触发条件**：窗口已显示但一直未激活（如被 Windows 前景锁压制）。
 **解决**：单击编辑器区域空白处即可触发 `lazyInitEditor`。
 
-### 5. 编辑器工具栏「导出 PDF」按钮名称成了「打印」
+### 5. 找不到「打印 / 导出 PDF」入口
 
-**设计如此**：v1.2.0+ 已将名称修改为「打印」，因为实际调用的是浏览器打印功能而非真正的 PDF 生成。
+**设计如此**：打印与导出系统已于 v1.2.18 整体移除，当前版本没有打印菜单或导出 PDF 按钮。需要 PDF 时可按 `Ctrl+Shift+M` 复制 Markdown 源码，粘贴到 Typora / VS Code 等工具导出。
 
 ## 窗口/进程问题
 
