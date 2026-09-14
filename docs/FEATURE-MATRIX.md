@@ -77,8 +77,8 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 查找 / 替换 | ✅ | [`useEditorSearch.ts`](../src/components/Editor/tiptap/useEditorSearch.ts) + [`SearchPanel.vue`](../src/components/Editor/views/SearchPanel.vue) + [`search-highlight.ts`](../src/components/Editor/tiptap/extensions/search-highlight.ts) | 快捷键是 `Mod-f`/`Mod-h`（wiki 写 `Mod-g` 是错的，附录 B-2） |
 | 焦点模式 | ✅ | [`paragraph-focus.ts`](../src/components/Editor/tiptap/extensions/paragraph-focus.ts) + `<html>.focus-mode` | 非当前段落整体变淡；组字期装饰只平移不重建（一/15） |
 | 字数统计（含大文档降级） | ✅ | [`editor-metadata.ts`](../src/components/Editor/tiptap/editor-metadata.ts) + `App.vue` `degradedWordCountTitle` | 150ms 防抖；大文档显示 `≈` 前缀 |
-| 大纲面板 | ✅ | [`useOutline.ts`](../src/composables/useOutline.ts) + [`OutlinePanel.vue`](../src/components/Editor/OutlinePanel.vue) | `Ctrl+/` 开合（固定键位，未进 registry） |
-| 命令面板 | ✅ | [`CommandPalette.vue`](../src/components/CommandPalette.vue) | `Ctrl+K`（固定键位，未进 registry）；**无「最近文件」分组**（§二 #4） |
+| 大纲面板 | ✅ | [`useOutline.ts`](../src/composables/useOutline.ts) + [`OutlinePanel.vue`](../src/components/Editor/OutlinePanel.vue) | `Mod+/` 开合（`view.toggleOutline`，**可在设置自定义**） |
+| 命令面板 | ✅ | [`CommandPalette.vue`](../src/components/CommandPalette.vue) | `Mod+K`（`view.commandPalette`，`fixedShortcut` **不可自定义**）；**无「最近文件」分组**（§二 #4） |
 | 上下文菜单 | ✅ | [`ContextMenu.vue`](../src/components/Editor/views/ContextMenu.vue) | — |
 | 特殊块整体删除（`Mod+Backspace`） | ✅ | [`code-block.ts`](../src/components/Editor/tiptap/extensions/code-block.ts) / `math-block.ts` / `mermaid-block.ts` | 隔离区，标准退格不删块 |
 
@@ -235,7 +235,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 改 parser/serializer 三步闸门 | ✅ | 纪律见 [`AGENTS.md`](../AGENTS.md) | `bun run test` + `vue-tsc --noEmit` + `bun run build` |
 | Rust 改动闸门 | ✅ | 纪律见 [`BUILD_GUIDE.md`](../BUILD_GUIDE.md) | 本机缺 MSVC 时 `cargo check` 不能跳，**CI 是最终闸门** |
 
-> **核查要点**：任何「改 X 必查 Y」的联动矩阵见 [`AGENTS.md`](../AGENTS.md) §七；bug 易发区 16 条见 [`ARCHITECTURE.md`](../ARCHITECTURE.md) §11。
+> **核查要点**：任何「改 X 必查 Y」的联动矩阵见 [`AGENTS.md`](../AGENTS.md) §5；bug 易发区见 [`ARCHITECTURE.md`](../ARCHITECTURE.md) §11 速查表（条目数以该表实际为准）。
 
 ---
 
@@ -274,12 +274,12 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 2 | `wiki/快捷键速查.md` / `wiki/编辑器功能指南.md` / `wiki/快速上手.md`：查找 `Mod+G`、替换 `Mod+Shift+G` | `registry.ts:350/360`：`Mod-f` / `Mod-h`（代码注释明确写了「旧默认 Mod-g 与跳转行心智冲突」） | 🟡 中：用户按键无效，文档三处同错 |
 | 3 | `wiki/编辑器功能指南.md`「菜单『打印』」、`docs/TROUBLESHOOTING.md §5`「工具栏『导出 PDF』改名『打印』」 | **全仓无打印实现**（`src/` 无 print、Rust 菜单无该项）；v1.2.18 已连导出系统一起删 | 🟡 中：文档描述不存在的功能，用户会去找 | 
 | 4 | 状态栏按钮 `title="复制 Markdown"`；`ARCHITECTURE.md §10.2` 称「复制为 HTML」 | `StatusbarQuickActions.vue` 实际写双槽：`text/plain` = Markdown 源码 + `text/html` = 渲染富文本 | 🟢 低：三处口径不一，易误判行为 |
-| 5 | `wiki/快捷键速查.md` 声称「全部默认快捷键」 | 漏了三个**固定键位**：`Ctrl+K`（命令面板）、`Ctrl+/`（大纲）、`Mod+Backspace`（删特殊块）——它们定义在 `useAppDomEvents.ts` / NodeView，**不在 registry** | 🟢 低：但会误导「改 registry 即改全部快捷键」的认知 |
+| 5 | `wiki/快捷键速查.md` 声称「全部默认快捷键」 | 仅剩 `Mod+Backspace`（删特殊块）定义在块组件内（不在 registry）；**大纲 / 命令面板已于 2026-09-14 收编进 registry** | 🟢 低 |
 | 6 | `README.md` / `wiki/Home.md`：「618 pass / 34 design constraints」（硬编码测试数） | `KNOWN-ISSUES §二 #3` 明令**任何文档不要再硬编码测试数**，统一写「以 `bun run test` 为准」 | 🟢 低：违反自身纪律，数字必然漂移 |
 | 7 | `ARCHITECTURE.md §7.2`：「持久化 / 迁移 / 防抖写入 / `normalizeSettings` / 主题回退」段落**重复出现两遍** | 同一份文档内重复 | 🟢 低：文档冗余 |
 | 8 | `registry.ts` `help.diagnostics` 描述：「在 **Finder** 中定位冷启动诊断日志」 | `reveal_startup_open_log` 走系统文件管理器；Windows 用户看到 macOS 文案 | 🟢 低：文案残留 |
 
-> 修法纪律：文档与代码不符，**改文档**（除非代码确实错）。改完按 [`AGENTS.md`](../AGENTS.md) §七 跑死链扫描。
+> 修法纪律：文档与代码不符，**改文档**（除非代码确实错）。改完按 [`AGENTS.md`](../AGENTS.md) §5 跑死链扫描。
 
 ## 附录 C：核查常用命令
 

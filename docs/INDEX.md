@@ -11,8 +11,8 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 # docs/INDEX.md — 文档索引与术语表
 
 > 接手者第一站（`HANDOVER.md`）之外的「地图」。所有文档按受众/状态列清，废弃项显式标出。
-> **frontmatter 标准定义见 `AGENTS.md` 文档管理规范 §六**；本文是每份文档 tag/摘要的落地清单。
-> **修改联动规则见 `AGENTS.md` §七**（改 X 必查 Y 矩阵）。
+> **frontmatter 标准定义见 [`DOC-STANDARD.md`](./DOC-STANDARD.md)**；本文是每份文档 tag/摘要的落地清单。
+> **修改联动规则见 [`AGENTS.md`](../AGENTS.md) §5**（改 X 必查 Y 矩阵）。
 
 ## 文档地图（全量，含 tag/摘要）
 
@@ -22,8 +22,8 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 
 | 路径                                                   | type    | 受众      | 状态   | tag / 摘要                                                        |
 | ------------------------------------------------------ | ------- | --------- | ------ | ----------------------------------------------------------------- |
-| [`README.md`](../README.md)（+ zh-CN / ja-JP / ko-KR） | product | user      | active | 产品导览：介绍、安装、dev 起步。4 语言本地化，AGENTS §二 确认保留 |
-| [`AGENTS.md`](../AGENTS.md)                            | core    | agent     | active | 工作手册：纪律 + 文档地图 + frontmatter/联动规范 + 历史经验沉淀   |
+| [`README.md`](../README.md)（+ zh-CN / ja-JP / ko-KR） | product | user      | active | 产品导览：介绍、安装、dev 起步。4 语言本地化，DOC-STANDARD §二 确认保留 |
+| [`AGENTS.md`](../AGENTS.md)                            | core    | agent     | active | Agent 契约：禁令清单 + 真理源地图 + 敏感区索引 + 工作流 + 协作方式 |
 | [`ARCHITECTURE.md`](../ARCHITECTURE.md)                | core    | dev/agent | active | 架构真相：技术栈版本/命令清单/目录树/§11 敏感区速查表             |
 | [`BUILD_GUIDE.md`](../BUILD_GUIDE.md)                  | core    | dev       | active | 构建手册真理源：工具链/环境变量/编译命令/故障排查                 |
 | [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md)           | guide   | user      | active | 用户侧运行时故障排查（症状→修法）                                 |
@@ -38,6 +38,8 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md) | core  | maintainer | active | 发版流程真理源：Phase 定义/回滚/故障处理      |
 | [`HANDOVER.md`](./HANDOVER.md)               | guide | agent      | active | 接手入口：30 秒定位 + 真理源文件表 + 环境搭建 |
 | [`FEATURE-MATRIX.md`](./FEATURE-MATRIX.md)             | core  | agent      | active | 功能全表：逐项功能 × 实现锚点 × 状态 × 缺口（供 Agent 核查完善程度） |
+| [`DOC-STANDARD.md`](./DOC-STANDARD.md)                 | core  | agent      | active | 文档规范真理源：SSOT/DRY/减文件/死链即 Bug/frontmatter 字段标准      |
+| [`LESSONS.md`](./LESSONS.md)                           | guide | agent      | active | 踩坑方法论库：从历史事故提炼的可复用思维模式（按模式聚类，索引台账） |
 
 ### docs/ 指南与决策
 
@@ -71,10 +73,10 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`optimization-plan-2026-09-06.md`](./archive/optimization-plan-2026-09-06.md)        | archive   | maintainer       | archive  | 全面审查优化方案：30 条发现（已逐条核实，交互/兼容/性能）+ P0-P3 分批路线图（**执行待拍板**，已归档） |
 | [`project-plan-2026-08-29.md`](./archive/project-plan-2026-08-29.md)                  | archive   | maintainer       | archive  | 产品演进建议清单（**非强制任务**，逐项可执行可不执行，已归档）            |
 | [`solo互链方案-2026-09-11.md`](./solo互链方案-2026-09-11.md)                  | archive   | maintainer/agent | archive  | 互链一期方案（v5 定稿，已实施）：修 `[[`/`![` + 拖入即在落点成链（含审核收口） |
-| [`执行记录-互链方案-2026-09-11.md`](./执行记录-互链方案-2026-09-11.md)        | archive   | maintainer       | active   | 互链一期执行/自检/回滚记录（执行人 qianwen；含落点收口补记；拖拽坐标待真机验证）  |
-| [`执行记录-剪贴板纯文本范式-2026-09-12.md`](./执行记录-剪贴板纯文本范式-2026-09-12.md) | archive | maintainer | active | 剪贴板范式改造执行记录：复制默认改「干净纯文本」+ 显式源码入口；决策依据/证据链/回滚点/残余风险/评审清单（**供第三方评审**） |
-| [`solo深度审查报告-2026-09-11.md`](./solo深度审查报告-2026-09-11.md)          | archive   | maintainer       | active   | 四层只读审查（渲染/交互/速度/结构）：8 条发现 + 逐条处置记录（5 修 3 缓）        |
-| [`architecture-review-2026-09-12.md`](./architecture-review-2026-09-12.md)   | archive   | maintainer       | active   | 核心逻辑与结构架构审查：四维度结论（清晰度/稳定性/灵活性/扩展性）+ P0-P2 建议（待拍板） |
+| [`执行记录-互链方案-2026-09-11.md`](./执行记录-互链方案-2026-09-11.md)        | archive   | maintainer       | archive  | 互链一期执行/自检/回滚记录（执行人 qianwen；含落点收口补记；拖拽坐标待真机验证 → 未结项见 KNOWN-ISSUES §二 #9） |
+| [`执行记录-剪贴板纯文本范式-2026-09-12.md`](./执行记录-剪贴板纯文本范式-2026-09-12.md) | archive | maintainer | archive | 剪贴板范式改造执行记录：复制默认改「干净纯文本」+ 显式源码入口；决策依据/证据链/回滚点/残余风险/评审清单（**供第三方评审**） |
+| [`solo深度审查报告-2026-09-11.md`](./solo深度审查报告-2026-09-11.md)          | archive   | maintainer       | archive  | 四层只读审查（渲染/交互/速度/结构）：8 条发现 + 逐条处置记录（5 修 3 缓）        |
+| [`architecture-review-2026-09-12.md`](./architecture-review-2026-09-12.md)   | proposal  | maintainer       | active   | 核心逻辑与结构架构审查：四维度结论（清晰度/稳定性/灵活性/扩展性）+ P0-P2 建议（待拍板） |
 | [`solo互链改名同步方案-2026-09-11.md`](./archive/solo互链改名同步方案-2026-09-11.md)  | archive   | maintainer/agent | archive  | 互链改名同步方案：改文件名后同步指向本文档的 `[[链接]]`（同目录、先列清单确认再原子改写），**代码已随 v1.2.53 落地** |
 | [`solo-tour.html`](./solo-tour.html)                                         | product   | user             | active   | 产品功能导览 HTML 页（非 md，无 frontmatter）                            |
 
@@ -103,7 +105,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 
 ## 文档联动表（快速查询）
 
-> 完整矩阵与纪律见 `AGENTS.md` §七。此处为「想了解 X → 读哪份」的入口级速查。
+> 完整矩阵与纪律见 `AGENTS.md` §5。此处为「想了解 X → 读哪份」的入口级速查。
 
 | 想了解                       | 先读                                                                                                              |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -112,6 +114,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | 代码结构 / 命令清单 / 敏感区 | `ARCHITECTURE.md`（§11 速查表）                                                                                   |
 | 怎么编译 / 环境怎么配        | `BUILD_GUIDE.md`                                                                                                  |
 | 有什么已知坑 / 待办          | `docs/KNOWN-ISSUES.md`                                                                                            |
+| 同类坑怎么想 / 踩坑方法论     | `docs/LESSONS.md`（思维模式）→ `AGENTS.md` §1（禁令清单）                                                          |
 | 有哪些功能 / 各做到什么程度  | `docs/FEATURE-MATRIX.md` → `docs/KNOWN-ISSUES.md`                                                                 |
 | 怎么调 bug                   | `docs/debugging.md` → `TROUBLESHOOTING.md`（用户侧）                                                              |
 | 怎么发版                     | `docs/PLAYBOOK.md` → `docs/RELEASE_PROCESS.md` → `docs/PUBLISH_GUIDE.md`（实操）/ `docs/发布流程科普*.md`（原理） |
@@ -133,7 +136,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | 规范化基线         | 编辑器加载后立即序列化写回 store，消除 parser/serializer 归一化差异导致的假脏态。                                                                                                                                                                  |
 | 启动开打竞态       | 前端未 ready 就收到开文件请求；两层缓冲兜底（`PendingWindowPaths` + `StartupOpenRequests`，[`state.rs`](../src-tauri/src/state.rs) + [`lib.rs`](../src-tauri/src/lib.rs)，详见架构 §11.5）。                                                          |
 | 多窗口进程模型     | 每 `.md` 独立进程（v1.2.5+），关最后一窗默认不退出。                                                                                                                                                                                               |
-| 主题色彩映射       | [`src/themes/types.ts`](../src/themes/types.ts)`::CSS_VAR_MAP`，68 个颜色字段 → CSS 变量。                                                                                                                                                         |
-| 防抖分层           | 统计 50ms / 光标 100ms / 序列化 500ms，刻意分离。                                                                                                                                                                                                  |
+| 主题色彩映射       | [`src/themes/types.ts`](../src/themes/types.ts)`::CSS_VAR_MAP`，主题颜色 token 全量映射 → CSS 变量（**数量以 `CSS_VAR_MAP` 实际为准，勿硬编码**）。                                                                                                  |
+| 防抖分层           | 字数 150ms / 光标 100ms / 大纲 500ms / 序列化 500ms，刻意分离（见 [`useEditorSync.ts`](../src/composables/useEditorSync.ts)）。                                                                                                                                 |
 | Markdown 保真      | 解析/序列化精确还原，不丢数据、不引入隐形字符。                                                                                                                                                                                                    |
 | asset:// 字体首选  | 2026-08-14 起字体用 CSS `@font-face` + asset URL（不走 CORS）为首选，`readFontBytes` 字节通道为兜底（`fontLoader.ts::registerFontViaCss`）。                                                                                                       |
