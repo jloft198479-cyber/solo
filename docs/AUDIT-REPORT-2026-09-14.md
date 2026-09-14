@@ -87,7 +87,7 @@ stores 之间零互引、composables 之间零互引（全靠 App.vue 组装）�
 | 1 | **composables→components 层级环**（5 处反向 import） | `useEditorSync.ts:9-11`、`useDocumentSession.ts:20`、`useAppWindowSession.ts:5`、`useAppEditorState.ts:4`、`useFloatingListMenu.ts:2`——所引 `editor-metadata`/`document-scale`/`serializer`/`wikilink-drop`/`editor-extensions` 实为**无 UI 领域工具，放错目录** | **P1**：新建 `src/editor-core/`（或并入 utils）收编这 5 个无 UI 模块，components 保留纯 .vue+扩展，层环变单向 DAG。改动机械（挪文件+改 import），需全量回归 |
 | 2 | **`document-scale.ts` 全局可变单例**被 6 个异层模块读写 | `document-scale.ts:24`（shallowRef）；`App.vue:34`、`useDocumentSession.ts:20`、`useEditorSync.ts:11`、`code-block.ts:17`、`paragraph-focus.ts:7`、`useEditorSearch.ts:4` | **P2**：收编进 file store 或经参数注入，消除「谁都能改档位」的隐式全局态 |
 | 3 | **MarkdownEditor.vue 多职责**（832 行 / 41 imports） | 编辑器宿主 + 9 路菜单编排 + **wikilink 业务执行**（`:184-219` 直接调 `saveDocument`/`getFileMtime` 建档写文件）+ 命令门面（`:801`） | **P2**：wikilink 打开/建档业务下沉 `useDocumentSession`；组件只留宿主+编排 |
-| 4 | **命令默认键位双份事实** | editor 作用域命令实际由 PM 内置 keymap 生效，`registry.defaultShortcut` 只服务展示/菜单/面板（`registry.ts:368-371` 注释 + `useAppDomEvents.ts:71-77` 的跳过逻辑为弥合分叉而存在）；另有 3 个注册表外固定键（`Ctrl+K`/`Ctrl+/`/`Escape`） | **P3（文档化即可）**：在 registry 头注释声明「editor 命令行为真理源 = PM keymap，defaultShortcut 仅展示」；固定键位已在 wiki 登记 |
+| 4 | **命令默认键位双份事实** | editor 作用域命令实际由 PM 内置 keymap 生效，`registry.defaultShortcut` 只服务展示/菜单/面板（`registry.ts:368-371` 注释 + `useAppDomEvents.ts:71-77` 的跳过逻辑为弥合分叉而存在）；**原另有 3 个注册表外固定键（`Ctrl+K`/`Ctrl+/`/`Escape`）——其中 `Ctrl+K` / `Ctrl+/` 已于 2026-09-14 收编进 registry（`fixedShortcut` 标记），仅 `Escape` 仍由 `useAppDomEvents` 直接处理** | **P3（文档化即可）**：在 registry 头注释声明「editor 命令行为真理源 = PM keymap，defaultShortcut 仅展示」 |
 | 5 | **useDocumentSession(505 行) / settings store(430 行) 多职责** | 前者 7 类流程（打开/保存/另存/改名+互链/自动保存/冲突/外部修改）；后者 schema+持久化+主题应用+置顶+焦点模式 | **P2**：按「会话 / 改名互链 / 自动保存」拆 composable；settings 拆出主题应用 |
 
 Rust 侧整体健康（main/lib 分界清晰、5 个 managed state 消费方固定、菜单事件定向分发）。两个小刺：`image.rs:1` 横向引用 `document.rs` 内部 `mime_to_extension`（应提到共享模块）；4 个命令定义滞留 `lib.rs`（`startup_ready`/`new_editor_window`/`refresh_native_menu_shortcuts`/`detect_proxy_for_update`/`reveal_startup_open_log`，应归位 commands/）。
@@ -137,7 +137,7 @@ WYSIWYG、大纲面板、焦点模式（solo 为段落级，Typora 为行/块级
 
 1. `wiki/快速上手.md` / `wiki/图片与文档管理.md` / `wiki/常见问题FAQ.md`——「2 秒自动保存」→ 实情（默认关 / 设置开启 / 30s / 下限 5s）×3
 2. `README.md:41` / `README.zh-CN.md:41`——auto-save 从开箱特性改为「可选（默认关闭）」×2
-3. `wiki/快捷键速查.md`——查找 `Mod+G`→`Mod+F`、替换 `Mod+Shift+G`→`Mod+H`；补 3 个固定键位（`Ctrl+K`/`Ctrl+/`/`Mod+Backspace` 指引）；`updates` 登记 `useAppDomEvents.ts`
+3. `wiki/快捷键速查.md`——查找 `Mod+G`→`Mod+F`、替换 `Mod+Shift+G`→`Mod+H`；补固定键位指引。**〔2026-09-14 已完成〕** 且 `Mod+K` / `Mod+/` 已收编进 registry，`updates` 只登记 `registry.ts`
 4. `wiki/编辑器功能指南.md`——快捷键同步修正；焦点模式删打印从句；「复制为 HTML」改为双槽事实；「菜单打印」改为「已移除 + 替代路径」
 5. `docs/TROUBLESHOOTING.md` §5——「导出 PDF 改名打印」失效条目改写为「打印/导出已移除 + 替代路径」
 6. `ARCHITECTURE.md`——§7.2 重复段落去重；§10.2 标题与正文改「状态栏复制按钮（双槽）」；§12 对照表行同步
