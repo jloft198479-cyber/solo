@@ -26,6 +26,9 @@ function isEmptyParagraph(node: PMNode): boolean {
   return node.type.name === 'paragraph' && node.childCount === 0;
 }
 
+/** 三种列表容器（嵌套紧凑度判定用，见 renderContent） */
+const LIST_NODE_NAMES = new Set(['bulletList', 'orderedList', 'taskList']);
+
 export class MarkdownSerializerState {
   /**
    * 输出分片。**刻意不累加字符串**：V8 的 `+=` 只生成惰性 ConsString（绳结），
@@ -35,9 +38,16 @@ export class MarkdownSerializerState {
    */
   private chunks: string[] = [];
   private closed: PMNode | null = null;
-  private inTightList = false;
-  /** 嵌套列表每层项的缩进贡献栈（替代固定 3 空格计数，见 renderList） */
-  private listIndentStack: number[] = [];
+  /**
+   * 续行缩进列数（列表项内为项内容列）。
+   *
+   * 列表项的**续行**必须缩进到项内容列，否则块会脱出列表——
+   * 例：`- 项一\n\n  ```\n  代码\n  ``` ` 若不缩进，代码块落到第 0 列，
+   * 重开变成「列表 → 代码块 → 列表」三个平级块，且**二次不收敛**（每次保存都在变）。
+   * 缩进量取项 marker 的内容列宽（`- ` → 2、`10. ` → 4），与 CommonMark 一致；
+   * 实测缩进到内容列即留在项内，无需额外多缩（见 fixtures lists.md）。
+   */
+  private lineIndent = 0;
   readonly clipboard: boolean;
 
   constructor(options?: { clipboard?: boolean }) {
@@ -94,10 +104,37 @@ export class MarkdownSerializerState {
     return new MarkdownSerializerState({ clipboard: this.clipboard });
   }
 
-  /** 写入文本 */
+  /** 是否处于行首（供续行缩进判定；只看末尾一个字符，O(1)） */
+  private atLineStart(): boolean {
+    const tail = this.tailOf(1);
+    return tail === '' || tail === '\n';
+  }
+
+  /**
+   * 写入文本。行首自动补 `lineIndent` 缩进（文本内含换行时**每行**都补）——
+   * 这是「列表项内的块留在项内」的唯一机制，块序列化器无需各自关心缩进。
+   *
+   * 空行不补（避免行尾空格）。`lineIndent === 0`（绝大多数场景）走原路径，零额外开销。
+   */
   write(text: string) {
     this.flushClose();
-    if (text) this.chunks.push(text);
+    if (!text) return;
+    if (this.lineIndent <= 0) {
+      this.chunks.push(text);
+      return;
+    }
+    const atStart = this.atLineStart();
+    // 常见路径：不在行首、且文本不含换行 ⇒ 无需补缩进，跳过 split/join
+    if (!atStart && !text.includes('\n')) {
+      this.chunks.push(text);
+      return;
+    }
+    const pad = ' '.repeat(this.lineIndent);
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      if ((i === 0 ? atStart : true) && lines[i]) lines[i] = pad + lines[i];
+    }
+    this.chunks.push(lines.join('\n'));
   }
 
   /** 写入一行（末尾加换行） */
@@ -371,11 +408,18 @@ export class MarkdownSerializerState {
     // `paragraph block*` 约束），不跳过就会写出 `-  \n\n# 标题`，把列表拆散。
     // 独块的空段落不跳：那是 `- ` 这类真实的空列表项。
     const skipLeadingEmpty = parent.childCount > 1 && isEmptyParagraph(parent.child(0));
+    // 列表项内「文本块 → 子列表」用单换行（紧凑嵌套）。此前一律插空行，后果有两层：
+    // ① 列表被读成 loose（外部渲染留白变化）；② 每次保存都把文件重写一遍。
+    // CommonMark 实测：子列表缩进到项内容列即留在项内，空行并非必需。
+    // 见 fixtures 登记表 lists.md / real-world.md（修好后对应登记须删除）。
+    const tightChildList = parent.type.name === 'listItem' || parent.type.name === 'taskItem';
     let prev: PMNode | null = null;
     parent.forEach((child, _offset, index) => {
       if (skipLeadingEmpty && index === 0) return;
       if (prev && child.isBlock) {
         if (prev.type.name === 'horizontalRule' && child.type.name === 'horizontalRule') {
+          this.ensureNewline();
+        } else if (tightChildList && LIST_NODE_NAMES.has(child.type.name)) {
           this.ensureNewline();
         } else {
           this.blankLine();
@@ -392,25 +436,20 @@ export class MarkdownSerializerState {
     getDelim: (index: number, node: PMNode) => string,
     itemIndentWidth?: (delim: string) => number,
   ) {
-    const prevTight = this.inTightList;
-    this.inTightList = true;
-    // 本层列表项 marker 的基础缩进 = 祖先各层项的缩进贡献之和（B4：
-    // 嵌套列表缩进按祖先 marker 实际宽度对齐，有序列表第 10 项起 `10. ` 宽 4，
-    // 固定 3 空格会让子列表脱离父项变成文档级列表）
-    const baseIndent = this.listIndentStack.reduce((sum, w) => sum + w, 0);
-    const indent = ' '.repeat(baseIndent);
     node.forEach((child, _offset, index) => {
       if (index > 0) this.ensureNewline();
       const delim = getDelim(index, child);
-      this.write(indent + delim);
-      // 本项的缩进贡献：marker 内容列（≥3 维持既有落盘字节不变；task 列表的
-      // checkbox 属于内容，marker 实际是 '- '，由 itemIndentWidth 特判）
+      // marker 行的缩进由 write 按外层 lineIndent 补（不再自己拼空格串）
+      this.write(delim);
+      // 本项内容列 = 外层缩进 + marker 宽度。marker 宽度即项内容的起始列：
+      // `- ` → 2、`1. ` → 3、`10. ` → 4（有序列表第 10 项起变宽，固定值会让
+      // 子列表脱出父项）；task 项的勾选框属内容，由 itemIndentWidth 特判为 2。
       const width = itemIndentWidth ? itemIndentWidth(delim) : delim.length;
-      this.listIndentStack.push(Math.max(3, width));
+      const prevIndent = this.lineIndent;
+      this.lineIndent = prevIndent + width;
       this.renderContent(child);
-      this.listIndentStack.pop();
+      this.lineIndent = prevIndent;
     });
-    this.inTightList = prevTight;
   }
 }
 

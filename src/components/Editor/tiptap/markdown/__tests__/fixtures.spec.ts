@@ -46,9 +46,12 @@ const KNOWN_FIDELITY_GAPS: Record<string, { kind: 'LOSS' | 'FORMAT'; note: strin
   'footnotes.md': { kind: 'FORMAT', note: '脚注定义位置重排 + 插空行' },
   'lists.md': {
     kind: 'FORMAT',
-    note: '嵌套子列表缩进归一为 3 空格（原 2）+ 父项后插空行；混排整段丢失已修（#10）',
+    note: '松散列表的项间空行被移除（归一为紧凑；schema 不存 tightness，方向不可两全）。嵌套缩进 3→内容列、父项后插空行已于 2026-09-15 修复',
   },
-  'real-world.md': { kind: 'FORMAT', note: '嵌套列表 tight → loose（父项后插空行）' },
+  'real-world.md': {
+    kind: 'FORMAT',
+    note: '松散嵌套列表被归一为紧凑（项间空行移除）。原「tight → loose 插空行」已于 2026-09-15 修复',
+  },
   'table.md': { kind: 'FORMAT', note: '表格分隔线宽度与单元格对齐空格规整化' },
 };
 

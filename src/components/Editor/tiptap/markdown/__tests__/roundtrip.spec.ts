@@ -815,19 +815,75 @@ describe('Round-trip: parse → serialize', () => {
         expect(roundTrip(out)).toBe(normalize(out));
       });
 
-      it('第 1-9 项的子列表缩进维持 3 空格不变', () => {
-        // 多块列表项序列化为 loose 形式（块间空行）是既有行为，此处只锁缩进
-        expect(roundTrip('1. 项1\n   - 子项\n')).toBe(
-          normalize('1. 项1\n\n   - 子项\n'),
-        );
+      it('第 1-9 项的子列表缩进按 marker 宽度（3）对齐，项内紧凑不插空行', () => {
+        // 2026-09-15：不再插空行。插空行会把列表读成 loose（外部渲染留白变化），
+        // 且「每次保存都重写文件」——子列表缩进到项内容列即留在项内，空行并非必需。
+        const src = '1. 项1\n   - 子项\n';
+        const out = roundTrip(src);
+        expect(out).toBe(normalize(src));
+        // 落盘产物重新解析，子列表仍在父项内（结构断言，比字节断言更抗格式微调）
+        const doc = parseMarkdown(createTestSchema(), out);
+        const item = doc.firstChild?.firstChild;
+        expect(item?.childCount).toBe(2);
+        expect(item?.lastChild?.type.name).toBe('bulletList');
       });
 
-      it('bullet / task 列表的子列表缩进维持现状（3 空格）', () => {
-        expect(roundTrip('- 项\n   - 子项\n')).toBe(normalize('- 项\n\n   - 子项\n'));
-        expect(roundTrip('- [x] 任务\n   - 子项\n')).toBe(
-          normalize('- [x] 任务\n\n   - 子项\n'),
-        );
+      it('bullet / task 列表的子列表缩进按内容列（2）对齐，项内紧凑不插空行', () => {
+        // task 项的勾选框属内容，marker 实际是 `- `（宽 2），故缩进同样为 2
+        for (const src of ['- 项\n  - 子项\n', '- [x] 任务\n  - 子项\n']) {
+          const out = roundTrip(src);
+          expect(out).toBe(normalize(src));
+          const doc = parseMarkdown(createTestSchema(), out);
+          const item = doc.firstChild?.firstChild;
+          expect(item?.childCount).toBe(2);
+          expect(item?.lastChild?.type.name).toBe('bulletList');
+        }
       });
+    });
+
+    // 列表项内嵌块（2026-09-15 修）：此前项内容不缩进 ⇒ 代码块/引用/表格/图片/分隔线
+    // 缩进被拍平、脱出列表变成平级块，且**二次不收敛**（每次保存文件都在变）。
+    // 首轮快照对比：修复前 10 个「项内嵌块」场景全部块结构漂移 + 不收敛，修复后全清零。
+    describe('列表项内嵌块：留在项内 + 双向收敛', () => {
+      const F = '```';
+      const cases: Record<string, string[]> = {
+        '代码块（紧贴）': ['- 项一', '  ' + F, '  代码', '  ' + F, '- 项二'],
+        '代码块（空行分隔）': ['- 项一', '', '  ' + F, '  代码', '  ' + F, '', '- 项二'],
+        '多行代码块（内部含空行）': [
+          '- 项一',
+          '',
+          '  ' + F + 'js',
+          '  const a = 1;',
+          '',
+          '  const b = 2;',
+          '  ' + F,
+          '',
+          '- 项二',
+        ],
+        引用块: ['- 项一', '', '  > 引用内容', '', '- 项二'],
+        项内两段落: ['- 第一段', '', '  第二段', '- 下一项'],
+        分隔线: ['- 项一', '', '  ---', '', '- 项二'],
+        图片: ['- 项一', '', '  ![alt](img.png)', '', '- 项二'],
+        表格: ['- 项一', '', '  | a | b |', '  | --- | --- |', '  | 1 | 2 |', '', '- 项二'],
+      };
+
+      for (const [name, lines] of Object.entries(cases)) {
+        it(`${name}：重开后仍包在同一个列表里，且二次收敛`, () => {
+          const schema = createTestSchema();
+          const md = lines.join('\n') + '\n';
+          const out = roundTrip(md);
+
+          // ① 块没脱出：整篇只有 1 个顶层块，且它就是这个列表
+          const doc = parseMarkdown(schema, out);
+          expect(doc.childCount, `块脱出列表：${JSON.stringify(out)}`).toBe(1);
+          expect(doc.firstChild?.type.name).toBe('bulletList');
+          expect(doc.firstChild?.childCount).toBe(2);
+          // ② 第二项仍是列表项（未被拍平成平级块）
+          expect(doc.firstChild?.lastChild?.type.name).toBe('listItem');
+          // ③ 二次收敛：再保存一次不再变化
+          expect(roundTrip(out)).toBe(out);
+        });
+      }
     });
 
     // B6：行内代码首尾空格
