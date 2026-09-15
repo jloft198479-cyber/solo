@@ -248,6 +248,14 @@ export function createIncrementalLowlightPlugin(
   function runIdleSweep() {
     sweepQueued = false;
     if (destroyed || !view || view.isDestroyed) return;
+    // 组字期间绝不下发新装饰：合并会 remove+add 改动正在组字的 <code> DOM，
+    // 正是组字冻结要防的（见 composition-freeze 铁律：新增 decoration 必须走它）。
+    // 此处**在计算之前**判定——dispatch 同步执行，其间不会有 composition 事件插入，
+    // 故「判完即算、算完即发」对冻结状态是原子的。推迟到组字结束后重排。
+    if (tracker.isFrozen()) {
+      queueSweep();
+      return;
+    }
     const doc = view.state.doc;
     const pending = collectPendingBlocks(doc, name, highlighted);
     if (pending.length === 0) return;

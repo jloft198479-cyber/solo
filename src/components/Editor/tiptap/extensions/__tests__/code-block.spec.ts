@@ -368,4 +368,30 @@ describe('createIncrementalLowlightPlugin 打开时分批高亮', () => {
     await drainIdle();
     expect(coveredBlocks(view.state.doc, plugin.getState(view.state))).toBe(BLOCKS);
   });
+
+  it('组字期间空转：空闲补算不下发新装饰，组字结束后自动补齐（IME 防御）', async () => {
+    const schema = createTestSchema();
+    const doc = makeDoc(BLOCKS);
+    const plugin = createIncrementalLowlightPlugin('codeBlock', null, testLowlight);
+    const state = EditorState.create({ schema, doc, plugins: [plugin] });
+    view = new EditorView(mount!, { state });
+
+    const initialDetects = autoSpy.mock.calls.length; // init 的 8 次
+    // 模拟浏览器组字中
+    let browserComposing = true;
+    Object.defineProperty(view, 'composing', {
+      configurable: true,
+      get: () => browserComposing,
+    });
+
+    // 组字期间排空空闲队列：补算必须整体推迟（合并装饰会改动组字中的 <code> DOM）
+    await drainIdle();
+    expect(autoSpy.mock.calls.length).toBe(initialDetects);
+    expect(coveredBlocks(view.state.doc, plugin.getState(view.state))).toBe(INITIAL_LIMIT);
+
+    // 组字结束后：推迟的补算自动接上，最终全覆盖
+    browserComposing = false;
+    await drainIdle();
+    expect(coveredBlocks(view.state.doc, plugin.getState(view.state))).toBe(BLOCKS);
+  });
 });
