@@ -29,6 +29,32 @@ function isEmptyParagraph(node: PMNode): boolean {
 /** 三种列表容器（嵌套紧凑度判定用，见 renderContent） */
 const LIST_NODE_NAMES = new Set(['bulletList', 'orderedList', 'taskList']);
 
+/**
+ * 本块文本里哪些「成对触发」的字符必须转义。
+ *
+ * 判据来自实测（markdown-it commonmark + sub/sup/mark/texmath，html:false）：
+ *  - `x^2`（单个 ^）→ 纯文本；`a^b^c`（成对）→ 上标 ⇒ 计数 ≥2 才需转义
+ *  - `价格 $5`（单个 $）→ 纯文本；`$x$`（成对）→ 行内公式 ⇒ 计数 ≥2 才需转义
+ *  - `a == b`（一处 `==`）→ 纯文本；两处 `==` 才会被读成高亮 ⇒ `==` 出现 ≥2 次才需转义
+ *
+ * 单块内计算一次（renderInline 入口），供该块所有文本节点共用。
+ */
+function computePairEscape(text: string): { caret: boolean; equals: boolean; dollar: boolean } {
+  let caret = 0;
+  let dollar = 0;
+  let eqRuns = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '^') caret++;
+    else if (c === '$') dollar++;
+    else if (c === '=' && text[i + 1] === '=') {
+      eqRuns++;
+      i++;
+    }
+  }
+  return { caret: caret >= 2, equals: eqRuns >= 2, dollar: dollar >= 2 };
+}
+
 export class MarkdownSerializerState {
   /**
    * 输出分片。**刻意不累加字符串**：V8 的 `+=` 只生成惰性 ConsString（绳结），
@@ -48,6 +74,10 @@ export class MarkdownSerializerState {
    * 实测缩进到内容列即留在项内，无需额外多缩（见 fixtures lists.md）。
    */
   private lineIndent = 0;
+  /** 本块内需「成对」判定的字符（renderInline 入口重算一次，见 computePairEscape） */
+  private pairNeeded = { caret: false, equals: false, dollar: false };
+  /** 是否正在序列化表格单元格内容：`|` 在单元格里必须转义，否则会把单元格切开 */
+  private inTableCell = false;
   readonly clipboard: boolean;
 
   constructor(options?: { clipboard?: boolean }) {
@@ -111,6 +141,32 @@ export class MarkdownSerializerState {
   }
 
   /**
+   * 是否处于**块内容起点**——行首，或行首的列表 marker / 引用前缀之后。
+   *
+   * 为什么不能只看行首：`- \>文字` 的 `>` 紧跟在 `- ` 之后，不在「行首」，
+   * 但位置等价于块内容起点——不转义就会被读成「列表项内含引用块」，文字丢失。
+   * 旧版靠**无条件转义 `>`** 掩盖了这一点，按语境收敛后必须显式判定。
+   *
+   * 只看当前行前缀（回看 64 字符足够放下 marker + 引用前缀；超过则必是行中间）。
+   */
+  private atBlockStart(): boolean {
+    if (this.closed !== null) return true; // 前一块已关闭、换行未写出 ≡ 行首
+    const tail = this.tailOf(64);
+    const nl = tail.lastIndexOf('\n');
+    const prefix = nl >= 0 ? tail.slice(nl + 1) : tail;
+    if (prefix === '') return true;
+    // 列表 marker（可带缩进）：`- ` `* ` `+ ` `1. ` `1) `，含 task 勾选框
+    if (/^\s*(?:[-*+]|\d{1,9}[.)])\s+(?:\[[ xX]\]\s+)?$/.test(prefix)) return true;
+    // 引用前缀：`> ` / `> > ` / `>>>` 等
+    return /^\s*(?:>\s*)+$/.test(prefix);
+  }
+
+  /** 标记「接下来渲染的是表格单元格内容」⇒ `|` 参与转义（否则会把单元格切开） */
+  markTableCell() {
+    this.inTableCell = true;
+  }
+
+  /**
    * 写入文本。行首自动补 `lineIndent` 缩进（文本内含换行时**每行**都补）——
    * 这是「列表项内的块留在项内」的唯一机制，块序列化器无需各自关心缩进。
    *
@@ -170,6 +226,9 @@ export class MarkdownSerializerState {
   /** 序列化 inline 内容 */
   renderInline(parent: PMNode) {
     const codeDelims = this._precomputeCodeDelims(parent);
+    // 成对触发的转义判定按**整块文本**算（文本节点边界会切碎一对符号，
+    // 只看单节点会漏判），故在入口算一次供本块共用
+    this.pairNeeded = computePairEscape(parent.textContent);
     parent.forEach((child, _offset, index) => {
       if (child.isText) {
         this.renderMarks(child, parent, index, true, codeDelims);
@@ -372,13 +431,45 @@ export class MarkdownSerializerState {
       }
       result = result.replace(/\n([#+\-.>=])/g, '\n\\$1');
     } else {
-      // 文件保存模式：严格转义所有特殊字符，保证 roundtrip fidelity
-      //（`_` 不在此列——由 escapeUnderscores 按 intraword 例外选择性转义）
-      result = result.replace(/([`[\]()*~^=|$<>{}])/g, '\\$1');
-      if (atLineStart) {
-        result = result.replace(/^([#+\-.])/, '\\$1');
+      // 文件保存模式：**只转义「不转义就会改变解析」的字符**。
+      // 旧版无条件转义 `` ` [ ] ( ) * ~ ^ = | $ < > { } ``，后果是「首次保存即改文件」：
+      // `List<String>`→`List\<String\>`、`foo(a, b)`→`foo\(a, b\)`、`x^2`→`x\^2`。
+      // 实测（markdown-it commonmark + sub/sup/mark/texmath，html:false）逐类定性：
+      //   恒需转义：`` ` ``（代码区间）、`[`（链接/图片）、`*`（强调）、`~`（删除线/下标）
+      //   成对才需：`^` `=` `$`（单个 `x^2` / `x = 1` / `价格 $5` 都是纯文本）
+      //   视位置才需：`]` 仅链接文本内（`[a]b](u)` 会让链接失效）、`|` 仅表格单元格内
+      //   无需转义：`(` `)` `{` `}` 是字面量；`<` 仅自动链接形态需转义（见下）
+      // 剪贴板模式不在此列——它的目标是粘进微信/Word 等外部编辑器，语义不同。
+      result = result.replace(/([`[*~])/g, '\\$1');
+      if (this.pairNeeded.caret) result = result.replace(/\^/g, (m) => '\\' + m);
+      if (this.pairNeeded.equals) result = result.replace(/==/g, (m) => m.replace(/=/g, '\\='));
+      if (this.pairNeeded.dollar) result = result.replace(/\$/g, (m) => '\\' + m);
+      // `<` 只在可能被读成自动链接时转义（`<https://x>` / `<a@b.com>`）。
+      // 形如 `<String>` `<u>` 的「像标签」文本在 html:false 下是字面量，转义反而是噪音。
+      result = result.replace(/<(?=[a-zA-Z][a-zA-Z0-9+.-]*[@:])/g, '\\<');
+      // `]` 仅在链接文本内需转义：`[` 由 link mark 定界符裸写，文本里的 `]` 会提前闭合
+      if (this.activeMarks.some((m) => m.type.name === 'link')) {
+        result = result.replace(/\]/g, '\\]');
       }
-      result = result.replace(/\n([#+\-.])/g, '\n\\$1');
+      if (this.inTableCell) result = result.replace(/\|/g, '\\|');
+      // 块内容起点：块语法起始符需转义。判据是 atBlockStart()（行首 **或** 列表
+      // marker / 引用前缀之后），不是单纯行首——`- \>x` 的 `>` 紧随 marker，
+      // 漏判即被读成嵌套引用块。实测（markdown-it commonmark）修正两处旧偏差：
+      //   ① 行首单独的 `.` **不是**语法（`.text` 仍是段落）⇒ 不必转义；
+      //   ② 而「数字 + `.`/`)` + 空白」**是**有序列表（`1.` `1)` `12.` 皆然，
+      //      段首 `1. ` 可中断段落而 `- ` 不可）⇒ 旧版只转义首字符、漏了数字开头，
+      //      于是 `1\. 文字` 这类转义过的段首在保存后会被读回列表（丢结构）。
+      if (this.atBlockStart()) {
+        result = result.replace(/^([#+\->])/, '\\$1');
+        result = result.replace(/^(\d{1,9})([.)])(?=\s|$)/, '$1\\$2');
+      }
+      result = result.replace(/\n([#+\->])/g, '\n\\$1');
+      result = result.replace(/\n(\d{1,9})([.)])(?=\s|$)/g, '\n$1\\$2');
+      // 整行 `=` 是 setext 标题下划线（H1）：`bar\n===` 会被读成「bar」是一级标题。
+      // 必须与行内 `==高亮==` 的成对判定分开——`===` 只有**一个** `==` run，
+      // pairNeeded.equals 判为「不成对」而放行，但它在行首是块级语法。
+      // 判据收紧到「整行只有 `=` 与尾随空白」，避免 `= foo` 这类普通文本被误伤。
+      result = result.replace(/(^|\n)(=+)(?=[ \t]*(?:\n|$))/g, '$1\\$2');
     }
 
     // ZWNJ 仅供解析阶段使用，序列化时移除以避免污染输出
@@ -638,6 +729,7 @@ const nodeSerializers: Record<string, NodeSerializer> = {
 /** 将表格单元格节点序列化为纯文本（含 inline 标记） */
 function cellToText(state: MarkdownSerializerState, cell: PMNode): string {
   const s = state.createChild();
+  s.markTableCell();
   cell.forEach((child) => {
     if (child.type.name === 'paragraph') {
       s.renderInline(child);
