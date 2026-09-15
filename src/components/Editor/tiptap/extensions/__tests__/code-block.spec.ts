@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import { setDocumentTier } from '../../../document-scale';
+import { clearIdleRenderQueue } from '../idle-render-scheduler';
 import {
   createIncrementalLowlightPlugin,
   getCodeBlockLanguageLabel,
@@ -235,5 +236,136 @@ describe('createIncrementalLowlightPlugin 组字冻结（IME 防御）', () => {
     browserComposing = false;
     v.dispatch(v.state.tr.insertText('z', 21));
     expect(highlightSpy).toHaveBeenCalledTimes(2);
+  });
+});
+
+// 打开时的同步高亮上限 + 空闲分批补算。
+//
+// 背景：按块字符上限只解决「单个大块」；「块数多」此前仍是同步全量——
+// 未标注语言的块要跑 17 种 tokenizer（实测 1k 字 6.6ms、WebView2 ×2~3），
+// 一份从 AI 对话粘来的笔记常有 30~60 个未标注块 ⇒ 打开首帧被拖 0.3~1s。
+// 现改为：同步只跑首屏量级（8 个），其余排空闲队列逐步上色。
+describe('createIncrementalLowlightPlugin 打开时分批高亮', () => {
+  const testLowlight = createLowlight({ javascript });
+  const autoSpy = vi.spyOn(testLowlight, 'highlightAuto');
+  const highlightSpy = vi.spyOn(testLowlight, 'highlight');
+
+  const BLOCKS = 20;
+  const INITIAL_LIMIT = 8;
+
+  let view: EditorView | null = null;
+  let mount: HTMLElement | null = null;
+  const originalRic = (globalThis as unknown as { requestIdleCallback?: unknown })
+    .requestIdleCallback;
+
+  beforeEach(() => {
+    autoSpy.mockClear();
+    highlightSpy.mockClear();
+    clearIdleRenderQueue();
+    // 空闲调度器在有 requestIdleCallback 时走 rIC；测试环境改为 setTimeout 兜底，
+    // 让「等待补算完成」可确定地驱动
+    delete (globalThis as unknown as { requestIdleCallback?: unknown }).requestIdleCallback;
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+  });
+
+  afterEach(() => {
+    if (view && !view.isDestroyed) view.destroy();
+    view = null;
+    if (mount) mount.remove();
+    mount = null;
+    if (originalRic) {
+      (globalThis as unknown as { requestIdleCallback?: unknown }).requestIdleCallback =
+        originalRic;
+    }
+    clearIdleRenderQueue();
+    setDocumentTier('normal');
+  });
+
+  /** 造一篇含 n 个未标注语言代码块的文档 */
+  function makeDoc(n: number) {
+    const schema = createTestSchema();
+    const children = [schema.node('paragraph', null, schema.text('head'))];
+    for (let i = 0; i < n; i++) {
+      children.push(
+        schema.node('codeBlock', { language: null }, schema.text(`const v${i} = ${i} + 1;`)),
+      );
+    }
+    return schema.node('doc', null, children);
+  }
+
+  /** 排空空闲队列（每轮一个宏任务，够跑完若干批次） */
+  async function drainIdle(rounds = 20) {
+    for (let i = 0; i < rounds; i++) await new Promise((r) => setTimeout(r, 0));
+  }
+
+  /** 覆盖到高亮装饰的代码块数（按块范围逐个查） */
+  function coveredBlocks(doc: import('@tiptap/pm/model').Node, set: DecorationSet | undefined) {
+    let covered = 0;
+    doc.descendants((node, pos) => {
+      if (node.type.name === 'codeBlock' && (set?.find(pos, pos + node.nodeSize).length ?? 0) > 0) {
+        covered++;
+      }
+      return true;
+    });
+    return covered;
+  }
+
+  it('init 只同步高亮首屏量级：20 块文档仅跑 8 次 auto 检测', () => {
+    const schema = createTestSchema();
+    const doc = makeDoc(BLOCKS);
+    const plugin = createIncrementalLowlightPlugin('codeBlock', null, testLowlight);
+    const state = EditorState.create({ schema, doc, plugins: [plugin] });
+
+    expect(autoSpy).toHaveBeenCalledTimes(INITIAL_LIMIT);
+    expect(coveredBlocks(doc, plugin.getState(state))).toBe(INITIAL_LIMIT);
+  });
+
+  it('空闲分批补齐：最终 20 块全部上色，且总检测次数恰好 20（无重复计算）', async () => {
+    const schema = createTestSchema();
+    const doc = makeDoc(BLOCKS);
+    const plugin = createIncrementalLowlightPlugin('codeBlock', null, testLowlight);
+    const state = EditorState.create({ schema, doc, plugins: [plugin] });
+    view = new EditorView(mount!, { state });
+
+    await drainIdle();
+
+    expect(autoSpy).toHaveBeenCalledTimes(BLOCKS);
+    expect(coveredBlocks(view.state.doc, plugin.getState(view.state))).toBe(BLOCKS);
+    // 队列已排空：再等也不会有新增计算
+    await drainIdle(3);
+    expect(autoSpy).toHaveBeenCalledTimes(BLOCKS);
+  });
+
+  it('块数不超上限：一次同步跑完，行为与优化前一致（回归锁）', () => {
+    const schema = createTestSchema();
+    const doc = makeDoc(INITIAL_LIMIT);
+    const plugin = createIncrementalLowlightPlugin('codeBlock', null, testLowlight);
+    const state = EditorState.create({ schema, doc, plugins: [plugin] });
+
+    expect(autoSpy).toHaveBeenCalledTimes(INITIAL_LIMIT);
+    expect(coveredBlocks(doc, plugin.getState(state))).toBe(INITIAL_LIMIT);
+  });
+
+  it('整篇替换（文件切换）：单事务命中全部块，仍分批补算且最终完整', async () => {
+    const schema = createTestSchema();
+    const plugin = createIncrementalLowlightPlugin('codeBlock', null, testLowlight);
+    let state = EditorState.create({
+      schema,
+      doc: schema.node('doc', null, [schema.node('paragraph', null, schema.text('a'))]),
+      plugins: [plugin],
+    });
+    view = new EditorView(mount!, { state });
+
+    autoSpy.mockClear();
+    // 整篇替换：变更区间覆盖全文 ⇒ affected 收集到全部代码块
+    const big = makeDoc(BLOCKS);
+    state = state.apply(state.tr.replaceWith(0, state.doc.content.size, big.content));
+    view.updateState(state);
+
+    expect(autoSpy).toHaveBeenCalledTimes(INITIAL_LIMIT);
+
+    await drainIdle();
+    expect(coveredBlocks(view.state.doc, plugin.getState(view.state))).toBe(BLOCKS);
   });
 });

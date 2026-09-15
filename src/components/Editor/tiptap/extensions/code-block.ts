@@ -14,8 +14,10 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import type { EditorView } from '@tiptap/pm/view';
 import { isHeavyDocument } from '../../document-scale';
 import { createCompositionTracker } from '../composition-freeze';
+import { scheduleIdleRender } from './idle-render-scheduler';
 import { createLowlight } from 'lowlight';
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
@@ -46,6 +48,34 @@ let lowlightInstance: ReturnType<typeof createLowlight> | null = null;
  * 超过上限即不高亮：它只是配色装饰，不值得让「在大代码块里敲一个字」付出几十毫秒。
  */
 const AUTO_DETECT_MAX_CHARS = 3000;
+
+/**
+ * 打开时**同步**高亮的代码块数上限，其余走空闲分批补算。
+ *
+ * 为什么需要：按块字符上限只解决了「单个大块」，没解决「块数多」——
+ * 未标注语言的块要跑 17 种 tokenizer，实测（Node）1k 字 6.6ms / 3k 字 16.6ms，
+ * WebView2 约 ×2~3。一份从 AI 对话粘来的笔记常有 30~60 个未标注代码块，
+ * 首屏同步跑完就是 0.3~1s 全砸在打开那一刻。
+ *
+ * 分批后：浏览器先画出文档与首屏代码，其余在空闲窗口逐步上色。
+ * 与 mermaid / math NodeView 走的是同一套空闲调度（`scheduleIdleRender`）——
+ * 高亮只是配色装饰，晚几十毫秒出现无感，但卡在打开首帧上很致命。
+ *
+ * ≤ 该值的文档走原路径（一次同步跑完），行为与优化前完全一致。
+ */
+const INITIAL_HIGHLIGHT_BLOCKS = 8;
+
+/** 每个空闲批次补算的代码块数（与 idle-render-scheduler 的批处理粒度对齐） */
+const IDLE_HIGHLIGHT_BATCH = 4;
+
+/** 空闲批次回填装饰的元数据标记（`apply` 据此把补算结果并入 DecorationSet） */
+const HIGHLIGHT_CHUNK_META = 'codeBlockHighlightChunk';
+
+interface HighlightChunk {
+  from: number;
+  to: number;
+  decorations: Decoration[];
+}
 
 /**
  * 懒加载 lowlight 单例（P5-04：消除模块求值与窗口显示的竞争）。
@@ -161,20 +191,42 @@ function highlightBlock(
   return decorations;
 }
 
-function highlightAllBlocks(
+/**
+ * 收集「尚未处理」的代码块（文档顺序）。
+ *
+ * 判定用**节点引用**而非位置：PM 文档不可变，且重建文档时复用未改动的子树
+ * ⇒ 同一引用 = 同一内容。编辑过的块会拿到新引用，自动重新入队；文件切换后
+ * 整篇都是新节点，也会自动重新入队——无需任何位置/代际簿记。
+ * WeakSet 不持有引用，长时间会话也不会泄漏。
+ */
+function collectPendingBlocks(
   doc: PMNode,
   name: string,
-  defaultLanguage: string | null,
-  lowlightInstance: ReturnType<typeof createLowlight>,
-): Decoration[] {
-  const decorations: Decoration[] = [];
+  done: WeakSet<PMNode>,
+): { node: PMNode; pos: number }[] {
+  const pending: { node: PMNode; pos: number }[] = [];
   doc.descendants((node, pos) => {
-    if (node.type.name === name) {
-      decorations.push(...highlightBlock(node, pos, defaultLanguage, lowlightInstance));
-    }
+    if (node.type.name === name && !done.has(node)) pending.push({ node, pos });
     return true;
   });
-  return decorations;
+  return pending;
+}
+
+/** 高亮一批块，产出可并入 DecorationSet 的分块（带块范围，便于先清旧装饰） */
+function highlightBlocks(
+  blocks: { node: PMNode; pos: number }[],
+  done: WeakSet<PMNode>,
+  defaultLanguage: string | null,
+  lowlightInstance: ReturnType<typeof createLowlight>,
+): HighlightChunk[] {
+  return blocks.map(({ node, pos }) => {
+    done.add(node);
+    return {
+      from: pos,
+      to: pos + node.nodeSize,
+      decorations: highlightBlock(node, pos, defaultLanguage, lowlightInstance),
+    };
+  });
 }
 
 export function createIncrementalLowlightPlugin(
@@ -185,21 +237,81 @@ export function createIncrementalLowlightPlugin(
   // 组字权威信号：apply 拿不到 view，用共享登记器挂住本实例（composition-freeze）。
   // 组字期间冻结语法高亮装饰重建，避免改动正在组字的 DOM 导致 WebView2 IME 候选窗失锚变形。
   const tracker = createCompositionTracker();
+  // 已处理过的代码块节点引用（含「判定为无需高亮」的），见 collectPendingBlocks
+  const highlighted = new WeakSet<PMNode>();
+  // 空闲补算需要 view 才能 dispatch，由 view() 建立
+  let view: EditorView | null = null;
+  let destroyed = false;
+  let sweepQueued = false;
+
+  /** 把一个空闲批次的高亮结果并入装饰集（元数据事务，doc 未变） */
+  function runIdleSweep() {
+    sweepQueued = false;
+    if (destroyed || !view || view.isDestroyed) return;
+    const doc = view.state.doc;
+    const pending = collectPendingBlocks(doc, name, highlighted);
+    if (pending.length === 0) return;
+    const chunks = highlightBlocks(
+      pending.slice(0, IDLE_HIGHLIGHT_BATCH),
+      highlighted,
+      defaultLanguage,
+      lowlightInstance,
+    );
+    view.dispatch(view.state.tr.setMeta(HIGHLIGHT_CHUNK_META, chunks));
+    if (pending.length > IDLE_HIGHLIGHT_BATCH) queueSweep();
+  }
+
+  function queueSweep() {
+    if (sweepQueued || destroyed) return;
+    sweepQueued = true;
+    scheduleIdleRender(runIdleSweep);
+  }
+
+  /** 把补算分块并入装饰集：先清块内旧装饰再加新的（空装饰也清，防止残留） */
+  function mergeChunks(decoSet: DecorationSet, doc: PMNode, chunks: HighlightChunk[]): DecorationSet {
+    let merged = decoSet;
+    for (const chunk of chunks) {
+      const stale = merged.find(chunk.from, chunk.to);
+      if (stale.length > 0) merged = merged.remove(stale);
+      if (chunk.decorations.length > 0) merged = merged.add(doc, chunk.decorations);
+    }
+    return merged;
+  }
+
   // 显式注解：props.decorations 里引用 plugin 自身，无注解会形成循环推断（TS7022）
   const plugin: Plugin<DecorationSet> = new Plugin<DecorationSet>({
     key: new PluginKey('codeBlockHighlight'),
     view(editorView) {
+      view = editorView;
       const untrack = tracker.track(editorView);
+      // view 建立后补排一次：init 里若已有积压（块数超上限）会在此接上；
+      // 无积压时任务空跑一次即退出（sweepQueued 防重复排队）
+      queueSweep();
       return {
         destroy() {
+          destroyed = true;
+          view = null;
           untrack();
         },
       };
     },
     state: {
-      init: (_, { doc }) =>
-        DecorationSet.create(doc, highlightAllBlocks(doc, name, defaultLanguage, lowlightInstance)),
+      init: (_, { doc }) => {
+        // 打开时只同步高亮首屏量级的块（INITIAL_HIGHLIGHT_BLOCKS），其余排空闲队列。
+        // 块数不超过上限时一次跑完，行为与优化前完全一致。
+        const pending = collectPendingBlocks(doc, name, highlighted);
+        const head = pending.slice(0, INITIAL_HIGHLIGHT_BLOCKS);
+        const chunks = highlightBlocks(head, highlighted, defaultLanguage, lowlightInstance);
+        if (pending.length > head.length) queueSweep();
+        return DecorationSet.create(doc, chunks.flatMap((c) => c.decorations));
+      },
       apply(tr: Transaction, decoSet: DecorationSet) {
+        // 空闲补算回填：独立于 docChanged 分支（该事务不改文档）
+        const chunks = tr.getMeta(HIGHLIGHT_CHUNK_META) as HighlightChunk[] | undefined;
+        if (chunks) {
+          decoSet = mergeChunks(decoSet, tr.doc, chunks);
+          if (!tr.docChanged) return decoSet;
+        }
         if (!tr.docChanged) return decoSet;
 
         const mapped = decoSet.map(tr.mapping, tr.doc);
@@ -228,14 +340,21 @@ export function createIncrementalLowlightPlugin(
 
         if (affected.size === 0) return mapped;
 
+        // 一次事务命中过多块（典型：文件切换 = 整篇替换 ⇒ 收集到全部代码块）时，
+        // 同样只同步处理首屏量级，其余交给空闲补算，避免切文档瞬间卡顿。
+        const entries = [...affected.entries()];
+        const head = entries.slice(0, INITIAL_HIGHLIGHT_BLOCKS);
+        if (entries.length > head.length) queueSweep();
+
         let result = mapped;
-        for (const [pos, node] of affected) {
+        for (const [pos, node] of head) {
           // 相邻块的装饰不可能触碰本块边界（块间至少隔 1 个 token 位置），
           // 按块范围 find + remove 不会误删他人装饰
           const stale = result.find(pos, pos + node.nodeSize);
           if (stale.length > 0) result = result.remove(stale);
           const fresh = highlightBlock(node, pos, defaultLanguage, lowlightInstance);
           if (fresh.length > 0) result = result.add(tr.doc, fresh);
+          highlighted.add(node);
         }
         return result;
       },
