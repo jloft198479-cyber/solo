@@ -268,6 +268,21 @@ const handlersCache = new WeakMap<Schema, Record<string, TokenHandler>>();
 const preprocessorsCache = new WeakMap<Schema, Preprocessor[]>();
 const interceptorsCache = new WeakMap<Schema, TokenInterceptor[]>();
 
+/**
+ * 从表格单元格 token 提取对齐方式（A3）。
+ *
+ * markdown-it 不把对齐放在独立字段，而是把 GFM 分隔行 `:--` / `:-:` / `--:` 解析成
+ * `th_open` / `td_open` 上的 `style="text-align:left|center|right"` 属性；
+ * 无对齐则该属性不存在。单元格 schema 自带 `align`（Tiptap Table 扩展提供，
+ * renderHTML 渲染为 `text-align`）——读进来即可显示，并在序列化时还原成对齐标记，
+ * 否则对齐信息会在「打开 → 保存」后静默丢失。
+ */
+function tableCellAlign(token: Token): string | null {
+  const style = token.attrGet('style') || '';
+  const m = /text-align:\s*(left|right|center)/.exec(style);
+  return m ? m[1] : null;
+}
+
 export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   const cached = handlersCache.get(schema);
   if (cached) return cached;
@@ -390,8 +405,9 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.closeNode();
   };
 
-  handlers.th_open = (state) => {
-    state.openNode(schema.nodes.tableHeader);
+  handlers.th_open = (state, token) => {
+    const align = tableCellAlign(token);
+    state.openNode(schema.nodes.tableHeader, align ? { align } : {});
     state.openNode(schema.nodes.paragraph);
   };
   handlers.th_close = (state) => {
@@ -399,8 +415,9 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.closeNode(); // tableHeader
   };
 
-  handlers.td_open = (state) => {
-    state.openNode(schema.nodes.tableCell);
+  handlers.td_open = (state, token) => {
+    const align = tableCellAlign(token);
+    state.openNode(schema.nodes.tableCell, align ? { align } : {});
     state.openNode(schema.nodes.paragraph);
   };
   handlers.td_close = (state) => {

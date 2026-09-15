@@ -452,6 +452,12 @@ export class MarkdownSerializerState {
         result = result.replace(/\]/g, '\\]');
       }
       if (this.inTableCell) result = result.replace(/\|/g, '\\|');
+      // `&` 后跟**实体形态**时转义（`&amp;` / `&#65;` / `&#x42;`）。
+      // 为什么要拦：parser 会把实体解码成字面字符，若原样写回，就是「层层剥皮」——
+      // 源文件 `&amp;lt;` → 首次保存 `&lt;` → 再开再存 `<`（每次保存都在变，不收敛）。
+      // 转义成 `\&lt;` 后重开还原为字面 `&lt;`，收敛且不丢一层。
+      // 注：普通 `&`（`A&B` / `AT&T`）后面不跟 `;` 形态，不受影响。
+      result = result.replace(/&(?=[a-zA-Z][a-zA-Z0-9]*;|#[0-9]+;|#[xX][0-9a-fA-F]+;)/g, '\\&');
       // 块内容起点：块语法起始符需转义。判据是 atBlockStart()（行首 **或** 列表
       // marker / 引用前缀之后），不是单纯行首——`- \>x` 的 `>` 紧随 marker，
       // 漏判即被读成嵌套引用块。实测（markdown-it commonmark）修正两处旧偏差：
@@ -688,6 +694,17 @@ const nodeSerializers: Record<string, NodeSerializer> = {
     // 收集列数
     const colCount = rows[0].childCount;
 
+    // 每列对齐（A3）：取该列**首个非空** align（表头未设时回落到数据行，
+    // 与 Tiptap Table 扩展的判定一致）。schema 值域 'left'|'right'|'center'|null。
+    const colAligns: (string | null)[] = Array(colCount).fill(null) as (string | null)[];
+    for (const row of rows) {
+      row.forEach((cell, _offset, colIndex) => {
+        if (colAligns[colIndex] == null && cell.attrs.align) {
+          colAligns[colIndex] = cell.attrs.align as string;
+        }
+      });
+    }
+
     // 计算每列最大宽度（B5：按显示宽度——东亚宽字符记 2，含中文的列视觉对齐）
     const colWidths: number[] = Array(colCount).fill(3); // 最小3（分隔行 ---）
     for (const row of rows) {
@@ -709,7 +726,7 @@ const nodeSerializers: Record<string, NodeSerializer> = {
 
       // 在第一行（表头）后插入分隔行
       if (r === 0) {
-        const sep = colWidths.map(w => '-'.repeat(w));
+        const sep = colWidths.map((w, i) => alignDelimiter(w, colAligns[i]));
         state.writeLine('| ' + sep.join(' | ') + ' |');
       }
     }
@@ -763,6 +780,20 @@ function visualWidth(str: string): number {
 /** 按显示宽度右侧补空格（padEnd 的东亚宽度版） */
 function padEndVisual(str: string, width: number): string {
   return str + ' '.repeat(Math.max(0, width - visualWidth(str)));
+}
+
+/**
+ * 表格分隔线的单列片段（A3）。宽 `width` 为列显示宽度（≥3，由调用方保证）：
+ * `left` → `:---`、`right` → `---:`、`center` → `:--:`、无对齐 → `----`。
+ * 与 markdown-it / GFM 的写法一致，保证「读进来什么样，存回去什么样」。
+ */
+function alignDelimiter(width: number, align: string | null): string {
+  const dashes = Math.max(1, width - (align === 'center' ? 2 : align ? 1 : 0));
+  const bar = '-'.repeat(dashes);
+  if (align === 'center') return ':' + bar + ':';
+  if (align === 'left') return ':' + bar;
+  if (align === 'right') return bar + ':';
+  return bar;
 }
 
 /**

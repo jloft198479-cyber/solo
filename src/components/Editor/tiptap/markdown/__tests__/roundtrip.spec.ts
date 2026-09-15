@@ -907,6 +907,87 @@ describe('Round-trip: parse → serialize', () => {
       });
     });
 
+    // A3：表格列对齐 `:--` / `:-:` / `--:` 读写保真
+    // markdown-it 把对齐解析成单元格 token 的 `style="text-align:..."`；
+    // 单元格 schema 自带 `align`（Tiptap Table 扩展，渲染 text-align）。
+    // 旧版 parser / serializer 两头都不碰 ⇒ 对齐在「打开→保存」后静默丢失。
+    describe('A3: table column alignment', () => {
+      it('三种对齐混排：对齐标记按原样还原', () => {
+        // 列宽会按最长内容规整（table.md 已登记的格式缺口），故只锁对齐标记本身
+        const out = roundTrip('| 左 | 中 | 右 |\n| :-- | :-: | --: |\n| a | b | c |\n');
+        expect(out).toContain('| :-- | :-: | --: |');
+        expect(roundTrip(out)).toBe(out); // 二次收敛
+      });
+
+      it('解析后单元格带 align 属性（供渲染 text-align）', () => {
+        const schema = createTestSchema();
+        const doc = parseMarkdown(
+          schema,
+          '| a | b | c | d |\n| :-- | :-: | --: | --- |\n| 1 | 2 | 3 | 4 |\n',
+        );
+        const header = doc.firstChild?.firstChild;
+        expect(header?.child(0).attrs.align).toBe('left');
+        expect(header?.child(1).attrs.align).toBe('center');
+        expect(header?.child(2).attrs.align).toBe('right');
+        expect(header?.child(3).attrs.align).toBe(null);
+      });
+
+      it('列宽变大时对齐标记同步加宽（`:---------` 而非 `:--`）', () => {
+        const out = roundTrip('| 很长的表头 | b |\n| :--------- | --- |\n| 1 | 2 |\n');
+        expect(out).toContain('| :--------- |');
+        expect(roundTrip(out)).toBe(out);
+      });
+
+      it('表头行无对齐、数据行有对齐：仍按列还原（取首个非空 align）', () => {
+        const schema = createTestSchema();
+        const head = schema.nodes.tableHeader.create(null, [
+          schema.nodes.paragraph.create(null, [schema.text('A')]),
+        ]);
+        const cell = schema.nodes.tableCell.create({ align: 'center' }, [
+          schema.nodes.paragraph.create(null, [schema.text('1')]),
+        ]);
+        const table = schema.nodes.table.create(null, [
+          schema.nodes.tableRow.create(null, [head]),
+          schema.nodes.tableRow.create(null, [cell]),
+        ]);
+        const out = serializeMarkdown(schema.nodes.doc.create(null, [table]));
+        expect(out).toContain('| :-: |');
+        // 重开仍是居中
+        const doc2 = parseMarkdown(schema, out);
+        expect(doc2.firstChild?.lastChild?.firstChild?.attrs.align).toBe('center');
+      });
+    });
+
+    // A4：HTML 实体「层层剥皮」防护
+    // parser 会把实体解码成字面字符，若原样写回，源文件 `&amp;lt;` 首次保存变 `&lt;`、
+    // 再开再存变 `<` —— 每次保存都在变（不收敛）。实体形态的 `&` 必须转义。
+    describe('A4: HTML entity double-decode guard', () => {
+      it('`&amp;lt;` 存盘后不降级为 `&lt;`，且收敛', () => {
+        const out = roundTrip('a &amp;lt; b\n');
+        expect(out).toBe('a \\&lt; b\n');
+        expect(roundTrip(out)).toBe(out);
+        // 重开后仍是字面 `&lt;`，没有被再解码成 `<`
+        expect(parseMarkdown(createTestSchema(), out).textContent).toBe('a &lt; b');
+      });
+
+      it('数字实体形态 `&#65;` 同样受保护', () => {
+        const schema = createTestSchema();
+        const doc = schema.nodes.doc.create(null, [
+          schema.nodes.paragraph.create(null, [schema.text('&#65;')]),
+        ]);
+        expect(serializeMarkdown(doc)).toBe('\\&#65;\n');
+      });
+
+      it('普通 `&` 不受影响（`A&B` / `AT&T` 保持字面）', () => {
+        expect(roundTrip('A&B 与 AT&T\n')).toBe(normalize('A&B 与 AT&T\n'));
+      });
+
+      it('单层实体为已知格式缺口：字节变化但渲染等价', () => {
+        // parser 解码后 serializer 不重编码（commonmark SKIP 14 登记同一限制）
+        expect(roundTrip('版权 &copy; 2026\n')).toBe(normalize('版权 © 2026\n'));
+      });
+    });
+
     // B4：有序列表第 10 项起子列表缩进
     describe('B4: ordered list item 10+ sublist indent', () => {
       it('第 10 项的子列表缩进按 marker 宽度（4）对齐，重开不脱离', () => {
