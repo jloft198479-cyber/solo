@@ -30,7 +30,7 @@ updates:
 > | P0-2 | ✅ 已实施  | 关窗逃生舱：`state.rs` 的 `CloseGuard` + `window.rs` 的 `CLOSE_ACK_GRACE`（3s）+ `report_window_close` 命令           |
 > | P0-3 | ✅ 已实施  | 打开阈值分层：`document-scale.ts`（50 万 / 200 万字符阈值，与本文表格一致）                                          |
 > | P0-4 | ⚠️ 部分    | 仅落地 loading 指示条（`App.vue` + `.loading-bar`），**「打开过程可取消」未做**（parse 未切片、无取消按钮）            |
-> | P1   | ✅ 已实施  | 编辑器热路径四项优化（paragraph-focus 只维护 2 条装饰 / code-block 按需高亮 / 大纲面板关闭时跳过提取 / 序列化缓存复用） |
+> | P1   | ⚠️ 3/4     | 编辑器热路径四项优化 —— ✅ paragraph-focus 只维护 2 条装饰 ｜ ✅ 大纲面板关闭时跳过提取 ｜ ✅ 序列化缓存复用 ｜ ❌ **code-block「按需高亮」当时未做**（仅 `init` 全量 + 增量重渲；本条原标「✅ 已实施」属**高报**，2026-09-15 按代码校正，详见 [评估报告 §1.5](../REVIEW-2026-09-15-体验与代码评估.md)）。**〔2026-09-15 已补做〕** 未按本文原案的 `IntersectionObserver` 视口触发，改走**空闲分批**（同步限 8 块 + `scheduleIdleRender` 补算），见 [KNOWN-ISSUES §一 #30](../KNOWN-ISSUES.md) |
 > | P2   | ❌ 已砍    | 分块装载与虚拟滚动**不做**——与「不追超长文档」的定位冲突，超长文档应交由其他工具（见产品定位共识）                   |
 > | P3   | 🔶 简化    | 不做只读渲染；改为 extreme 档「打开前用户确认才进可编辑模式」（`document-scale.ts` 的 `EXTREME_DOC_CHARS`）            |
 
@@ -126,6 +126,13 @@ updates:
    - `init` 不全量高亮，改由 `IntersectionObserver` 在块进入视口时触发；
    - `highlightAuto` 加内容长度上限（建议 20KB），超限不高亮；
    - 无语言标注的代码块**默认不高亮**（现在会傻跑 17 种语言检测，这是隐藏的性能炸弹）。
+   - **实际落地（2026-09-15，与上述原案不同）**：① 长度上限取 `AUTO_DETECT_MAX_CHARS = 3000`
+     （按**代码块自身**规模判定，不看文档总规模——成本只跟块大小有关）；② 未用 `IntersectionObserver`，
+     改**空闲分批**：`init` 同步只高亮前 8 块，其余交给既有的 `scheduleIdleRender`
+     （mermaid/math NodeView 同款调度器），每批 4 块、回填后继续排队；
+     ③ 无语言标注的块**仍然高亮**（保留可读性），只受上述两道规模/批次约束。
+     实测：「50 个未标注块同步跑完 ≈330ms（Node）/ 0.65~1s（WebView2）」→ 打开期固定 8 块（≈53ms）。
+     仍见 [KNOWN-ISSUES §一 #30](../KNOWN-ISSUES.md)。
 
 3. **字数统计增量**（H7）
    维护 `baseCount`，事务里用 `tr.steps` 的 insertion/deletion 算 delta；
