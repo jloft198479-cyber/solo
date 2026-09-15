@@ -6,7 +6,19 @@ import { shallowRef } from 'vue';
  */
 export type DocumentTier = 'normal' | 'heavy' | 'extreme';
 
-/** heavy：自动降级三项高开销编辑特性（代码块自动语言检测 / 焦点模式装饰 / 实时字数） */
+/**
+ * heavy：自动降级三项高开销编辑特性（代码块自动语言检测 / 焦点模式装饰 / 实时字数）。
+ *
+ * 2026-09-15 序列化 O(n²) 修复后**重新标定**，结论是**维持 50 万不动**：
+ * 修复后全文操作已回到线性（5 万字：解析 13ms / 序列化 4ms；50 万字：解析 88ms / 序列化 35ms，
+ * Node 口径，WebView2 约 ×2~3）。下调门槛只会「关掉功能」，换来不可测的收益——50 万字档
+ * 上实时字数也仅 4.5ms。
+ * 另有一层：本档位映射 `<html class="doc-heavy">`，而 `content-visibility` 只在档内启用
+ * （见下方 setDocumentTier —— 它会干扰 WebView2 IME 组字光标矩形），下调等于让更多文档
+ * 暴露在已知的候选窗失锚风险下。
+ * ⇒ 真正错位的判据在 `code-block.ts`：自动语言检测的成本只跟**代码块自身大小**有关，
+ * 与文档总规模无关，已改为按块判定（`AUTO_DETECT_MAX_CHARS`）。
+ */
 export const HEAVY_DOC_CHARS = 500_000;
 /** extreme：打开前必须用户确认才进可编辑模式 */
 export const EXTREME_DOC_CHARS = 2_000_000;
