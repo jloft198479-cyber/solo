@@ -1,6 +1,6 @@
 [package]
 name = "solo"
-version = "1.2.55"
+version = "1.2.56"
 description = "solo - A lightweight Markdown editor"
 authors = ["luoxiaodou"]
 license = "Apache-2.0"
