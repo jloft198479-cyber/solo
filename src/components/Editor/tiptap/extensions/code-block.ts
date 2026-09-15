@@ -38,6 +38,16 @@ import diff from 'highlight.js/lib/languages/diff';
 let lowlightInstance: ReturnType<typeof createLowlight> | null = null;
 
 /**
+ * 未标注语言的代码块，自动语言检测（highlightAuto）的字符数上限。
+ *
+ * 成本由「代码块**自身**规模 × 已注册语言数」决定，与文档总规模无关（2026-09-15 实测，Node）：
+ * 1k 字 5ms ｜ 3k 字 10ms ｜ 6k 字 21ms ｜ 12k 字 45ms，WebView2 约 ×2~3。
+ * 对照：同规模**已标注**语言的块只要 4.5ms——自动检测贵约 6×，因为它把 17 种 tokenizer 逐个跑一遍。
+ * 超过上限即不高亮：它只是配色装饰，不值得让「在大代码块里敲一个字」付出几十毫秒。
+ */
+const AUTO_DETECT_MAX_CHARS = 3000;
+
+/**
  * 懒加载 lowlight 单例（P5-04：消除模块求值与窗口显示的竞争）。
  *
  * 原 实现：模块顶层 `const lowlight = createLowlight({...})` 同步执行，
@@ -128,9 +138,11 @@ function highlightBlock(
     typeof block.attrs.language === 'string' ? block.attrs.language : null,
   );
   const effective = language || defaultLanguage;
-  // 大文档降级：无语言标注时走 highlightAuto——它把 17 种语言的完整 tokenizer 逐个跑一遍，
-  // 是超大文档打开与编辑期的实测热点。降级档位下这类块直接不高亮，标注了语言的仍正常高亮。
-  if (!effective && isHeavyDocument()) return [];
+  // 无语言标注时走 highlightAuto——它把 17 种语言的完整 tokenizer 逐个跑一遍，是实测热点。
+  // 两道门：① **单块自身规模**超上限（真判据——成本只跟块大小有关，与文档总规模无关）；
+  // ② heavy 档兜底（大文档整体让路）。命中即不建装饰；标注了语言的块走单语言路径，
+  // 便宜约 6×，不受这两道门限制。
+  if (!effective && (isHeavyDocument() || block.textContent.length > AUTO_DETECT_MAX_CHARS)) return [];
   const result =
     effective && lowlightInstance.registered(effective)
       ? lowlightInstance.highlight(effective, block.textContent)
