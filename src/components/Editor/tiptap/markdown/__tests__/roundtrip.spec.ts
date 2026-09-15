@@ -281,9 +281,10 @@ describe('Round-trip: parse → serialize', () => {
 
     it('table cell hard break as br', () => {
       const md = '| A | B |\n| --- | --- |\n| line1<br>line2 | ok |\n';
-      // <br> 在 html:false 模式下是字面文本，序列化时 < > 会被转义
+      // `<br>` 不是自动链接形态（无 `:` / `@`），html:false 下就是字面文本 ⇒ 不转义。
+      // 表格列宽按显示宽度对齐（另有专项测试），故与源字节不同。
       expect(roundTrip(md)).toBe(
-        normalize('| A                | B   |\n| ---------------- | --- |\n| line1\\<br\\>line2 | ok  |\n'),
+        normalize('| A              | B   |\n| -------------- | --- |\n| line1<br>line2 | ok  |\n'),
       );
     });
   });
@@ -425,26 +426,39 @@ describe('Round-trip: parse → serialize', () => {
       expect(roundTrip(md)).toBe(normalize(md));
     });
 
-    it('escapes literal markdown punctuation', () => {
+    it('escapes literal markdown punctuation（按语境：只转义会改变解析的字符）', () => {
       const schema = createTestSchema();
-      const paragraph = schema.nodes.paragraph.create(null, [
-        schema.text('literal [text] (paren) *star* ~tilde~ ^sup^ ==mark== !bang|pipe`tick`'),
-      ]);
+      const text = 'literal [text] (paren) *star* ~tilde~ ^sup^ ==mark== !bang|pipe`tick`';
+      const paragraph = schema.nodes.paragraph.create(null, [schema.text(text)]);
       const doc = schema.nodes.doc.create(null, [paragraph]);
 
-      expect(serializeMarkdown(doc))
-        .toBe(normalize('literal \\[text\\] \\(paren\\) \\*star\\* \\~tilde\\~ \\^sup\\^ \\=\\=mark\\=\\= !bang\\|pipe\\`tick\\`\n'));
+      const out = serializeMarkdown(doc);
+      // 需转义：`[`（参考式链接）、`*`（强调）、`~`（删除线）、`` ` ``（代码区间）、
+      //         成对的 `^` `==`（上标 / 高亮）
+      // 保持干净：`]` `(` `)` `|` 在正文里是字面量（2026-09-15 收敛）
+      expect(out).toBe(
+        normalize('literal \\[text] (paren) \\*star\\* \\~tilde\\~ \\^sup\\^ \\=\\=mark\\=\\= !bang|pipe\\`tick\\`\n'),
+      );
+
+      // 重开等价：解析回来仍是同一段字面文本，且没有任何 mark 被激活
+      const doc2 = parseMarkdown(schema, out);
+      expect(doc2.textContent).toBe(text);
+      let marks = 0;
+      doc2.descendants((n) => {
+        if (n.isText) marks += n.marks.length;
+        return true;
+      });
+      expect(marks, '字面标点被解析成了格式').toBe(0);
     });
 
-    it('escapes dollar sign and curly braces and angle brackets', () => {
+    it('不转义无歧义的 `$` `{ }` `<tag>`（旧版无条件转义＝首次保存改文件）', () => {
       const schema = createTestSchema();
-      const paragraph = schema.nodes.paragraph.create(null, [
-        schema.text('cost $5 {key} <tag> end'),
-      ]);
+      const text = 'cost $5 {key} <tag> end';
+      const paragraph = schema.nodes.paragraph.create(null, [schema.text(text)]);
       const doc = schema.nodes.doc.create(null, [paragraph]);
 
-      expect(serializeMarkdown(doc))
-        .toBe(normalize('cost \\$5 \\{key\\} \\<tag\\> end\n'));
+      expect(serializeMarkdown(doc)).toBe(normalize(text + '\n'));
+      expect(parseMarkdown(schema, serializeMarkdown(doc)).textContent).toBe(text);
     });
 
     it('escapes line-start hash to prevent heading misparse', () => {
@@ -787,6 +801,109 @@ describe('Round-trip: parse → serialize', () => {
         const doc = parseMarkdown(schema, out);
         const text = doc.textContent;
         expect(text).toBe('a ~~text~~ b [见附录] c <tag> d _word_');
+      });
+    });
+
+    // B1b：文件模式「按语境转义」（2026-09-15 收敛）
+    // 旧版无条件转义 `` ` [ ] ( ) * ~ ^ = | $ < > { } ``，后果是「首次保存即改文件」：
+    // `List<String>` → `List\<String\>`、`foo(a, b)` → `foo\(a, b\)`、`x^2` → `x\^2`。
+    // 新语义：只转义「不转义就会改变解析」的字符——恒需（`` ` [ * ~ ``）、成对才需
+    // （`^` `$` `==`）、视位置才需（`]` 在链接文本内、`|` 在表格单元格内、`<` 仅自动链接形态）。
+    describe('B1b: file-mode context-sensitive escaping', () => {
+      const paraDoc = (schema: Schema, text: string) =>
+        schema.nodes.doc.create(null, [
+          schema.nodes.paragraph.create(null, [schema.text(text)]),
+        ]);
+
+      it('普通文本零噪音：`List<String>` / `foo(a, b)` / 单个 ^ $ == 都不转义', () => {
+        const schema = createTestSchema();
+        const text = 'Map<String, List<int>> 与 foo(a, b) 与 x^2 与 价格 $5 与 a == b';
+        expect(serializeMarkdown(paraDoc(schema, text))).toBe(text + '\n');
+      });
+
+      it('整行 round-trip：上述文本存盘后再读，字节不变', () => {
+        const src = 'Map<String, List<int>> 与 foo(a, b)，还有 x^2、价格 $5、a == b\n';
+        expect(roundTrip(src)).toBe(normalize(src));
+      });
+
+      it('成对 ^ / $ / == 才转义（否则会被读成上标 / 公式 / 高亮）', () => {
+        const schema = createTestSchema();
+        expect(serializeMarkdown(paraDoc(schema, 'a^b^c 与 $x$ 与 ==高亮=='))).toBe(
+          'a\\^b\\^c 与 \\$x\\$ 与 \\=\\=高亮\\=\\=\n',
+        );
+      });
+
+      it('段首 `1. 文字` 转义：存盘后不变成有序列表（旧版漏判数字开头）', () => {
+        const schema = createTestSchema();
+        const out = serializeMarkdown(paraDoc(schema, '1. 不是列表'));
+        expect(out).toBe('1\\. 不是列表\n');
+        expect(roundTrip(out)).toBe(out);
+      });
+
+      it('列表项内容起点的 `>` 转义：`- >文字` 存盘后仍是文字，不变成引用块', () => {
+        const schema = createTestSchema();
+        const list = schema.nodes.bulletList.create(null, [
+          schema.nodes.listItem.create(null, [
+            schema.nodes.paragraph.create(null, [schema.text('>引用')]),
+          ]),
+        ]);
+        const out = serializeMarkdown(schema.nodes.doc.create(null, [list]));
+        expect(out).toBe('- \\>引用\n');
+        const doc2 = parseMarkdown(schema, out);
+        expect(doc2.childCount).toBe(1);
+        expect(doc2.firstChild?.type.name).toBe('bulletList');
+        expect(doc2.firstChild?.firstChild?.firstChild?.textContent).toBe('>引用');
+      });
+
+      it('`]` 仅链接文本内转义（否则会提前闭合链接文本）', () => {
+        const schema = createTestSchema();
+        const link = schema.marks.link.create({ href: 'https://x' });
+        const out = serializeMarkdown(
+          schema.nodes.doc.create(null, [
+            schema.nodes.paragraph.create(null, [schema.text('a]b', [link])]),
+          ]),
+        );
+        expect(out).toBe('[a\\]b](https://x)\n');
+        expect(roundTrip(out)).toBe(out);
+      });
+
+      it('`|` 仅表格单元格内转义：正文竖线保持字面', () => {
+        const schema = createTestSchema();
+        expect(serializeMarkdown(paraDoc(schema, 'a | b'))).toBe('a | b\n');
+      });
+
+      it('表格单元格内竖线转义：不被切成两列，且二次收敛', () => {
+        // 列宽按显示宽度对齐会规范化字节（另有专项测试），此处锁「转义正确 + 收敛」
+        const src = '| a \\| b | c |\n| --- | --- |\n';
+        const out = roundTrip(src);
+        expect(out).toContain('a \\| b');
+        const table = parseMarkdown(createTestSchema(), out).firstChild;
+        expect(table?.type.name).toBe('table');
+        expect(table?.firstChild?.childCount, '竖线把单元格切开了').toBe(2);
+        expect(roundTrip(out)).toBe(out);
+      });
+
+      it('行首整行 `=` 转义：`bar\\n===` 存盘后不变成 setext 一级标题', () => {
+        const schema = createTestSchema();
+        const doc = schema.nodes.doc.create(null, [
+          schema.nodes.paragraph.create(null, [schema.text('bar\n===')]),
+        ]);
+        const out = serializeMarkdown(doc);
+        expect(out).toBe('bar\n\\===\n');
+        const doc2 = parseMarkdown(schema, out);
+        expect(doc2.childCount, '`===` 被读成了 setext 标题').toBe(1);
+        expect(doc2.firstChild?.type.name).toBe('paragraph');
+        expect(doc2.textContent).toBe('bar\n===');
+      });
+
+      it('`<` 仅自动链接形态转义：`<https://x>` 转义，`<String>` / `<u>` 保持字面', () => {
+        const schema = createTestSchema();
+        expect(serializeMarkdown(paraDoc(schema, 'see <https://x.com> now'))).toBe(
+          'see \\<https://x.com> now\n',
+        );
+        expect(serializeMarkdown(paraDoc(schema, 'Map<String> 与 <u>字</u>'))).toBe(
+          'Map<String> 与 <u>字</u>\n',
+        );
       });
     });
 

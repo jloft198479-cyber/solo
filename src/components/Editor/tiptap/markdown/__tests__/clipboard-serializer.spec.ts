@@ -190,10 +190,16 @@ describe('clipboard 模式向嵌套 state 传播', () => {
     expect(out).not.toContain('\\');
   });
 
-  it('文件保存模式仍严格转义（反向保护：别把落盘也放松了）', () => {
+  it('文件保存模式按语境转义（旧版「无条件转义」已收敛）', () => {
     const file = serializeMarkdown(parseMarkdown(schema, `> ${TEXT}`));
-    expect(file).toContain('x \\= 1');
-    expect(file).toContain('100\\$');
+    // 单个 `=` / 单个 `$` 都是纯文本（成对才构成 setext 下划线 / 高亮 / 公式）
+    // ⇒ 保持源字节干净，不再「首次保存即改文件」
+    expect(file).toBe(`> ${TEXT}\n`);
+
+    // 反向保护：真正会改变解析的字符仍必须转义——行首整行 `=` 是 setext 标题下划线
+    const p = schema.nodes.paragraph.create(null, [schema.text('a\n===\nb')]);
+    const doc = schema.nodes.doc.create(null, [p]);
+    expect(serializeMarkdown(doc)).toBe('a\n\\===\nb\n');
   });
 });
 

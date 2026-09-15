@@ -36,12 +36,12 @@ const fixtureFiles = readdirSync(FIXTURES_DIR).filter((f) => f.endsWith('.md'));
 const KNOWN_FIDELITY_GAPS: Record<string, { kind: 'LOSS' | 'FORMAT'; note: string }> = {
   'all-marks.md': {
     kind: 'FORMAT',
-    note: 'mark 顺序按 PM schema 归一（~~**x**~~ → **~~x~~**）+ 上标语境 `=` 过逃逸',
+    note: 'mark 顺序按 PM schema 归一（~~**x**~~ → **~~x~~**）。原「上标语境 `=` 过逃逸」已于 2026-09-15 修复',
   },
   'blockquotes.md': { kind: 'FORMAT', note: '空引用行 `>` 补尾随空格（渲染等价）' },
   'edge-cases.md': {
     kind: 'FORMAT',
-    note: '过逃逸：`[ ] ( ) $ | < > . =` 被加反斜杠（渲染等价，但污染源文件，待修）',
+    note: '方括号 `[` 保守转义（防字面 `[label]` 与文内参考式定义意外配对成链接）。原「`( ) $ | < > . =` 过逃逸」已于 2026-09-15 修复',
   },
   'footnotes.md': { kind: 'FORMAT', note: '脚注定义位置重排 + 插空行' },
   'lists.md': {
@@ -50,7 +50,7 @@ const KNOWN_FIDELITY_GAPS: Record<string, { kind: 'LOSS' | 'FORMAT'; note: strin
   },
   'real-world.md': {
     kind: 'FORMAT',
-    note: '松散嵌套列表被归一为紧凑（项间空行移除）。原「tight → loose 插空行」已于 2026-09-15 修复',
+    note: '松散列表归一为紧凑（项间空行移除）+ 表格列宽规整 + 脚注定义位置重排。原「tight → loose 插空行」已于 2026-09-15 修复',
   },
   'table.md': { kind: 'FORMAT', note: '表格分隔线宽度与单元格对齐空格规整化' },
 };
