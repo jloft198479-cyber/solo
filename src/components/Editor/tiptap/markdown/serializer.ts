@@ -27,7 +27,13 @@ function isEmptyParagraph(node: PMNode): boolean {
 }
 
 export class MarkdownSerializerState {
-  output = '';
+  /**
+   * 输出分片。**刻意不累加字符串**：V8 的 `+=` 只生成惰性 ConsString（绳结），
+   * 但只要做一次「需要真实字符」的读操作（`endsWith` / 下标 / `slice`），整条
+   * 绳结就被摊平。每块摊平一次 ⇒ O(n²)，10 万字量级要几十秒。
+   * 改为分片 push、出口一次性 join ⇒ O(n)。见 KNOWN-ISSUES §二 #18。
+   */
+  private chunks: string[] = [];
   private closed: PMNode | null = null;
   private inTightList = false;
   /** 嵌套列表每层项的缩进贡献栈（替代固定 3 空格计数，见 renderList） */
@@ -36,6 +42,47 @@ export class MarkdownSerializerState {
 
   constructor(options?: { clipboard?: boolean }) {
     this.clipboard = options?.clipboard ?? false;
+  }
+
+  /** 已写出内容（拼接视图）。只在出口与子 state 取用时调用，**切勿放进循环** */
+  get output(): string {
+    return this.chunks.length > 1 ? this.chunks.join('') : (this.chunks[0] ?? '');
+  }
+
+  /** 整体改写输出（保留原 public 字段的赋值语义） */
+  set output(value: string) {
+    this.chunks = value ? [value] : [];
+  }
+
+  /** 取末尾至多 n 个字符——只回溯末尾几个分片，替代对全量字符串做 endsWith */
+  private tailOf(n: number): string {
+    let out = '';
+    for (let i = this.chunks.length - 1; i >= 0 && out.length < n; i--) {
+      const c = this.chunks[i];
+      if (c) out = c.length >= n ? c.slice(-n) : c + out;
+    }
+    return out.length > n ? out.slice(-n) : out;
+  }
+
+  /** 记录当前输出分片位置，供节点序列化器做**局部**回改（不触全量摊平） */
+  markOutput(): number {
+    return this.chunks.length;
+  }
+
+  /**
+   * 转义标题行内末尾「空格 + 连续 #」的第一个 `#`（避免被 re-parse 当成 ATX
+   * closing marker 吃掉）。只拼接 `[anchor, end)` 段——即本标题的行内内容，
+   * 长度有限，不触碰已累积的全量输出。
+   */
+  escapeTrailingHashes(anchor: number) {
+    const seg = this.chunks.length > anchor ? this.chunks.slice(anchor).join('') : '';
+    let hashStart = seg.length - 1;
+    while (hashStart >= 0 && seg[hashStart] === '#') hashStart--;
+    // 末字符非 #（停在末位）/ 全段皆 # / 井号串前无空格 ⇒ 均无需转义
+    if (hashStart < 0 || hashStart === seg.length - 1 || seg[hashStart] !== ' ') return;
+    const fixed = seg.slice(0, hashStart + 1) + '\\' + seg.slice(hashStart + 1);
+    this.chunks.length = anchor;
+    this.chunks.push(fixed);
   }
 
   /**
@@ -50,7 +97,7 @@ export class MarkdownSerializerState {
   /** 写入文本 */
   write(text: string) {
     this.flushClose();
-    this.output += text;
+    if (text) this.chunks.push(text);
   }
 
   /** 写入一行（末尾加换行） */
@@ -60,9 +107,8 @@ export class MarkdownSerializerState {
 
   /** 确保输出以换行结尾 */
   ensureNewline() {
-    if (this.output.length && !this.output.endsWith('\n')) {
-      this.output += '\n';
-    }
+    const tail = this.tailOf(1);
+    if (tail && tail !== '\n') this.chunks.push('\n');
   }
 
   /** 关闭段落（延迟写入换行，用于列表紧凑模式判断） */
@@ -74,16 +120,14 @@ export class MarkdownSerializerState {
     if (!this.closed) return;
     this.closed = null;
     this.ensureNewline();
-    for (let i = 0; i < extra; i++) this.output += '\n';
+    if (extra > 0) this.chunks.push('\n'.repeat(extra));
   }
 
   /** 增加空行分隔 */
   blankLine() {
     this.flushClose();
     this.ensureNewline();
-    if (!this.output.endsWith('\n\n')) {
-      this.output += '\n';
-    }
+    if (this.tailOf(2) !== '\n\n') this.chunks.push('\n');
   }
 
   /** 序列化 inline 内容 */
@@ -271,10 +315,9 @@ export class MarkdownSerializerState {
   private escapeInline(text: string): string {
     // 判断当前是否处于行首位置（需要额外转义行首特殊字符）
     // this.closed 不为 null 表示前一个块已关闭但换行尚未写入，等效于行首
-    const atLineStart =
-      this.closed !== null ||
-      this.output.length === 0 ||
-      this.output.endsWith('\n');
+    // 末字符取分片尾部（O(1)），不读全量 output —— 本函数每个文本节点都跑，是头号热点
+    const tail = this.tailOf(1);
+    const atLineStart = this.closed !== null || tail === '' || tail === '\n';
 
     let result = escapeBackslashes(text);
 
@@ -394,14 +437,10 @@ const nodeSerializers: Record<string, NodeSerializer> = {
   heading(state, node) {
     const marker = '#'.repeat(node.attrs.level);
     state.write(marker + ' ');
-    const start = state.output.length;
+    const anchor = state.markOutput();
     state.renderInline(node);
     // 转义行末 #（前有空格），避免被 re-parse 当成 ATX closing marker 吃掉
-    let hashStart = state.output.length - 1;
-    while (hashStart >= start && state.output[hashStart] === '#') hashStart--;
-    if (state.output.length - 1 - hashStart > 0 && hashStart >= start && state.output[hashStart] === ' ') {
-      state.output = state.output.slice(0, hashStart + 1) + '\\' + state.output.slice(hashStart + 1);
-    }
+    state.escapeTrailingHashes(anchor);
     state.closeBlock(node);
   },
 
