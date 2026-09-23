@@ -102,3 +102,17 @@ export async function requestAppQuit() {
 export async function reportWindowClose(phase: 'ack' | 'abort') {
   await invokeCommand<void>(TAURI_COMMANDS.reportWindowClose, { phase });
 }
+
+/**
+ * IME 候选窗重锚（治疗层）：组字开始时通知 Rust。
+ * Rust 侧自行判断近期是否动过窗口 / 切过焦点，无关组字直接忽略；
+ * 命中则在候选窗出现后注入一次零净位移鼠标事件（复刻「晃一下鼠标就好」）。
+ * 静默失败——重锚只是体验补丁，绝不能反过来影响输入。
+ */
+export async function imeNudgeSoon() {
+  try {
+    await invokeCommand<void>(TAURI_COMMANDS.imeNudgeSoon);
+  } catch {
+    // 静默：见上
+  }
+}
