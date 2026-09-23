@@ -77,9 +77,17 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
                 }
             }
 
-            tauri::WindowEvent::Resized(_) => {
-                // 几何变化（拖动 / 最大化 / 系统缩放）后 IME 候选窗锚点可能失效。
-                // 去抖后注入一次零位移鼠标事件重锚，详见文件末尾 ime_nudge 模块。
+            // 窗口几何变化后 IME 候选窗锚点可能失效。
+            //
+            // ⚠️ 必须**同时**接 `Moved`，这是 2026-09-24 首版漏掉的关键：
+            //   - 鼠标拖动窗口 → `WM_WINDOWPOSCHANGED` → tao 发 `Moved`
+            //   - `WM_SIZE` → tao 才发 `Resized`
+            //   - 拖动**不改变尺寸** ⇒ **一个 `Resized` 都不发**
+            //   （映射见 `tao/src/platform_impl/windows/event_loop.rs`）
+            //   用户实测「挪完窗口最容易失锚」，而首版只监听 `Resized` ⇒ 补丁从未触发。
+            //
+            // 注入细节见文件末尾 ime_nudge 模块。
+            tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
                 #[cfg(target_os = "windows")]
                 ime_nudge::on_geometry_changed();
             }
@@ -112,7 +120,7 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
                     // 重新获得焦点后的「首次组字」是失锚高发时机
                     // ⇒ 提前注入一次重锚事件（详见文件末尾 ime_nudge 模块）。
                     if *focused {
-                        ime_nudge::nudge();
+                        ime_nudge::on_focus_gained();
                     }
 
                     let level = if *focused {
@@ -149,27 +157,38 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
 //
 // 背景：WebView2 的微软拼音候选窗偶发**脱离光标**、钉死在一个固定的屏幕坐标上
 // （2026-09 排查，见 `docs/IME-CANDIDATE-WINDOW-REPORT.md`）。已知唯一可靠的解除
-// 方式 = 产生一次鼠标输入事件（用户手动「晃一下鼠标」即可自愈）；触发时机集中在
-// 「窗口几何变化 / 焦点切换后的首次组字」。
+// 方式 = 产生一次**鼠标输入事件**（用户手动「晃一下鼠标」即可自愈）；高发时机在
+// 「窗口几何变化（尤其拖动移位）/ 焦点切换之后的那次组字」。
 //
-// 本模块把该动作自动化：几何变化结束、重新获得焦点时各注入一次**零位移**鼠标
-// 移动事件 —— 指针位置不变、不产生点击，但会走完整的输入链路。
+// 本模块把该动作自动化：几何稳定、鼠标空闲后，由本进程注入一次鼠标移动。
 //
 // 约束：
-// 1. **零位移**：dx = dy = 0，不做任何坐标换算 ⇒ 多显示器 / DPI 缩放下属安全，
-//    不可能把指针挪到别处（这是本方案最重要的副作用约束）。
-// 2. **去抖**：拖动窗口期间 Resized 连发，只在几何稳定后注入一次，且同时最多
-//    只有一个等待中的任务（避免线程风暴）。
-// 3. **失败静默**：注入失败不影响任何既有功能。
-// 4. 仅 Windows 生效（编译期 `#[cfg]` 移除），其他平台零行为、零依赖。
+// 1. **净位移为零**：先把指针移开 MOVE_PX 像素，再立刻移回原坐标 ⇒ 指针最终位置
+//    **必然复原**（不做任何坐标换算，多显示器 / DPI 缩放下同样安全）。
+//    为什么不直接发「零位移」事件：位移为 0 的合成事件可能被系统合并/丢弃，
+//    而用户的解药是**真实晃动**，故这里复刻真实位移。
+// 2. **鼠标按下期间绝不注入**：拖动窗口 / 按住按键时移动指针会把被拖对象带偏。
+//    因此先等几何稳定，再等鼠标空闲（有上限，超时放弃本次）。
+// 3. **去抖**：拖动期间 `Moved` 连发，只在停止后注入一次，且同时最多一个等待任务。
+// 4. **失败静默**：任何一步失败都直接返回，不影响既有功能。
+// 5. 仅 Windows 生效（编译期 `#[cfg]` 移除），其他平台零行为、零依赖。
 #[cfg(target_os = "windows")]
 mod ime_nudge {
     use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-    /// 几何稳定多久后才注入（去抖窗口）。须显著大于拖动期间的 Resized 间隔，
-    /// 又要小到用户察觉不到延迟。
-    const DEBOUNCE: Duration = Duration::from_millis(200);
+    /// 几何稳定多久后才注入（去抖窗口）。
+    const DEBOUNCE: Duration = Duration::from_millis(120);
+    /// 鼠标仍被按下时的重试间隔。
+    const RETRY: Duration = Duration::from_millis(120);
+    /// 等鼠标空闲的最长时间；超时则放弃本次注入（不排队、不重试）。
+    const MAX_IDLE_WAIT: Duration = Duration::from_millis(2000);
+    /// 注入时指针临时位移量（像素）。1px 足以产生真实移动事件，
+    /// 又小到不可能改变指针下方的目标。
+    const MOVE_PX: i32 = 1;
+    /// 临时位移保持时长。>0 才能保证「移开 + 移回」被识别为**两次**独立移动，
+    /// 而不是被系统合并成一次净零位移（那就等于没动）。
+    const MOVE_HOLD: Duration = Duration::from_millis(15);
 
     /// 最后一次窗口几何变化的时间戳（毫秒）。
     static LAST_GEOMETRY_MS: AtomicU64 = AtomicU64::new(0);
@@ -183,7 +202,7 @@ mod ime_nudge {
             .unwrap_or(0)
     }
 
-    /// 窗口几何变化时调用：去抖，等几何稳定后注入一次。
+    /// 窗口几何变化（`Resized` / `Moved`）时调用：去抖 → 等鼠标空闲 → 注入一次。
     pub fn on_geometry_changed() {
         LAST_GEOMETRY_MS.store(now_ms(), Ordering::SeqCst);
 
@@ -202,33 +221,63 @@ mod ime_nudge {
                 }
             }
             DEBOUNCE_PENDING.store(false, Ordering::SeqCst);
-            nudge();
+            if wait_until_mouse_idle() {
+                nudge();
+            }
         });
     }
 
-    /// 注入一次零位移鼠标移动事件（无按键、无滚轮）。
-    pub fn nudge() {
+    /// 窗口重新获得焦点时调用：等鼠标空闲后注入一次（无需去抖）。
+    pub fn on_focus_gained() {
+        std::thread::spawn(|| {
+            if wait_until_mouse_idle() {
+                nudge();
+            }
+        });
+    }
+
+    /// 等到没有任何鼠标按键被按下。拖动 / 长按期间注入会把被拖对象带偏 1px。
+    fn wait_until_mouse_idle() -> bool {
+        let deadline = now_ms().saturating_add(MAX_IDLE_WAIT.as_millis() as u64);
+        while mouse_button_down() {
+            if now_ms() >= deadline {
+                return false;
+            }
+            std::thread::sleep(RETRY);
+        }
+        true
+    }
+
+    fn mouse_button_down() -> bool {
         use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-            SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_MOVE, MOUSEINPUT,
+            GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
         };
+        // GetAsyncKeyState 的最高位 = 当前是否按下。
+        const DOWN: i16 = 0x8000u16 as i16;
 
-        let mut input = INPUT {
-            r#type: INPUT_MOUSE,
-            Anonymous: INPUT_0 {
-                mi: MOUSEINPUT {
-                    dx: 0,
-                    dy: 0,
-                    mouseData: 0,
-                    // 仅 MOVE、不带 ABSOLUTE ⇒ 相对位移 0，位置不变。
-                    dwFlags: MOUSEEVENTF_MOVE,
-                    time: 0,
-                    dwExtraInfo: 0,
-                },
-            },
-        };
+        [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON].into_iter().any(|vk| {
+            // SAFETY: 无副作用查询，任意线程可调用；返回值仅作位判断。
+            unsafe { (GetAsyncKeyState(vk as i32) & DOWN) != 0 }
+        })
+    }
 
+    /// 注入一次**净位移为零**的真实鼠标移动（移开 1px → 立刻移回）。
+    pub fn nudge() {
+        use windows_sys::Win32::Foundation::POINT;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, SetCursorPos};
+
+        // SAFETY: 三个 API 均为无副作用查询 / 光标定位；失败即返回，不改动任何状态。
         unsafe {
-            let _ = SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32);
+            let mut origin = POINT { x: 0, y: 0 };
+            if GetCursorPos(&mut origin) == 0 {
+                return;
+            }
+            // 移开失败（如锁屏）直接放弃：绝不能留下「移开了但没移回」的残局。
+            if SetCursorPos(origin.x + MOVE_PX, origin.y) == 0 {
+                return;
+            }
+            std::thread::sleep(MOVE_HOLD);
+            let _ = SetCursorPos(origin.x, origin.y);
         }
     }
 }
