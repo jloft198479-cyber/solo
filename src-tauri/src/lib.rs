@@ -287,6 +287,9 @@ pub fn run() {
             // C3：remote-image-cache 磁盘缓存容量清理（后台线程，不阻塞启动）
             commands::image::cleanup_remote_image_cache(&app.handle());
 
+            // W1：IME 取证器（仅 SOLO_IME_FORENSIC=1 时注册热键，默认零行为）
+            commands::forensic::init_forensic(&app.handle());
+
             let raw_args = std::env::args().collect::<Vec<_>>();
             append_startup_log(
                 Some(&app.handle()),
@@ -376,6 +379,8 @@ pub fn run() {
             set_window_background_color,
             register_shell_new,
             unregister_shell_new,
+            report_ime_forensic,
+            ime_nudge_soon,
             detect_proxy_for_update
         ])
         .build(tauri::generate_context!())
