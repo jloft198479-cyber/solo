@@ -77,6 +77,13 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
                 }
             }
 
+            tauri::WindowEvent::Resized(_) => {
+                // 几何变化（拖动 / 最大化 / 系统缩放）后 IME 候选窗锚点可能失效。
+                // 去抖后注入一次零位移鼠标事件重锚，详见文件末尾 ime_nudge 模块。
+                #[cfg(target_os = "windows")]
+                ime_nudge::on_geometry_changed();
+            }
+
             tauri::WindowEvent::Focused(focused) => {
                 let event_name = if *focused {
                     "solo:editor-focus"
@@ -102,6 +109,12 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
                 // blur → 降低 WebView2 内存占用，focus → 恢复
                 #[cfg(target_os = "windows")]
                 {
+                    // 重新获得焦点后的「首次组字」是失锚高发时机
+                    // ⇒ 提前注入一次重锚事件（详见文件末尾 ime_nudge 模块）。
+                    if *focused {
+                        ime_nudge::nudge();
+                    }
+
                     let level = if *focused {
                         COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
                     } else {
@@ -130,6 +143,94 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
             _ => {}
         }
     });
+}
+
+// ── IME 候选窗重锚（Windows）────────────────────────────────
+//
+// 背景：WebView2 的微软拼音候选窗偶发**脱离光标**、钉死在一个固定的屏幕坐标上
+// （2026-09 排查，见 `docs/IME-CANDIDATE-WINDOW-REPORT.md`）。已知唯一可靠的解除
+// 方式 = 产生一次鼠标输入事件（用户手动「晃一下鼠标」即可自愈）；触发时机集中在
+// 「窗口几何变化 / 焦点切换后的首次组字」。
+//
+// 本模块把该动作自动化：几何变化结束、重新获得焦点时各注入一次**零位移**鼠标
+// 移动事件 —— 指针位置不变、不产生点击，但会走完整的输入链路。
+//
+// 约束：
+// 1. **零位移**：dx = dy = 0，不做任何坐标换算 ⇒ 多显示器 / DPI 缩放下属安全，
+//    不可能把指针挪到别处（这是本方案最重要的副作用约束）。
+// 2. **去抖**：拖动窗口期间 Resized 连发，只在几何稳定后注入一次，且同时最多
+//    只有一个等待中的任务（避免线程风暴）。
+// 3. **失败静默**：注入失败不影响任何既有功能。
+// 4. 仅 Windows 生效（编译期 `#[cfg]` 移除），其他平台零行为、零依赖。
+#[cfg(target_os = "windows")]
+mod ime_nudge {
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    /// 几何稳定多久后才注入（去抖窗口）。须显著大于拖动期间的 Resized 间隔，
+    /// 又要小到用户察觉不到延迟。
+    const DEBOUNCE: Duration = Duration::from_millis(200);
+
+    /// 最后一次窗口几何变化的时间戳（毫秒）。
+    static LAST_GEOMETRY_MS: AtomicU64 = AtomicU64::new(0);
+    /// 是否已有等待中的去抖任务。
+    static DEBOUNCE_PENDING: AtomicBool = AtomicBool::new(false);
+
+    fn now_ms() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    }
+
+    /// 窗口几何变化时调用：去抖，等几何稳定后注入一次。
+    pub fn on_geometry_changed() {
+        LAST_GEOMETRY_MS.store(now_ms(), Ordering::SeqCst);
+
+        // 已有等待中的任务则直接返回——它会读到最新的时间戳，
+        // 从而把注入推迟到「最后一次几何变化 + DEBOUNCE」之后。
+        if DEBOUNCE_PENDING.swap(true, Ordering::SeqCst) {
+            return;
+        }
+
+        std::thread::spawn(|| {
+            loop {
+                std::thread::sleep(DEBOUNCE);
+                let last = LAST_GEOMETRY_MS.load(Ordering::SeqCst);
+                if now_ms().saturating_sub(last) >= DEBOUNCE.as_millis() as u64 {
+                    break;
+                }
+            }
+            DEBOUNCE_PENDING.store(false, Ordering::SeqCst);
+            nudge();
+        });
+    }
+
+    /// 注入一次零位移鼠标移动事件（无按键、无滚轮）。
+    pub fn nudge() {
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_MOVE, MOUSEINPUT,
+        };
+
+        let mut input = INPUT {
+            r#type: INPUT_MOUSE,
+            Anonymous: INPUT_0 {
+                mi: MOUSEINPUT {
+                    dx: 0,
+                    dy: 0,
+                    mouseData: 0,
+                    // 仅 MOVE、不带 ABSOLUTE ⇒ 相对位移 0，位置不变。
+                    dwFlags: MOUSEEVENTF_MOVE,
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        };
+
+        unsafe {
+            let _ = SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32);
+        }
+    }
 }
 
 // ── macOS 窗口背景 ───────────────────────────────────────────
