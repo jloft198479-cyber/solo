@@ -9,6 +9,7 @@ updates: [docs/KNOWN-ISSUES.md, src/components/Editor/, src-tauri/src/]
 ---
 
 # 全面审查优化方案（2026-09-06）
+> 🗄 **本文件已归档，仅作历史原件保留、不再维护**。现行规则以 [AGENTS.md](../../AGENTS.md) 与活跃文档为准，请勿据此改动代码。
 
 > 应对方向：审查 bug、提升交互体验、提升响应速度、提升格式兼容性。
 > 审查方法：三个独立代码审查（交互体验 / 格式兼容性 / 性能与 bug），**全部发现均有 file:line 证据**；此前用户反馈并已登记的两条问题（[`KNOWN-ISSUES.md §二 #9/#10`](../KNOWN-ISSUES.md)）一并纳入，共 **31 条**。

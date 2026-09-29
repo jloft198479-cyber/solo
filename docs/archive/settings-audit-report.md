@@ -9,6 +9,7 @@ updates: [src/components/Settings/, src/stores/settings.ts, docs/KNOWN-ISSUES.md
 ---
 
 # Solo 设置面板深度排查报告
+> 🗄 **本文件已归档，仅作历史原件保留、不再维护**。现行规则以 [AGENTS.md](../../AGENTS.md) 与活跃文档为准，请勿据此改动代码。
 
 > 排查范围：`src/components/Settings/`（22 个 Vue + 3 个 TS = 25 个文件） + `src/stores/settings.ts` 13 个配置项
 > 排查方式：逐个文件审计 + 全量引用追踪（Grep 工具）

@@ -9,6 +9,7 @@ updates: [src-tauri/src/commands/document.rs, src/composables/useDocumentSession
 ---
 
 # solo 外部文件监听（Agent Sync）技术方案
+> 🗄 **本文件已归档，仅作历史原件保留、不再维护**。现行规则以 [AGENTS.md](../../AGENTS.md) 与活跃文档为准，请勿据此改动代码。
 
 > 目标：当外部程序（Claude Code / Cursor / Copilot 等 AI 工具，或任何编辑器）改了 solo 当前打开的那个 `.md` 文件时，solo 能**主动察觉**并优雅地把新内容同步进来——**不卡、不闪、不丢光标、不覆盖用户未保存的改动**。
 >

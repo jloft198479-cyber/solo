@@ -65,6 +65,8 @@ bun run test         # Run tests
 
 Requires Rust 1.96+ and MSVC Build Tools.
 
+> **AI agents / contributors:** all project rules (prohibitions, source-of-truth map, sensitive areas) live in [`AGENTS.md`](./AGENTS.md) — read it before making changes.
+
 ## Contact
 
 - WeChat: fzz198479

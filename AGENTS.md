@@ -29,6 +29,15 @@ solo 是一款**本地优先**的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + 
 
 **规则优先级**：本项目一切规则**以本文件为准**。`.opencode/`、`.trae/`、`.dumate/` 等 Agent 工作目录内的历史文档**仅供参考，不作规则来源**——与本文或代码冲突时，以本文件 / 代码为准。
 
+**🚫 归档区不是规则来源**（AI 全文检索会命中，务必先看这里再判断）：
+
+| 目录 | 性质 | 处置 |
+|---|---|---|
+| `docs/archive/`（18 份） | 一次性快照 / 历史提案 / 已实施方案的原件，均已标 `status: archive` + 🗄 提示行 | **读可以，别据此改代码**；结论已吸收进对应活跃文档 |
+| `.archive-档案室/`（27 份） | 更早期的历史档案，**内含第二份 `AGENTS.md` / `CHANGELOG.md` / `docs/ARCHITECTURE.md`** | **同名 ≠ 现行**，一切以仓库根 `AGENTS.md` / `CHANGELOG.md` / `ARCHITECTURE.md` 为准 |
+
+> 判据：**看 `status` frontmatter**。`active` = 现行；`archive` / `proposal` = 历史或未拍板。不确定时看文件首行有无 🗄 标记。
+
 ---
 
 ## 1. 🚫 禁令清单（读一遍就生效）

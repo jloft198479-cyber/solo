@@ -63,6 +63,8 @@ bun run test
 
 Rust 1.96+ と MSVC Build Tools が必要。
 
+> **AI agents / contributors:** all project rules live in [`AGENTS.md`](./AGENTS.md) — read it before making changes.
+
 ## 連絡先
 
 - WeChat: fzz198479
