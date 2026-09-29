@@ -11,9 +11,9 @@ updates: [docs/KNOWN-ISSUES.md, src/components/Editor/, src-tauri/src/]
 # 全面审查优化方案（2026-09-06）
 
 > 应对方向：审查 bug、提升交互体验、提升响应速度、提升格式兼容性。
-> 审查方法：三个独立代码审查（交互体验 / 格式兼容性 / 性能与 bug），**全部发现均有 file:line 证据**；此前用户反馈并已登记的两条问题（[`KNOWN-ISSUES.md §二 #9/#10`](./KNOWN-ISSUES.md)）一并纳入，共 **31 条**。
+> 审查方法：三个独立代码审查（交互体验 / 格式兼容性 / 性能与 bug），**全部发现均有 file:line 证据**；此前用户反馈并已登记的两条问题（[`KNOWN-ISSUES.md §二 #9/#10`](../KNOWN-ISSUES.md)）一并纳入，共 **31 条**。
 > 核实（2026-09-06）：31 条已逐条对照实际代码复核——**30 条属实，B9 被运行时反证推翻剔除**（注记见方向 B 表后），本文按 **30 条**维护。
-> 状态：**全部收口（2026-09-06）**——P0-P3 全部完成，B3 Word 列表重建经评估放弃、定为设计取舍（见 [`KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) §三）。30 条审查发现无遗留待办。每完成一项：[`KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) 对应条目移 §一 已修复 + 本文勾销进度。
+> 状态：**全部收口（2026-09-06）**——P0-P3 全部完成，B3 Word 列表重建经评估放弃、定为设计取舍（见 [`KNOWN-ISSUES.md`](../KNOWN-ISSUES.md) §三）。30 条审查发现无遗留待办。每完成一项：[`KNOWN-ISSUES.md`](../KNOWN-ISSUES.md) 对应条目移 §一 已修复 + 本文勾销进度。
 
 ---
 
@@ -127,8 +127,8 @@ updates: [docs/KNOWN-ISSUES.md, src/components/Editor/, src-tauri/src/]
 
 ## See also
 
-- [KNOWN-ISSUES.md（D1/D2 登记处，§二 #9/#10）](./KNOWN-ISSUES.md)
-- [paste-compat-decision.md（入站粘贴决策）](./paste-compat-decision.md)
-- [font-handling.md（字体系统专题）](./font-handling.md)
+- [KNOWN-ISSUES.md（D1/D2 登记处，§二 #9/#10）](../KNOWN-ISSUES.md)
+- [paste-compat-decision.md（入站粘贴决策）](../paste-compat-decision.md)
+- [font-handling.md（字体系统专题）](../font-handling.md)
 - [large-document-performance.md（大文档档位方案）](./large-document-performance.md)
-- [文档索引](./INDEX.md)
+- [文档索引](../INDEX.md)

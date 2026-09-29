@@ -75,11 +75,16 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`large-document-performance.md`](./archive/large-document-performance.md)            | archive   | dev              | archive  | 大文档卡顿根因清单与分阶段方案（**P0/P1 已实施、P2 已砍、P3 简化**，已归档） |
 | [`optimization-plan-2026-09-06.md`](./archive/optimization-plan-2026-09-06.md)        | archive   | maintainer       | archive  | 全面审查优化方案：30 条发现（已逐条核实，交互/兼容/性能）+ P0-P3 分批路线图（**执行待拍板**，已归档） |
 | [`project-plan-2026-08-29.md`](./archive/project-plan-2026-08-29.md)                  | archive   | maintainer       | archive  | 产品演进建议清单（**非强制任务**，逐项可执行可不执行，已归档）            |
-| [`solo互链方案-2026-09-11.md`](./solo互链方案-2026-09-11.md)                  | archive   | maintainer/agent | archive  | 互链一期方案（v5 定稿，已实施）：修 `[[`/`![` + 拖入即在落点成链（含审核收口） |
-| [`执行记录-互链方案-2026-09-11.md`](./执行记录-互链方案-2026-09-11.md)        | archive   | maintainer       | archive  | 互链一期执行/自检/回滚记录（执行人 qianwen；含落点收口补记；拖拽坐标待真机验证 → 未结项见 KNOWN-ISSUES §二 #9） |
-| [`执行记录-剪贴板纯文本范式-2026-09-12.md`](./执行记录-剪贴板纯文本范式-2026-09-12.md) | archive | maintainer | archive | 剪贴板范式改造执行记录：复制默认改「干净纯文本」+ 显式源码入口；决策依据/证据链/回滚点/残余风险/评审清单（**供第三方评审**） |
-| [`solo深度审查报告-2026-09-11.md`](./solo深度审查报告-2026-09-11.md)          | archive   | maintainer       | archive  | 四层只读审查（渲染/交互/速度/结构）：8 条发现 + 逐条处置记录（5 修 3 缓）        |
-| [`architecture-review-2026-09-12.md`](./architecture-review-2026-09-12.md)   | proposal  | maintainer       | active   | 核心逻辑与结构架构审查：四维度结论（清晰度/稳定性/灵活性/扩展性）+ P0-P2 建议（待拍板） |
+| [`solo互链方案-2026-09-11.md`](./archive/solo互链方案-2026-09-11.md)                  | archive   | maintainer/agent | archive  | 互链一期方案（v5 定稿，已实施）：修 `[[`/`![` + 拖入即在落点成链（含审核收口） |
+| [`执行记录-互链方案-2026-09-11.md`](./archive/执行记录-互链方案-2026-09-11.md)        | archive   | maintainer       | archive  | 互链一期执行/自检/回滚记录（执行人 qianwen；含落点收口补记；拖拽坐标待真机验证 → 未结项见 KNOWN-ISSUES §二 #9） |
+| [`执行记录-剪贴板纯文本范式-2026-09-12.md`](./archive/执行记录-剪贴板纯文本范式-2026-09-12.md) | archive | maintainer | archive | 剪贴板范式改造执行记录：复制默认改「干净纯文本」+ 显式源码入口；决策依据/证据链/回滚点/残余风险/评审清单（**供第三方评审**） |
+| [`solo深度审查报告-2026-09-11.md`](./archive/solo深度审查报告-2026-09-11.md)          | archive   | maintainer       | archive  | 四层只读审查（渲染/交互/速度/结构）：8 条发现 + 逐条处置记录（5 修 3 缓）        |
+| [`architecture-review-2026-09-12.md`](./archive/architecture-review-2026-09-12.md)   | archive   | maintainer       | archive  | 核心逻辑与结构架构审查：四维度结论 + P0-P2 建议（**已被 09-14 审计/09-15 评估覆盖**，已归档） |
+| [`PERF-AND-THEME-SUGGESTIONS-2026-09-18.md`](./archive/PERF-AND-THEME-SUGGESTIONS-2026-09-18.md) | archive | maintainer | archive | 性能/主题再优化空间评估：A 低风险 / B 中风险 / C 不建议三级（**未动代码，建议留档**，已归档） |
+| [`AUDIT-REPORT-2026-09-14.md`](./archive/AUDIT-REPORT-2026-09-14.md) | archive   | agent            | archive  | 六维度全量审计快照（v1.2.54）：三闸门基线 · 逐项功能核查 · 耦合热点与解耦分级 · Typora 差距决策单（**结论已进 KNOWN-ISSUES §二 #14-#16**，已归档） |
+| [`solo输入法合成冻结总闸方案-2026-09-13.md`](./archive/solo输入法合成冻结总闸方案-2026-09-13.md) | archive | agent | archive | 千问「合成冻结总闸」历史提案（**部分前提已被证据推翻**，作留痕用）；现况以 [`IME-CANDIDATE-WINDOW.md`](./IME-CANDIDATE-WINDOW.md) 为准 |
+| [`IME-CANDIDATE-WINDOW.md`](./IME-CANDIDATE-WINDOW.md) | record | agent | active | ⭐ **IME 候选窗失锚·主题唯一入口**（2026-09-30 由 4 份蒸馏合并，原件入 `archive/`）：🛑 已封存 + 5 条封存结论 · 锚点实测台账 · 已排除/死路清单 · 鼠标注入补丁三版全败史 · 外部 5 份建议评估 · 重启执行顺序 · 档案索引 |
+| [`archive/IME-CANDIDATE-WINDOW-*.md`](./archive/IME-CANDIDATE-WINDOW-PLAN.md) | archive | agent | archive | 同上主题的 **4 份历史原件**（PLAN / REPORT / SOLUTION / 观点对照），2026-09-30 蒸馏后归档，仅作留痕、不再维护 |
 | [`REVIEW-2026-09-15-体验与代码评估.md`](./REVIEW-2026-09-15-体验与代码评估.md) | report    | human            | active   | 系统性评估（体验/保真/性能/代码）：12 类问题 + 逐条修复与实测收口（§7 行动清单含状态列、§9 复核结果；头号发现序列化 O(n²) 已修） |
 | [`solo互链改名同步方案-2026-09-11.md`](./archive/solo互链改名同步方案-2026-09-11.md)  | archive   | maintainer/agent | archive  | 互链改名同步方案：改文件名后同步指向本文档的 `[[链接]]`（同目录、先列清单确认再原子改写），**代码已随 v1.2.53 落地** |
 | [`solo-tour.html`](./solo-tour.html)                                         | product   | user             | active   | 产品功能导览 HTML 页（非 md，无 frontmatter）                            |
@@ -126,7 +131,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | CJK 边界 / parser            | `docs/cjk-boundary.md` → `src/components/Editor/tiptap/markdown/parser.ts`                                        |
 | 安全 / 漏洞报告              | `docs/SECURITY.md`                                                                                                |
 | 历史版本都改了什么           | `docs/CHANGELOG.md`                                                                                               |
-| 工作原则 / 技术原则          | `docs/project_rules：工作原则和纪律.md` → `docs/architecture：产品开发总原则.md`                                  |
+| 三层原则（为什么做/怎么做人/怎么写码） | `docs/solo产品精神.md`（产品定位·取舍准绳）→ `docs/project_rules：工作原则和纪律.md`（工作原则+执行纪律）→ `docs/architecture：产品开发总原则.md`（技术决策·决策阶梯）。**三份分工不同，不要合并** |
 
 ## 术语表（项目黑话）
 

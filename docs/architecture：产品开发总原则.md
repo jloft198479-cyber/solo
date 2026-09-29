@@ -10,6 +10,9 @@ updates: [ARCHITECTURE.md, docs/project_rules：工作原则和纪律.md, src/]
 
 # 产品开发总原则
 
+> 🧭 **三层原则之一·第 3 层（怎么写代码）**：本文件定**技术设计原则**。
+> 另两层 → [`solo产品精神.md`](./solo产品精神.md)（为什么做）· [`project_rules：工作原则和纪律.md`](./project_rules：工作原则和纪律.md)（怎么做人做事）。
+>
 > 本文档定义代码和系统设计的基本原则。专注技术决策。
 
 ---

@@ -10,6 +10,9 @@ updates: [README.md, docs/architecture：产品开发总原则.md]
 
 ### solo-markdown 产品精神
 
+> 🧭 **三层原则之一·第 1 层（为什么做）**：本文件定**产品定位与取舍准绳**（加不加功能的最终依据）。
+> 另两层 → [`project_rules：工作原则和纪律.md`](./project_rules：工作原则和纪律.md)（怎么做人做事）· [`architecture：产品开发总原则.md`](./architecture：产品开发总原则.md)（怎么写代码）。
+
 #### 产品背景
 
 做这款产品的起因是，市场上有很多 Markdown 编辑器，数不胜数。最有名的应该是 Typora，最近比较火的应该是 Obsidian，总之种类各样都有。我也下载体验了很多，但感觉都不太舒服。

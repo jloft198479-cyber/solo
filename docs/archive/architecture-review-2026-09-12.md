@@ -1,14 +1,15 @@
 ---
 title: solo 核心逻辑与结构审查报告（2026-09-12）
-type: proposal
+type: archive
 audience: maintainer
-status: active
+status: archive
 tags: [架构审查, 代码质量, 测试, 安全]
 summary: 一次只读架构审查：核心逻辑清晰度优、结构稳定、扩展性内核强外壳弱，附分优先级改进建议（已按产品定位筛过，处置见文末）
 updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, .github/workflows/test.yml]
 ---
 
 # solo（md-editor）核心逻辑与结构审查报告
+> 🗄 **本文件已归档（2026-09-30）**：一次性快照/历史提案，结论已吸收进活跃文档。仅作历史原件保留、不再维护。
 
 > 审查日期：2026-09-12 · 纯只读审查，未改动任何代码。
 > 代码规模：前端 src/ 约 2.3 万行源码（另 7 千行测试），后端 src-tauri 约 4 千行 / 26 个 Tauri 命令；测试合计约 620 个用例。

@@ -1,14 +1,15 @@
 ---
 title: 全量审计报告 2026-09-14（功能/规范/结构/代码健康/Typora 对齐）
-type: core
+type: archive
 audience: agent
-status: active
+status: archive
 tags: [核心文档, 审计, 代码健康, 耦合, typora对比]
 summary: 六维度全量审计快照：三闸门基线、逐项功能核查、耦合热点与解耦分级、Typora 差距决策单
 updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, docs/FEATURE-MATRIX.md]
 ---
 
 # 全量审计报告（2026-09-14）
+> 🗄 **本文件已归档（2026-09-30）**：一次性快照/历史提案，结论已吸收进活跃文档。仅作历史原件保留、不再维护。
 
 > **基准**：`v1.2.54` · commit `bcbfd0f` 之后的工作区 · 分支 `master` · 2026-09-14
 > **六维度**：功能可用性 / 规范性 / 逻辑清晰 / 结构稳定性与模块灵活性（高内聚低耦合）/ 代码健康（冗余·僵尸）/ Typora 对齐。
@@ -170,6 +171,6 @@ WYSIWYG、大纲面板、焦点模式（solo 为段落级，Typora 为行/块级
 
 ## See also
 
-- [功能全表](./FEATURE-MATRIX.md)（核查清单与状态） · [已知问题与技术债](./KNOWN-ISSUES.md)（§二 #14-#16 为本次新增）
-- [架构真相地图](../ARCHITECTURE.md) · [产品精神](./solo产品精神.md) · [互链方案（含 Typora 对比纪律）](./solo互链方案-2026-09-11.md)
-- [项目工作手册](../AGENTS.md)（§七 联动矩阵）
+- [功能全表](../FEATURE-MATRIX.md)（核查清单与状态） · [已知问题与技术债](../KNOWN-ISSUES.md)（§二 #14-#16 为本次新增）
+- [架构真相地图](../../ARCHITECTURE.md) · [产品精神](../solo产品精神.md) · [互链方案（含 Typora 对比纪律）](./solo互链方案-2026-09-11.md)
+- [项目工作手册](../../AGENTS.md)（§七 联动矩阵）
