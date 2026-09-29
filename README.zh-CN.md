@@ -69,6 +69,8 @@ bun run test         # 运行测试
 
 需要 Rust 1.96+ 和 MSVC Build Tools。项目提供 `launch-dev.bat` 一键启动开发模式。
 
+> **给 AI / 协作者：** 本项目的全部规则（禁令清单 · 真理源地图 · 敏感区索引）都在 [`AGENTS.md`](./AGENTS.md)，动手前必读。
+
 ## 联系方式
 
 - 微信：fzz198479

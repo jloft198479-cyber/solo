@@ -58,7 +58,9 @@ src-tauri/.tauri/
 
 # Editor/IDE internal files
 .workbuddy/
-.trae/
+# AI 项目规则属团队规范，需随仓库同步（只指路，不复制 AGENTS.md 内容）；其余 .trae 产物仍忽略
+.trae/*
+!.trae/rules/
 .opencode/
 
 # Performance audit temp docs
