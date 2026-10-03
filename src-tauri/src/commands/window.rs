@@ -55,13 +55,6 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
 
     #[cfg(target_os = "windows")]
     {
-        // IME 重锚日志：与 startup-open.log 同目录。用途 = 事后自诊断——
-        // 下次再出现失锚，读这份日志即可知道各触发器有没有开火、注入是否成功，
-        // 不再需要用户描述或配合测试。
-        if let Ok(dir) = app.path().app_log_dir() {
-            let _ = std::fs::create_dir_all(&dir);
-            ime_nudge::init(dir.join("ime-nudge.log"));
-        }
     }
 
     window.on_window_event(move |event| {
@@ -86,21 +79,6 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
                         );
                     }
                 }
-            }
-
-            // 窗口几何变化后 IME 候选窗锚点可能失效。
-            //
-            // ⚠️ 必须**同时**接 `Moved`，这是 2026-09-24 首版漏掉的关键：
-            //   - 鼠标拖动窗口 → `WM_WINDOWPOSCHANGED` → tao 发 `Moved`
-            //   - `WM_SIZE` → tao 才发 `Resized`
-            //   - 拖动**不改变尺寸** ⇒ **一个 `Resized` 都不发**
-            //   （映射见 `tao/src/platform_impl/windows/event_loop.rs`）
-            //   用户实测「挪完窗口最容易失锚」，而首版只监听 `Resized` ⇒ 补丁从未触发。
-            //
-            // 注入细节见文件末尾 ime_nudge 模块。
-            tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
-                #[cfg(target_os = "windows")]
-                ime_nudge::on_geometry_changed();
             }
 
             tauri::WindowEvent::Focused(focused) => {
@@ -128,12 +106,6 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
                 // blur → 降低 WebView2 内存占用，focus → 恢复
                 #[cfg(target_os = "windows")]
                 {
-                    // 重新获得焦点后的「首次组字」是失锚高发时机
-                    // ⇒ 提前注入一次重锚事件（详见文件末尾 ime_nudge 模块）。
-                    if *focused {
-                        ime_nudge::on_focus_gained();
-                    }
-
                     let level = if *focused {
                         COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
                     } else {
@@ -162,220 +134,6 @@ pub fn attach_window_events(window: &WebviewWindow, app: &tauri::AppHandle) {
             _ => {}
         }
     });
-}
-
-// ── IME 候选窗重锚（Windows）────────────────────────────────
-//
-// 背景：WebView2 的微软拼音候选窗偶发**脱离光标**、钉死在一个固定的屏幕坐标上
-// （2026-09 排查，见 `docs/IME-CANDIDATE-WINDOW-REPORT.md`）。已知唯一可靠的解除
-// 方式 = 产生一次**鼠标输入事件**（用户手动「晃一下鼠标」即可自愈）。
-//
-// ⚠️ 时机结论（2026-09-24 v2 实测定性，是本模块设计的核心依据）：
-//   - v2 只在「窗口移动结束后」注入（预防性），病照犯 ⇒ **事前注入防不住**；
-//   - 解药生效的时机是「候选窗已钉死**之后**」鼠标一动 ⇒ **事后注入才对得上**；
-//   - 失锚高发于「窗口几何变化 / 焦点切换之后的第一次组字」。
-// ⇒ 触发点分两层：
-//   ① 预防层（保留 v2）：几何稳定 / 重新聚焦后注入一次，覆盖部分场景、成本为零；
-//   ② 治疗层（v3 新增）：前端在 compositionstart 时通知本模块，若近期（15s 内）
-//      动过窗口 / 切过焦点，则在 +250ms 与 +900ms 各注入一次——此时候选窗已出现，
-//      正是「晃一下就好」的生效窗口。
-//
-// 约束：
-// 1. **净位移为零**：先把指针移开 MOVE_PX 像素，再立刻移回原坐标 ⇒ 指针最终位置
-//    **必然复原**（不做任何坐标换算，多显示器 / DPI 缩放下同样安全）。
-//    为什么不直接发「零位移」事件：位移为 0 的合成事件可能被系统合并/丢弃，
-//    而用户的解药是**真实晃动**，故这里复刻真实位移。
-// 2. **鼠标按下期间绝不注入**：拖动窗口 / 按住按键时移动指针会把被拖对象带偏。
-//    因此先等几何稳定，再等鼠标空闲（有上限，超时放弃本次）。
-// 3. **去抖**：拖动期间 `Moved` 连发，只在停止后注入一次，且同时最多一个等待任务。
-// 4. **失败静默 + 全程落日志**：任何一步失败都直接返回；每次注入尝试写一行
-//    `ime-nudge.log`（路径见 init），供事后自诊断。
-// 5. 仅 Windows 生效（编译期 `#[cfg]` 移除），其他平台零行为、零依赖。
-#[cfg(target_os = "windows")]
-mod ime_nudge {
-    use std::io::Write as _;
-    use std::path::PathBuf;
-    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-    use std::sync::OnceLock;
-    use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
-    /// 几何稳定多久后才注入（去抖窗口）。
-    const DEBOUNCE: Duration = Duration::from_millis(120);
-    /// 鼠标仍被按下时的重试间隔。
-    const RETRY: Duration = Duration::from_millis(120);
-    /// 等鼠标空闲的最长时间；超时则放弃本次注入（不排队、不重试）。
-    const MAX_IDLE_WAIT: Duration = Duration::from_millis(2000);
-    /// 注入时指针临时位移量（像素）。1px 足以产生真实移动事件，
-    /// 又小到不可能改变指针下方的目标。
-    const MOVE_PX: i32 = 1;
-    /// 临时位移保持时长。>0 才能保证「移开 + 移回」被识别为**两次**独立移动，
-    /// 而不是被系统合并成一次净零位移（那就等于没动）。
-    const MOVE_HOLD: Duration = Duration::from_millis(15);
-    /// 「近期动过窗口/焦点」的判定窗口：组字开始时往回看这么久，
-    /// 有几何/焦点事件才注入（治疗层）。避免日常打字被频繁打扰。
-    const RECENT_WINDOW_MS: u64 = 15_000;
-    /// 治疗层注入时刻（组字开始后）。候选窗在首个拼音键后即出现，
-    /// +250ms 对准「已出现、刚钉死」；+900ms 兜底长组字 / 慢锚定。
-    const HEAL_DELAYS_MS: [u64; 2] = [250, 900];
-
-    /// 最后一次窗口几何变化的时间戳（毫秒）。
-    static LAST_GEOMETRY_MS: AtomicU64 = AtomicU64::new(0);
-    /// 最后一次获得焦点的时间戳（毫秒）。
-    static LAST_FOCUS_MS: AtomicU64 = AtomicU64::new(0);
-    /// 是否已有等待中的去抖任务。
-    static DEBOUNCE_PENDING: AtomicBool = AtomicBool::new(false);
-    /// 日志落点（attach_window_events 里 init 一次）。
-    static LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
-
-    /// 初始化日志路径。仅第一次调用生效。
-    pub fn init(path: PathBuf) {
-        let _ = LOG_PATH.set(path);
-    }
-
-    fn now_ms() -> u64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0)
-    }
-
-    /// 追加一行诊断日志。任何失败静默（日志绝不能反过来影响功能）。
-    fn log(message: impl AsRef<str>) {
-        if let Some(path) = LOG_PATH.get() {
-            if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-                let _ = writeln!(file, "[{}] {}", now_ms(), message.as_ref());
-            }
-        }
-    }
-
-    /// 近期（RECENT_WINDOW_MS 内）是否动过窗口几何 / 切过焦点。
-    fn had_recent_activity() -> bool {
-        let now = now_ms();
-        let geometry = LAST_GEOMETRY_MS.load(Ordering::SeqCst);
-        let focus = LAST_FOCUS_MS.load(Ordering::SeqCst);
-        let recent = |t: u64| t != 0 && now.saturating_sub(t) < RECENT_WINDOW_MS;
-        recent(geometry) || recent(focus)
-    }
-
-    /// 窗口几何变化（`Resized` / `Moved`）时调用：去抖 → 等鼠标空闲 → 注入一次。
-    pub fn on_geometry_changed() {
-        LAST_GEOMETRY_MS.store(now_ms(), Ordering::SeqCst);
-
-        // 已有等待中的任务则直接返回——它会读到最新的时间戳，
-        // 从而把注入推迟到「最后一次几何变化 + DEBOUNCE」之后。
-        if DEBOUNCE_PENDING.swap(true, Ordering::SeqCst) {
-            return;
-        }
-
-        std::thread::spawn(|| {
-            loop {
-                std::thread::sleep(DEBOUNCE);
-                let last = LAST_GEOMETRY_MS.load(Ordering::SeqCst);
-                if now_ms().saturating_sub(last) >= DEBOUNCE.as_millis() as u64 {
-                    break;
-                }
-            }
-            DEBOUNCE_PENDING.store(false, Ordering::SeqCst);
-            if wait_until_mouse_idle() {
-                let ok = nudge();
-                log(format!("geometry ok={ok}"));
-            } else {
-                log("geometry skip(mouse-busy)");
-            }
-        });
-    }
-
-    /// 窗口重新获得焦点时调用：等鼠标空闲后注入一次（无需去抖）。
-    pub fn on_focus_gained() {
-        LAST_FOCUS_MS.store(now_ms(), Ordering::SeqCst);
-        std::thread::spawn(|| {
-            if wait_until_mouse_idle() {
-                let ok = nudge();
-                log(format!("focus ok={ok}"));
-            } else {
-                log("focus skip(mouse-busy)");
-            }
-        });
-    }
-
-    /// 治疗层入口：前端在 `compositionstart`（组字开始）时调用。
-    ///
-    /// 此时候选窗即将出现——正是「鼠标一动即自愈」的生效时机。
-    /// 仅当近期动过窗口 / 切过焦点才注入（失锚的高发前提），
-    /// 避免日常打字被无谓打扰。在 HEAL_DELAYS_MS 各排一次注入。
-    pub fn on_composition_started() {
-        if !had_recent_activity() {
-            return; // 与高发场景无关的组字：不打扰（连日志也不写，保持文件干净）
-        }
-        log("composition armed(recent-geometry)");
-        for delay in HEAL_DELAYS_MS {
-            std::thread::spawn(move || {
-                std::thread::sleep(Duration::from_millis(delay));
-                if wait_until_mouse_idle() {
-                    let ok = nudge();
-                    log(format!("composition delay={delay} ok={ok}"));
-                } else {
-                    log(format!("composition delay={delay} skip(mouse-busy)"));
-                }
-            });
-        }
-    }
-
-    /// 等到没有任何鼠标按键被按下。拖动 / 长按期间注入会把被拖对象带偏 1px。
-    fn wait_until_mouse_idle() -> bool {
-        let deadline = now_ms().saturating_add(MAX_IDLE_WAIT.as_millis() as u64);
-        while mouse_button_down() {
-            if now_ms() >= deadline {
-                return false;
-            }
-            std::thread::sleep(RETRY);
-        }
-        true
-    }
-
-    fn mouse_button_down() -> bool {
-        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-            GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
-        };
-        // GetAsyncKeyState 的最高位 = 当前是否按下。
-        const DOWN: i16 = 0x8000u16 as i16;
-
-        [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON].into_iter().any(|vk| {
-            // SAFETY: 无副作用查询，任意线程可调用；返回值仅作位判断。
-            unsafe { (GetAsyncKeyState(vk as i32) & DOWN) != 0 }
-        })
-    }
-
-    /// 注入一次**净位移为零**的真实鼠标移动（移开 1px → 立刻移回）。
-    /// 返回是否完整走完「移开 + 移回」。
-    pub fn nudge() -> bool {
-        use windows_sys::Win32::Foundation::POINT;
-        use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, SetCursorPos};
-
-        // SAFETY: 三个 API 均为无副作用查询 / 光标定位；失败即返回，不改动任何状态。
-        unsafe {
-            let mut origin = POINT { x: 0, y: 0 };
-            if GetCursorPos(&mut origin) == 0 {
-                return false;
-            }
-            // 移开失败（如锁屏）直接放弃：绝不能留下「移开了但没移回」的残局。
-            if SetCursorPos(origin.x + MOVE_PX, origin.y) == 0 {
-                return false;
-            }
-            std::thread::sleep(MOVE_HOLD);
-            let _ = SetCursorPos(origin.x, origin.y);
-        }
-        true
-    }
-}
-
-/// IME 候选窗重锚（治疗层入口）：前端在 `compositionstart` 时调用。
-/// Rust 侧自行判断「近期是否动过窗口 / 切过焦点」，无关的组字直接忽略。
-/// 详见本文件 `ime_nudge` 模块文档。
-#[tauri::command]
-pub fn ime_nudge_soon() {
-    #[cfg(target_os = "windows")]
-    ime_nudge::on_composition_started();
 }
 
 // ── macOS 窗口背景 ───────────────────────────────────────────

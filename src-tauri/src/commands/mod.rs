@@ -2,7 +2,6 @@ pub mod clipboard;
 pub mod desktop;
 pub mod document;
 pub mod font;
-pub mod forensic;
 pub mod image;
 pub mod window;
 
@@ -15,8 +14,6 @@ pub use document::{
 pub use font::{fetch_font_data, get_cached_font_path, read_font_bytes, save_font_cache};
 pub use image::fetch_remote_image;
 pub use window::{
-    attach_window_events, ime_nudge_soon, report_window_close, request_app_quit,
-    set_window_background_color,
+    attach_window_events, report_window_close, request_app_quit, set_window_background_color,
 };
-pub use forensic::report_ime_forensic;
 pub use clipboard::read_clipboard_html;
