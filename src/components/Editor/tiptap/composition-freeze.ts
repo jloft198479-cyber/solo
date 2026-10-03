@@ -23,7 +23,6 @@
 import type { Transaction } from '@tiptap/pm/state';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import type { DecorationSet, EditorView } from '@tiptap/pm/view';
-import { imeNudgeSoon } from '../../../services/tauri/window';
 
 /** 浏览器是否正在输入法组字中。view 缺失 / 已销毁 → false（退化安全）。 */
 export function isFrozen(view: EditorView | null | undefined): boolean {
@@ -58,17 +57,7 @@ export function createCompositionTracker() {
     track(editorView: EditorView): () => void {
       view = editorView;
 
-      // IME 重锚钩子（治疗层）：组字开始时通知 Rust 侧注入一次重锚事件。
-      // Rust 侧自行过滤「近期没动过窗口」的普通组字，这里只负责把信号送出去。
-      // 挂在 DOM 上而非 PM 事务里：compositionstart 是原生事件，越早越好——
-      // 候选窗在首个拼音键后立刻出现，通知必须抢在锚点计算之后、注入要跟上。
-      const onCompositionStart = () => {
-        void imeNudgeSoon();
-      };
-      editorView.dom.addEventListener('compositionstart', onCompositionStart);
-
       return () => {
-        editorView.dom.removeEventListener('compositionstart', onCompositionStart);
         if (view === editorView) view = null;
       };
     },
