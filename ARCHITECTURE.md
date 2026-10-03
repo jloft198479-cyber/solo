@@ -565,7 +565,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 我想改… | 从这里入手 |
 |---|---|
 | 编辑器行为 bug | `MarkdownEditor.vue` + 对应 `extensions/*.ts` |
-| Markdown 保真度 | `parser.ts` / `serializer.ts` → 先看 `roundtrip.spec.ts` + `fixtures.spec.ts`（`KNOWN_FIDELITY_GAPS` 是已知缺口台账）；schema 侧的**正向契约锁**在 `schema-contract.spec.ts`（列表容器 / `code` 互斥 / 信息载体 attrs） |
+| Markdown 保真度 | `parser.ts` / `serializer.ts` → 先看 `roundtrip.spec.ts` + `fixtures.spec.ts`（`KNOWN_FIDELITY_GAPS` 是已知缺口台账）；schema 侧的**正向契约锁**在 `schema-contract.spec.ts`（列表容器 / `code` 互斥 / 信息载体 attrs / **无 markdown 载体的 mark**）；**mark 的 markdown 载体全覆盖**在 `mark-delimiter-coverage.spec.ts`（schema marks ⟷ `markDelimiter()` case 名的全量集合比对，**新增 mark 漏接载体立刻红，无需先登记**） |
 | 文件打开/保存 bug | `useDocumentSession.ts` + `commands/document.rs` |
 | 菜单/快捷键行为 | `registry.ts` + `useCommandDispatcher.ts` + Rust `menu.rs` |
 | 搜索/替换 | `useEditorSearch.ts` + `extensions/search-highlight.ts` + 搜索面板模板（`MarkdownEditor.vue`） |

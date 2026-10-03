@@ -20,6 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+> 未发版的改动在此累积，发版时并入对应版本段落。
+
+### Fixed
+- **下划线 `underline`：粘进来显示正常、存盘静默丢格式（#31，数据损失级）**：`StarterKit.configure()` 逐个关掉了内置节点却**漏了 `underline`**，而 `serializer.ts` 的 `markDelimiter()` 也没有它的 `case` ⇒ 落`default: return ''`，**开闭都不写**。实测：`<u>下划线</u>` 或 `<span style="text-decoration:underline">` 从网页粘贴进来屏幕上有下划线，存盘后成普通文字、重开格式消失，用户以为存好了。已显式 `underline: false` 关闭（Markdown/CommonMark/GFM 皆无下划线语法，而 solo 刻意 `html:false`；新增方言语法要动 parser + serializer + 转义规则，且发出去别人打开是字面量）。
+  - **同时补上这一类事故的防线**（本条真正价值）：新增 `mark-delimiter-coverage.spec.ts` 做**全量集合比对**（生产 schema 的 marks ⟷ 序列化器 case 名，任一侧多出即红，**新增 mark 漏接载体无需先登记就能被抓住**）；`schema-contract.spec.ts` 增「无 markdown 载体的 mark」正向钉死。已做反向校准——临时移除 `underline: false` 两条防线同时转红并点名。
+  - **全量排查无同类第二例**：逐 mark 往返实测，生产 schema 10 个 mark 里除 `underline` 外 9 个全保真（含 `dim` 的 `<span class="mk-dim">`）。
+  - **纠正一处历史误判**：§二 #19（2026-09-15 评估收口）把 `<u>` 判为「已解决、不再单列」，理由是「出入站均保真」——该判据验的是**字面文本**保留，不是**下划线渲染**支持，等于把「不支持下划线」当「没问题」结了案。
+
+---
+
 ## [1.2.56] - 2026-09-15
 
 > 2026-09-15 系统性评估（[`REVIEW-2026-09-15-体验与代码评估.md`](./REVIEW-2026-09-15-体验与代码评估.md)）修复批次。

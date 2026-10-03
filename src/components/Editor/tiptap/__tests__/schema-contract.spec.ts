@@ -83,6 +83,50 @@ describe('生产 schema 契约锁', () => {
   });
 
   /**
+   * 无 markdown 载体的 mark 必须关闭（2026-10-03，`underline` 事故）
+   *
+   * 一个 mark 能进生产 schema 只说明编辑器**能渲染**它；能不能**存住**
+   * 取决于 `serializer.ts` 的 `markDelimiter()` 有没有对应 case。二者脱节时
+   * 走的是 `default: return ''`——**静默吞 mark**，不报错、不丢文字、只丢格式。
+   *
+   * 事故实录：`underline` 是StarterKit 默认成员，`StarterKit.configure()` 逐个
+   * 关掉了 codeBlock/link/heading/code/bulletList/orderedList，唯独漏了它。
+   * 后果（探针实测，非推测）：`<u>下划线</u>` 从网页粘贴进来 marks=[underline]、
+   * **屏幕上有下划线**，存盘写成 `这是下划线`、重开格式消失 ⇒ 用户以为存好了。
+   *
+   * 为什么会漏：契约锁此前只查 `content` 约束与 attrs，**不查「mark 有没有
+   * markdown 载体」**——正交的一维被漏了，于是「schema 有 / 序列化器无 case」
+   * 这类不一致没有任何防线。
+   *
+   * 判据：mark 若既无 markdown 语法（CommonMark/GFM 皆无），又没接UI 入口，
+   * 就必须关掉；否则就是「用户能制造、但存盘即丢」的数据损失入口。
+   */
+  describe('无 markdown 载体的 mark', () => {
+    const MARKS_WITHOUT_MARKDOWN_SYNTAX = ['underline'];
+
+    for (const name of MARKS_WITHOUT_MARKDOWN_SYNTAX) {
+      it(`\`${name}\` 不得进生产 schema（无 markdown 载体 ⇒ 存盘即丢格式）`, () => {
+        expect(schema.marks[name]).toBeUndefined();
+      });
+    }
+
+    /**
+     * 反向：若将来要支持下划线，**不能只删这一条**。
+     * 必须同时补齐三处，否则又会退成「能显示、存不住」：
+     *   ① `serializer.ts` `markDelimiter()` 加 case（并决定落哪种语法）
+     *   ② `parser.ts` 加对应 token handler（否则解析不回来）
+     *   ③ 给出 UI 入口，且语法须是**别人也认的**（否则文件发出去是字面量）
+     */
+    it('本组登记的每个 mark 都必须有文档化的「重新开启条件」（防随手删断言）', () => {
+      // 断言集合本身不为空且不含重复——若有人清空列表，上面的循环会静默通过
+      expect(MARKS_WITHOUT_MARKDOWN_SYNTAX.length).toBeGreaterThan(0);
+      expect(new Set(MARKS_WITHOUT_MARKDOWN_SYNTAX).size).toBe(
+        MARKS_WITHOUT_MARKDOWN_SYNTAX.length,
+      );
+    });
+  });
+
+  /**
    * 承载用户信息的 attrs 必须存在（缺失即某处信息静默消失）
    *
    * 断言用「必须包含」而非「完全相等」：新增属性不算事故，丢失属性才算。

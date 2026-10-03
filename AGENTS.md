@@ -53,7 +53,8 @@ solo 是一款**本地优先**的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + 
 **编辑内核**
 
 4. 🚫 不许用 `String.replaceAll` —— TS target ES2020，用 `.split().join()`。
-5. 🚫 不许改 **parser / serializer / schema** 前不看契约锁 —— 必跑 `fixtures`（重开等价）+ `roundtrip` **Phase E**（mark「后开先关」）+ `schema-contract`（正向契约锁）。
+5. 🚫 不许改 **parser / serializer / schema** 前不看契约锁 —— 必跑 `fixtures`（重开等价）+ `roundtrip` **Phase E**（mark「后开先关」）+ `schema-contract`（正向契约锁）+ **`mark-delimiter-coverage`**（mark 全量载体比对）。
+   5b. 🚫 **不许新增无 markdown 载体的 mark** —— `markDelimiter()` 无 `case` ⇒ 落 `default: return ''` **静默吞格式**（文本在、格式消失、不报错）。且 `StarterKit` 默认成员必须**显式关掉**（`underline` 即漏网案例，见敏感区 16b）。
 6. 🚫 嵌套序列化不许 `new MarkdownSerializerState()` —— 用 `state.createChild()`，否则外层剪贴板转义标记丢失（粘出多出 `\=` `\$`）。
 7. 🚫 NodeView 不许漏清理 —— 监听器挂 `AbortController` 的 `signal`，`destroy()` 里 `abort()` + 单独清 timer；销毁后的异步回写要查 `signal.aborted`（`requestId` 挡不住）。
 8. 🚫 组字态（IME）不许绕开 [`composition-freeze.ts`](./src/components/Editor/tiptap/composition-freeze.ts) —— 新增 decoration / appendTransaction / NodeView / 浮动菜单必须走它，别再造第 5 份 `let liveView`。
@@ -115,6 +116,7 @@ solo 是一款**本地优先**的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + 
 | Suggestion 门控（`/` `:` `[[`）/ 拖拽落点 | 敏感区第 14 条 |
 | parser / serializer / **列表容器判定** | 敏感区第 15 条 |
 | parser / serializer / **mark 定界符开合** | 敏感区第 16 条 |
+| **新增 mark** / mark 粘进来显示正常但存盘丢格式 | 敏感区第 16b 条（**mark 必须有 markdown 载体**） |
 | mermaid / 任何**运行时注入 `<style>`** 的库（lit / KaTeX） | 敏感区第 17 条（prod CSP nonce） |
 | callout NodeView 属性同步 | 敏感区第 18 条 |
 | 互链改名同步（围栏代码块跳过） | 敏感区第 19 条 |
