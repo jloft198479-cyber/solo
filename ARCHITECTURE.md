@@ -276,8 +276,8 @@ md-editor/
 | `save_font_cache` | font.rs | 字体缓存写入磁盘 |
 | `read_font_bytes` | font.rs | 读取字体字节（经 IPC 取字节 → FontFace 同源加载；**字节通道兜底**，首选 CSS @font-face 注入 asset:// URL，见 §10.3） |
 | `set_window_background_color` | window.rs | macOS 窗口背景（NSColor） |
-| `register_shell_new` | desktop.rs | Windows 右键"新建 Markdown"注册表 |
-| `unregister_shell_new` | desktop.rs | Windows 右键"新建 Markdown"注销 |
+| `register_shell_new` | desktop.rs | Windows 右键"新建 Markdown"注册表（**幂等**：已一致则不发 `SHChangeNotify`，见敏感区 21） |
+| `unregister_shell_new` | desktop.rs | Windows 右键"新建 Markdown"注销（**已知越界删除整扩展名键**，见 KNOWN-ISSUES §二 #22） |
 | `refresh_native_menu_shortcuts` | lib.rs | 自定义快捷键 → 同步原生菜单（仅 set_accelerator，不重建） |
 | `startup_ready` | lib.rs | 前端 ready 信号，触发窗口显示 + 启动开打请求回放（原 `consume_startup_open_request`） |
 | `new_editor_window` | lib.rs | 创建新编辑器窗口（原子递增 label） |

@@ -121,6 +121,7 @@ solo 是一款**本地优先**的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + 
 | callout NodeView 属性同步 | 敏感区第 18 条 |
 | 互链改名同步（围栏代码块跳过） | 敏感区第 19 条 |
 | `.tmp` 原子写残留清理 | 敏感区第 20 条 |
+| **Windows 文件关联注册 / 注销**（`HKCU\Software\Classes` 写入、`SHChangeNotify` 通知） | 敏感区第 21 条（**注册必须幂等；注销不得整键删除**） |
 
 > 敏感区每条另有 KNOWN-ISSUES 溯源编号（如 #15→§二 #10、#16→§一 #26），详见 [docs/sensitive-areas.md](./docs/sensitive-areas.md) 表格末列。
 
