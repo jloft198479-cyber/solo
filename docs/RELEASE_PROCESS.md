@@ -519,14 +519,42 @@ node node_modules/vite/bin/vite.js build --outDir .sandbox-build --emptyOutDir
 node node_modules/vue-tsc/bin/vue-tsc.js --noEmit && node node_modules/vite/bin/vite.js build --emptyOutDir=false
 ```
 
-### 11.4 🔴 `gh release download` 对 **draft** release 会卡死（4min+ 不出）
+### 11.4 🔴 `cargo check` 必须在 **cmd/bat** 里跑 vcvars64，bash 里手工拼环境必失败（2026-10-03）
+
+**现象**（按踩坑顺序）：
+1. bash 直跑 `cargo check` → `failed to find tool "cl.exe": program not found`；
+2. 手工补 `CC`/`CXX`/`AR` → `linking with link.exe failed`，但错误是 **`link: extra operand 'xxx.o'` + `Try 'link --help'`** —— 听着像链接器参数错，实则是**调错了链接器**；
+3. 改用 MSVC 的 `link.exe` 绝对路径 → 退出码 `1104` / `1181`（`LIBPATH` 没生效）→ 手工把SDK 路径塞进 `RUSTFLAGS` → `multiple input filenames provided (first two filenames are - and Kits/10/Lib/...)`。
+
+**三个真根因**：
+1. **Git Bash 自带 coreutils 的 `link`**（`/usr/bin/link.exe`，33KB）**抢在 PATH 前面**，把 MSVC 真正的 `link.exe`（3.2MB）顶掉了。`link --help` 正是 coreutils 那个的输出⇒ **看到这个报错就该想到「链接器被换掉了」，不是参数问题**。
+2. **SDK 路径含空格**（`C:\Program Files (x86)\...`）⇒ 塞进 `RUSTFLAGS` 会被 rustc 拆成多个文件名参数（`Files` / `(x2)` / `Kits/...` 各成一个）。`PROGRA~2` 短路径也救不了（`Windows Kits` 仍有空格）。
+3. **Rust 装在 M盘**，不设 `CARGO_HOME` / `RUSTUP_HOME` 会报 `could not write settings file: M:\rust\.rustup \settings.toml`（注意路径尾部那个空格——是 bash 传参搞的）。
+
+**对策（唯一正解，照 [BUILD_GUIDE §4.3](./../BUILD_GUIDE.md) 官方方式，写成 `.bat` 跑）**：
+```bat
+@echo off
+call M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat >nul 2>&1
+set CARGO_HOME=M:\rust\.cargo
+set RUSTUP_HOME=M:\rust\.rustup
+set PATH=M:\rust\.cargo\bin;%PATH%
+cd /d F:\fzz-Project\md-editor\src-tauri
+cargo check --message-format=short
+```
+- **为什么 bat 里天然解决**：vcvars64 会把 MSVC 的 `bin` 放到 PATH **最前** ⇒ 假 `link` 被顶掉；`LIB` / `INCLUDE`（含带空格的 SDK 路径）由 vcvars 设好，**不需要手工传** ⇒ 绕开拆参问题。
+- ⚠️ **`.bat` 里别写中文注释**：`cmd` 按 GBK 解码 `.bat`，UTF-8 中文会变乱码并把后续行当成命令执行（报 `'xxx' 不是内部或外部命令`）。用英文注释。
+- ⚠️ 别在 bash 里 `eval "$(cmd //c '...set')"` 导环境：`cmd` 的 `set` 输出里 `=` 与空格混杂，bash 侧极易丢变量（实测 `LIB` 导成空串→ `empty search path given via -L`）。
+
+**验证口径**：clean master 能否编译是**必查项**。工作区可能有未提交的新文件，stash 掉再跑才是「别人 clone 下来」的真实状态。2026-10-03 正是这样查出「`lib.rs` 注册了 `commands::forensic` 但该文件从未提交」的**上传红线**（详见 KNOWN-ISSUES §一 #32）。
+
+### 11.5 🔴 `gh release download` 对 **draft** release 会卡死（4min+ 不出）
 
 **现象**：release 还是 draft 时就 `gh release download`，命令挂 4 分钟以上不出结果。
 **根因**：draft 资产的 URL 是 `untagged-<hash>` 临时路径，下载器一直重试挂死。
 **对策**：**先 `gh release edit v1.x.x --draft=false` 发布，再 download**。核对 latest.json、CNB 同步都放在 undraft 之后做。
 > 注意 §9.9 的 `untagged-<hash>` URL / by-tag 404 是 draft 的**正常表现**，别误判成 tag 关联失败；但「下载卡死」是另一回事，必须 undraft 后才下。
 
-### 11.5 🔴 CNB 国内镜像：分支是 `main` + OAuth token 只读
+### 11.6 🔴 CNB 国内镜像：分支是 `main` + OAuth token 只读
 
 **现象**：`cnb` 写操作（建 release / 传附件）报 `403 Forbidden` 或 `409`。
 **根因**：① `cnb login` 的 OAuth token 只能**读**，写全 403 → 必须用**个人令牌**；② CNB 仓库默认分支是 **`main`**（GitHub 是 `master`），`--target-commitish` 填错会失败；③ 空仓库建 Release **必填** `--target-commitish`（help 标可选，实际必填）。
@@ -542,13 +570,13 @@ node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
 - 令牌权限探针：403 = 无写权限（换个人令牌）；409 = 权限正常仅 tag 重复。
 - 完整 CNB 踩坑：技能 `~/.workbuddy/skills/cnb-publish/`。
 
-### 11.6 🟡 `release-gate.ps1` 本机会话跑不了
+### 11.7 🟡 `release-gate.ps1` 本机会话跑不了
 
 **现象**：`pwsh scripts/release-gate.ps1 -Stage PreTag` 报错（harness 注入的 `$Stage` 与脚本 `param([ValidateSet]$Stage)` 冲突）。
 **根因**：自动化会话注入的环境变量与脚本 param 同名冲突。
 **对策**：退化为手写命令（即本文件各 Phase 的等价命令），用 11.1~11.4 的 node / env 前置方式逐条执行，效果等同闸门脚本。
 
-### 11.7 ✅ 一遍成功清单（Agent 自动发版最小必做）
+### 11.8 ✅ 一遍成功清单（Agent 自动发版最小必做）
 
 照此顺序，无回退：
 1. 版本号四源一致并升高（§3）+ 检查无 `replaceAll`（§2.2）
@@ -562,7 +590,7 @@ node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
 9. **SECURITY.md 当前版本字段**同步到新版本（易漏项，见 §7.4）—— 别只改三处版本号
 10. `git clean -fdx -- .sandbox-*` 清掉沙盒目录，工作树留干净
 
-### 11.8 🔴 `gh release download` 大资产经代理被静默截断（2026-09-11 实证）
+### 11.9 🔴 `gh release download` 大资产经代理被静默截断（2026-09-11 实证）
 
 **现象**：v1.2.51 核资产时，`gh release download v1.2.51 -D <dir>` 下回来的 **exe 只有 67,701 B**（真实 5,714,701 B），耗时 3 分钟；而同一批的 `latest.json`（1 KB）与 `.sig`（418 B）**哈希完全匹配** —— 小文件正常、大文件残废。**重下一次即成功**（58 秒，大小 + sha256 全对）。
 
