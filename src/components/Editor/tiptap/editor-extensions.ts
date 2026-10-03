@@ -194,6 +194,19 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
       // 列表容器需要放开 content 约束，故关闭内置版本、改用下方的 extend 版本
       bulletList: false,
       orderedList: false,
+      // Underline 必须显式关闭（2026-10-03）——**它此前是唯一漏网的默认 mark**。
+      // 三个原因让它不能留在生产 schema 里：
+      //  ① Markdown/CommonMark/GFM **没有下划线语法**（那是 HTML `<u>` 的事），
+      //     而 solo 刻意 `html:false` 不解析原始 HTML ⇒ 往返无处落地；
+      //  ② serializer 的 `markDelimiter()` 没有 `case 'underline'`，落`default: return ''`
+      //     ⇒ 静默吞 mark。探针实测：`<u>下划线</u>` 粘贴进来 marks=[underline]、
+      //     屏幕上有下划线，存盘后成`这是下划线`、重开格式消失 ⇒ **数据损失级**；
+      //  ③ 它没有 UI 入口（无快捷键/ 无 slash 菜单 / `editor-commands.ts` 无 case），
+      //     用户主动打不出下划线，唯一入口是粘贴 ⇒ 只带来损失、不带来功能。
+      // 代价对比已权衡：新增 `++下划线++` 之类方言语法要动 parser + serializer +
+      // `escapeInline` 的按语境转义规则（§一 #28），且发出去别人打开是字面量。
+      // 回归锁见 `__tests__/schema-contract.spec.ts`「无 markdown 载体的mark」组。
+      underline: false,
     }),
     Frontmatter,
     FootnoteRef,

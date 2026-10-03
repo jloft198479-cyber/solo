@@ -396,6 +396,11 @@ export class MarkdownSerializerState {
         const href = escapeLinkDestination(mark.attrs.href as string);
         return `](${href}${mark.attrs.title ? ` "${escapeLinkTitle(mark.attrs.title as string)}"` : ''})`;
       }
+      // ⚠️ default 分支是**数据损失出口**，不是「未知类型兜底」：
+      // mark 无 case ⇒ 开闭都不写 ⇒ 文本在、格式静默消失（用户看不出已丢）。
+      // 加新 mark 时若漏在这里，探针会报「往返丢 mark」——
+      // 防线见 `__tests__/schema-contract.spec.ts` 与 `mark-delimiter-coverage.spec.ts`。
+      // 唯一可接受的落空是「该 mark 无 markdown 载体」——那就**不该进 schema**。
       default: return '';
     }
   }
