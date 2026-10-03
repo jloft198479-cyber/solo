@@ -22,15 +22,12 @@ const DOC = schema.nodes.doc.create(null, [
   schema.nodes.paragraph.create(null, [schema.text('甲乙丙')]),
 ]);
 
-/** 只需composing 一个字段的假 view——本模块不碰其它成员。
+/** 只需 composing 一个字段的假 view——本模块不碰其它成员。
  *
- *  ⚠️ 2026-10-03：`dom` 字段是**必需**的，不是可选。
- *  `createCompositionTracker.track()` 会在真实 DOM 上挂`compositionstart` 钩子
- *  （IME 重锚治疗层，2026-09-24 起封存保留、无害），所以假 view 少了 `dom`
- *  就会 `Cannot read properties of undefined`——这正是本文件此前 3 例失败的真因，
- *  已用 `git stash` 对照实验证实为**先于下划线改动存在**的既有失败
- *  （属测试道具失真，非产品缺陷；真实运行时 `view.dom` 恒存在）。
- *  教训：造「只需要某字段」的假对象前，先看被测代码有没有顺手用别的成员。 */
+ *  ⚠️ 2026-10-03：`dom` 字段**保留**，虽然当前 `track()` 已不再挂事件监听。
+ *  原因：ProseMirror 的 `view.dom` 在测试环境里会被间接访问，留着更接近真实
+ *  实例，也免得下次再补一遍。本条的3 例历史失败已随 IME 补丁整体移除而消失
+ *  （见 KNOWN-ISSUES §一 #32），但这条约束本身值得留在注释里。 */
 function fakeView(composing: boolean): EditorView {
   return { composing, dom: document.createElement('div') } as unknown as EditorView;
 }
