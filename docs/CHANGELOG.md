@@ -20,15 +20,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.2.57] - 2026-10-03
 
-> 未发版的改动在此累积，发版时并入对应版本段落。
+> 发版前系统体检批次。上传 GitHub 前全面查了一轮，本段是体检中**实际修掉**的项。
 
 ### Fixed
 - **下划线 `underline`：粘进来显示正常、存盘静默丢格式（#31，数据损失级）**：`StarterKit.configure()` 逐个关掉了内置节点却**漏了 `underline`**，而 `serializer.ts` 的 `markDelimiter()` 也没有它的 `case` ⇒ 落`default: return ''`，**开闭都不写**。实测：`<u>下划线</u>` 或 `<span style="text-decoration:underline">` 从网页粘贴进来屏幕上有下划线，存盘后成普通文字、重开格式消失，用户以为存好了。已显式 `underline: false` 关闭（Markdown/CommonMark/GFM 皆无下划线语法，而 solo 刻意 `html:false`；新增方言语法要动 parser + serializer + 转义规则，且发出去别人打开是字面量）。
-  - **同时补上这一类事故的防线**（本条真正价值）：新增 `mark-delimiter-coverage.spec.ts` 做**全量集合比对**（生产 schema 的 marks ⟷ 序列化器 case 名，任一侧多出即红，**新增 mark 漏接载体无需先登记就能被抓住**）；`schema-contract.spec.ts` 增「无 markdown 载体的 mark」正向钉死。已做反向校准——临时移除 `underline: false` 两条防线同时转红并点名。
+  - **同时补上这一类事故的防线**（本条真正价值）：新增 `mark-delimiter-coverage.spec.ts` 做**全量集合比对**（生产 schema 的 marks ⟷ 序列化器 case 名，任一侧多出即红，**新增 mark 漏接载体无需先登记就能被抓住**）；`schema-contract.spec.ts` 增「无 markdown载体的 mark」正向钉死。已做反向校准——临时移除 `underline: false` 两条防线同时转红并点名。
   - **全量排查无同类第二例**：逐 mark 往返实测，生产 schema 10 个 mark 里除 `underline` 外 9 个全保真（含 `dim` 的 `<span class="mk-dim">`）。
   - **纠正一处历史误判**：§二 #19（2026-09-15 评估收口）把 `<u>` 判为「已解决、不再单列」，理由是「出入站均保真」——该判据验的是**字面文本**保留，不是**下划线渲染**支持，等于把「不支持下划线」当「没问题」结了案。
+
+### Fixed（构建与源码完整性）
+- **🔴 上传红线：源码仓库编译失败（#32）**：`lib.rs` 注册了 `commands::forensic`（IME 取证器，提交 `001f358` 引入），但**源文件从未提交**、配套 2 个依赖（含输入注入 feature `Win32_UI_Input_KeyboardAndMouse`）与前端接线也全在工作区未提交 ⇒ **任何人从 GitHub clone 后 `cargo check` 必失败**（6 个错误）。长期未暴露的原因：本机工作区一直有该文件、且 `tauri dev` 不做 clean 编译，而前端三道闸门全不碰 Rust。已按「彻底删净」处置——删`forensic.rs`（356 行）+ 三处注册 + `window.rs` 的 `ime_nudge` 整块（167-380 行，含 `SetCursorPos` 注入逻辑）及其 5 处调用点 + 前端 5 处接线 + 2 个依赖；**clean 态 `cargo check` 由 6 错归零**（-278/+1）。
+- **`composition-freeze` 测试 3 例失败**：测试道具 `fakeView()` 缺 `dom` 字段而 `track()` 会访问它。属**测试失真非产品缺陷**（真实运行时 `view.dom` 恒存在），已用 `git stash` 对照实验证实为改动前既有失败。**本版起全量测试首次全清**。
+
+### Documentation
+- 精简文档体系 **35 份 6971 行 → 27 份 5580 行**，8 份过期快照归位 `docs/archive/`。
+- 补「AI 指路链路」与归档区边界声明（`AGENTS.md` 行为契约）。
+- 新增敏感区第 **16b** 条「mark 必须有 markdown 载体」+ 禁令 5b；`RELEASE_PROCESS §11.4` 建档本机 Rust 编译三坑。
+- 封存 IME 候选窗失锚专题文档 `docs/IME-CANDIDATE-WINDOW.md`（主题唯一入口，含三版补丁全败史与上游 issue 族）。
+
+### 验证
+- 四道闸门全过：`cargo check` Finished ｜ `vue-tsc` 0 错 ｜ `vitest` 1487 通过 / 0 失败 ｜ `vite build` 通过。
+- 静态合规 7 条禁令逐条扫过；前后端 Tauri 命令 **26 ↔ 26 双向零差异**；版本号四源一致；文档真死链零。
+- 性能无退步（口径对齐后）：85,318 字 23.91ms（基线 24.10）、443,457 字 110.40ms（基线 127.95，快 14%）；**复杂度指数 1.02**（块数 ×20 →耗时 ×20.4），`O(n²)` 未复现。
+
+---
+
+## [Unreleased]
+
+> 未发版的改动在此累积，发版时并入对应版本段落。
 
 ---
 
