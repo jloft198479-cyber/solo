@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import { parseMarkdown } from '../../markdown/parser';
 import { setDocumentTier } from '../../../document-scale';
-import { createListFoldPlugin, listFoldKey } from '../list-fold';
+import { createListFoldPlugin, clearFoldedMemory, listFoldKey } from '../list-fold';
 
 const schema = createTestSchema();
 
@@ -159,6 +159,146 @@ describe('list-fold 折叠装饰', () => {
     const state = stateOf(docOf(NESTED));
     expect(foldState(state).arrowPos).toEqual([]);
     expect(foldState(state).hidden).toEqual([]);
+  });
+});
+
+describe('list-fold 跨文档记忆（切走再切回）', () => {
+  beforeEach(() => {
+    setDocumentTier('normal');
+    clearFoldedMemory();
+  });
+  afterEach(() => {
+    setDocumentTier('normal');
+    clearFoldedMemory();
+  });
+
+  /** 用一个可变的「当前路径」模拟 fileStore —— 与生产同构：路径先变，事务后到 */
+  function mountedWithPath(md: string, pathRef: { current: string | null }, cursor = 3) {
+    const doc = docOf(md);
+    return EditorState.create({
+      schema,
+      doc,
+      selection: TextSelection.create(doc, cursor),
+      plugins: [createListFoldPlugin(() => pathRef.current)],
+    });
+  }
+
+  /** 整体替换成另一份文档（模拟切文件：路径已在事务前变更） */
+  function switchTo(
+    state: EditorState,
+    md: string,
+    pathRef: { current: string | null },
+    nextPath: string | null,
+  ): EditorState {
+    pathRef.current = nextPath;
+    const next = docOf(md);
+    return state.apply(state.tr.replaceWith(0, state.doc.content.size, next));
+  }
+
+  it('切走再切回同一路径：折叠态恢复', () => {
+    const pathRef = { current: 'a.md' };
+    let state = mountedWithPath(NESTED, pathRef);
+    state = state.apply(state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+    expect(foldState(state).folded).toEqual([ITEM]);
+
+    // 切到 b.md —— 折叠态不该带过去
+    state = switchTo(state, '- X\n  - X1\n', pathRef, 'b.md');
+    expect(foldState(state).folded).toEqual([]);
+
+    // 切回 a.md —— 折叠态应恢复
+    state = switchTo(state, NESTED, pathRef, 'a.md');
+    expect(foldState(state).folded).toEqual([ITEM]);
+    expect(foldState(state).hidden).toEqual([{ from: HIDDEN_FROM, to: HIDDEN_TO }]);
+  });
+
+  it('不同路径互不串台：各自的折叠态各归各', () => {
+    const pathRef = { current: 'a.md' };
+    let state = mountedWithPath(NESTED, pathRef);
+    state = state.apply(state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+
+    state = switchTo(state, NESTED, pathRef, 'b.md');
+    expect(foldState(state).folded).toEqual([]);
+
+    // 在 b.md 里折叠它的首项（坐标同为 1）
+    state = state.apply(state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+    expect(foldState(state).folded).toEqual([ITEM]);
+
+    // 回 a.md：拿到的是 a 自己的记忆，不是 b 的
+    state = switchTo(state, NESTED, pathRef, 'a.md');
+    expect(foldState(state).folded).toEqual([ITEM]);
+  });
+
+  it('无路径文档（未命名/新建）不记忆：切走即不恢复', () => {
+    const pathRef: { current: string | null } = { current: null };
+    let state = mountedWithPath(NESTED, pathRef);
+    state = state.apply(state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+
+    // 切走再切回「仍无路径」→ 等同同路径整体替换，清空，不恢复
+    state = switchTo(state, '- X\n  - X1\n', pathRef, null);
+    expect(foldState(state).folded).toEqual([]);
+    state = switchTo(state, NESTED, pathRef, null);
+    expect(foldState(state).folded).toEqual([]);
+  });
+
+  it('恢复时校验位置有效性：文档结构变了，失效的折叠被丢弃而非硬套', () => {
+    const pathRef = { current: 'a.md' };
+    let state = mountedWithPath(NESTED, pathRef);
+    state = state.apply(state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+
+    // 切走⋯
+    state = switchTo(state, '- X\n  - X1\n', pathRef, 'b.md');
+    // ⋯再切回：同路径但内容已被外部改成「首项不再有子列表」
+    state = switchTo(state, '- A\n- B\n', pathRef, 'a.md');
+
+    // 位置 1 处已是「无子列表的项」→ 记忆失效被丢弃，不会给不可折叠的项挂折叠
+    expect(foldState(state).folded).toEqual([]);
+    expect(foldState(state).hidden).toEqual([]);
+  });
+
+  it('展开（取消折叠）后切走再切回：不会恢复出已取消的折叠', () => {
+    const pathRef = { current: 'a.md' };
+    let state = mountedWithPath(NESTED, pathRef);
+    state = state.apply(state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+    // 再点一次 = 展开
+    state = state.apply(state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+    expect(foldState(state).folded).toEqual([]);
+
+    state = switchTo(state, '- X\n  - X1\n', pathRef, 'b.md');
+    state = switchTo(state, NESTED, pathRef, 'a.md');
+    expect(foldState(state).folded).toEqual([]);
+  });
+
+  it('折叠后编辑（位置平移）再切走：不错误折叠，安全降级为「全展开」', () => {
+    const pathRef = { current: 'a.md' };
+    let state = mountedWithPath(NESTED, pathRef);
+    state = state.apply(state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+
+    // 顶部插入段落：纯 map 平移，不触发 rebuild 分支（真实场景里 rAF 重建可能还没跑）
+    state = state.apply(state.tr.insert(0, schema.nodes.paragraph.create(null, schema.text('新'))));
+    expect(foldState(state).folded).toEqual([ITEM + 3]);
+
+    // 切走（此刻记忆存的是平移后的坐标 4）
+    state = switchTo(state, '- X\n  - X1\n', pathRef, 'b.md');
+    // 切回 a.md：磁盘内容若仍是编辑前的原始 NESTED，坐标 4 处的项无子列表
+    // ⇒ 校验不过被丢弃。**这是有意的安全降级**：宁可全展开，也不折叠错的项。
+    // （真实场景里磁盘内容与离开时一致时，坐标吻合、恢复成功，见上一条用例）
+    state = switchTo(state, NESTED, pathRef, 'a.md');
+    expect(foldState(state).folded).toEqual([]);
+    expect(foldState(state).hidden).toEqual([]);
+  });
+
+  it('折叠态已恢复后再编辑：位置随事务平移，不被记忆里旧坐标覆盖', () => {
+    const pathRef = { current: 'a.md' };
+    let state = mountedWithPath(NESTED, pathRef);
+    state = state.apply(state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+
+    state = switchTo(state, '- X\n  - X1\n', pathRef, 'b.md');
+    state = switchTo(state, NESTED, pathRef, 'a.md');
+    expect(foldState(state).folded).toEqual([ITEM]);
+
+    // 文档顶部插入段落，整体下移 3；折叠位置应跟着平移，而不是回到记忆里的 1
+    state = state.apply(state.tr.insert(0, schema.nodes.paragraph.create(null, schema.text('新'))));
+    expect(foldState(state).folded).toEqual([ITEM + 3]);
   });
 });
 

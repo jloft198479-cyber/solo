@@ -26,6 +26,28 @@ import { isWholeDocReplace } from '../transaction-shape';
 
 export const listFoldKey = new PluginKey<ListFoldState>('listFold');
 
+/**
+ * 折叠态的跨文档记忆（进程内存，不落盘）。
+ *
+ * 为什么需要：折叠是「阅读姿势」而非一次性动作——读长文档折起中间几段，切走再切回来
+ * 全展开了，得重折一遍。记住它 + 按需恢复，是把这个功能从「能用」拉到「顺手」的关键。
+ *
+ * 三条边界（有意为之，勿扩）：
+ * - **不落盘**：进程退出即清空。折叠是临时视图态，写进磁盘要处理版本/清理/失效，
+ *   为一个「下次打开还能记得」的锦上添花背这堆复杂度不值。
+ * - **按文档路径隔离**：同一路径（含外部修改重载）恢复；不同文档互不串台。
+ * - **无路径文档（未命名/新建）不记忆**：没有稳定身份，记了也恢复不到同一份内容。
+ *
+ * 值为「折叠项起始位置」集合——**位置会随文档结构变化漂移**，故恢复时按
+ * 「位置处仍是含子列表的列表项」校验（复用 pruneFolded），失效的条目自然丢弃。
+ */
+const foldedByPath = new Map<string, Set<number>>();
+
+/** 供测试复位；生产代码不需要调用（Map 生命周期即进程） */
+export function clearFoldedMemory(): void {
+  foldedByPath.clear();
+}
+
 /** 能作为「可折叠容器」的列表节点类型（无序 / 有序 / 待办） */
 const LIST_NODE_TYPES = new Set(['bulletList', 'orderedList', 'taskList']);
 /** 列表项节点类型（无序项 / 待办项） */
@@ -50,6 +72,8 @@ interface ListFoldState {
   /** 被折叠的列表项起始位置集合（纯视图态，随事务 map 平移） */
   folded: Set<number>;
   decorations: DecorationSet;
+  /** 当前折叠态归属的文档路径（null = 无身份文档，不参与记忆） */
+  path: string | null;
 }
 
 interface ListFoldMeta {
@@ -227,9 +251,40 @@ function revealFoldedAtCursor(folded: Set<number>, doc: PMNode, selPos: number):
   return next ?? folded;
 }
 
-/** 插件工厂：测试可直接调用 */
-export function createListFoldPlugin(): Plugin<ListFoldState> {
+/** 空集合视为「没有折叠」，从记忆里删掉，避免 Map 无限堆积无意义条目 */
+function saveFolded(path: string | null, folded: Set<number>): void {
+  if (!path) return;
+  if (folded.size === 0) {
+    foldedByPath.delete(path);
+    return;
+  }
+  foldedByPath.set(path, new Set(folded));
+}
+
+/**
+ * 取出某路径的记忆折叠态 —— 但记忆里的「位置」是上次那份文档的坐标，
+ * 而文档可能已被外部修改。故恢复时逐条校验：位置处**仍**是含子列表的列表项
+ * 才保留（复用 pruneFolded 的判据）。校验不过的静默丢弃，绝不硬套漂移位置
+ * （硬套会折叠错误的项，比不折叠更糟）。
+ */
+function restoreFolded(path: string | null, doc: PMNode): Set<number> {
+  if (!path) return new Set<number>();
+  const remembered = foldedByPath.get(path);
+  if (!remembered || remembered.size === 0) return new Set<number>();
+  return pruneFolded(remembered, doc);
+}
+
+/** 插件工厂：测试可直接调用。`getPath` 返回当前文档路径（null = 无身份文档，不记忆） */
+export function createListFoldPlugin(getPath: () => string | null = () => null): Plugin<ListFoldState> {
   const tracker = createCompositionTracker();
+
+  /** 空态（大文档降级 / 无折叠项共用），path 一并带上以免记忆归属丢失 */
+  const emptyState = (path: string | null): ListFoldState => ({
+    folded: new Set<number>(),
+    decorations: DecorationSet.empty,
+    path,
+  });
+
   return new Plugin<ListFoldState>({
     key: listFoldKey,
     view(editorView) {
@@ -262,15 +317,18 @@ export function createListFoldPlugin(): Plugin<ListFoldState> {
     },
     state: {
       init(_config, state) {
-        if (isHeavyDocument()) return { folded: new Set<number>(), decorations: DecorationSet.empty };
-        return { folded: new Set<number>(), decorations: buildDecorations(state.doc, new Set()) };
+        const path = getPath();
+        if (isHeavyDocument()) return emptyState(path);
+        // 首次载入：若路径已有记忆则恢复（编辑器实例可能晚于文档切换创建）
+        const restored = restoreFolded(path, state.doc);
+        return { folded: restored, decorations: buildDecorations(state.doc, restored), path };
       },
       apply(tr, value) {
         // 大文档：不建装饰（与段落聚焦同款降级）
         if (isHeavyDocument()) {
-          return value.decorations === DecorationSet.empty
+          return value.decorations === DecorationSet.empty && value.folded.size === 0
             ? value
-            : { folded: new Set<number>(), decorations: DecorationSet.empty };
+            : emptyState(value.path);
         }
 
         const meta = tr.getMeta(listFoldKey) as ListFoldMeta | undefined;
@@ -280,6 +338,7 @@ export function createListFoldPlugin(): Plugin<ListFoldState> {
           return {
             folded: value.folded,
             decorations: mapFrozenDecorations(value.decorations, tr),
+            path: value.path,
           };
         }
 
@@ -287,10 +346,27 @@ export function createListFoldPlugin(): Plugin<ListFoldState> {
         let decorations = value.decorations;
 
         if (tr.docChanged) {
-          // 整体替换（切文件 / 载入）：折叠态对新文档无意义，清空重建
+          // 整体替换（切文件 / 载入）：旧折叠态位置对新文档无意义。
+          // 但「切走再切回」要能恢复 ⇒ 事务里读不到旧路径（store 已更新），
+          // 故与 state 里记的 path 比对：换了文档就先存旧、再取新。
           if (isWholeDocReplace(tr)) {
-            const reset = new Set<number>();
-            return { folded: reset, decorations: buildDecorations(tr.doc, reset) };
+            const nextPath = getPath();
+            if (nextPath !== value.path) {
+              saveFolded(value.path, value.folded);
+              const restored = restoreFolded(nextPath, tr.doc);
+              return {
+                folded: restored,
+                decorations: buildDecorations(tr.doc, restored),
+                path: nextPath,
+              };
+            }
+            // 同路径整体替换（外部修改重载 / 另存为落盘）：位置大概率已漂移，
+            // 清空重来，不拿旧位置硬套新内容。
+            return {
+              folded: new Set<number>(),
+              decorations: buildDecorations(tr.doc, new Set()),
+              path: value.path,
+            };
           }
           folded = mapFolded(folded, tr);
           // 只平移装饰（复用 widget DOM，避免每次按键重建箭头）
@@ -317,11 +393,16 @@ export function createListFoldPlugin(): Plugin<ListFoldState> {
           rebuild = true;
         }
 
-        if (rebuild) return { folded, decorations: buildDecorations(tr.doc, folded) };
+        if (rebuild) {
+          // 折叠态即用户当下的「阅读姿势」——每次变更顺手同步进记忆，
+          // 保证切文件那一刻取到的是最新的一份（无需在切换时另存）。
+          saveFolded(value.path, folded);
+          return { folded, decorations: buildDecorations(tr.doc, folded), path: value.path };
+        }
         // 无事发生（绝大多数纯光标移动走这条）→ 原样返回，保持 state 引用不变
         return folded === value.folded && decorations === value.decorations
           ? value
-          : { folded, decorations };
+          : { folded, decorations, path: value.path };
       },
     },
     props: {
@@ -332,9 +413,12 @@ export function createListFoldPlugin(): Plugin<ListFoldState> {
   });
 }
 
-export const ListFold = Extension.create({
+export const ListFold = Extension.create<{ getPath: () => string | null }>({
   name: 'listFold',
+  addOptions() {
+    return { getPath: () => null };
+  },
   addProseMirrorPlugins() {
-    return [createListFoldPlugin()];
+    return [createListFoldPlugin(this.options.getPath)];
   },
 });
