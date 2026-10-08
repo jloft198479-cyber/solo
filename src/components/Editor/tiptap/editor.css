@@ -409,6 +409,8 @@ html.doc-heavy .tiptap-editor > hr {
 
 .tiptap-editor li {
   margin: calc(var(--mk-paragraph-spacing) * 0.2) 0;
+  /* 折叠箭头（.list-fold-toggle）绝对定位挂在 li 上，不占文字流、不影响对齐 */
+  position: relative;
 }
 
 /* 列表 marker 用次要色，让正文内容更突出（iA Writer / Notion 一致做法） */
@@ -418,6 +420,74 @@ html.doc-heavy .tiptap-editor > hr {
 
 .tiptap-editor li p {
   margin: 0;
+}
+
+/* ── 列表 · 幕布式树状（引导线 + 大纲区边界）──────────────────────
+   只作用于列表节点自身；标题 / 段落 / 代码 / 表格等「非列表区」一律不碰。
+   纯视觉层，不产生任何 markdown 语法变化。 */
+.tiptap-editor > ul,
+.tiptap-editor > ol {
+  position: relative;
+}
+
+/* 顶层列表左侧淡导轨：把「列表区」与上下方正文在视觉上分开（不占文字流） */
+.tiptap-editor > ul::before,
+.tiptap-editor > ol::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background-color: var(--border-light);
+}
+
+/* 嵌套列表左侧竖引导线：父项与子项之间的「树枝」，层级一眼可辨 */
+.tiptap-editor li > ul,
+.tiptap-editor li > ol {
+  border-left: 1px solid var(--border-light);
+}
+
+/* ── 折叠箭头（装饰层 widget，由 list-fold 扩展生成）────────────── */
+.tiptap-editor .list-fold-toggle {
+  position: absolute;
+  left: -1.55em;
+  top: 0.16em;
+  width: 1.1em;
+  height: 1.1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted-color);
+  opacity: 0.45;
+  border-radius: 4px;
+  user-select: none;
+  transition:
+    opacity var(--motion-fast) var(--ease-out),
+    color var(--motion-fast) var(--ease-out);
+}
+
+.tiptap-editor .list-fold-toggle:hover {
+  opacity: 1;
+  color: var(--text-secondary);
+}
+
+.tiptap-editor .list-fold-toggle svg {
+  width: 11px;
+  height: 11px;
+  transition: transform var(--motion-fast) var(--ease-out);
+}
+
+/* 折叠时箭头由「下」转成「右」 */
+.tiptap-editor .list-fold-toggle.is-folded svg {
+  transform: rotate(-90deg);
+}
+
+/* 被折叠项的子列表整体隐藏（装饰层 class，不改文档结构） */
+.tiptap-editor .outline-folded-hidden {
+  display: none;
 }
 
 /* ── 任务列表 ──────────────────────────────────────────────── */
