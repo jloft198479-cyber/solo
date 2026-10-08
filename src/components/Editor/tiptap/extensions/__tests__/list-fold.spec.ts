@@ -179,7 +179,7 @@ describe('list-fold 待办项的 DOM 契约（CSS 为何必须用后代选择器
   });
 });
 
-describe('list-fold 组字冻结（IME 防御）', () => {
+describe('list-fold 装饰 DOM 与组字冻结（IME 防御）', () => {
   let view: EditorView | null = null;
   let mount: HTMLElement | null = null;
 
@@ -212,6 +212,44 @@ describe('list-fold 组字冻结（IME 防御）', () => {
   function setComposing(v: EditorView, value: boolean) {
     Object.defineProperty(v, 'composing', { configurable: true, get: () => value });
   }
+
+  it('rAF 重建后箭头 DOM 复用同一节点（不给 widget 稳定 key 就会被换掉）', () => {
+    const v = mountView(NESTED);
+    const before = v.dom.querySelector('.list-fold-toggle');
+    expect(before).not.toBeNull();
+
+    // 打字（map 平移）→ 再走一次 rAF 那次重建
+    v.dispatch(v.state.tr.insertText('，', ARROW));
+    v.dispatch(v.state.tr.setMeta(listFoldKey, { rebuild: true }));
+
+    // 箭头落在段落文字流里、紧贴光标：一旦每次重建都换 DOM，就是输入期的高危扰动
+    expect(v.dom.querySelector('.list-fold-toggle')).toBe(before);
+  });
+
+  it('折叠态变化时箭头要换新节点（class 变 is-folded，箭头才能转向）', () => {
+    const v = mountView(NESTED);
+    const before = v.dom.querySelector('.list-fold-toggle');
+
+    v.dispatch(v.state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+
+    const after = v.dom.querySelector('.list-fold-toggle');
+    expect(after).not.toBe(before);
+    expect(after!.classList.contains('is-folded')).toBe(true);
+  });
+
+  it('DOM 复用后箭头点击仍指向正确的项（getPos 未随重建失效）', () => {
+    const v = mountView(NESTED);
+    // 在文档最前面插入一个段落，整个列表被推后 3 位
+    v.dispatch(v.state.tr.insert(0, schema.nodes.paragraph.create(null, schema.text('前'))));
+    v.dispatch(v.state.tr.setMeta(listFoldKey, { rebuild: true }));
+
+    v.dom.querySelector('.list-fold-toggle')!.dispatchEvent(
+      new MouseEvent('click', { bubbles: true }),
+    );
+
+    // getPos 若停留在重建前的坐标，itemStartAt 会解析到「前」段落里而返回 null，折叠态为空
+    expect(foldState(v.state).folded).toEqual([ITEM + 3]);
+  });
 
   it('组字期间 doc 变化：箭头 widget DOM 原样保留（不重建）', () => {
     const v = mountView(NESTED);
