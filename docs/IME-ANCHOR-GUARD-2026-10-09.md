@@ -167,5 +167,57 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 
 ---
 
+## 8. 外部线索核实记录（2026-10-09，简乐带来 4 条，逐条查证）
+
+> **纪律**：第三方材料一律回第一现场核实后再采信（本项目惯例）。本轮 4 条**全部查证**，结果 3 真 1 真但转述有误；其中**两条引述未被证实**。
+
+### 8.1 核实结果速览
+
+| 线索 | 真实性 | 关键事实 | 对 solo 的价值 |
+|---|---|---|---|
+| **Blender PR `#132102`**「Enhance the support for IME in Windows.」 | ✅ **真实存在**（作者 Arius / 阿弩斯，2024-12 提交；commit `43f38b34df`） | 原生 C++ 重构，走 **Win32 IMM 路线**：`GHOST_BeginIME` / `GHOST_MoveIME`（内部即 `ImmSetCandidateWindow` 一族）；`GHOST_ImeWin32` 类**源自旧版 Chromium** | ⚠️ **中低（不可直接搬，见 8.2）** |
+| 引述①:「必须在 `WM_IME_STARTCOMPOSITION` 之前定位候选窗」 | ❓ **未能核实** | 页面/检索片段中**未见此句**（PR 代码只见到 `WM_IME_COMPOSITE_START/EVENT/END` 的处理） | 存疑，勿当结论 |
+| 引述②:「部分 IME 会忽略组字结束前的 reposition 请求」 | ❓ **未能核实** | 同上，**未见原文** | 存疑，勿当结论 |
+| **xterm.js `#5839`**「IME offset」 | ✅ **真实**（2026-04-24；Tauri 2.0 + WebView2 + Win11；候选窗弹到**右下角**） | ⚠️ 但**根因在 xterm.js 自身**：① TUI 把 buffer cursor 停在输出区；② 右键 `moveTextAreaUnderMouseCursor` 把 textarea 移走。评论区自述**在应用层于 `compositionstart` 重定位 textarea 无效** | **中**：佐证「宿主 + 嵌入式 webview」普遍；**其解法不可抄**（solo 无 xterm 的 textarea 问题） |
+| **paseo `#3511`** | ✅ **真实**（2026-08-18；**Electron** + xterm.js + Win11） | 明确写「**chat composer（普通 textarea）不受影响**，只有终端不正常」；引用 xterm `#5454/#5734/#5839` + `electron/electron#4539` | **低**：是**终端库**问题，且其情形与 solo **相反**（solo 是裸 `<input>` 也复现）。仅作旁证 |
+| **VSCode `#259380`** | ✅ **真实**，但**转述两处有误** | ⚠️ ① 症状是「候选窗**不出现**」(`does not appear`)，**不是"位置错乱"**；② 缓解方向**说反了**——原文是让你**关掉**"使用以前版本的微软拼音"兼容开关（因问题**由旧版引起**），**不是打开**；③ 该建议出自**用户评论**，**非 VSCode 官方** | **低**（且具误导性）：不可照抄 |
+
+### 8.2 ⚠️ 关键辨析一：Blender 的经验**不能直接搬到 solo**（架构不同）
+
+- **Blender = 原生 C++ 应用**，自己拥有 GHOST 窗口层 ⇒ 可以**直接调 Win32 IMM API** 控制候选窗（候选窗是自己实现的 IME 支持产物）。
+- **solo = WebView2 托管**，键盘焦点在 **WebView2 的子窗口**（`Chrome_WidgetWin_1`），IMM 上下文**属于那个子窗口**，候选窗由 **WebView2/Chromium 内部**绘制与管理 ⇒ **solo 顶层窗口调 `ImmSetCandidateWindow` 够不着**。
+- ⇒ 第三方建议的动作「抄 Blender 用 `ImmSetCandidateWindow` 预定位」**撞上本项目 §7 已列死路**（原文：「宿主层 `ImmSetCandidateWindow` 钳制候选窗 —— **前提不成立**：候选窗无 HWND ⇒ 只能像素采样；且与已落地 `TSFImeSupport` 路径交互」）。
+- **结论：不建议做该项。** 理由不是"没试过"，而是**IMM 上下文不在我们手里**（同族动作上游亦已实测无效）。
+- 📌 **唯一可借鉴处**：Blender 证明「用 IMM 路线控制候选窗」在**原生层**可行且已成功落地——但**那正是我们碰不到的一层**。
+
+### 8.3 ⚠️ 关键辨析二：「事后重锚无效」**不适用于本方案**（防误杀主线）
+
+- 第三方称 Blender 证明「组字中 reposition 被忽略」⇒ 推广成「**事后重锚一律无效**」。
+- **但本方案（Lanmark 路线）根本不是"请 IME 移动候选窗"**：
+  - Blender 说的是给**已存在的候选窗**发"移动"请求（`ImmSetCandidateWindow`），组字中会被忽略；
+  - Lanmark 做的是**让渲染进程重发 `TextInputState`**（`blur`→`focus`）来**重建文本输入布局**，且 pending 到 `compositionend` **之后**执行，**作用于下一次组字**。
+- ⇒ **两条路解决的不是同一环节，不矛盾**。第三方把"某条具体手段受阻"**过度推广**成了"任何事后操作都无效"——**若照此采信，会误杀当前唯一有 A/B 验证的解法**。
+- ✅ **必须保留主线**：`blur()` → 隔 60ms → `focus()`（Lanmark 实测有效）。
+
+### 8.4 有采纳价值的一条：验证 `TSFImeSupport` flag 是否真生效
+
+- 第三方提出的**诊断思路**成立：挂消息钩子看 `WM_IME_*` 是否到达。
+- ⚠️ **须修正**：若 flag 生效（IMM32），消息到达的是 **WebView2 子窗口**（真正的 IME 目标窗口），**不是** solo 顶层窗口 ⇒ 监听范围须含子窗口。
+- 📌 **更廉价的替代判据（不需写钩子）**：本项目 **O9** 已确认候选窗由 **`TextInputHost.exe`** 绘制 ⇒ **若 flag 真回退到 IMM32，候选窗应改由输入法自身进程绘制**。此观测（2026-09-13）在 flag 落地**之前** ⇒ **flag 生效后重新采一次失锚现场、看画候选窗的进程是否变了**即可侧证。代价远低于写 Win32 钩子。
+- **处置**：列为**可选诊断**（见 §3 的 0.5），**不阻塞主线**；主线失败或需深挖时再做。
+
+### 8.5 方案调整结论
+
+| 项 | 处置 |
+|---|---|
+| 主线：Lanmark 护栏（`blur`→60ms→`focus`，挂 resize） | ✅ **不变**，仍是最可信、同栈、有 A/B 的路线 |
+| Blender 式 `ImmSetCandidateWindow` 预定位 | ❌ **不做**（架构不成立，撞 §7 死路） |
+| 挂钩子验证 flag | 🟡 **可选诊断**（0.5），不阻塞主线；优先用 O9 的廉价替代判据 |
+| 给用户"兼容模式"自救指引 | ⚠️ **暂缓**：第三方转述方向说反；须先自行核实哪个方向真有效，再决定是否写进 KNOWN-ISSUES |
+| xterm.js / paseo 围观 | 🟡 记录备查（它们是**终端库**问题，解法不可抄，仅作同族旁证） |
+| Blender「WM_IME_STARTCOMPOSITION 前定位」「组字中 reposition 被忽略」两句 | ❓ **未核实**，登记为待核，**不得当结论引用** |
+
+---
+
 **档案建立**：2026-10-09 ｜ **分支**：`fix/ime-anchor-guard`（基线 `55bbbc1`）
 **当前阶段**：0 / 4 ｜ **下一步**：等简乐点头 → 阶段 1（实现护栏）
