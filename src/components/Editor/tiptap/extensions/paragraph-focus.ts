@@ -6,6 +6,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 import { isHeavyDocument } from '../../document-scale';
 import { createCompositionTracker, mapFrozenDecorations } from '../composition-freeze';
+import { isWholeDocReplace } from '../transaction-shape';
 
 export const paragraphFocusKey = new PluginKey<ParagraphFocusState>('paragraphFocus');
 
@@ -77,16 +78,6 @@ function swapActiveBlock(
   }
 
   return result;
-}
-
-/** 单 step 覆盖整个旧文档 = 整体替换（文件切换 / 全选替换），旧装饰对新 doc 无效，需全量重建 */
-function isWholeDocReplace(tr: Transaction): boolean {
-  if (tr.steps.length !== 1) return false;
-  let whole = false;
-  tr.steps[0].getMap().forEach((from, to) => {
-    if (from === 0 && to === tr.before.content.size) whole = true;
-  });
-  return whole;
 }
 
 /** 插件工厂：测试直接调用（先例同 markdown-input 导出插件工厂） */

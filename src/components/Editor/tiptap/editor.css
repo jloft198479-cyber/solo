@@ -416,12 +416,12 @@ html.doc-heavy .tiptap-editor > hr {
   color: var(--text-secondary);
 }
 
+/* 列表项正文段。`position: relative` 是折叠箭头的绝对定位锚点：位置只跟文字起点有关，
+   可预测、不依赖 li。
+   必须用**后代**选择器而非 `li > p`：待办项的正文被 TaskItem 包在 `li > label + div`
+   里（`@tiptap/extension-list` 的 renderHTML），`li > p` 匹配不到，箭头会丢锚点跑到容器外。 */
 .tiptap-editor li p {
   margin: 0;
-}
-
-/* 折叠箭头绝对定位的锚点＝项内首段：位置只跟文字起点有关，可预测、不依赖 li */
-.tiptap-editor li > p {
   position: relative;
 }
 
@@ -429,9 +429,11 @@ html.doc-heavy .tiptap-editor > hr {
    只作用于列表节点自身；标题 / 段落 / 代码 / 表格等「非列表区」一律不碰。
    纯视觉层，不产生任何 markdown 语法变化。 */
 
-/* 嵌套列表左侧竖引导线：父项与子项之间的「树枝」，贴在子列表左沿，不切圆点 */
-.tiptap-editor li > ul,
-.tiptap-editor li > ol {
+/* 嵌套列表左侧竖引导线：父项与子项之间的「树枝」，贴在子列表左沿，不切圆点。
+   同样用后代选择器：待办项的嵌套列表在 `li > div` 里，`li > ul` 匹配不到会漏画。
+   每个 ul/ol 只有一个「直属父项」，即便被多层 li 祖先匹配到也只画一条线。 */
+.tiptap-editor li ul,
+.tiptap-editor li ol {
   border-left: 1px solid var(--border-light);
 }
 
