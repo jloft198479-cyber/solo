@@ -64,6 +64,20 @@ const CHEVRON_SVG =
   'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.6 4.4L6 7.8l3.4-3.4"/></svg>';
 
 /**
+ * 箭头 widget 的稳定 key（探针实测得来，勿删）。
+ *
+ * 不给 key 时，`WidgetType.eq` 只能比较 toDOM —— 而重建时 toDOM 每次都是新闭包，
+ * 于是恒判「不等」，**每次重建都会销毁并重建箭头 DOM**。这个箭头就落在段落文字流里、
+ * 紧贴光标，等于每敲一个字就在光标旁边换一次 DOM；而重建恰好发生在组字刚结束
+ * （打完中文紧接着敲标点）那一帧，是输入法/选区异常的高危动作。
+ *
+ * 带上 key 后 PM 判等价 → **复用同一个 DOM 节点**，重建退化成纯记账。
+ * 折叠态参与 key：折叠时箭头要转 90°，必须换 DOM 才能换 class。
+ */
+const TOGGLE_KEY_OPEN = 'list-fold-toggle:open';
+const TOGGLE_KEY_FOLDED = 'list-fold-toggle:folded';
+
+/**
  * 项内第一个子块（段落）的正文起点——箭头挂这里，紧贴项首。
  *
  * `listItem` 与 `taskItem` 的内容都**以段落开头**（`paragraph block*`），所以同一个
@@ -152,6 +166,7 @@ function buildDecorations(doc: PMNode, folded: Set<number>): DecorationSet {
         decorations.push(
           Decoration.widget(widgetPos, (view, getPos) => createToggleDOM(view, getPos, isFolded), {
             side: -1,
+            key: isFolded ? TOGGLE_KEY_FOLDED : TOGGLE_KEY_OPEN,
           }),
         );
       }
