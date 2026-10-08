@@ -47,6 +47,7 @@ import {
   type WikilinkCandidateItem,
 } from './extensions/wikilink-suggest';
 import { ParagraphFocus } from './extensions/paragraph-focus';
+import { ListFold } from './extensions/list-fold';
 import { SearchHighlight, type SearchHighlightOptions } from './extensions/search-highlight';
 
 type SlashCommandSuggestionProps = SuggestionProps<SlashCommandItem, SlashCommandItem>;
@@ -228,6 +229,8 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     Code.extend({ excludes: '' }),
     Highlight.configure({ multicolor: false }),
     ParagraphFocus,
+    // 列表折叠 / 展开（幕布式大纲体验）——纯视图层装饰，折叠态不进文档
+    ListFold,
     SearchHighlight.configure(options.searchHighlightOptions),
     Link.configure({
       openOnClick: false,
