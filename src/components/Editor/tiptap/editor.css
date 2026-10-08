@@ -409,8 +409,6 @@ html.doc-heavy .tiptap-editor > hr {
 
 .tiptap-editor li {
   margin: calc(var(--mk-paragraph-spacing) * 0.2) 0;
-  /* 折叠箭头（.list-fold-toggle）绝对定位挂在 li 上，不占文字流、不影响对齐 */
-  position: relative;
 }
 
 /* 列表 marker 用次要色，让正文内容更突出（iA Writer / Notion 一致做法） */
@@ -420,6 +418,11 @@ html.doc-heavy .tiptap-editor > hr {
 
 .tiptap-editor li p {
   margin: 0;
+}
+
+/* 折叠箭头绝对定位的锚点＝项内首段：位置只跟文字起点有关，可预测、不依赖 li */
+.tiptap-editor li > p {
+  position: relative;
 }
 
 /* ── 列表 · 幕布式树状（引导线 + 大纲区边界）──────────────────────
@@ -443,25 +446,38 @@ html.doc-heavy .tiptap-editor > hr {
   background-color: var(--border-light);
 }
 
-/* 嵌套列表左侧竖引导线：父项与子项之间的「树枝」，层级一眼可辨 */
+/* 嵌套列表竖引导线：对齐到子级项目符号列（串起同级兄弟），位置随层级同步右移 */
 .tiptap-editor li > ul,
 .tiptap-editor li > ol {
-  border-left: 1px solid var(--border-light);
+  position: relative;
 }
 
-/* ── 折叠箭头（装饰层 widget，由 list-fold 扩展生成）────────────── */
+.tiptap-editor li > ul::before,
+.tiptap-editor li > ol::before {
+  content: '';
+  position: absolute;
+  left: 0.55em;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--border-light);
+}
+
+/* ── 折叠箭头（装饰层 widget，由 list-fold 扩展生成）──────────────
+   位置：项目符号正前方（首段文字起点 -2.2em）。
+   平时隐藏，悬停该行时浮现，折叠态常显——与幕布「悬停小圆点前出现展开/收起图标」一致。 */
 .tiptap-editor .list-fold-toggle {
   position: absolute;
-  left: -1.55em;
-  top: 0.16em;
-  width: 1.1em;
-  height: 1.1em;
+  left: -2.2em;
+  top: 0.18em;
+  width: 1.05em;
+  height: 1.05em;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   color: var(--muted-color);
-  opacity: 0.45;
+  opacity: 0;
   border-radius: 4px;
   user-select: none;
   transition:
@@ -469,9 +485,15 @@ html.doc-heavy .tiptap-editor > hr {
     color var(--motion-fast) var(--ease-out);
 }
 
+/* 悬停该列表项时浮现；折叠态常显，提示可展开 */
+.tiptap-editor li:hover .list-fold-toggle,
+.tiptap-editor .list-fold-toggle.is-folded {
+  opacity: 0.6;
+}
+
 .tiptap-editor .list-fold-toggle:hover {
   opacity: 1;
-  color: var(--text-secondary);
+  color: var(--text-color);
 }
 
 .tiptap-editor .list-fold-toggle svg {
