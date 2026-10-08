@@ -459,13 +459,15 @@ html.doc-heavy .tiptap-editor > hr {
     color var(--motion-fast) var(--ease-out);
 }
 
-/* 悬停该列表项时浮现；折叠态常显，提示可展开 */
-.tiptap-editor li:hover .list-fold-toggle,
+/* 悬停「该行本身」才浮现箭头：判定挂在 p（该项自己的那一行）上，
+   而子列表是 p 的兄弟节点 —— 所以悬停子行不会点亮父行。折叠态常显，提示可展开。 */
+.tiptap-editor li p:hover .list-fold-toggle,
 .tiptap-editor .list-fold-toggle.is-folded {
   opacity: 0.6;
 }
 
-.tiptap-editor .list-fold-toggle:hover {
+/* 鼠标压到箭头本身时更亮 */
+.tiptap-editor li p:hover .list-fold-toggle:hover {
   opacity: 1;
   color: var(--text-color);
 }
