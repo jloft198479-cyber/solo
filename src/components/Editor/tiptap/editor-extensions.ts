@@ -229,8 +229,9 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     Code.extend({ excludes: '' }),
     Highlight.configure({ multicolor: false }),
     ParagraphFocus,
-    // 列表折叠 / 展开（幕布式大纲体验）——纯视图层装饰，折叠态不进文档
-    ListFold,
+    // 列表折叠 / 展开（幕布式大纲体验）——纯视图层装饰，折叠态不进文档。
+    // 注入 getDocumentPath：折叠态按文档路径记忆，切走再切回可恢复（进程内存，不落盘）
+    ListFold.configure({ getPath: options.getDocumentPath ?? (() => null) }),
     SearchHighlight.configure(options.searchHighlightOptions),
     Link.configure({
       openOnClick: false,
