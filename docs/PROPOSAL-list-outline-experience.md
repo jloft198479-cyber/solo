@@ -5,13 +5,13 @@ audience: maintainer
 status: proposal  
 tags: [提案, 大纲, 列表, 折叠, 聚焦, 交互]  
 summary: 只把文档中的嵌套列表改造成幕布式可折叠可聚焦树，非列表区零改动  
-updates: [src/components/Editor/tiptap/editor.css, src/components/Editor/tiptap/composition-freeze.ts, src/components/Editor/tiptap/editor-metadata.ts, src/commands/registry.ts]  
+updates: [src/components/Editor/tiptap/editor.css, src/components/Editor/tiptap/editor-extensions.ts, src/components/Editor/tiptap/extensions/list-fold.ts, src/components/Editor/tiptap/transaction-shape.ts]  
 \---
 
 # 列表区幕布式大纲体验（执行分案）
 
-> **状态：待简乐评估。未评估通过前不动一行代码。**  
-> 本文只写"打算怎么做"，不含任何已落地的改动。
+> **落地情况（2026-10-08）**：**阶段 1、2 已实现**并本地提交（`0e534ba` → `fa133f9` → `17b5037` → `37f6aee`），等真机手感验收；**阶段 3、4 经简乐决定不做**（本文档后续只作设计记录）。
+> 下表"改动清单"是当时的**设想**，实际落点与出入见 §九「落地记录」——阶段 1 的顶层导轨做出来后已按审美移除。
 
 ---
 
@@ -86,7 +86,7 @@ updates: [src/components/Editor/tiptap/editor.css, src/components/Editor/tiptap/
 **改什么**：
 
 1. 加层级引导线（`border-left` + 逐级递进的浅色），让父子关系一眼可辨
-2. 列表容器左侧加一条**淡色导轨**（"这是大纲区"的视觉边界，满足"明确区分列表/非列表"）
+2. 列表容器左侧加一条**淡色导轨**（"这是大纲区"的视觉边界，满足"明确区分列表/非列表"）——**已实现后又移除**，原因见 §九
 3. 缩进节奏微调，让层级递进更清晰
 
 **风险**：极低。纯装饰，不碰 DOM 结构、不碰逻辑。  
@@ -117,7 +117,7 @@ updates: [src/components/Editor/tiptap/editor.css, src/components/Editor/tiptap/
 
 ---
 
-### 阶段 3：聚焦子树（复用现成零件）
+### 阶段 3：聚焦子树（复用现成零件）——**未做（简乐 2026-10-08 决定不做）**
 
 **做法**：点一个列表项 → 只显示它这一支，其余淡出；顶部显示面包屑逐层跳出。
 
@@ -127,7 +127,7 @@ updates: [src/components/Editor/tiptap/editor.css, src/components/Editor/tiptap/
 
 ---
 
-### 阶段 4：键盘树操作（增量最小）
+### 阶段 4：键盘树操作（增量最小）——**未做（简乐 2026-10-08 决定不做）**
 
 | 键                   | 动作       | 现状                     |
 | ------------------- | -------- | ---------------------- |
@@ -215,4 +215,40 @@ updates: [src/components/Editor/tiptap/editor.css, src/components/Editor/tiptap/
 
 ---
 
-**结论**：本方案不碰 markdown 格式、不碰 schema/parser/serializer、不引第三方库，唯一新增文件是一个 PM 插件。风险集中在阶段 2 的组字态，已用现有 `paragraph-focus` 的成熟范本框住。整体可分四阶段独立验收、独立回滚。
+**结论**：本方案不碰 markdown 格式、不碰 schema/parser/serializer、不引第三方库。风险集中在阶段 2 的组字态，已用现有 `paragraph-focus` 的成熟范本框住。
+
+---
+
+## 九、落地记录（2026-10-08，阶段 1–2）
+
+### 实际改到的文件
+
+| 文件                                                              | 动作                          |
+| --------------------------------------------------------------- | --------------------------- |
+| `src/components/Editor/tiptap/editor.css`                       | 改（列表区树状视觉 + 折叠箭头样式）         |
+| `src/components/Editor/tiptap/editor-extensions.ts`             | 改（挂 `ListFold` 扩展）          |
+| `src/components/Editor/tiptap/extensions/list-fold.ts`          | 新增（折叠插件，本方案唯一新增的功能文件）       |
+| `src/components/Editor/tiptap/transaction-shape.ts`             | 新增（`isWholeDocReplace` 归位，与 `paragraph-focus` 共用） |
+
+**没有改到** `composition-freeze.ts` / `editor-metadata.ts` / `registry.ts`——§三 当初登记它们，是因为设想阶段 4 要登记命令；阶段 1–2 不需要。
+
+### 与原设想的出入
+
+1. **顶层淡色导轨已移除**：它与箭头的正确水平位置落在同一列，会撞车。简乐明确"线不重要"，故去掉。保留下来的是**嵌套列表的竖引导线**（`li > ul/ol` 的 `border-left`，挂在子列表左沿、不切圆点）。
+2. **箭头改为"悬停该行才浮现"，判定挂在该行的段落上而非整个 `li` 上**：对齐幕布"鼠标悬浮在主题上时圆点前面出现展开/收起图标"。挂 `li` 会导致悬停子行时父行箭头一并点亮（`li` 是子行的祖先）。
+3. **垂直对齐改用「整行高盒居中」而非写死 em 偏移**：`top: 0` + `height: calc(var(--mk-line-height) * 1em)` + `align-items: center`，与项目符号同一水平线。靠 em 猜 marker 位置不可靠（浏览器 marker 定位不定）。
+
+### ⚠️ 必须记住的 DOM 事实（改这两个选择器前先看这里）
+
+**待办项的正文不在 `li` 的直接子级。** `@tiptap/extension-list` 的 `TaskItem.renderHTML` 产出的是 `li > label + div`，正文段落与嵌套列表都在那个 `div` 里；且 `editor-extensions.ts` 配了 `nested: true`，**待办项是可以挂子列表的**。
+
+⇒ CSS 里这两个选择器**必须用后代选择器**，否则只对无序/有序列表生效、待办列表**静默失效**：
+
+- `.tiptap-editor li p`（箭头 `position: relative` 锚点）——写成 `li > p` 会让待办项箭头丢掉锚点、跑到容器外
+- `.tiptap-editor li ul` / `.tiptap-editor li ol`（嵌套引导线）——写成 `li > ul` 会让待办项漏画线
+
+该约束已由 `extensions/__tests__/list-fold.spec.ts` 的 DOM 契约用例锁住（TipTap 若改 `renderHTML` 会立刻转红）。
+
+### 一处主动补的行为：光标落进隐藏区自动展开
+
+折叠之后，方向键下移 / 大纲面板跳转 / 查找命中都可能把光标送进 `display: none` 的区域，出现"光标在哪看不见"。故 `apply` 里加了 `revealFoldedAtCursor`：光标落在已折叠项的隐藏子树内就展开该项（纯视图态操作，不回写文档；组字期不执行，避免重建装饰扰动 IME）。

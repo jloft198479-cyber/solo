@@ -6,6 +6,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 import { isHeavyDocument } from '../../document-scale';
 import { createCompositionTracker, mapFrozenDecorations } from '../composition-freeze';
+import { isWholeDocReplace } from '../transaction-shape';
 
 /**
  * 列表折叠 / 展开 —— 幕布式大纲体验的核心。
@@ -62,18 +63,23 @@ const CHEVRON_SVG =
   '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" ' +
   'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.6 4.4L6 7.8l3.4-3.4"/></svg>';
 
-/** 项内第一个子块（段落）的正文起点——箭头挂这里，紧贴项首 */
+/**
+ * 项内第一个子块（段落）的正文起点——箭头挂这里，紧贴项首。
+ *
+ * `listItem` 与 `taskItem` 的内容都**以段落开头**（`paragraph block*`），所以同一个
+ * `+2` 对两种项都成立。两者的差别只在 DOM 包装（待办项多一层 `div`，见 editor.css
+ * 里 `li p` 锚点为何必须用后代选择器），不影响文档坐标。
+ */
 function widgetPosOf(itemPos: number): number {
   return itemPos + 2; // itemPos+1 → 进入项内；再 +1 → 进入首个子块的正文
 }
 
-/** 该项是否含子列表（= 是否可折叠） */
+/** 该项是否含子列表（= 是否可折叠）。下标循环以便命中即返回（`forEach` 无法提前退出）。 */
 function hasChildList(node: PMNode): boolean {
-  let found = false;
-  node.forEach((child) => {
-    if (LIST_NODE_TYPES.has(child.type.name)) found = true;
-  });
-  return found;
+  for (let i = 0; i < node.childCount; i++) {
+    if (LIST_NODE_TYPES.has(node.child(i).type.name)) return true;
+  }
+  return false;
 }
 
 /** 从任意位置解析出所属列表项的起点；不在列表项内返回 null */
@@ -186,14 +192,24 @@ function pruneFolded(folded: Set<number>, doc: PMNode): Set<number> {
   return next;
 }
 
-/** 单 step 覆盖整个旧文档 = 整体替换（切文件 / 载入），折叠态对新文档无意义需清空 */
-function isWholeDocReplace(tr: Transaction): boolean {
-  if (tr.steps.length !== 1) return false;
-  let whole = false;
-  tr.steps[0].getMap().forEach((from, to) => {
-    if (from === 0 && to === tr.before.content.size) whole = true;
+/**
+ * 光标若落在某个已折叠项的隐藏子树内，就把该项从折叠态移除（返回新集合）。
+ *
+ * 触发场景：方向键下移、大纲面板跳转、查找命中——它们都不知道那一段已被
+ * `display: none`，不拦就会出现「光标在哪看不见」。折叠态是纯视图态，这里展开
+ * 不回写文档，代价只是那次跳转顺带展开一层。
+ *
+ * 未命中时原样返回**同一引用**，调用方据此跳过重建。
+ */
+function revealFoldedAtCursor(folded: Set<number>, doc: PMNode, selPos: number): Set<number> {
+  if (folded.size === 0) return folded;
+  let next: Set<number> | null = null;
+  folded.forEach((pos) => {
+    if (!isInsideHiddenChild(doc, pos, selPos)) return;
+    if (!next) next = new Set(folded);
+    next.delete(pos);
   });
-  return whole;
+  return next ?? folded;
 }
 
 /** 插件工厂：测试可直接调用 */
@@ -252,35 +268,45 @@ export function createListFoldPlugin(): Plugin<ListFoldState> {
           };
         }
 
-        if (!tr.docChanged && !meta) return value;
-
-        // 整体替换（切文件 / 载入）：清空折叠态重建
-        if (tr.docChanged && isWholeDocReplace(tr)) {
-          const folded = new Set<number>();
-          return { folded, decorations: buildDecorations(tr.doc, folded) };
-        }
-
         let folded = value.folded;
         let decorations = value.decorations;
 
         if (tr.docChanged) {
+          // 整体替换（切文件 / 载入）：折叠态对新文档无意义，清空重建
+          if (isWholeDocReplace(tr)) {
+            const reset = new Set<number>();
+            return { folded: reset, decorations: buildDecorations(tr.doc, reset) };
+          }
           folded = mapFolded(folded, tr);
           // 只平移装饰（复用 widget DOM，避免每次按键重建箭头）
           decorations = decorations.map(tr.mapping, tr.doc);
         }
+
+        // 需要按最新结构重扫的情形：点击折叠、rAF 合并重建、光标落进隐藏子树
+        let rebuild = false;
 
         if (meta?.toggle != null) {
           const next = new Set(folded);
           if (next.has(meta.toggle)) next.delete(meta.toggle);
           else next.add(meta.toggle);
           folded = next;
-          decorations = buildDecorations(tr.doc, folded);
+          rebuild = true;
         } else if (meta?.rebuild) {
           folded = pruneFolded(folded, tr.doc);
-          decorations = buildDecorations(tr.doc, folded);
+          rebuild = true;
         }
 
-        return { folded, decorations };
+        const revealed = revealFoldedAtCursor(folded, tr.doc, tr.selection.from);
+        if (revealed !== folded) {
+          folded = revealed;
+          rebuild = true;
+        }
+
+        if (rebuild) return { folded, decorations: buildDecorations(tr.doc, folded) };
+        // 无事发生（绝大多数纯光标移动走这条）→ 原样返回，保持 state 引用不变
+        return folded === value.folded && decorations === value.decorations
+          ? value
+          : { folded, decorations };
       },
     },
     props: {
