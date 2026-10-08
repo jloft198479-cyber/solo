@@ -425,53 +425,27 @@ html.doc-heavy .tiptap-editor > hr {
   position: relative;
 }
 
-/* ── 列表 · 幕布式树状（引导线 + 大纲区边界）──────────────────────
+/* ── 列表 · 幕布式树状（层级引导线）──────────────────────────────
    只作用于列表节点自身；标题 / 段落 / 代码 / 表格等「非列表区」一律不碰。
    纯视觉层，不产生任何 markdown 语法变化。 */
-.tiptap-editor > ul,
-.tiptap-editor > ol {
-  position: relative;
-}
 
-/* 顶层列表左侧淡导轨：把「列表区」与上下方正文在视觉上分开（不占文字流） */
-.tiptap-editor > ul::before,
-.tiptap-editor > ol::before {
-  content: '';
-  position: absolute;
-  left: -12px;
-  top: 2px;
-  bottom: 2px;
-  width: 2px;
-  border-radius: 1px;
-  background-color: var(--border-light);
-}
-
-/* 嵌套列表竖引导线：对齐到子级项目符号列（串起同级兄弟），位置随层级同步右移 */
+/* 嵌套列表左侧竖引导线：父项与子项之间的「树枝」，贴在子列表左沿，不切圆点 */
 .tiptap-editor li > ul,
 .tiptap-editor li > ol {
-  position: relative;
-}
-
-.tiptap-editor li > ul::before,
-.tiptap-editor li > ol::before {
-  content: '';
-  position: absolute;
-  left: 0.55em;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background-color: var(--border-light);
+  border-left: 1px solid var(--border-light);
 }
 
 /* ── 折叠箭头（装饰层 widget，由 list-fold 扩展生成）──────────────
-   位置：项目符号正前方（首段文字起点 -2.2em）。
-   平时隐藏，悬停该行时浮现，折叠态常显——与幕布「悬停小圆点前出现展开/收起图标」一致。 */
+   位置：项目符号正前方（首段文字起点左侧 2.5em），落在圆点左边、不与圆点交叉；
+   垂直：用「整行高」盒居中，与圆点同一水平线。
+   显示：平时隐藏，鼠标悬停该行才浮现；折叠态常显（提示可展开）。
+   —— 对齐幕布「悬停时小圆点前出现展开/收起图标」。 */
 .tiptap-editor .list-fold-toggle {
   position: absolute;
-  left: -2.2em;
-  top: 0.18em;
+  left: -2.5em;
+  top: 0;
   width: 1.05em;
-  height: 1.05em;
+  height: calc(var(--mk-line-height) * 1em);
   display: flex;
   align-items: center;
   justify-content: center;
