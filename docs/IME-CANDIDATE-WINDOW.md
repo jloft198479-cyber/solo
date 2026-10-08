@@ -496,6 +496,18 @@ blur()  →  等 60ms  →  focus({ preventScroll: true })  →  还原选区 + 
 - 风险点：`blur()` 60ms 窗口内若用户正在输入 → 由 pending 机制规避；**须真机手感验收**（禁令第 13 条）。
 - 其 A/B 样本为「护栏关 2 轮 / 护栏开 2 轮」，**n 很小**，本项目落地后仍需自己的统计判定（§12 的 30 会话段规则）。
 
+### 16.6 同族线索核实（2026-10-09 追加，逐条查证）
+
+| 线索 | 真实性 | 处置 |
+|---|---|---|
+| **Blender PR [`#132102`](https://projects.blender.org/blender/blender/pulls/132102)**「Enhance the support for IME in Windows.」（Arius，2024-12） | ✅ 真实；原生 C++，走 IMM 路线（`GHOST_MoveIME`） | ❌ **不可搬**：它是**原生应用自控候选窗**，solo 走 WebView2 托管、IMM 上下文在子窗口 ⇒ 顶层调 `ImmSetCandidateWindow` 够不着（撞 §7 死路） |
+| 引述「须在 `WM_IME_STARTCOMPOSITION` 前定位」「部分 IME 忽略组字中 reposition」 | ❓ **未核实**（页面未见原文） | 登记待核，**勿当结论** |
+| [`xtermjs/xterm.js#5839`](https://github.com/xtermjs/xterm.js/issues/5839)（Tauri 2.0 + WebView2 + Win11，候选窗弹右下角） | ✅ 真实（2026-04-24） | 佐证同族普遍；**根因在 xterm 自身 textarea 定位，解法不可抄** |
+| [`getpaseo/paseo#3511`](https://github.com/getpaseo/paseo/issues/3511)（Electron + xterm.js） | ✅ 真实（2026-08-18）；自述「普通 textarea 不受影响」 | 与 solo **相反**（solo 裸 `<input>` 也复现）⇒ 仅旁证，不可推 |
+| [`microsoft/vscode#259380`](https://github.com/microsoft/vscode/issues/259380) | ✅ 真实，但第三方**转述有误**：症状是「候选窗**不出现**」非"位置错乱"；缓解是**关掉**「使用以前版本的微软拼音」（非打开）；系**用户评论**非官方 | ⚠️ 不可照抄；若给用户自救指引须先自证方向 |
+
+> ⚠️ **防误杀**：「组字中 reposition 被忽略」**不适用于 §16 方案** —— 本方案不是"请 IME 移动候选窗"，而是**重建渲染进程文本输入状态**（`blur`→`focus`），且 pending 到 `compositionend` 之后、作用于**下一次**组字。二者解决不同环节，**不矛盾**。详见修复档案 `docs/IME-ANCHOR-GUARD-2026-10-09.md` §8。
+
 ---
 
 **合并**：2026-09-30（由 PLAN / REPORT / SOLUTION / 观点对照 四份蒸馏，原件移入 `docs/archive/`）
