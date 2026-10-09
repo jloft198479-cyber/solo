@@ -74,13 +74,15 @@ export function executeEditorCommand(editor: TiptapEditor | null, commandId: str
       return chain.toggleMark('dim').run();
     case 'editor.code':
       return chain.toggleCode().run();
-    // 与浮动菜单的 link / unlink / clearFormat 同源（原只有浮动菜单入口，
-    // 收进 registry 后命令面板也能触发 —— M-34）。link 未收：它需要用户输入 URL，
-    // 而应用内没有文本输入对话框，仅靠命令面板无法完成。
+    // 与浮动菜单同源：**不另写一遍**，直接复用 runBubbleMenuAction 里的唯一定义——
+    // 否则「清除格式」的语义将来改一处漏一处（M-34 收编命令时唯一的漂移风险）。
+    // （link 未收：它需要用户输入 URL，而应用内没有文本输入对话框，光靠命令面板完成不了。）
     case 'editor.unlink':
-      return chain.unsetLink().run();
+      runBubbleMenuAction(editor, 'unlink');
+      return true;
     case 'editor.clearFormat':
-      return chain.clearNodes().unsetAllMarks().run();
+      runBubbleMenuAction(editor, 'clearFormat');
+      return true;
     case 'editor.heading1':
       return chain.toggleHeading({ level: 1 }).run();
     case 'editor.heading2':
