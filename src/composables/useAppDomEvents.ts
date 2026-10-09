@@ -16,6 +16,10 @@ export interface AppDomEventsOptions {
   toggleFocusMode: () => void | Promise<void>;
   showImagePasteWarning: (message: string) => void;
   resetViewMode?: () => void;
+  /** 焦点模式引导提示（浮层）当前是否在屏 */
+  isFocusEnterHintVisible?: () => boolean;
+  /** 关掉焦点模式引导提示（只关浮层，不动焦点模式本身） */
+  dismissFocusEnterHint?: () => void;
 }
 
 export function useAppDomEvents(options: AppDomEventsOptions) {
@@ -75,6 +79,12 @@ export function useAppDomEvents(options: AppDomEventsOptions) {
       } else if (options.activeViewMode.value === 'image' && options.resetViewMode) {
         event.preventDefault();
         options.resetViewMode();
+      } else if (options.isFocusEnterHintVisible?.()) {
+        // 引导提示在屏时，Esc 只关提示、不退出焦点模式。
+        // 否则「按 Esc 关浮层」这个本能动作会顺手退掉焦点模式（2026-10-09 用户报障的诱因）。
+        // 第二次 Esc（提示已不在）才轮到下面退出焦点模式。
+        event.preventDefault();
+        options.dismissFocusEnterHint?.();
       } else if (options.isFocusMode()) {
         event.preventDefault();
         await options.toggleFocusMode();
