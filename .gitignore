@@ -19,6 +19,7 @@ src-tauri/target/
 
 # Tool transient working plans
 .zcode/
+.playwright-cli/
 
 # OS
 .DS_Store
