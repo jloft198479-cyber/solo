@@ -33,9 +33,6 @@ describe('CJK bold diagnostic', () => {
       const doc = getDoc(md);
       const hasBold = checkBoldInDoc(doc);
       const serialized = serializeMarkdown(doc);
-      console.log(`INPUT: ${md}`);
-      console.log(`BOLD: ${hasBold}`);
-      console.log(`OUT:  ${JSON.stringify(serialized.trim())}`);
 
       const doc2 = getDoc(serialized);
       const hasBold2 = checkBoldInDoc(doc2);

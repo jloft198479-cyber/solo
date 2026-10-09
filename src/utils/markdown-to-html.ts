@@ -10,10 +10,17 @@
  *
  * 注意：这里是「对外展示」降级，不影响编辑器内部的 mk-dim 显示与 markdown 源文本。
  */
+import { FRONTMATTER_RE } from '../components/Editor/tiptap/markdown/plugins/frontmatter';
+
 const PRIVATE_TAG_RE = /<span class="mk-dim">(.*?)<\/span>/g;
 
 function sanitizeForExternal(markdown: string): string {
-  return markdown.replace(PRIVATE_TAG_RE, (_, inner) => inner.replace(/<br>/g, '\n'));
+  // YAML frontmatter 不在 markdown-it 的认识范围内：直接渲染会得到「横线 + 明文 yaml」
+  // （两条横线夹一段 bare 文本，M-04）。对外复制是「阅读形态」，元数据在此无从表达，
+  // 直接剥掉。正则复用解析侧的唯一真理源，避免两处各写一套而漂移。
+  return markdown
+    .replace(FRONTMATTER_RE, '')
+    .replace(PRIVATE_TAG_RE, (_, inner) => inner.replace(/<br>/g, '\n'));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

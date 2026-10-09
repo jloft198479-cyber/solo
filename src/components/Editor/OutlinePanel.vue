@@ -3,6 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { EditorOutlineItem } from '../Editor/tiptap/editor-metadata';
 import type { AppEditorExpose } from '../../composables/useAppEditorState';
 import { getBlockElFromPos, OUTLINE_SCROLL_RATIO } from '../Editor/tiptap/editor-dom';
+import { shortcutHint } from '../../commands/registry';
+import { useSettingsStore } from '../../stores/settings';
 
 const props = defineProps<{
   items: EditorOutlineItem[];
@@ -13,6 +15,13 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void;
 }>();
+
+// 收起按钮的提示键位从注册表取——硬编码「(Ctrl+/)」在用户改键后会撒谎（M-32）
+const settingsStore = useSettingsStore();
+const closeHint = computed(() => {
+  const hint = shortcutHint('view.toggleOutline', settingsStore.settings.customShortcuts);
+  return hint ? `收起大纲 (${hint})` : '收起大纲';
+});
 
 // ── 当前激活项（scroll-spy）────────────────────────────
 // 监听编辑器滚动容器，取「视口顶部往下 25% 阈值线之上、最后一个标题」作为激活项。
@@ -154,7 +163,7 @@ const hasItems = computed(() => props.items.length > 0);
     <div class="outline-inner">
       <div class="outline-header">
         <span class="outline-title">大纲</span>
-        <button class="outline-close" title="收起大纲 (Ctrl+/)" @click="emit('close')">
+        <button class="outline-close" :title="closeHint" @click="emit('close')">
           <svg
             width="12"
             height="12"

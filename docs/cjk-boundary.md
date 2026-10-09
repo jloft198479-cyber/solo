@@ -39,7 +39,7 @@ CJK 文本中，`，**继续` 场景：
 | **B. 改 markdown-it scanDelims** | monkey-patch `State.prototype.scanDelims`，让 CJK 标点不阻塞 flanking | 更优雅；但依赖内部方法，升级有风险 |
 | **C. `markdown-it-cjk-friendly` 插件** | 方案 B 的封装版，VitePress 2.x 已内置 | 现成可用；但 ESLM-only，与现有插件栈有集成风险 |
 
-**选 A 的原因**：改动范围最小，不引入新依赖，能通过全部 829 个测试。
+**选 A 的原因**：改动范围最小，不引入新依赖，能通过全部测试。
 
 ## 关键约束
 
@@ -174,7 +174,7 @@ hello **「world」**                    → bold
 - [x] 前端构建通过（`bun run build`）
 - [ ] Tauri 打包未完成（缺 Rust 工具链）
 
-**测试结果**（截至 2026-06-29 修复时）：978 全过（27 个测试文件，0 失败），markdown 解析相关测试全部通过
+**测试结果**（截至 2026-06-29 修复时）：全量测试通过、0 失败，markdown 解析相关测试全部通过（具体数量不作硬编码，以 `npx vitest run` 实际为准）
 **经验沉淀**：本文件 + `parser.ts` 注释索引
 
 **未完成任务**（留给下次）：

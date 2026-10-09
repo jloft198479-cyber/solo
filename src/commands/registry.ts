@@ -546,6 +546,14 @@ export function eventToKeyString(event: KeyboardEvent): string {
   return parts.join('-');
 }
 
+/** 具名键 → 展示符号：方向键若直接 toUpperCase 会变成「ARROWUP」（M-36） */
+const DISPLAY_KEY_ALIASES: Record<string, string> = {
+  ArrowUp: '↑',
+  ArrowDown: '↓',
+  ArrowLeft: '←',
+  ArrowRight: '→',
+};
+
 function formatKeyForDisplay(shortcut: string, platform: 'mac' | 'win'): string {
   if (platform === 'mac') {
     return shortcut
@@ -553,17 +561,37 @@ function formatKeyForDisplay(shortcut: string, platform: 'mac' | 'win'): string 
       .replace(/Shift/g, '⇧')
       .replace(/Alt/g, '⌥')
       .replace(/Ctrl/g, '⌃')
+      .replace(/ArrowUp/g, '↑')
+      .replace(/ArrowDown/g, '↓')
+      .replace(/ArrowLeft/g, '←')
+      .replace(/ArrowRight/g, '→')
       .replace(/-/g, '');
   }
 
   const joined = shortcut.replace(/Mod/g, 'Ctrl').replace(/-/g, '+');
   const parts = joined.split('+');
-  parts[parts.length - 1] = parts[parts.length - 1].toUpperCase();
+  const last = parts[parts.length - 1];
+  parts[parts.length - 1] = DISPLAY_KEY_ALIASES[last] ?? last.toUpperCase();
   return parts.join('+');
 }
 
 export function formatShortcutDisplay(shortcut: string): string {
   return formatKeyForDisplay(shortcut, isMac ? 'mac' : 'win');
+}
+
+/**
+ * 取某命令「当前生效」快捷键的展示文案（尊重用户自定义）；未知命令 / 无快捷键返回 null。
+ *
+ * 工具提示一律走这里，**别硬编码 `(Ctrl+S)`**——用户改键后硬编码文案会当面撒谎（M-32）。
+ */
+export function shortcutHint(
+  commandId: string,
+  customShortcuts: Record<string, string> = {},
+): string | null {
+  const command = COMMAND_LOOKUP.get(commandId);
+  if (!command) return null;
+  const shortcut = getShortcut(command, customShortcuts);
+  return shortcut ? formatShortcutDisplay(shortcut) : null;
 }
 
 const TAURI_KEY_ALIASES: Record<string, string> = {

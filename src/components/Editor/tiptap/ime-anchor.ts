@@ -54,6 +54,7 @@ export const IME_ANCHOR_FOCUS_DELAY_MS = 60;
 
 /**
  * ⚠️ 临时 A/B 验证开关 —— **验证完成后必须删除**（见修复档案 §4/阶段 4）。
+ * **仅 DEV 生效**（`import.meta.env.DEV`）：正式版一律视为「开关未设」。
  * 用法：DevTools Console 执行
  *   `localStorage.setItem('solo:imeAnchorGuard','off')` → 护栏停用（即时生效，无需刷新）
  *   `localStorage.removeItem('solo:imeAnchorGuard')`   → 护栏恢复
@@ -64,6 +65,10 @@ const AB_SWITCH_KEY = 'solo:imeAnchorGuard';
 export type AnchorTrigger = 'move' | 'resize' | 'dom-resize' | 'composition-end';
 
 function isDisabledBySwitch(): boolean {
+  // 仅 DEV 生效：这是验证期的临时开关，绝不能让正式版用户无意间把护栏关掉（M-14）。
+  // 验证方式（dev 构建）：DevTools Console 执行
+  //   localStorage.setItem('solo:imeAnchorGuard','off')
+  if (!import.meta.env.DEV) return false;
   try {
     return window.localStorage.getItem(AB_SWITCH_KEY) === 'off';
   } catch {

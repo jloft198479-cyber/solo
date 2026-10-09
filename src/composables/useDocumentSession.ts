@@ -228,6 +228,13 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       return saveRenamedDocument();
     }
 
+    // 未修改则不写盘（M-03）：Ctrl+S 此前是全链路唯一无 isDirty 门控的保存入口，
+    // 打开一个别人的 CRLF 文件、不动内容按一下保存，行尾就会被静默归一成 LF。
+    // 与自动保存 / 状态栏按钮的门控保持一致；force（冲突重试 / 另存为）不受影响。
+    if (!force && !fileStore.currentFile.isDirty) {
+      return true;
+    }
+
     isSaving = true;
     const savePath = currentFile.path;
     const saveLastModified = currentFile.lastModifiedTime;

@@ -549,7 +549,7 @@ html.doc-heavy .tiptap-editor > hr {
 }
 
 .tiptap-editor mark {
-  background-color: var(--mark-bg, #fef08a);
+  background-color: var(--mark-bg);
   border-radius: var(--mk-mark-radius, 0.25em);
   padding: 0.1em 0.3em;
   box-decoration-break: clone;
@@ -670,7 +670,7 @@ html.doc-heavy .tiptap-editor > hr {
 
 .tiptap-editor .mk-code-block-copy-button.is-copied {
   opacity: 1;
-  color: var(--success-color, #6b8e5a);
+  color: var(--success-color);
 }
 
 .tiptap-editor pre {
@@ -791,7 +791,7 @@ html.doc-heavy .tiptap-editor > hr {
 }
 
 .tiptap-editor .column-resize-handle:hover {
-  background-color: var(--primary-color, #8a4e25);
+  background-color: var(--primary-color);
 }
 
 .tiptap-editor.resize-cursor {
@@ -1047,7 +1047,7 @@ html.doc-heavy .tiptap-editor > hr {
 }
 
 .tiptap-editor .mk-block-delete-button:hover {
-  color: var(--error-color, #d33);
+  color: var(--error-color);
   background-color: var(--hover-bg);
 }
 

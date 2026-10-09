@@ -30,7 +30,7 @@ import {
   toggleCurrentWindowMaximized,
 } from './services/tauri/window';
 import { listenEditorFocus } from './services/tauri/events';
-import { findCommandByShortcut } from './commands/registry';
+import { findCommandByShortcut, shortcutHint } from './commands/registry';
 import { HEAVY_DOC_CHARS, isHeavyDocument } from './components/Editor/document-scale';
 import pkg from '../package.json';
 
@@ -38,6 +38,17 @@ const MarkdownEditor = defineAsyncComponent(() => import('./components/Editor/Ma
 
 const fileStore = useFileStore();
 const settingsStore = useSettingsStore();
+
+// 工具提示里的键位一律从注册表取（尊重用户自定义）——硬编码「(Ctrl+S)」在改键后会说谎（M-32）
+const saveButtonHint = computed(() => {
+  if (!fileStore.currentFile.isDirty) return '已保存';
+  const hint = shortcutHint('file.save', settingsStore.settings.customShortcuts);
+  return hint ? `点击保存 (${hint})` : '点击保存';
+});
+const settingsButtonHint = computed(() => {
+  const hint = shortcutHint('settings.open', settingsStore.settings.customShortcuts);
+  return hint ? `设置 (${hint})` : '设置';
+});
 const { settings, isLoaded } = storeToRefs(settingsStore);
 const appVersion = pkg.version;
 const { editorRef, stats, handleEditorUpdate } = useAppEditorState();
@@ -402,7 +413,7 @@ onUnmounted(() => {
             v-else
             class="statusbar-save-btn"
             :class="fileStore.currentFile.isDirty ? 'is-dirty' : 'is-clean'"
-            :title="fileStore.currentFile.isDirty ? '点击保存 (Ctrl+S)' : '已保存'"
+            :title="saveButtonHint"
             @click="
               fileStore.currentFile.isDirty && documentSession.saveCurrentDocument(false, true)
             "
@@ -416,7 +427,7 @@ onUnmounted(() => {
 
           <button
             class="statusbar-settings-btn"
-            title="设置 (Ctrl+,)"
+            :title="settingsButtonHint"
             @click="settingsStore.openModal()"
           >
             <svg

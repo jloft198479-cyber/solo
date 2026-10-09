@@ -17,6 +17,7 @@ const props = withDefaults(defineProps<{ editorRef?: AppEditorExpose | null }>()
 const activePopover = ref<PopoverType>(null);
 const wrapRef = ref<HTMLElement | null>(null);
 const copied = ref(false);
+const copyFailed = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
 
 function togglePopover(type: PopoverType) {
@@ -27,6 +28,10 @@ function closePopover() {
   activePopover.value = null;
 }
 
+/**
+ * 复制**整篇**文档（双槽：text/plain 源码 + text/html 富文本）。
+ * 注意与命令面板的「复制为 Markdown」区分：那条复制的是**选区源码**，同名不同事（M-35）。
+ */
 async function copyMarkdown() {
   // 优先编辑器实时内容（绕过 store 500ms 防抖），编辑器不可用时回退到 store 内容
   const content = props.editorRef?.getContent?.() ?? useFileStore().currentFile.content;
@@ -38,12 +43,18 @@ async function copyMarkdown() {
         'text/html': new Blob([html], { type: 'text/html' }),
       }),
     ]);
+    copyFailed.value = false;
     copied.value = true;
     copyTimer = setTimeout(() => {
       copied.value = false;
     }, 1500);
   } catch {
-    // 静默失败，clipboard API 在部分环境可能不可用
+    // 失败必须给反馈：此前静默吞掉，用户会以为「已经复制成功」而丢掉内容（M-22）
+    copied.value = false;
+    copyFailed.value = true;
+    copyTimer = setTimeout(() => {
+      copyFailed.value = false;
+    }, 1500);
   }
 }
 
@@ -69,7 +80,7 @@ useClickOutside(wrapRef, closePopover);
     <button
       class="quick-action-btn"
       :class="{ 'is-copied': copied }"
-      :title="copied ? '已复制' : '复制 Markdown'"
+      :title="copied ? '已复制全文' : copyFailed ? '复制失败' : '复制全文为 Markdown'"
       @click="copyMarkdown"
     >
       <svg

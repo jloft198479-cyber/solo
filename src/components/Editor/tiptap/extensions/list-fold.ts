@@ -44,6 +44,9 @@ export const listFoldKey = new PluginKey<ListFoldState>('listFold');
  */
 const foldedByPath = new Map<string, Set<number>>();
 
+/** 记忆文档数上限（防无界增长，见 saveFolded） */
+const FOLDED_MEMORY_LIMIT = 50;
+
 /** 供测试复位；生产代码不需要调用（Map 生命周期即进程） */
 export function clearFoldedMemory(): void {
   foldedByPath.clear();
@@ -256,6 +259,13 @@ function saveFolded(path: string | null, folded: Set<number>): void {
   if (folded.size === 0) {
     foldedByPath.delete(path);
     return;
+  }
+  // 有上限：键是文档路径，长时间运行下会随「开过的文档数」单调累积。
+  // 超限按插入序淘汰最旧的一条（Map 保持插入序）——折叠态是纯阅读姿势，
+  // 丢最旧的记忆最多让老文档回来时全展开，无副作用（M-26）。
+  if (!foldedByPath.has(path) && foldedByPath.size >= FOLDED_MEMORY_LIMIT) {
+    const oldest = foldedByPath.keys().next().value;
+    if (oldest !== undefined) foldedByPath.delete(oldest);
   }
   foldedByPath.set(path, new Set(folded));
 }
