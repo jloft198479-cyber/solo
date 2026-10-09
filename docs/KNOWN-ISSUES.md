@@ -12,6 +12,7 @@ updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src, docs/RELEASE_PROCESS.
 
 > 接手者 / agent 排查问题时先查本表：能区分「这是已知坑」还是「新 bug」。
 > 状态图例：`[已修复]` 供溯源 ｜ `[部分缓解]` ｜ `[未解决]` 待办 ｜ `[文档坑]` 文档类陷阱 ｜ `[设计取舍]` 非 bug
+> **定级依据**：编辑体验类条目的优先级一律先查 [编辑体验 · 行业对标基线](./BENCHMARK-editing-experience.md)（Typora 为主基准），写清「对标谁、差在哪」再排期（2026-10-10 起为长期方针）。
 
 ## 一、已修复（保留供溯源，勿误当现状）
 

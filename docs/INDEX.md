@@ -60,6 +60,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`paste-compat-decision.md`](./paste-compat-decision.md)                               | guide | maintainer/agent | active | 粘贴兼容性决策备忘                                        |
 | [`ui-redesign-handover.md`](./ui-redesign-handover.md)                                 | guide | agent            | active | UI 改造交接（活跃分支 refactor/editor-decouple）          |
 | [`ui-typography-eval.md`](./ui-typography-eval.md)                                     | guide | agent            | active | 排版微调 + 文字变浅评估（设计决策留痕，§一 为改动前快照） |
+| [`BENCHMARK-editing-experience.md`](./BENCHMARK-editing-experience.md)                 | guide | agent            | active | 编辑体验行业对标基线：三种编辑形态 + 逐项基准 × solo 差距 + 下一优先建议（「所有问题先对标」方针的常驻挂靠点） |
 
 ### docs/ 原则、提案、归档
 
