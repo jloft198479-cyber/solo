@@ -425,6 +425,22 @@ html.doc-heavy .tiptap-editor > hr {
   position: relative;
 }
 
+/*
+ * 列表项内的「补位空段落 + 标题」（`- # 标题`，手打与读盘同构）：
+ * 首块空段落是 ProseMirror 的 schema 占位（listItem 首块必须是 paragraph），不是用户内容，
+ * 它已经占掉项首那一行；标题若再叠加文档级段前距（H1 约 61px），列表项里会被撑出一个大洞。
+ * 只归零这一处的段前距——补位段本身**保留行高**：光标可以落进去（标题上方按一次 ↑ 就到），
+ * 压成 0 会让那一行失去锚点、字叠在一起。
+ */
+.tiptap-editor li p:has(> br:only-child):first-child + h1,
+.tiptap-editor li p:has(> br:only-child):first-child + h2,
+.tiptap-editor li p:has(> br:only-child):first-child + h3,
+.tiptap-editor li p:has(> br:only-child):first-child + h4,
+.tiptap-editor li p:has(> br:only-child):first-child + h5,
+.tiptap-editor li p:has(> br:only-child):first-child + h6 {
+  margin-top: 0;
+}
+
 /* ── 列表 · 幕布式树状（层级引导线）──────────────────────────────
    只作用于列表节点自身；标题 / 段落 / 代码 / 表格等「非列表区」一律不碰。
    纯视觉层，不产生任何 markdown 语法变化。 */

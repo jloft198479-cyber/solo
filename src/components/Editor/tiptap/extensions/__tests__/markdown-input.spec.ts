@@ -3,6 +3,7 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { describe, expect, it } from 'vitest';
 
 import { createTestSchema } from '../../markdown/__tests__/test-utils';
+import { parseMarkdown } from '../../markdown/parser';
 import {
   convertPendingHeading,
   convertPendingInlineMarks,
@@ -242,13 +243,16 @@ describe('convertPendingHeading', () => {
 });
 
 /**
- * 父块可行性契约（KNOWN-ISSUES §二 #25）。
+ * 父块接纳方式契约（KNOWN-ISSUES §二 #25）。
+ *
+ * `listItem` / `taskItem` 首格只收 paragraph，标题塞不进去 ⇒ **空出第一格、标题另起一块**，
+ * 产出结构与 `parse('- # 标题')` 逐字一致 —— 手打与读盘走同一条路。
+ * 能原地改型的位置（引用块、列表项第二块）不得白白多出一个空段落。
  *
  * 旧实现「先 `tr.delete(前缀)` 再 `setBlockType`」：改型一旦被父块拒绝，
  * 前缀已经删掉且事务照发 ⇒ `# ` 静默消失、标题也不生成（用户可见的字符丢失）。
- * 契约：**改型不成立时整步不做**，标记原样留着；成立时照常转换。
  */
-describe('convertPendingHeading 的父块可行性', () => {
+describe('convertPendingHeading 的父块接纳方式', () => {
   /** 复现生产调用形态：`appendTransaction` 恒显式传 pending。 */
   function pendingOf(doc: PMNode, text: string): { level: number; paragraphPos: number; prefixLength: number } {
     let hit: { level: number; paragraphPos: number; prefixLength: number } | null = null;
@@ -267,23 +271,45 @@ describe('convertPendingHeading 的父块可行性', () => {
     const schema = doc.type.schema;
     const state = EditorState.create({ schema, doc });
     const tr = convertPendingHeading(state.tr, state.doc, schema.nodes.heading, pendingOf(doc, '# 标题'));
-    return { tr, next: tr ? state.apply(tr).doc : doc };
+    return { tr, state, next: tr ? state.apply(tr).doc : doc };
   }
 
-  it('列表项首块只收 paragraph ⇒ 整步不做，`# ` 原样保留', () => {
+  /** 列表项首块 = 唯一走 split 的形态 */
+  function listItemDoc() {
     const schema = createTestSchema();
-    const doc = schema.nodes.doc.create(null, [
+    return schema.nodes.doc.create(null, [
       schema.nodes.bulletList.create(null, [
         schema.nodes.listItem.create(null, [schema.nodes.paragraph.create(null, [schema.text('# 标题')])]),
       ]),
     ]);
+  }
 
-    const { tr, next } = convertInDoc(doc);
-    expect(tr).toBeNull();
-    expect(next.textContent).toBe('# 标题');
+  it('列表项首格收不下 ⇒ 空出第一格、标题另起一块，字符零丢失', () => {
+    const { tr, next } = convertInDoc(listItemDoc());
+
+    expect(tr).not.toBeNull();
+    expect(next.toJSON()).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                { type: 'paragraph' },
+                { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: '标题' }] },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    // `# ` 被吃掉、正文一个字不少
+    expect(next.textContent).toBe('标题');
   });
 
-  it('任务项首块同理（taskItem 同约束）', () => {
+  it('任务项首格同理（taskItem 同约束）', () => {
     const schema = createTestSchema();
     const doc = schema.nodes.doc.create(null, [
       schema.nodes.taskList.create(null, [
@@ -292,11 +318,16 @@ describe('convertPendingHeading 的父块可行性', () => {
     ]);
 
     const { tr, next } = convertInDoc(doc);
-    expect(tr).toBeNull();
-    expect(next.textContent).toBe('# 标题');
+    expect(tr).not.toBeNull();
+
+    const item = next.firstChild?.firstChild;
+    expect(item?.child(0).type.name).toBe('paragraph');
+    expect(item?.child(0).textContent).toBe('');
+    expect(item?.child(1).type.name).toBe('heading');
+    expect(item?.child(1).textContent).toBe('标题');
   });
 
-  it('列表项内第二块收 heading ⇒ 照常转换（不得一刀切禁止）', () => {
+  it('列表项内第二块可原地改型 ⇒ 不产生多余空段落', () => {
     const schema = createTestSchema();
     const doc = schema.nodes.doc.create(null, [
       schema.nodes.bulletList.create(null, [
@@ -318,7 +349,7 @@ describe('convertPendingHeading 的父块可行性', () => {
     expect(item?.child(1).textContent).toBe('标题');
   });
 
-  it('引用块收 heading ⇒ 照常转换（探针不得误伤合法父块）', () => {
+  it('引用块可原地改型 ⇒ 不产生多余空段落（探针不得误伤合法父块）', () => {
     const schema = createTestSchema();
     const doc = schema.nodes.doc.create(null, [
       schema.nodes.blockquote.create(null, [schema.nodes.paragraph.create(null, [schema.text('# 标题')])]),
@@ -326,59 +357,108 @@ describe('convertPendingHeading 的父块可行性', () => {
 
     const { tr, next } = convertInDoc(doc);
     expect(tr).not.toBeNull();
+
+    expect(next.firstChild?.childCount).toBe(1);
     expect(next.firstChild?.firstChild?.type.name).toBe('heading');
     expect(next.firstChild?.firstChild?.textContent).toBe('标题');
+  });
+
+  it('手打产物与 parse(`- # 标题`) 逐字一致（手打 / 读盘 同一条路）', () => {
+    const schema = createTestSchema();
+    const { next } = convertInDoc(listItemDoc());
+
+    expect(next.toJSON()).toEqual(parseMarkdown(schema, '- # 标题\n').toJSON());
+  });
+
+  it('整步一个事务、一次撤销即回滚', () => {
+    const { tr } = convertInDoc(listItemDoc());
+    expect(tr?.steps.length).toBe(1);
+  });
+
+  it('转换后光标落在标题正文末尾（接着打字不跳位）', () => {
+    const { tr, state } = convertInDoc(listItemDoc());
+    const $from = state.apply(tr!).selection.$from;
+
+    expect($from.parent.type.name).toBe('heading');
+    expect($from.parent.textContent).toBe('标题');
+    expect($from.parentOffset).toBe($from.parent.content.size);
   });
 });
 
 /**
- * 装饰层必须与转换层同判据：变不成标题的段落若仍套 `mk-pending-heading`，
- * 它会按标题字号/字重渲染、`# ` 停在装订线里——看着像标题、实际是死文本。
+ * 装饰层必须与转换层同判据。装饰的含义是「这一段马上会变成标题」的预览，
+ * 所以**能转换**的位置都得挂（列表项首格的 split 与文档级的 in-place 都算）；
+ * 挂不上却硬挂，会按标题字号渲染出一段永远变不了的死文本。
  */
-describe('pending heading 装饰的父块可行性', () => {
+describe('pending heading 装饰的父块接纳方式', () => {
   function docOf() {
     const schema = createTestSchema();
     return schema.nodes.doc.create(null, [
       schema.nodes.bulletList.create(null, [
-        schema.nodes.listItem.create(null, [schema.nodes.paragraph.create(null, [schema.text('# 标题')])]),
+        schema.nodes.listItem.create(null, [schema.nodes.paragraph.create(null, [schema.text('# 列表标题')])]),
       ]),
+      schema.nodes.paragraph.create(null, [schema.text('正文')]),
       schema.nodes.paragraph.create(null, [schema.text('# 真标题')]),
     ]);
   }
 
-  function paragraphPos(doc: PMNode, prefix: string): number {
+  function paragraphPos(doc: PMNode, text: string): number {
     let hit = -1;
     doc.descendants((node, pos) => {
       if (hit >= 0) return false;
-      if (node.type.name === 'paragraph' && node.textContent.startsWith(prefix)) hit = pos;
+      if (node.type.name === 'paragraph' && node.textContent.startsWith(text)) hit = pos;
       return true;
     });
     return hit;
   }
 
-  it('初始全量构建：只给文档级那个段落挂装饰（每个 pending 段 2 条）', () => {
-    const doc = docOf();
-    const state = EditorState.create({ schema: doc.type.schema, doc, plugins: [markdownInputPlugin()] });
-    const froms = markdownInputPluginKey.getState(state)?.decorations.find().map((d) => d.from) ?? [];
+  function decoratedPositions(state: EditorState): number[] {
+    return markdownInputPluginKey.getState(state)?.decorations.find().map((d) => d.from) ?? [];
+  }
 
-    expect(froms.length).toBe(2);
-    expect(froms.every((from) => from >= paragraphPos(doc, '# 真标题'))).toBe(true);
+  function setup() {
+    const doc = docOf();
+    return { doc, state: EditorState.create({ schema: doc.type.schema, doc, plugins: [markdownInputPlugin()] }) };
+  }
+
+  /** 在 `text` 那个段落的末尾插入一个字 */
+  function typeAtEndOf(state: EditorState, doc: PMNode, text: string) {
+    const target = paragraphPos(doc, text);
+    const at = target + 1 + (doc.nodeAt(target)?.content.size ?? 0);
+    return state.apply(state.tr.insertText('字', at));
+  }
+
+  it('初始全量构建：split 与 in-place 两处都挂装饰（每段 2 条）', () => {
+    const { doc, state } = setup();
+    const froms = decoratedPositions(state);
+
+    expect(froms.length).toBe(4);
+    expect(froms).toContain(paragraphPos(doc, '# 列表标题'));
+    expect(froms).toContain(paragraphPos(doc, '# 真标题'));
   });
 
-  it('增量路径：在列表项那个段落里打字，也不给它补装饰', () => {
-    const doc = docOf();
-    const state = EditorState.create({ schema: doc.type.schema, doc, plugins: [markdownInputPlugin()] });
+  it('增量：改动画落在别的块上，pending 装饰照旧留存（mapped 平移不误删）', () => {
+    const { doc, state } = setup();
+    const next = typeAtEndOf(state, doc, '正文');
 
-    const target = paragraphPos(doc, '# 标题');
-    const inner = doc.nodeAt(target);
-    expect(inner).not.toBeNull();
-    const at = target + 1 + (inner?.content.size ?? 0);
+    const froms = decoratedPositions(next);
+    expect(froms.length).toBe(4);
+    expect(froms).toContain(paragraphPos(next.doc, '# 列表标题'));
+    expect(froms).toContain(paragraphPos(next.doc, '# 真标题'));
+  });
 
-    const next = state.apply(state.tr.insertText('字', at));
-    const froms = markdownInputPluginKey.getState(next)?.decorations.find().map((d) => d.from) ?? [];
+  it('增量：在列表项 pending 段落里继续打字 ⇒ 当场落成真 heading，装饰随之退役', () => {
+    const { doc, state } = setup();
+    const next = typeAtEndOf(state, doc, '# 列表标题');
 
-    expect(froms.length).toBe(2);
-    expect(froms.every((from) => from >= paragraphPos(doc, '# 真标题'))).toBe(true);
+    const item = next.doc.firstChild?.firstChild;
+    expect(item?.child(0).type.name).toBe('paragraph');
+    expect(item?.child(0).textContent).toBe('');
+    expect(item?.child(1).type.name).toBe('heading');
+    expect(item?.child(1).textContent).toBe('列表标题字');
+
+    // 转换落地后该处不再是 pending，装饰只剩文档级那一处
+    expect(decoratedPositions(next).length).toBe(2);
   });
 });
 
