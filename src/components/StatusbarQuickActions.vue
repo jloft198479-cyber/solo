@@ -79,7 +79,7 @@ useClickOutside(wrapRef, closePopover);
     />
     <button
       class="quick-action-btn"
-      :class="{ 'is-copied': copied }"
+      :class="{ 'is-copied': copied, 'is-failed': copyFailed }"
       :title="copied ? '已复制全文' : copyFailed ? '复制失败' : '复制全文为 Markdown'"
       @click="copyMarkdown"
     >
@@ -147,6 +147,12 @@ useClickOutside(wrapRef, closePopover);
 
 .quick-action-btn.is-copied {
   color: var(--success-color);
+  opacity: 1;
+}
+
+/* 失败态必须有视觉：只改 tooltip 的话，用户不悬停就看不到（M-22 的原始抱怨正是「按钮不变样」） */
+.quick-action-btn.is-failed {
+  color: var(--error-color);
   opacity: 1;
 }
 </style>

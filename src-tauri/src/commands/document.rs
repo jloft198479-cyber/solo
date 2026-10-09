@@ -1270,8 +1270,23 @@ mod tests {
         let tmp = super::temp_path(&path);
 
         let filename = tmp.file_name().unwrap().to_string_lossy();
-        assert!(filename.starts_with(".demo."));
+        // 注意：文件名含扩展名 ⇒ 前缀是「.demo.md.」（不是「.demo.」）
+        assert!(filename.starts_with(".demo.md."));
         assert!(filename.ends_with(".tmp"));
+        // 中间必须是「毫秒.pid」两段纯数字（M-45：加 PID 防同毫秒撞名）
+        let stem = filename
+            .strip_prefix(".demo.md.")
+            .and_then(|s| s.strip_suffix(".tmp"))
+            .expect("tmp 名应为 .demo.md.{毫秒}.{pid}.tmp");
+        let parts: Vec<&str> = stem.split('.').collect();
+        assert_eq!(parts.len(), 2, "应为「毫秒」与「pid」两段：{}", filename);
+        assert!(
+            parts
+                .iter()
+                .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())),
+            "两段都必须是非空纯数字：{}",
+            filename
+        );
 
         let _ = fs::remove_dir_all(dir);
     }
@@ -1302,24 +1317,30 @@ mod tests {
         fs::write(&doc_path, b"# hello").unwrap();
 
         // stale 残留：mtime 设为 2 小时前 → 应删除
-        // （tmp 文件名模式与 temp_path 生成格式一致：.{文件名含扩展名}.{毫秒}.tmp）
-        let stale_tmp = dir.join(".demo.md.1000000.tmp");
+        // （新格式与 temp_path 生成格式一致：.{文件名含扩展名}.{毫秒}.{pid}.tmp）
+        let stale_tmp = dir.join(".demo.md.1000000.4242.tmp");
         fs::write(&stale_tmp, b"stale").unwrap();
         set_modified_hours_ago(&stale_tmp, 2);
 
         // fresh 残留：mtime 当前 → 应保留（双开进程可能正在写入）
-        let fresh_tmp = dir.join(".demo.md.1000001.tmp");
+        let fresh_tmp = dir.join(".demo.md.1000001.4242.tmp");
         fs::write(&fresh_tmp, b"fresh").unwrap();
 
-        // 匹配前后缀但中间非纯数字 → 应保留
-        let bad_num_tmp = dir.join(".demo.md.abc.tmp");
+        // 旧格式残留（加 PID 之前生成的、没有 pid 段）：仍应被识别并清理（向后兼容）
+        let legacy_stale = dir.join(".demo.md.999999.tmp");
+        fs::write(&legacy_stale, b"legacy").unwrap();
+        set_modified_hours_ago(&legacy_stale, 2);
+
+        // 段内混入非数字（pid 位置写成 abc）→ 应保留，绝不误删用户文件
+        let bad_num_tmp = dir.join(".demo.md.1000000.abc.tmp");
         fs::write(&bad_num_tmp, b"bad").unwrap();
 
         super::cleanup_stale_tmp_files(&doc_path);
 
         assert!(!stale_tmp.exists(), "stale tmp (mtime > 1h) should be deleted");
         assert!(fresh_tmp.exists(), "fresh tmp should be kept");
-        assert!(bad_num_tmp.exists(), "non-numeric middle part should be kept");
+        assert!(!legacy_stale.exists(), "旧格式（无 pid）stale 残留也应被清理");
+        assert!(bad_num_tmp.exists(), "含非数字段的名字应保留");
 
         let _ = fs::remove_dir_all(dir);
     }
