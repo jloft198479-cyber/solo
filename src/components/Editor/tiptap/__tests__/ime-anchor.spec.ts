@@ -12,6 +12,7 @@ import type { EditorView } from '@tiptap/pm/view';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  type AnchorTrigger,
   IME_ANCHOR_DEBOUNCE_MS,
   IME_ANCHOR_FOCUS_DELAY_MS,
   installImeAnchorGuard,
@@ -247,5 +248,131 @@ describe('installImeAnchorGuard', () => {
     window.dispatchEvent(new Event('resize'));
     vi.advanceTimersByTime(200);
     expect(blur).not.toHaveBeenCalled();
+  });
+
+  it('Tauri「窗口移动」事件 → 触发重锚（首版漏掉的主因，见模块头注释）', () => {
+    const { view, dom } = fakeView();
+    document.body.appendChild(dom);
+    dom.focus();
+    const blur = vi.spyOn(dom, 'blur');
+    let fire: ((t: AnchorTrigger) => void) | null = null;
+
+    const dispose = installImeAnchorGuard({
+      getView: () => view,
+      enabled: true,
+      debounceMs: 50,
+      focusDelayMs: 40,
+      target: window,
+      subscribeGeometry: (onChange) => {
+        fire = onChange;
+        return () => {
+          fire = null;
+        };
+      },
+    });
+    expect(fire).not.toBeNull();
+
+    fire!('move');
+    vi.advanceTimersByTime(50);
+    expect(blur).toHaveBeenCalledTimes(1);
+    expect(view.focus).not.toHaveBeenCalled(); // 仍需等间隔
+    vi.advanceTimersByTime(40);
+    expect(view.focus).toHaveBeenCalledTimes(1);
+
+    dispose();
+  });
+
+  it('Tauri「窗口缩放」事件同样触发（与 DOM resize 互为兜底）', () => {
+    const { view, dom } = fakeView();
+    document.body.appendChild(dom);
+    dom.focus();
+    const blur = vi.spyOn(dom, 'blur');
+    let fire: ((t: AnchorTrigger) => void) | null = null;
+
+    const dispose = installImeAnchorGuard({
+      getView: () => view,
+      enabled: true,
+      debounceMs: 50,
+      focusDelayMs: 40,
+      target: window,
+      subscribeGeometry: (onChange) => {
+        fire = onChange;
+        return () => {
+          fire = null;
+        };
+      },
+    });
+    fire!('resize');
+    vi.advanceTimersByTime(50);
+    expect(blur).toHaveBeenCalledTimes(1);
+
+    dispose();
+  });
+
+  it('移动 + 缩放连发只重锚一次（同一防抖窗口内合并）', () => {
+    const { view, dom } = fakeView();
+    document.body.appendChild(dom);
+    dom.focus();
+    const blur = vi.spyOn(dom, 'blur');
+    let fire: ((t: AnchorTrigger) => void) | null = null;
+
+    const dispose = installImeAnchorGuard({
+      getView: () => view,
+      enabled: true,
+      debounceMs: 50,
+      focusDelayMs: 40,
+      target: window,
+      subscribeGeometry: (onChange) => {
+        fire = onChange;
+        return () => {
+          fire = null;
+        };
+      },
+    });
+    fire!('move');
+    fire!('resize');
+    fire!('move');
+    window.dispatchEvent(new Event('resize'));
+    vi.advanceTimersByTime(200);
+    expect(blur).toHaveBeenCalledTimes(1);
+
+    dispose();
+  });
+
+  it('卸载时退订窗口几何订阅（防异步订阅泄漏）', () => {
+    let unsubscribed = false;
+    const dispose = installImeAnchorGuard({
+      getView: () => null,
+      enabled: true,
+      target: window,
+      subscribeGeometry: () => () => {
+        unsubscribed = true;
+      },
+    });
+    dispose();
+    expect(unsubscribed).toBe(true);
+  });
+
+  it('未注入订阅且非 Tauri 运行时 → 默认空订阅，不抛错、不依赖 Tauri', () => {
+    const { view, dom } = fakeView();
+    document.body.appendChild(dom);
+    dom.focus();
+    const blur = vi.spyOn(dom, 'blur');
+
+    const dispose = installImeAnchorGuard({
+      getView: () => view,
+      enabled: true,
+      debounceMs: 10,
+      focusDelayMs: 10,
+      target: window,
+    });
+    // DOM resize 兜底仍工作
+    expect(() => {
+      window.dispatchEvent(new Event('resize'));
+      vi.advanceTimersByTime(50);
+    }).not.toThrow();
+    expect(blur).toHaveBeenCalledTimes(1);
+
+    dispose();
   });
 });
