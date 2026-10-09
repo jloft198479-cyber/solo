@@ -71,6 +71,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`solo外部文件监听方案.md`](./archive/solo外部文件监听方案.md)                       | archive   | maintainer/agent | archive  | 外部文件监听（Agent Sync）技术方案——**未执行**，已归档           |
 | [`PROPOSAL-list-outline-experience.md`](./PROPOSAL-list-outline-experience.md) | proposal | maintainer       | proposal | 列表区幕布式大纲体验（只改列表、非列表区零改动；不改格式不引依赖）：**阶段 1-2 已实现**（折叠 / 悬停箭头 / 嵌套引导线，待真机验收），**阶段 3-4 决定不做**；§九 为落地记录 |
 | [`PROPOSAL-list-row-drag.md`](./PROPOSAL-list-row-drag.md) | proposal | maintainer       | proposal | 列表行**拖拽换位（仅同层）**：鼠标抓把手上下拖整行换位、一次撤销可还原、格式零改动；含难易评估与四决策（建议独立把手）、分阶段验收；**跨层/圆点即把手暂不做**；未执行 |
+| [`REVIEW-PLAN-第三方全面审查-2026-10-09.md`](./REVIEW-PLAN-第三方全面审查-2026-10-09.md) | proposal | maintainer | proposal | 第三方全面审查**作业书**（宏观→微观，对标 Typora/Obsidian）：目标口径/差分定位（不重复既有 4 轮审查）/交底材料包/三层审查法/交付物与红线；**仅方案，未执行** |
 | [`architecture/refactoring-report.md`](./architecture/refactoring-report.md) | archive   | agent            | archive  | 减法重构历史报告（22→17 命令等，**历史快照**，现状以 ARCHITECTURE 为准） |
 | [`archive/settings-audit-report.md`](./archive/settings-audit-report.md)     | archive   | agent            | archive  | 设置面板排查历史报告（P0 死代码已清理，**历史快照**）                    |
 | [`catpaw审核/丝滑体验优化复盘.md`](./archive/catpaw-2026-08-21/丝滑体验优化复盘.md) | archive | dev/agent | archive | 丝滑优化（P0-P3）全流程复盘（整批 13 份已归档至 archive/catpaw-2026-08-21/） |
