@@ -263,47 +263,12 @@ html.doc-heavy .tiptap-editor > hr {
   content: attr(data-pending-heading-level);
 }
 
-.tiptap-editor .mk-pending-heading-1 {
-  font-size: var(--mk-heading1-size);
-  font-weight: 700;
-  line-height: var(--mk-heading1-line-height);
-  color: var(--text-color);
-}
-
-.tiptap-editor .mk-pending-heading-2 {
-  font-size: var(--mk-heading2-size);
-  font-weight: 600;
-  line-height: var(--mk-heading2-line-height);
-  color: var(--text-color);
-}
-
-.tiptap-editor .mk-pending-heading-3 {
-  font-size: var(--mk-heading3-size);
-  font-weight: 600;
-  line-height: var(--mk-heading3-line-height);
-  color: var(--text-color);
-}
-
-.tiptap-editor .mk-pending-heading-4 {
-  font-size: var(--mk-heading4-size);
-  font-weight: 600;
-  line-height: var(--mk-heading4-line-height);
-  color: var(--text-color);
-}
-
-.tiptap-editor .mk-pending-heading-5 {
-  font-size: var(--mk-heading5-size);
-  font-weight: 600;
-  line-height: var(--mk-heading5-line-height);
-  color: var(--text-color);
-}
-
-.tiptap-editor .mk-pending-heading-6 {
-  font-size: var(--mk-heading6-size);
-  font-weight: 600;
-  line-height: var(--mk-heading6-line-height);
-  color: var(--text-color);
-}
+/*
+ * 各标题级别的盒模型（字号 / 行高 / 字重 / 间距 / 颜色）**不在这里重复声明** ——
+ * 见下方「标题」节的合并规则：真标题 `h{N}` 与打字预告态 `p.mk-pending-heading-{N}`
+ * 共用同一条规则，从根上杜绝两者漂移（历史上预告态就漏了 `margin`，
+ * 导致「上屏瞬间字体已变、间距没变，定稿才补上 ⇒ 标题凭空往下跳一大段」）。
+ */
 
 /*
  * Pending heading 前缀样式：
@@ -319,7 +284,30 @@ html.doc-heavy .tiptap-editor > hr {
   font-weight: normal;
 }
 
-.tiptap-editor h1 {
+/*
+ * ── 每个级别的完整盒模型：真标题与「打字预告态」共用一条规则 ──────────
+ *
+ * 打字时看到的样式必须与定稿后的真标题**逐项一致**，否则会出现：
+ * 敲完 `# ` 字号已经变大，但间距没跟上；300ms 后定稿成真标题才补上间距
+ * ⇒ 刚打的标题「凭空往下跳一大段」（用户报的「标题跨行 / 不在当前行」）。
+ *
+ * 成因：预告态从 v1.1.6 起只镜像了字号 / 行高 / 字重 / 颜色，**唯独漏了 margin**。
+ * 而预告态是个 `<p>`，会吃到 `.tiptap-editor p` 的 `margin: var(--mk-paragraph-spacing)`
+ * （`1em`，随放大的字号一起变成约 25.6px）；真标题却是 `--mk-heading{N}-margin`
+ * （H1 = 2.4em ≈ 61px）。⇒ 写进同一条规则，从根上不可能再漂。
+ * （顺带修掉两处既有漂移：预告态 H1/H2 缺 `letter-spacing`、预告态 H6 用了 `--text-color`
+ *   而真 h6 是 `--muted-color` ⇒ 定稿瞬间会有一横一竖的轻微跳动和颜色突变。）
+ *
+ * 预告态选择器写成 `p:where(.mk-pending-heading-{N})`：`:where()` 不贡献优先级，
+ * 于是它与 `.tiptap-editor h{N}` 同为 (0,1,1) —— 两件事同时成立：
+ *   ① 压得过 `.tiptap-editor p` 的段落间距（同优先级、源序在后）；
+ *   ② 容器级覆盖（`> *:first-child` 段前距归零、`li p { margin: 0 }`）
+ *      对「预告态」与「真标题」作用**完全对称**。
+ * 若改用普通类选择器（`.tiptap-editor .mk-pending-heading-1`，优先级 (0,2,0)），
+ * 它会反压 `> *:first-child` 的归零 ⇒ 文档首块的预告态凭空长出段前距。
+ */
+.tiptap-editor h1,
+.tiptap-editor p:where(.mk-pending-heading-1) {
   font-size: var(--mk-heading1-size);
   font-weight: 700;
   line-height: var(--mk-heading1-line-height);
@@ -328,7 +316,8 @@ html.doc-heavy .tiptap-editor > hr {
   letter-spacing: var(--mk-heading1-letter-spacing);
 }
 
-.tiptap-editor h2 {
+.tiptap-editor h2,
+.tiptap-editor p:where(.mk-pending-heading-2) {
   font-size: var(--mk-heading2-size);
   font-weight: 600;
   line-height: var(--mk-heading2-line-height);
@@ -337,7 +326,8 @@ html.doc-heavy .tiptap-editor > hr {
   letter-spacing: var(--mk-heading2-letter-spacing);
 }
 
-.tiptap-editor h3 {
+.tiptap-editor h3,
+.tiptap-editor p:where(.mk-pending-heading-3) {
   font-size: var(--mk-heading3-size);
   font-weight: 600;
   line-height: var(--mk-heading3-line-height);
@@ -345,7 +335,8 @@ html.doc-heavy .tiptap-editor > hr {
   color: var(--text-color);
 }
 
-.tiptap-editor h4 {
+.tiptap-editor h4,
+.tiptap-editor p:where(.mk-pending-heading-4) {
   font-size: var(--mk-heading4-size);
   font-weight: 600;
   line-height: var(--mk-heading4-line-height);
@@ -353,7 +344,8 @@ html.doc-heavy .tiptap-editor > hr {
   color: var(--text-color);
 }
 
-.tiptap-editor h5 {
+.tiptap-editor h5,
+.tiptap-editor p:where(.mk-pending-heading-5) {
   font-size: var(--mk-heading5-size);
   font-weight: 600;
   line-height: var(--mk-heading5-line-height);
@@ -361,7 +353,8 @@ html.doc-heavy .tiptap-editor > hr {
   color: var(--text-color);
 }
 
-.tiptap-editor h6 {
+.tiptap-editor h6,
+.tiptap-editor p:where(.mk-pending-heading-6) {
   font-size: var(--mk-heading6-size);
   font-weight: 600;
   line-height: var(--mk-heading6-line-height);
