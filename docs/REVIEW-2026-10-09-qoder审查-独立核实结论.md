@@ -1,0 +1,112 @@
+---
+title: qoder 第三方审查 · 独立核实结论（只核不修）
+type: review
+audience: agent
+status: active
+tags: [审查报告, 复查, 核实, 勘误, 落点映射]
+summary: 对《第三方全面审查·问题总账》逐条独立取证：基线/三闸门核对、P1-P3 抽样与全量复核、勘误表与正面清单抽验，并记录报告自身的 3 处计数/行号偏差
+updates: [docs/REVIEW-2026-10-09-第三方全面审查-问题总账.md]
+---
+
+# qoder 第三方审查 · 独立核实结论
+
+> **性质**：**只核不修**。对 [问题总账](./REVIEW-2026-10-09-第三方全面审查-问题总账.md) 逐条独立取证（重跑 grep / 读实现原文 / 数实例），**未改动任何代码或既有文档**（本文为新增）。
+> **核实时间**：2026-10-09 · 基准同一（`master @ 53fc08d`）。
+> **一句话结论**：**报告质量高、可采信**。抽样未发现「假阳性」（没有一条被验证为不成立）；发现 **3 处报告自身偏差**（计数/行号，均为记账瑕疵，不影响结论）。
+
+## 1. 基线核对（4/4 准确）
+
+| 报告声称 | 实测 | 判定 |
+|---|---|---|
+| `master @ 53fc08d` | HEAD = `53fc08d` | ✅ 准确 |
+| `v1.2.58` 三处同步 | `package.json` / `Cargo.toml` / `tauri.conf.json` 均为 `1.2.58` | ✅ 准确 |
+| tag `v1.2.58` 已存在 | `git tag` 命中 | ✅ 准确 |
+| 三闸门：`51 文件 / 1547 测试` | `npx vitest run` → **51 passed / 1547 passed** | ✅ 准确 |
+
+> 小注：`git describe` 为 `v1.2.58-11-g53fc08d`，即 HEAD 比 tag 超前 11 个 commit；报告写「master @ 53fc08d · v1.2.58」略含糊但可接受。
+
+## 2. P1（7/7 静态成立，其中 2 条报告已自标待实测）
+
+| ID | 判定 | 取证要点 |
+|---|---|---|
+| M-01 编码 | ✅ 成立 | `document.rs:54` `fs::read_to_string`（严格 UTF-8）；`:20` 白名单含 `.txt`；全仓 `BOM\|ufeff\|from_utf8\|encoding_rs` **零命中** |
+| M-02 注册表 | ✅ 成立 | `desktop.rs:212` `delete_subkey_all(.md)` 整键递归删、无所有权判断；`:211-219` 全 `let _ =` 吞错；`:221` 无条件 `Ok(())`；注销侧无 `notify_shell_change`（注册侧 `:188` 有） |
+| M-03 Ctrl+S 无门 | ✅ 成立 | `saveCurrentDocument`（`useDocumentSession.ts:217-273`）全程无 `isDirty`；`App.vue` 命令路径 `handleSave`（`:205`）无门，而按钮（`:407`）与自动保存（`:467`）**有门** |
+| M-04 复制为HTML | ✅ 成立 | `markdown-to-html.ts` 仅 `.use()` 6 个官方插件（task-lists/mark/sub/sup/texmath/footnote），**无** callout/wikilink/mermaid/frontmatter |
+| M-05 文档误导 | ✅ 成立 | `TROUBLESHOOTING.md:71-72`「2s 自动保存」vs `settings.ts:50` `autoSave:false` |
+| M-06 Ctrl+H | ⚠️ 静态成立·待实测 | `menu.rs:61` 硬编码 `CmdOrCtrl+H`；`:172` 吞 `app.hide` 事件；`update_shortcuts_in_items` 只 `set` 不清 ⇒ 死项加速键永留 |
+| M-07 Word 粘贴 | ⚠️ 静态成立·待实测 | `stripMsoMarkup` 唯一调用链 = `parseHtmlSlice`（`:422`）→ 仅 Layer 4「无 text/html」分支（`:521`）；全仓 `transformPastedHTML` **零命中**；函数确不删段首 `•`/`1.` |
+
+## 3. P2（19 条：18 静态成立 / 1 待实测 / 1 计数偏差）
+
+| ID | 判定 | 取证要点 |
+|---|---|---|
+| M-11 折叠入口 | ✅ | `list-fold.ts` chevron `click`（`:161-174`）；`editor.css:456` `opacity:0` |
+| M-12 菜单兜底键位 | ✅ | `menu.rs:32/33/36` `CmdOrCtrl+G`/`Shift+G`/`Shift+F` vs `registry.ts:377/387/421` `Mod-f`/`Mod-h`/`F11` |
+| M-13 无一致性测试 | ✅（措辞准） | `registry.spec.ts`（8 例）**确**测菜单**派生**（`getMenuShortcuts`），但**不比对 `menu.rs`** Rust 兜底值；`useMenuShortcutsSync.spec.ts`（2 例）只测「调了 IPC」 |
+| M-14 IME 临时开关 | ✅ | `ime-anchor.ts:55-61` 自陈「验证完成后必须删除」；`:66-72/171` 读 `localStorage['solo:imeAnchorGuard']` **无 DEV 门控**；`ime-anchor-probe.ts:2` 自陈待删 |
+| M-15 假订阅 | ✅ | `subscribeTauriGeometry` 全仓仅在 `ime-anchor.ts`（`:84` 定义 / `:232` 使用）；**spec 零命中** |
+| M-16 图片绕过 SSRF | ✅ | `image.ts:203-208` `.catch(() => … return src)`；`:366` 赋 `image.src`；CSP `img-src … http:` |
+| M-17 重定向不复核 | ✅ | `image.rs:78-93` `Client::builder()` 无 redirect 设置；全仓 `redirect\|Policy` **零命中** |
+| M-18 冲突检查薄弱 | ✅（**行号错**） | 无锁 TOCTOU `:125-148`；`as_millis()` 毫秒精度；另存为/改名 `useDocumentSession.ts:291/332` 均 `force=true, expected=null`。⚠️ 报告引的 `document.rs:814-821` **实为 `validate_image_asset_path`/`read_modified_time_ms`，非冲突代码** |
+| M-19 崩溃恢复原料 | ✅ | `atomic_write` `:711-746` `create→write_all→sync_all→rename`；清理仅删 >1h 静默（`:750-789`）；`temp_path` 前缀 `.`（Windows 非隐藏） |
+| M-20 mermaid loose | ⚠️ 待实测 | `mermaid-block.ts:193` `securityLevel:'loose'` + `:490-494` 自动渲染；CSP `style-src 'unsafe-inline'` + `dangerousDisableAssetCspModification:["style-src"]` |
+| M-21 图片扩权 | ✅ | `:791` `canonicalize()` 防软链；`:626-628` 绝对路径**显式放行**（仅相对路径做 containment）；`:643` `allow_file` 只增不减 |
+| M-22 三处静默 | ✅ | `clipboard.rs:22-27` 无 HTML 与出错合并同一 `Ok(None)`；`StatusbarQuickActions.vue:45-47` `catch{}` 静默；`document.rs:397-399` 写失败 `continue` 不计数 |
+| M-23 结构语义丢失 | ✅ | `footnote.ts` `parseHTML` 仅 `sup[data-footnote-ref]` ⇒ 别处 `<sup id>` 退化；`handleClipboardImagePaste` 文字仅 `insertText`（`:587-590`） |
+| M-24 折叠×换位 | ✅（qoder 探针落锤） | `mapFolded`（`list-fold.ts:213-221`）只留 `!mapped.deleted`；`list-move.ts:83-86` |
+| M-25 保真网盲区 | ✅ | `serializerMarkCases`（`mark-delimiter-coverage.spec.ts:32-41`）正则**只抽 `case` 名**、不读返回值；fixtures 目录无 `mk-dim`；`roundtrip.spec.ts:309-315` 用 `toContain` 弱断言 |
+| M-26 隐式全局态 | ✅ | `foldedByPath` 模块级 Map（`list-fold.ts:45`）；`clearFoldedMemory` 自陈「生产代码不需要调用」；`document-scale` 消费者实测 **7** 个 |
+| M-27 O(n²) 无防线 | ✅ | `git show 8e369af` 仅改 serializer；全 spec `perf\|benchmark` **零命中** |
+| M-28 幽灵依赖 | ✅（**计数错**） | `lib.rs:9 use commands::*` 无关；前端 import 的未声明 `@tiptap/*` 子包实测 **8 个**（core / bold / bullet-list / code / heading / italic / ordered-list / strike）。⚠️ 报告写「**7 个**」却自己列了 8 个名字 |
+| M-29 mac 臂编译失败 | ✅（静态） | `window.rs:173`(mac)/`:188`(非mac) 双定义；`commands/mod.rs:16-18` re-export **不含** `apply_macos_window_background`；`lib.rs:102` 限定路径可编 vs `:340` 裸名调用（`use commands::*` 解析不到）⇒ E0425；CI（`test.yml:11` / `release.yml:13-16`）**仅 windows-latest + x86_64-pc-windows-msvc** |
+
+## 4. P3（抽样 12 条，全部成立）
+
+| ID | 判定 | 取证要点 |
+|---|---|---|
+| M-31 | ✅ | `menu.rs:61-67` 三个 mac 死项无 `#[cfg]` |
+| M-32 | ✅ | `App.vue:405`「(Ctrl+S)」、`:419`「(Ctrl+,)」、`OutlinePanel.vue:157`「(Ctrl+/)」硬编码 |
+| M-33 | ✅ | `useAppDomEvents.ts:75` `Escape` 未登记 registry |
+| M-34 | ✅ | `registry.ts` 全文 0 处 `editor.link`/`editor.clearFormat` |
+| M-35 | ✅ | `StatusbarQuickActions.vue:31` 取**整篇** `getContent()` 双槽复制 vs `registry.ts:392-404` 文案「**选区**以 Markdown 源码」 |
+| M-36 | ✅ | `registry.ts:562` `parts[last].toUpperCase()` ⇒ `Alt-ArrowUp`→`Alt+ARROWUP` |
+| M-37 | ✅ | `restoreScroll` 命中 `ime-anchor.ts:143/202`（`FEATURE-MATRIX:252` 判据已失真） |
+| M-38 | ✅ | `cjk-boundary.md:42`「829」/`:177`「978（27 文件）」、`CHANGELOG.md:39`「1510」—— 均陈旧 |
+| M-39 | ✅（**计数错**） | 实测 **6 处** `var(--token, #死兜底)`：`editor.css:552/673/794/1050` + `BubbleMenu.vue:333` + `assets/styles/main.css:42`。⚠️ 报告写「**5 处**」却列了 6 个路径 |
+| M-40 | ✅（抽查） | `src/components/Editor/themes/` **不存在**（死链①成立） |
+| M-41 | ✅ | DOC-STANDARD 枚举 `core\|guide\|principle\|proposal\|archive\|product` **不含** `brief`/`record`；`IME-问题简报` 在 `INDEX.md` 零登记；`IME-ANCHOR-GUARD-2026-10-09.md` 存在 |
+| M-42/M-43/M-44 | ✅ | `CHANGELOG` 顶部序 `[1.2.58]:23 → [1.2.57]:41 → [Unreleased]:68`；`vitest.config.ts:11-38` 有 50/50/40/50 而 CI **无 `--coverage`**；`lib.rs:66` label=`editor-N` vs `:272` 判 `main-*`（永不命中） |
+
+## 5. §2 勘误表（抽核 5/8，均成立）
+
+| # | 判定 | 取证 |
+|---|---|---|
+| E-1 | ✅ | `CHANGELOG.md:25-29` 确登记折叠；`FEATURE-MATRIX` 无列表折叠条目。⚠️ 引用 `:253` 实为「**标题**折叠」行，非列表折叠，引用略偏 |
+| E-3 | ✅ | `ThemeState` 仅在 `themes/types.ts:183` 定义处出现，**零引用** = 真死码 1 处 |
+| E-4 | ✅ | `.archive-档案室/docs/ARCHITECTURE.md` **存在** ⇒ `AGENTS.md:37` 非死链 |
+| E-5 | ✅ | 8 个 preset：文件名无 `-light`、JSON `id` 有（如 `cinnabar.json → cinnabar-light`） |
+| E-7 | ✅ | `markdown-to-html.ts:1-13` 头注释 + `PRIVATE_TAG_RE` 证实 `dim` **有意剥壳** |
+| E-2 / E-6 / E-8 | — | 依赖探针/实测，本次未独立复现（E-8 由 qoder 探针落锤） |
+
+## 6. §6 正面清单（抽核硬禁令，全部准确）
+
+`String.replaceAll(` **0**（2 处命中是自定义事件名 `replaceAll`，非方法调用）｜前端直接 `invoke('` **0** ｜命令名 `command-names.ts` **26** 键 ｜Rust 非测试 `unwrap` **0**（`document.rs` 全部 unwrap 在 `:861` 起的 `#[cfg(test)]` 模块内）。
+
+## 7. 报告自身的 3 处偏差（记账瑕疵，不影响结论）
+
+1. **M-28 计数**：写「7 个幽灵依赖」，实为 **8 个**（报告自己列了 8 个名字）。
+2. **M-39 计数**：写「5 处」，实为 **6 处**（报告自己列了 6 个路径）。
+3. **M-18 行号**：引 `document.rs:814-821` 作冲突检查代码，**该区间实为 `validate_image_asset_path`/`read_modified_time_ms`**；冲突代码在 `:125-148`（已正确引用）。
+
+## 8. 未独立复现的项（需真机 / release / mac 环境）
+
+- **待实测 4 条**：M-06（Ctrl+H）、M-07（Word 粘贴真实形态）、M-20（prod CSP 下 mermaid）、M-01/M-04 的**文案/渲染产物证据**。
+- **M-29**：本机无 `aarch64-apple-darwin` 目标，未跑 `cargo check --target`，但静态链条完整。
+- **未跑**：`vue-tsc --noEmit`、`vite build`（报告称 0 错 / 16.76s）。
+
+## 9. 总体判断
+
+1. **可采信**：P1-P3 抽样与全量取证中，**无一条被验证为「不成立」**；报告 §2 的自我勘误（推翻了批 1/批 2 的多个结论）经抽核也站得住。
+2. **§9 综合判断成立**：P1 七条里六条确为「边界与账目」类（编码 / 注册表 / 写盘门控 / 导出通道失真 / 文档骗人 / 键位抢占），代码本身质量硬（三闸门全绿、真死码 1 处）。
+3. **待办**：报告 §8 的落账映射与 §7 的 4 条实测，仍属 owner 决策项，本次**未落账、未修改**。
