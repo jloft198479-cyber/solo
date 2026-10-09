@@ -92,6 +92,7 @@ import { toAssetUrl } from '../../services/tauri/asset';
 import { listenEditorFocus } from '../../services/tauri/events';
 import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
 import { isFrozen } from './tiptap/composition-freeze';
+import { installImeAnchorGuard } from './tiptap/ime-anchor';
 import BubbleMenuComponent from './views/BubbleMenu.vue';
 import ContextMenuComponent, { type ContextMenuItem } from './views/ContextMenu.vue';
 import SlashMenu from './views/SlashMenu.vue';
@@ -648,6 +649,9 @@ async function setupWindowFocusHandlers() {
 
 // ── 生命周期 ──────────────────────────────────────────────────
 
+// IME 候选窗失锚护栏（仅 Windows）：窗口缩放后重锚编辑焦点，卸载时清理
+let disposeImeAnchor: (() => void) | null = null;
+
 onMounted(async () => {
   setupDragDrop();
   await setupWindowFocusHandlers();
@@ -683,6 +687,10 @@ onMounted(async () => {
   // A6：滚动/缩放时重算 BubbleMenu 位置（rAF 节流）
   editorWrapRef.value?.addEventListener('scroll', repositionBubbleMenu, { passive: true });
   window.addEventListener('resize', repositionBubbleMenu);
+
+  // IME 候选窗失锚护栏（仅 Windows/WebView2）：窗口缩放后把编辑焦点重锚一次。
+  // 详见 docs/IME-ANCHOR-GUARD-2026-10-09.md
+  disposeImeAnchor = installImeAnchorGuard({ getView: () => editor.value?.view ?? null });
 });
 
 onBeforeUnmount(() => {
@@ -721,6 +729,8 @@ onBeforeUnmount(() => {
     gateEl.removeEventListener('scroll', repositionBubbleMenu);
   }
   window.removeEventListener('resize', repositionBubbleMenu);
+  disposeImeAnchor?.();
+  disposeImeAnchor = null;
   if (_bubbleMenuRafId != null) {
     cancelAnimationFrame(_bubbleMenuRafId);
     _bubbleMenuRafId = null;

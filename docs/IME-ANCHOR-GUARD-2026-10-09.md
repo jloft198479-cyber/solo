@@ -24,8 +24,8 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 | **来源** | [`observer130/lanmark` commit `ba451f0`](https://github.com/observer130/lanmark/commit/ba451f06178dbb08d6f97b9f5d53b46b26aca5e9)（2026-10-07），引用同一上游 `MicrosoftEdge/WebView2Feedback#5675` |
 | **分支** | `fix/ime-anchor-guard`（自 `55bbbc1` 开出） |
 | **基线提交** | `55bbbc1` |
-| **当前阶段** | 阶段 0（建档 + 分支）—— **已完成** |
-| **状态** | 🟡 **待实现** |
+| **当前阶段** | 阶段 2（实现 + 闸门）—— **已完成**，代码已提交本分支 |
+| **状态** | 🟢 **待真机验收**（阶段 3，简乐执行） |
 
 ---
 
@@ -97,8 +97,8 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 | 阶段 | 内容 | 是否碰产品代码 | 状态 |
 |---|---|---|---|
 | **0** | 证据进 master + 开分支 + 建本档案 + 判据定死 | ❌ 否 | ✅ 完成 |
-| **1** | 实现护栏：新建 `tiptap/ime-anchor.ts`，走 `composition-freeze.ts`；挂 resize 防抖；带**临时 A/B 开关** | ✅ 是 | ⬜ 待做 |
-| **2** | 闸门：`vue-tsc --noEmit` / `vitest` / `vite build`（沙盒）/ `eslint` | ❌ 否 | ⬜ 待做 |
+| **1** | 实现护栏：新建 `tiptap/ime-anchor.ts`，走 `composition-freeze.ts`；挂 resize 防抖；带**临时 A/B 开关** | ✅ 是 | ✅ 完成 |
+| **2** | 闸门：`vue-tsc --noEmit` / `vitest` / `vite build`（沙盒）/ `eslint` | ❌ 否 | ✅ 完成 |
 | **3** | **真机验收**（简乐按 §2.1 操作，A/B 各 2 轮），结果写入 §4 | ❌ 否 | ⬜ 待做 |
 | **4** | 定案：有效 → 删临时开关、合并 master、更新文档；无效 → 保留档案、回滚、转观察 | ✅ 视结果 | ⬜ 待做 |
 
@@ -134,7 +134,7 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 | blur→focus 间隔 | 60ms | 同步/`setTimeout(0)` 会被渲染进程合并；ProseMirror 对间隔不敏感 ⇒ 60ms 够稳 |
 | 平台门控 | 仅 Windows（UA 判 `Windows`） | Linux/macOS 输入法行为不同，不做 |
 | 合成中 | pending → 等 `compositionend` 补做 | 不打断组字、不吞预编辑 |
-| **临时 A/B 开关** | 待定（阶段 1 定） | 验证完**必须删除**，不留无证据开关进产品 |
+| **临时 A/B 开关** | `localStorage['solo:imeAnchorGuard']==='off'` 即停用（**即时生效，无需刷新/重启**） | Console 一行命令即可开/关；验证完**必须删除**，不留无证据开关进产品 |
 | 大文档 | 是否随 `isHeavyDocument()` 降级 | 待定 |
 
 ### 5.3 已知风险
@@ -217,7 +217,37 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 | xterm.js / paseo 围观 | 🟡 记录备查（它们是**终端库**问题，解法不可抄，仅作同族旁证） |
 | Blender「WM_IME_STARTCOMPOSITION 前定位」「组字中 reposition 被忽略」两句 | ❓ **未核实**，登记为待核，**不得当结论引用** |
 
+## 9. 阶段 1 / 2 实施记录（2026-10-09）
+
+### 9.1 落地文件
+
+| 文件 | 动作 | 说明 |
+|---|---|---|
+| `src/components/Editor/tiptap/ime-anchor.ts` | 新建 | 护栏模块；`installImeAnchorGuard()` 返回卸载函数 |
+| `src/components/Editor/MarkdownEditor.vue` | 改（3 处） | `onMounted` 装、`onBeforeUnmount` 卸；import + 模块级句柄 |
+| `src/components/Editor/tiptap/__tests__/ime-anchor.spec.ts` | 新建 | 契约锁 **11 例** |
+
+### 9.2 对外接口（冻结）
+
+- 常量：`IME_ANCHOR_DEBOUNCE_MS = 120`、`IME_ANCHOR_FOCUS_DELAY_MS = 60`
+- `installImeAnchorGuard({ getView, enabled?, debounceMs?, focusDelayMs?, target? }) → dispose()`
+- 门控：默认仅 `isWindows`；其它平台**整段空操作**（连监听都不挂）。
+- 组字态：走 `composition-freeze.ts::isFrozen`（唯一真相源，勿另造判断）。
+- 退化安全：无 view / 已销毁 / 焦点不在编辑器 → 空操作。
+- **A/B 开关键**：`solo:imeAnchorGuard` —— Console：`localStorage.setItem('solo:imeAnchorGuard','off')` 停用；`localStorage.removeItem('solo:imeAnchorGuard')` 恢复。
+
+### 9.3 闸门结果
+
+| 闸门 | 结果 |
+|---|---|
+| `vitest run`（全量） | ✅ 49 文件 / **1521 例全绿**（含新增 11 例） |
+| `vue-tsc --noEmit` | ✅ exit 0 |
+| `eslint`（改动 3 文件） | ✅ exit 0 |
+| `vite build`（沙盒 `.sandbox-build`，已清理） | ✅ `built in 32.62s` |
+
+> 📌 **基线更新**：本档案 §2 撰写时套件为「1484 通过 / 3 失败」（`composition-freeze` 的 fakeView 缺 `dom` 字段，属**旧基线**）。其后已由 commit `19cea95` 补全修至全绿。**当前零失败是最新基线**，本次改动**未引入任何失败**。
+
 ---
 
 **档案建立**：2026-10-09 ｜ **分支**：`fix/ime-anchor-guard`（基线 `55bbbc1`）
-**当前阶段**：0 / 4 ｜ **下一步**：等简乐点头 → 阶段 1（实现护栏）
+**当前阶段**：2 / 4 ｜ **下一步**：阶段 3 真机验收（简乐按 §2.1，A/B 各 2 轮，结果填 §4）
