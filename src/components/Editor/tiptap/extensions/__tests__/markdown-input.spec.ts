@@ -1,4 +1,5 @@
 import { EditorState, TextSelection } from '@tiptap/pm/state';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import { describe, expect, it } from 'vitest';
 
 import { createTestSchema } from '../../markdown/__tests__/test-utils';
@@ -6,6 +7,8 @@ import {
   convertPendingHeading,
   convertPendingInlineMarks,
   convertPendingLink,
+  markdownInputPlugin,
+  markdownInputPluginKey,
   revertEmptyHeading,
 } from '../markdown-input';
 
@@ -235,6 +238,147 @@ describe('convertPendingHeading', () => {
     });
 
     expect(convertPendingHeading(state.tr, state.doc, schema.nodes.heading)).toBeNull();
+  });
+});
+
+/**
+ * 父块可行性契约（KNOWN-ISSUES §二 #25）。
+ *
+ * 旧实现「先 `tr.delete(前缀)` 再 `setBlockType`」：改型一旦被父块拒绝，
+ * 前缀已经删掉且事务照发 ⇒ `# ` 静默消失、标题也不生成（用户可见的字符丢失）。
+ * 契约：**改型不成立时整步不做**，标记原样留着；成立时照常转换。
+ */
+describe('convertPendingHeading 的父块可行性', () => {
+  /** 复现生产调用形态：`appendTransaction` 恒显式传 pending。 */
+  function pendingOf(doc: PMNode, text: string): { level: number; paragraphPos: number; prefixLength: number } {
+    let hit: { level: number; paragraphPos: number; prefixLength: number } | null = null;
+    doc.descendants((node, pos) => {
+      if (hit) return false;
+      if (node.type.name !== 'paragraph' || node.textContent !== text) return true;
+      const match = /^(#{1,6})\s/.exec(text);
+      if (match) hit = { level: match[1].length, paragraphPos: pos, prefixLength: match[1].length + 1 };
+      return false;
+    });
+    if (!hit) throw new Error(`测试文档里找不到段落：${text}`);
+    return hit;
+  }
+
+  function convertInDoc(doc: PMNode) {
+    const schema = doc.type.schema;
+    const state = EditorState.create({ schema, doc });
+    const tr = convertPendingHeading(state.tr, state.doc, schema.nodes.heading, pendingOf(doc, '# 标题'));
+    return { tr, next: tr ? state.apply(tr).doc : doc };
+  }
+
+  it('列表项首块只收 paragraph ⇒ 整步不做，`# ` 原样保留', () => {
+    const schema = createTestSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.bulletList.create(null, [
+        schema.nodes.listItem.create(null, [schema.nodes.paragraph.create(null, [schema.text('# 标题')])]),
+      ]),
+    ]);
+
+    const { tr, next } = convertInDoc(doc);
+    expect(tr).toBeNull();
+    expect(next.textContent).toBe('# 标题');
+  });
+
+  it('任务项首块同理（taskItem 同约束）', () => {
+    const schema = createTestSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.taskList.create(null, [
+        schema.nodes.taskItem.create(null, [schema.nodes.paragraph.create(null, [schema.text('# 标题')])]),
+      ]),
+    ]);
+
+    const { tr, next } = convertInDoc(doc);
+    expect(tr).toBeNull();
+    expect(next.textContent).toBe('# 标题');
+  });
+
+  it('列表项内第二块收 heading ⇒ 照常转换（不得一刀切禁止）', () => {
+    const schema = createTestSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.bulletList.create(null, [
+        schema.nodes.listItem.create(null, [
+          schema.nodes.paragraph.create(null, [schema.text('甲')]),
+          schema.nodes.paragraph.create(null, [schema.text('# 标题')]),
+        ]),
+      ]),
+    ]);
+
+    const { tr, next } = convertInDoc(doc);
+    expect(tr).not.toBeNull();
+
+    const item = next.firstChild?.firstChild;
+    expect(item?.childCount).toBe(2);
+    expect(item?.child(0).textContent).toBe('甲');
+    expect(item?.child(1).type.name).toBe('heading');
+    expect(item?.child(1).attrs.level).toBe(1);
+    expect(item?.child(1).textContent).toBe('标题');
+  });
+
+  it('引用块收 heading ⇒ 照常转换（探针不得误伤合法父块）', () => {
+    const schema = createTestSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.blockquote.create(null, [schema.nodes.paragraph.create(null, [schema.text('# 标题')])]),
+    ]);
+
+    const { tr, next } = convertInDoc(doc);
+    expect(tr).not.toBeNull();
+    expect(next.firstChild?.firstChild?.type.name).toBe('heading');
+    expect(next.firstChild?.firstChild?.textContent).toBe('标题');
+  });
+});
+
+/**
+ * 装饰层必须与转换层同判据：变不成标题的段落若仍套 `mk-pending-heading`，
+ * 它会按标题字号/字重渲染、`# ` 停在装订线里——看着像标题、实际是死文本。
+ */
+describe('pending heading 装饰的父块可行性', () => {
+  function docOf() {
+    const schema = createTestSchema();
+    return schema.nodes.doc.create(null, [
+      schema.nodes.bulletList.create(null, [
+        schema.nodes.listItem.create(null, [schema.nodes.paragraph.create(null, [schema.text('# 标题')])]),
+      ]),
+      schema.nodes.paragraph.create(null, [schema.text('# 真标题')]),
+    ]);
+  }
+
+  function paragraphPos(doc: PMNode, prefix: string): number {
+    let hit = -1;
+    doc.descendants((node, pos) => {
+      if (hit >= 0) return false;
+      if (node.type.name === 'paragraph' && node.textContent.startsWith(prefix)) hit = pos;
+      return true;
+    });
+    return hit;
+  }
+
+  it('初始全量构建：只给文档级那个段落挂装饰（每个 pending 段 2 条）', () => {
+    const doc = docOf();
+    const state = EditorState.create({ schema: doc.type.schema, doc, plugins: [markdownInputPlugin()] });
+    const froms = markdownInputPluginKey.getState(state)?.decorations.find().map((d) => d.from) ?? [];
+
+    expect(froms.length).toBe(2);
+    expect(froms.every((from) => from >= paragraphPos(doc, '# 真标题'))).toBe(true);
+  });
+
+  it('增量路径：在列表项那个段落里打字，也不给它补装饰', () => {
+    const doc = docOf();
+    const state = EditorState.create({ schema: doc.type.schema, doc, plugins: [markdownInputPlugin()] });
+
+    const target = paragraphPos(doc, '# 标题');
+    const inner = doc.nodeAt(target);
+    expect(inner).not.toBeNull();
+    const at = target + 1 + (inner?.content.size ?? 0);
+
+    const next = state.apply(state.tr.insertText('字', at));
+    const froms = markdownInputPluginKey.getState(next)?.decorations.find().map((d) => d.from) ?? [];
+
+    expect(froms.length).toBe(2);
+    expect(froms.every((from) => from >= paragraphPos(doc, '# 真标题'))).toBe(true);
   });
 });
 

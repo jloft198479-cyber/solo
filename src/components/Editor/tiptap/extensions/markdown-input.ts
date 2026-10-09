@@ -643,6 +643,26 @@ function findPendingHeading(doc: PMNode): PendingHeading | null {
   return scanHeadings(doc).pendingHeading;
 }
 
+/**
+ * 该段落位置能否改型成 heading。
+ *
+ * `listItem` / `taskItem` 的首块只能是 paragraph（`schema-contract.spec.ts` 已锁），
+ * 所以「列表项里敲 `# 标题`」这类位置永远变不成标题。判据必须**三处一致**：
+ * 转换本身、段落装饰（初始全量 + 后续增量）——任一处漏掉，结果不是静默丢字符，
+ * 就是「内容还是 `# 文字`、却按标题字号渲染」。
+ */
+function canBecomeHeading(doc: PMNode, paragraphPos: number, headingType: NodeType | undefined): boolean {
+  if (!headingType) return false;
+  if (paragraphPos < 0 || paragraphPos + 1 > doc.content.size) return false;
+
+  const $pos = doc.resolve(paragraphPos + 1);
+  const parentDepth = $pos.depth - 1;
+  if (parentDepth < 0) return false;
+
+  const slot = $pos.index(parentDepth);
+  return $pos.node(parentDepth).canReplaceWith(slot, slot + 1, headingType);
+}
+
 export function convertPendingHeading(
   tr: Transaction,
   doc: PMNode,
@@ -657,6 +677,9 @@ export function convertPendingHeading(
   if (!pending || !HEADING_LEVELS.includes(pending.level as (typeof HEADING_LEVELS)[number])) {
     return null;
   }
+  // 父块收不下 heading 就整步不做。旧顺序（先删前缀再改型）在改型被拒时会留下
+  // 「`# ` 已删、标题没生成」的静默字符丢失（KNOWN-ISSUES §二 #25）。
+  if (!canBecomeHeading(doc, pending.paragraphPos, headingType)) return null;
 
   const contentPos = pending.paragraphPos + 1;
 
@@ -687,12 +710,13 @@ function buildParagraphPendingDecorations(
 /** 首次加载：全文档构建 pending heading 装饰（一次性，后续由 updatePendingDecorations 增量维护）。 */
 function buildPendingHeadingDecorations(doc: PMNode): DecorationSet {
   const decorations: Decoration[] = [];
+  const headingType = doc.type.schema.nodes.heading;
 
   doc.descendants((node, pos) => {
     if (node.type.name !== 'paragraph') return true;
 
     const match = /^(#{1,6})\s/.exec(node.textContent);
-    if (!match) return true;
+    if (!match || !canBecomeHeading(doc, pos, headingType)) return true;
 
     decorations.push(...buildParagraphPendingDecorations(node, pos, match));
     return true;
@@ -710,6 +734,7 @@ function buildPendingHeadingDecorations(doc: PMNode): DecorationSet {
 function updatePendingDecorations(tr: Transaction, decoSet: DecorationSet): DecorationSet {
   const mapped = decoSet.map(tr.mapping, tr.doc);
   const docSize = tr.doc.content.size;
+  const headingType = tr.doc.type.schema.nodes.heading;
   const touched = new Set<number>();
   let result = mapped;
 
@@ -732,7 +757,9 @@ function updatePendingDecorations(tr: Transaction, decoSet: DecorationSet): Deco
 
         if (node.type.name === 'paragraph') {
           const match = /^(#{1,6})\s/.exec(node.textContent);
-          if (match) result = result.add(tr.doc, buildParagraphPendingDecorations(node, pos, match));
+          if (match && canBecomeHeading(tr.doc, pos, headingType)) {
+            result = result.add(tr.doc, buildParagraphPendingDecorations(node, pos, match));
+          }
         }
         return false;
       });
