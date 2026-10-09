@@ -53,6 +53,11 @@ export function useFloatingListMenu<T>(options: {
     const count = getItems().length;
     if (count === 0) return false;
 
+    // 带 Alt 的上下键**不是**菜单导航：`Alt+↑/↓` 是编辑器的「列表项上/下移」命令
+    // （registry 的 list.moveItemUp/Down）。而 `event.key` 在按住 Alt 时仍是 'ArrowUp'，
+    // 只判 key 会让同一次按键既挪菜单选中项、又挪正文里的列表项 ⇒ 在此让路。
+    if (event.altKey) return false;
+
     if (event.key === 'ArrowUp') {
       selectedIndex.value = (selectedIndex.value - 1 + count) % count;
       scrollToSelected();

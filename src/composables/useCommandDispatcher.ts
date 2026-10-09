@@ -83,6 +83,15 @@ export function useCommandDispatcher(options: CommandDispatcherOptions) {
           return editorRef.value?.executeCommand?.('edit.copyAsMarkdown') ?? false;
         }
         return false;
+      case 'list.moveItemUp':
+      case 'list.moveItemDown':
+        // 同 edit.copyAsMarkdown：app 作用域 + 转发给编辑器执行。
+        // 快捷键路径额外要求编辑器真的持有焦点（口径同 canRunEditorShortcut）——
+        // 否则用户在侧栏 / 大纲里按 Alt+↑ 会「看不见地」挪动正文，属隐蔽副作用。
+        // 命令面板是显式动作，不设此门（选中即执行，随后焦点交还编辑器）。
+        if (activeViewMode.value !== 'editor') return false;
+        if (source === 'shortcut' && !(editorRef.value?.hasFocus?.() ?? false)) return false;
+        return editorRef.value?.executeCommand?.(commandId) ?? false;
       case 'view.focusMode':
         await options.toggleFocusMode();
         return true;

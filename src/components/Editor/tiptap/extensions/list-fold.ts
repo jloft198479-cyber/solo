@@ -7,6 +7,7 @@ import type { EditorView } from '@tiptap/pm/view';
 import { isHeavyDocument } from '../../document-scale';
 import { createCompositionTracker, mapFrozenDecorations } from '../composition-freeze';
 import { isWholeDocReplace } from '../transaction-shape';
+import { ITEM_NODE_TYPES, LIST_NODE_TYPES } from '../list-move';
 
 /**
  * 列表折叠 / 展开 —— 幕布式大纲体验的核心。
@@ -48,10 +49,8 @@ export function clearFoldedMemory(): void {
   foldedByPath.clear();
 }
 
-/** 能作为「可折叠容器」的列表节点类型（无序 / 有序 / 待办） */
-const LIST_NODE_TYPES = new Set(['bulletList', 'orderedList', 'taskList']);
-/** 列表项节点类型（无序项 / 待办项） */
-const ITEM_NODE_TYPES = new Set(['listItem', 'taskItem']);
+// 「列表容器 / 列表项」的节点类型集合由 `../list-move` 一处定义（列表折叠与列表换位
+// 都要判，复制两份必然漂移——同 `transaction-shape.ts` 的提取理由）。
 /**
  * 扫描时整棵跳过的子树：折叠只关心「列表项有没有子列表」，
  * 段落 / 代码 / 表格 / 公式 / 图片内部不可能再嵌套列表，跳过可省大量遍历。
