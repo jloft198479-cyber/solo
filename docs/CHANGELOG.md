@@ -20,10 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.2.59] - 2026-10-09
 
-> 未发版的改动在此累积，发版时并入对应版本段落。
-> 本批 = **2026-10-09 第三方全面审查的修复**（审查见 [REVIEW-2026-10-09-第三方全面审查-问题总账.md](./REVIEW-2026-10-09-第三方全面审查-问题总账.md)，核实见 [独立核实结论](./REVIEW-2026-10-09-qoder审查-独立核实结论.md)）。
+> 本版本 = **2026-10-09 第三方全面审查的修复集合**（审查见 [问题总账](./REVIEW-2026-10-09-第三方全面审查-问题总账.md)，核实见 [独立核实结论](./REVIEW-2026-10-09-qoder审查-独立核实结论.md)）。
 
 ### Fixed
 - **编码兜底（M-01）**：`open_document` 从 `fs::read_to_string`（严格 UTF-8）改为带 BOM 兜底的解码——UTF-8 BOM 去 BOM、UTF-16 LE/BE 按 UTF-16 解码（记事本「Unicode」另存可正常打开）；非 UTF-8（GBK/ANSI）给出**可读原因**而非裸 IO 错误。

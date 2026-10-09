@@ -3855,7 +3855,7 @@ dependencies = [
 
 [[package]]
 name = "solo"
-version = "1.2.58"
+version = "1.2.59"
 dependencies = [
  "arboard",
  "base64 0.22.1",
