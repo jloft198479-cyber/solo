@@ -89,9 +89,17 @@ const _focusNoticeTimer = ref<ReturnType<typeof setTimeout> | null>(null);
 // 进入焦点模式的引导提示：淡入后 3.5s 自动消失
 const focusEnterNotice = ref(false);
 const _focusEnterTimer = ref<ReturnType<typeof setTimeout> | null>(null);
+
+/** 关掉引导提示：定时到点、Esc 关浮层、切换归零——三处共用同一出口 */
+function dismissFocusEnterHint() {
+  if (_focusEnterTimer.value) clearTimeout(_focusEnterTimer.value);
+  _focusEnterTimer.value = null;
+  focusEnterNotice.value = false;
+}
+
 onUnmounted(() => {
   if (_focusNoticeTimer.value) clearTimeout(_focusNoticeTimer.value);
-  if (_focusEnterTimer.value) clearTimeout(_focusEnterTimer.value);
+  dismissFocusEnterHint();
 });
 watch(
   () => settingsStore.isFocusMode,
@@ -101,17 +109,12 @@ watch(
     // ——定时器被清掉后，再没有任何代码把 focusEnterNotice 置回 false（全项目仅此一个写入点）。
     // 同理，退出提示若在 2s 内被下一次「进入」打断，也会残留。
     if (_focusNoticeTimer.value) clearTimeout(_focusNoticeTimer.value);
-    if (_focusEnterTimer.value) clearTimeout(_focusEnterTimer.value);
     _focusNoticeTimer.value = null;
-    _focusEnterTimer.value = null;
-    focusEnterNotice.value = false;
+    dismissFocusEnterHint();
     focusModeNotice.value = null;
     if (active) {
       focusEnterNotice.value = true;
-      _focusEnterTimer.value = setTimeout(() => {
-        _focusEnterTimer.value = null;
-        focusEnterNotice.value = false;
-      }, 3500);
+      _focusEnterTimer.value = setTimeout(dismissFocusEnterHint, 3500);
     } else {
       const msg = { message: '已退出焦点模式', timestamp: Date.now() };
       focusModeNotice.value = msg;
@@ -221,6 +224,8 @@ useAppDomEvents({
     isFullscreenPreview.value = false;
   },
   toggleFocusMode: () => settingsStore.toggleFocusMode(),
+  isFocusEnterHintVisible: () => focusEnterNotice.value,
+  dismissFocusEnterHint,
   showImagePasteWarning: (msg) => message(msg, { title: '粘贴图片', kind: 'warning' }),
   resetViewMode: resetToEditor,
 });
