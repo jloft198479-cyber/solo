@@ -170,6 +170,24 @@ export const COMMANDS: CommandDefinition[] = [
     palette: true,
   },
   {
+    id: 'editor.unlink',
+    title: '取消链接',
+    description: '移除选区内的链接',
+    scope: 'editor',
+    group: 'format',
+    // 无默认快捷键：原先唯一入口是「选中文字后浮出的浮动菜单」，收进 registry 后
+    // 命令面板可搜到、可点（M-34）。快捷键留空——不占键位、也就不会引发冲突。
+    palette: true,
+  },
+  {
+    id: 'editor.clearFormat',
+    title: '清除格式',
+    description: '清除选区内的行内格式与块级样式',
+    scope: 'editor',
+    group: 'format',
+    palette: true,
+  },
+  {
     id: 'editor.heading1',
     title: '一级标题',
     description: '切换为一级标题',
