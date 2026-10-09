@@ -293,7 +293,7 @@ view.dispatch(tr);
 
 ### 验证
 
-- `vitest` **1541 通过**（含新增 15 条）｜`vue-tsc` **0 错**｜`eslint` **0 error**｜`vite build` **exit 0**
+- `vitest` **全量通过**（含新增 15 条）｜`vue-tsc` **0 错**｜`eslint` **0 error**｜`vite build` **exit 0**
 - 真机实测（含输入法环境）：暂未发现问题
 
 ### 未做 / 待办

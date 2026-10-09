@@ -29,6 +29,43 @@ const SAME_DIR_DOC_LIMIT: usize = 500;
 /// 校验文件扩展名在白名单内（大小写不敏感）。
 /// 在 IPC 入口把关，避免恶意文档内容诱导前端读写任意类型文件；
 /// 本地绝对路径本身是合法用例（用户引用 D:/docs/x.md），故只卡扩展名不做目录约束。
+/// 编码不受支持时的可读原因（M-01）。
+///
+/// 曾用 `fs::read_to_string`（严格 UTF-8）⇒ 记事本「ANSI」另存的 .md 打不开，
+/// 且只抛裸 IO 错误，用户不知道是编码问题。此处把「打不开」变成「为什么打不开」。
+const ENCODING_ERROR_MSG: &str = "该文件不是 UTF-8 / UTF-16 编码（常见于用记事本以「ANSI」另存的文件）。solo 暂不支持该编码，请先用其它编辑器另存为 UTF-8 后重试";
+
+/// 读取文本并尽量解码（M-01）：
+/// - UTF-8 BOM（EF BB BF）→ 去 BOM 后按 UTF-8 解码（BOM 不再漏进正文）
+/// - UTF-16 LE / BE BOM（FF FE / FE FF）→ 按 UTF-16 解码（记事本「Unicode」另存即此格式）
+/// - 其它 → 严格 UTF-8；失败给可读原因
+///
+/// 不猜编码：GBK 一类本地代码页需第三方库才能可靠解码，宁可不支持也不乱解。
+fn read_text_file(path: &Path) -> Result<String, AppError> {
+    let bytes = fs::read(path)?;
+
+    if let Some(rest) = bytes.strip_prefix(&[0xEFu8, 0xBB, 0xBF]) {
+        return String::from_utf8(rest.to_vec())
+            .map_err(|_| AppError::validation(ENCODING_ERROR_MSG));
+    }
+    if let Some(rest) = bytes.strip_prefix(&[0xFFu8, 0xFE]) {
+        let units: Vec<u16> = rest
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        return String::from_utf16(&units).map_err(|_| AppError::validation(ENCODING_ERROR_MSG));
+    }
+    if let Some(rest) = bytes.strip_prefix(&[0xFEu8, 0xFF]) {
+        let units: Vec<u16> = rest
+            .chunks_exact(2)
+            .map(|c| u16::from_be_bytes([c[0], c[1]]))
+            .collect();
+        return String::from_utf16(&units).map_err(|_| AppError::validation(ENCODING_ERROR_MSG));
+    }
+
+    String::from_utf8(bytes).map_err(|_| AppError::validation(ENCODING_ERROR_MSG))
+}
+
 fn validate_document_extension(path: &str, allowed: &[&str], action: &str) -> Result<(), AppError> {
     let ext = Path::new(path)
         .extension()
@@ -51,7 +88,7 @@ pub async fn open_document(path: String) -> Result<DocumentOpenResult, AppError>
     validate_document_extension(&path, &OPEN_EXTENSIONS, "打开")?;
     let path_for_io = path.clone();
     let (content, last_modified_ms) = tauri::async_runtime::spawn_blocking(move || {
-        let content = fs::read_to_string(&path_for_io)?;
+        let content = read_text_file(Path::new(&path_for_io))?;
         let last_modified_ms = read_modified_time_ms(Path::new(&path_for_io))?;
         // 兜底清理：同目录下 solo 崩溃残留的 .tmp 文件（静默，不阻塞）
         cleanup_stale_tmp_files(Path::new(&path_for_io));
@@ -744,7 +781,7 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), AppError> 
 }
 
 /// 兜底清理：同目录下 solo 崩溃残留的 .tmp 文件。
-/// 匹配模式 `.{原文件名}.{纯数字}.tmp`，只删 mtime 超过 1h 的残留，
+/// 匹配模式 `.{原文件名}.{毫秒}.{pid}.tmp`，只删 mtime 超过 1h 的残留，
 /// 避免误伤双开进程正在写入的 .tmp。
 /// 清理失败静默跳过，不阻塞主流程。
 fn cleanup_stale_tmp_files(path: &Path) {
@@ -767,11 +804,15 @@ fn cleanup_stale_tmp_files(path: &Path) {
             if !name.starts_with(&prefix) || !name.ends_with(".tmp") {
                 continue;
             }
-            // 提取中间的数字部分：.{file_name}.{millis}.tmp
+            // 提取中间部分：.{file_name}.{millis}.{pid}.tmp —— 各段必须全为数字
+            // （带 PID 后中间是「数字.数字」，故按 '.' 分段逐段校验）
             let middle = &name[prefix.len()..];
-            if let Some(dot_pos) = middle.rfind('.') {
-                let num_part = &middle[..dot_pos];
-                if !num_part.is_empty() && num_part.bytes().all(|b| b.is_ascii_digit()) {
+            if let Some(stem) = middle.strip_suffix(".tmp") {
+                let ours = !stem.is_empty()
+                    && stem
+                        .split('.')
+                        .all(|seg| !seg.is_empty() && seg.bytes().all(|b| b.is_ascii_digit()));
+                if ours {
                     let is_stale = entry
                         .metadata()
                         .and_then(|m| m.modified())
@@ -829,7 +870,8 @@ fn temp_path(path: &Path) -> PathBuf {
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("solo");
-    path.with_file_name(format!(".{}.{}.tmp", file_name, millis))
+    // 命名 .{名}.{毫秒}.{pid}.tmp：带 PID，避免同毫秒内双进程撞名（M-45）
+    path.with_file_name(format!(".{}.{}.{}.tmp", file_name, millis, std::process::id()))
 }
 
 fn unique_asset_target(assets_dir: &Path, filename: &str) -> (PathBuf, String) {

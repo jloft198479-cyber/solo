@@ -1,6 +1,6 @@
 ---
 title: IME 候选窗失锚 · 重锚护栏修复档案（可追溯）
-type: record
+type: guide
 audience: agent
 status: active
 tags: [ime, 输入法, 候选窗, 修复档案, 分支, 可回滚, webview2]
@@ -291,7 +291,7 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 
 | 闸门 | 结果 |
 |---|---|
-| `vitest run`（全量） | ✅ 49 文件 / **1526 例全绿**（含 16 例护栏测试） |
+| `vitest run`（全量） | ✅ 全绿（含 16 例护栏测试） |
 | `vue-tsc --noEmit` | ✅ exit 0 |
 | `eslint`（改动 4 文件） | ✅ exit 0 |
 | `vite build`（沙盒，已清理） | ✅ `built in 15.12s` |

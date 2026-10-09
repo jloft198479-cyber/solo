@@ -39,7 +39,7 @@
    只对键盘导航显示（:focus-visible），鼠标点击不显示。
    用主题色 2px outline + 2px offset，保证与主题协调且足够醒目。 */
 :focus-visible {
-  outline: 2px solid var(--primary-color, #8a4e25);
+  outline: 2px solid var(--primary-color);
   outline-offset: 2px;
   border-radius: 2px;
 }

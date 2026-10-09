@@ -1,8 +1,8 @@
 ---
 title: IME 候选窗失锚 · 第三方问题简报与资料汇编
-type: brief
+type: archive
 audience: external
-status: active
+status: archive
 tags: [ime, 输入法, 候选窗, webview2, tauri, 简报, 封存档, 资料汇编]
 summary: 给第三方（外部专家/接手者）看的统筹简报：用通俗语言讲清问题是什么、我们做过哪些尝试、当前结论与未知项、以及给第三方的起点建议；文末附上项目内已有的完整原始文档（PLAN/REPORT/SOLUTION/观点对照）。
 updates: [docs/IME-CANDIDATE-WINDOW.md, docs/archive/IME-CANDIDATE-WINDOW-PLAN.md, docs/archive/IME-CANDIDATE-WINDOW-REPORT.md, docs/archive/IME-CANDIDATE-WINDOW-SOLUTION-2026-09-23.md, docs/archive/IME-CANDIDATE-WINDOW-观点对照-2026-09-24.md]
@@ -251,14 +251,14 @@ updates: [docs/IME-CANDIDATE-WINDOW-PLAN.md, .workbuddy/memory/topics/ime-candid
 ---
 
 # IME 候选窗失锚 · 系统性交接报告
-> 🗄 **本文件已归档（2026-09-30）**：内容已蒸馏合并入 [`docs/IME-CANDIDATE-WINDOW.md`](../IME-CANDIDATE-WINDOW.md)，本文仅作历史原件保留、不再维护。
+> 🗄 **本文件已归档（2026-09-30）**：内容已蒸馏合并入 [`docs/IME-CANDIDATE-WINDOW.md`](IME-CANDIDATE-WINDOW.md)，本文仅作历史原件保留、不再维护。
 
 > **本报告的读者**：完全没接触过本项目的外部专家。
 > **本报告的目标**：让您在读完这一份文档后，能独立理解问题、复现观测、并自行开展研究——不需要再去翻别的资料。
 >
 > **文档关系**：本报告是**对外自包含版**（现象 + 环境 + 数据 + 资产）。
-> 内部工作起点版见 [`docs/IME-CANDIDATE-WINDOW-PLAN.md`](./IME-CANDIDATE-WINDOW-PLAN.md)；
-> 原始取证与实验流水记录见 [`.workbuddy/memory/topics/ime-candidate-window.md`](../../.workbuddy/memory/topics/ime-candidate-window.md)。
+> 内部工作起点版见 [`docs/IME-CANDIDATE-WINDOW-PLAN.md`](archive/IME-CANDIDATE-WINDOW-PLAN.md)；
+> 原始取证与实验流水记录见 [`.workbuddy/memory/topics/ime-candidate-window.md`](../.workbuddy/memory/topics/ime-candidate-window.md)。
 
 ---
 
@@ -373,7 +373,7 @@ solo 为了让 UI 更"轻"，采用了**无边框 + 透明 + 自绘标题栏**�
 | 单元测试 | `bun run test`（Vitest） |
 | 类型检查 | `vue-tsc --noEmit` |
 
-**本机工具链位置（非标准 PATH，注意）**：Rust 在 `M:\rust`，MSVC BuildTools 在 `M:\VS`，`bun` 为包管理器。完整构建指南见 [`BUILD_GUIDE.md`](../../BUILD_GUIDE.md)。
+**本机工具链位置（非标准 PATH，注意）**：Rust 在 `M:\rust`，MSVC BuildTools 在 `M:\VS`，`bun` 为包管理器。完整构建指南见 [`BUILD_GUIDE.md`](../BUILD_GUIDE.md)。
 
 **跑一个带调试端口的实例（可复用）**：
 
@@ -948,11 +948,11 @@ updates: [.workbuddy/memory/topics/ime-candidate-window.md, docs/solo输入法�
 ---
 
 # IME 候选窗失锚 — 工作起点文档
-> 🗄 **本文件已归档（2026-09-30）**：内容已蒸馏合并入 [`docs/IME-CANDIDATE-WINDOW.md`](../IME-CANDIDATE-WINDOW.md)，本文仅作历史原件保留、不再维护。
+> 🗄 **本文件已归档（2026-09-30）**：内容已蒸馏合并入 [`docs/IME-CANDIDATE-WINDOW.md`](IME-CANDIDATE-WINDOW.md)，本文仅作历史原件保留、不再维护。
 
 > 本文是**下一步工作的初始文件**，给接手 agent 用。深度取证与原始实验记录见
-> [`.workbuddy/memory/topics/ime-candidate-window.md`](../../.workbuddy/memory/topics/ime-candidate-window.md)（证据真理源）；
-> 千问 2026-09-13 的「合成冻结总闸」提案见 [`docs/solo输入法合成冻结总闸方案-2026-09-13.md`](./solo输入法合成冻结总闸方案-2026-09-13.md)。
+> [`.workbuddy/memory/topics/ime-candidate-window.md`](../.workbuddy/memory/topics/ime-candidate-window.md)（证据真理源）；
+> 千问 2026-09-13 的「合成冻结总闸」提案见 [`docs/solo输入法合成冻结总闸方案-2026-09-13.md`](archive/solo输入法合成冻结总闸方案-2026-09-13.md)。
 > 本文只做三件事：**讲清现象与根因 / 解释为什么 solo 比同类频发 / 给出可执行的分阶段规划**。不重复证据细节，只放指针。
 > **诚信约定**：凡「已核实」= 已回查代码/配置/git/一手页面；凡【待核实】= 来源为网络检索、尚未逐条打开一手原文；凡「推断」= 合理论证但未经权威确认。见 §8 复查记录。
 
@@ -1145,7 +1145,7 @@ updates: [.workbuddy/memory/topics/ime-candidate-window.md, docs/solo输入法�
 2. **丧失自动触发 ⇒ 任何修法无法 A/B 证真**：只能靠「机制 + 先例 + 兼容实测」；**如实声明，不假装已验证**。**测试跑绿 ≠ 修好了**。
 3. **禁加守卫掩盖根因**（AGENTS.md 禁令第 11 条）：优先减/门控；N 处各塞判断是加法。
 4. **环境漂移铁律（本次新增）**：**WebView2 运行时可能每两周变一次** ⇒ 引用「以前验证过」的结论前，先核当前 `pv`；跨版本结论**必须注明运行时版本**。
-5. **改动即联动**：改 `composition-freeze.ts` 属**组字态（IME）**修改 —— 必读 **AGENTS.md 禁令第 8 条**，验收走「时序/UI/IME/异步」等级（真机手感是通行证），敏感区速查见 [`docs/sensitive-areas.md`](../sensitive-areas.md)（组字态**非**独立条目；最相关第 12 条 NodeView），改完 `grep -rn "<改动文件>" --include=*.md` 查死链；改 `tauri.conf.json` 属发版敏感，走 RELEASE_PROCESS。
+5. **改动即联动**：改 `composition-freeze.ts` 属**组字态（IME）**修改 —— 必读 **AGENTS.md 禁令第 8 条**，验收走「时序/UI/IME/异步」等级（真机手感是通行证），敏感区速查见 [`docs/sensitive-areas.md`](sensitive-areas.md)（组字态**非**独立条目；最相关第 12 条 NodeView），改完 `grep -rn "<改动文件>" --include=*.md` 查死链；改 `tauri.conf.json` 属发版敏感，走 RELEASE_PROCESS。
 
 ---
 
@@ -1153,15 +1153,15 @@ updates: [.workbuddy/memory/topics/ime-candidate-window.md, docs/solo输入法�
 
 | 用途 | 路径 |
 |---|---|
-| **证据真理源**（取证/实验原始记录） | [`.workbuddy/memory/topics/ime-candidate-window.md`](../../.workbuddy/memory/topics/ime-candidate-window.md) |
-| 千问「合成冻结总闸」提案（部分证伪留痕） | [`docs/solo输入法合成冻结总闸方案-2026-09-13.md`](./solo输入法合成冻结总闸方案-2026-09-13.md) |
-| 组字态唯一真相源（总闸代码，已核实） | [`src/components/Editor/tiptap/composition-freeze.ts`](../../src/components/Editor/tiptap/composition-freeze.ts) |
-| flag 落地（窗口配置，已核实） | [`src-tauri/tauri.conf.json`](../../src-tauri/tauri.conf.json)（`additionalBrowserArgs`） |
+| **证据真理源**（取证/实验原始记录） | [`.workbuddy/memory/topics/ime-candidate-window.md`](../.workbuddy/memory/topics/ime-candidate-window.md) |
+| 千问「合成冻结总闸」提案（部分证伪留痕） | [`docs/solo输入法合成冻结总闸方案-2026-09-13.md`](archive/solo输入法合成冻结总闸方案-2026-09-13.md) |
+| 组字态唯一真相源（总闸代码，已核实） | [`src/components/Editor/tiptap/composition-freeze.ts`](../src/components/Editor/tiptap/composition-freeze.ts) |
+| flag 落地（窗口配置，已核实） | [`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json)（`additionalBrowserArgs`） |
 | A/B 结果文件（本轮复核：除 label 外完全相同） | `.sandbox-ime/ime-ab-baseline.json` / `ime-ab-imm32.json` |
-| **窗口配置差异**（第三轮新增：无边框 + 透明 + 自定义拖拽） | [`src-tauri/tauri.conf.json`](../../src-tauri/tauri.conf.json):23-24 · [`CustomTitlebar.vue`](../../src/components/Layout/CustomTitlebar.vue):17-34 |
+| **窗口配置差异**（第三轮新增：无边框 + 透明 + 自定义拖拽） | [`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json):23-24 · [`CustomTitlebar.vue`](../src/components/Layout/CustomTitlebar.vue):17-34 |
 | **wry 0.55.1 窗口消息处理**（第三轮新增，唯一定位 Windows 宿主行为的源码） | `M:\rust\.cargo\registry\src\mirrors.tuna.tsinghua.edu.cn-4dc01642fd091eda\wry-0.55.1\src\webview2\mod.rs`（`:452-454` transparent / `:1224` WM_SIZE / `:1254-1262` 焦点与移动 / `WM_WINDOWPOSCHANGED`·`WM_DPICHANGED` 零命中） |
 | **IME 全量档案清单**（含历史测试资产，第三轮新增） | 见本文档 §9 |
-| 敏感区速查（组字态**非**独立条目；最相关第 12 条 NodeView） | [`docs/sensitive-areas.md`](../sensitive-areas.md) |
+| 敏感区速查（组字态**非**独立条目；最相关第 12 条 NodeView） | [`docs/sensitive-areas.md`](sensitive-areas.md) |
 | 上游 issue：候选窗飘角（战略转折点） | https://github.com/MicrosoftEdge/WebView2Feedback/issues/5675 |
 | 上游 issue：contentEditable 吃字（JS 层无效铁证） | https://github.com/MicrosoftEdge/WebView2Feedback/issues/5625 |
 | 同族 | `#1611` / `#2241` / `#5570` / `#1610`（同仓库） |
@@ -1172,7 +1172,7 @@ updates: [.workbuddy/memory/topics/ime-candidate-window.md, docs/solo输入法�
 
 ## 7. 待办（唯一真理源指针）
 
-所有未结项统一登记到 [`docs/KNOWN-ISSUES.md §二`](../KNOWN-ISSUES.md)。R1/R2/R3 落地时同步建条目回填状态，不在本文维护待办列表（避免双源漂移）。
+所有未结项统一登记到 [`docs/KNOWN-ISSUES.md §二`](KNOWN-ISSUES.md)。R1/R2/R3 落地时同步建条目回填状态，不在本文维护待办列表（避免双源漂移）。
 
 ---
 
@@ -1219,7 +1219,7 @@ updates: [.workbuddy/memory/topics/ime-candidate-window.md, docs/solo输入法�
 **⭐ 本轮真正的新增量（此前从未取证，两条）**
 
 1. **窗口配置差异 = 「为什么 solo 比 stock Tauri 更易见到」的首个可实证候选**
-   - `src-tauri/tauri.conf.json:23-24`：`"decorations": false` + `"transparent": true`；前端 [`CustomTitlebar.vue`](../../src/components/Layout/CustomTitlebar.vue):17-34 用 `data-tauri-drag-region` 自绘标题栏。
+   - `src-tauri/tauri.conf.json:23-24`：`"decorations": false` + `"transparent": true`；前端 [`CustomTitlebar.vue`](../src/components/Layout/CustomTitlebar.vue):17-34 用 `data-tauri-drag-region` 自绘标题栏。
    - 上游 `#5675` 用 create-tauri-app **默认配置**（有边框、不透明）**也复现** ⇒ 无边框/透明**非必要条件**，但差异真实存在。此前 §2.2 只归因「使用量 + 触发机会」，此为**补充候选**。
 2. **wry 0.55.1 Windows 窗口消息处理实况**（首次读源码）
    - 路径：`M:\rust\.cargo\registry\src\mirrors.tuna.tsinghua.edu.cn-4dc01642fd091eda\wry-0.55.1\src\webview2\mod.rs`
@@ -1315,21 +1315,21 @@ updates: [.workbuddy/memory/topics/ime-candidate-window.md, docs/solo输入法�
 
 | 文档 | 性质 | 规模 |
 |---|---|---|
-| [`docs/IME-CANDIDATE-WINDOW-REPORT.md`](./IME-CANDIDATE-WINDOW-REPORT.md) | ⭐⭐ **对外自包含交接报告**（给未接触本项目的外部专家：环境说明 + 纯观测问题陈述 + 源码位置 + 障碍 + 数据 + 资产 + 起点问题） | 见该文档 |
-| [`docs/IME-CANDIDATE-WINDOW-PLAN.md`](./IME-CANDIDATE-WINDOW-PLAN.md) | ⭐ **工作起点**：现象 + 与同类差异 + 规划 + 复查记录（**本文档**） | 见实测 |
-| [`.workbuddy/memory/topics/ime-candidate-window.md`](../../.workbuddy/memory/topics/ime-candidate-window.md) | ⭐ **证据真理源**：取证与实验的原始记录（含上游「双胞胎」issue 检索、现场判读、反例警告） | 128 行 |
-| [`docs/solo输入法合成冻结总闸方案-2026-09-13.md`](./solo输入法合成冻结总闸方案-2026-09-13.md) | 历史提案（千问「合成冻结总闸」），**部分前提已被证据推翻**，作留痕用 | 194 行 |
+| [`docs/IME-CANDIDATE-WINDOW-REPORT.md`](archive/IME-CANDIDATE-WINDOW-REPORT.md) | ⭐⭐ **对外自包含交接报告**（给未接触本项目的外部专家：环境说明 + 纯观测问题陈述 + 源码位置 + 障碍 + 数据 + 资产 + 起点问题） | 见该文档 |
+| [`docs/IME-CANDIDATE-WINDOW-PLAN.md`](archive/IME-CANDIDATE-WINDOW-PLAN.md) | ⭐ **工作起点**：现象 + 与同类差异 + 规划 + 复查记录（**本文档**） | 见实测 |
+| [`.workbuddy/memory/topics/ime-candidate-window.md`](../.workbuddy/memory/topics/ime-candidate-window.md) | ⭐ **证据真理源**：取证与实验的原始记录（含上游「双胞胎」issue 检索、现场判读、反例警告） | 128 行 |
+| [`docs/solo输入法合成冻结总闸方案-2026-09-13.md`](archive/solo输入法合成冻结总闸方案-2026-09-13.md) | 历史提案（千问「合成冻结总闸」），**部分前提已被证据推翻**，作留痕用 | 194 行 |
 
 ### B. 相关章节（专题之外，按需查）
 
 | 位置 | 内容 |
 |---|---|
-| [`docs/KNOWN-ISSUES.md`](../KNOWN-ISSUES.md) §一 **#4** | IME 候选栏变箭头 —— `ime-mode: active`（已删除） |
+| [`docs/KNOWN-ISSUES.md`](KNOWN-ISSUES.md) §一 **#4** | IME 候选栏变箭头 —— `ime-mode: active`（已删除） |
 | 同文件 §一 **#15** | 失锚三层修复（事务层装饰重建 / 渲染层 `content-visibility` / 布局层 `ErrorBoundary` 丢 class） |
 | 同文件 §二 **#8** | **判定外部缺陷、编辑器层封顶**（止损决策 + 上游 `#5675` 转机记录） |
-| [`docs/cjk-boundary.md`](../cjk-boundary.md):153 / :172 / :182 | `ime-mode: active` 的加入与 2026-07-20 撤销记录 |
-| [`docs/CHANGELOG.md`](../CHANGELOG.md):46 / :52 / :175 / :186 | v1.2.x 各版修复条目（IMM32 flag / 组字总闸 / 三层修复 / 组字闸门） |
-| [`docs/INDEX.md`](../INDEX.md):84 | 索引登记行（proposal · agent · active） |
+| [`docs/cjk-boundary.md`](cjk-boundary.md):153 / :172 / :182 | `ime-mode: active` 的加入与 2026-07-20 撤销记录 |
+| [`docs/CHANGELOG.md`](CHANGELOG.md):46 / :52 / :175 / :186 | v1.2.x 各版修复条目（IMM32 flag / 组字总闸 / 三层修复 / 组字闸门） |
+| [`docs/INDEX.md`](INDEX.md):84 | 索引登记行（proposal · agent · active） |
 | 零散提及（非专题） | `docs/FEATURE-MATRIX.md` · `docs/LESSONS.md` · `docs/debugging.md` · `docs/REVIEW-2026-09-15-体验与代码评估.md` · `ARCHITECTURE.md` |
 
 ### C. 工作日志（按时间序 · ★ = 核心取证轮次）
@@ -1338,11 +1338,11 @@ updates: [.workbuddy/memory/topics/ime-candidate-window.md, docs/solo输入法�
 |---|---|---|
 | `.workbuddy/memory/2026-09-05.md` | 起点：qoder 提交记录中含 IME 守卫修复 | 1 |
 | `.workbuddy/memory/2026-09-12.md` | **用户诉求首次明确成型**（「偶发变成带拖拽点的小浮窗 / 小箭头，刚开始输入时最易触发」） | 17 |
-| [`.workbuddy/memory/2026-09-13.md`](../../.workbuddy/memory/2026-09-13.md) | ★ **第三次开工（纯调研）** + 20:00 **首次抓到失锚现场**（右下角 `(1340,996)`、1.6s 后归位）+ 判读两次修正 | 65 |
-| [`.workbuddy/memory/2026-09-14.md`](../../.workbuddy/memory/2026-09-14.md) | ★ **确定性复现实验**（未复现）+ A/B 实测 + 总闸落地 + 上游检索 | 37 |
+| [`.workbuddy/memory/2026-09-13.md`](../.workbuddy/memory/2026-09-13.md) | ★ **第三次开工（纯调研）** + 20:00 **首次抓到失锚现场**（右下角 `(1340,996)`、1.6s 后归位）+ 判读两次修正 | 65 |
+| [`.workbuddy/memory/2026-09-14.md`](../.workbuddy/memory/2026-09-14.md) | ★ **确定性复现实验**（未复现）+ A/B 实测 + 总闸落地 + 上游检索 | 37 |
 | `.workbuddy/memory/2026-09-15.md` | 组字冻结在 `code-block` 分批高亮中的延续（组字期推迟空闲补算） | 6 |
-| [`.workbuddy/memory/2026-09-17.md`](../../.workbuddy/memory/2026-09-17.md) | 第一轮 + 第二轮复查（opencode 审核逐条取证） | 13 |
-| [`.workbuddy/memory/2026-09-23.md`](../../.workbuddy/memory/2026-09-23.md) | ★ **三份第三方建议评估** + 对外表述纪律（只陈述现象） | 7 |
+| [`.workbuddy/memory/2026-09-17.md`](../.workbuddy/memory/2026-09-17.md) | 第一轮 + 第二轮复查（opencode 审核逐条取证） | 13 |
+| [`.workbuddy/memory/2026-09-23.md`](../.workbuddy/memory/2026-09-23.md) | ★ **三份第三方建议评估** + 对外表述纪律（只陈述现象） | 7 |
 | `.workbuddy/memory/MEMORY.md` | 关键坑索引指针（指向本专题） | 3 |
 
 > ⚠️ 早期日志（06-30 / 07-19~07-23 / 08-04 / 08-21 / 08-31 / 09-11）中的「命中」经复核为**误匹配**（子串 `composition` / `IME` 出现在字体、parser 等无关行），**无 IME 专题内容**，不必逐份翻。
@@ -1351,9 +1351,9 @@ updates: [.workbuddy/memory/topics/ime-candidate-window.md, docs/solo输入法�
 
 | 位置 | 作用 |
 |---|---|
-| [`src/components/Editor/tiptap/composition-freeze.ts`](../../src/components/Editor/tiptap/composition-freeze.ts) | **组字态唯一真相源**（`isFrozen` / `mapFrozenDecorations` / `createCompositionTracker`） |
-| [`src-tauri/tauri.conf.json`](../../src-tauri/tauri.conf.json):23-27 | 窗口配置：`decorations` / `transparent` / `dragDropEnabled` / `additionalBrowserArgs` |
-| [`src/components/Layout/CustomTitlebar.vue`](../../src/components/Layout/CustomTitlebar.vue):17-34 | 自定义标题栏与 `data-tauri-drag-region` 拖拽区 |
+| [`src/components/Editor/tiptap/composition-freeze.ts`](../src/components/Editor/tiptap/composition-freeze.ts) | **组字态唯一真相源**（`isFrozen` / `mapFrozenDecorations` / `createCompositionTracker`） |
+| [`src-tauri/tauri.conf.json`](../src-tauri/tauri.conf.json):23-27 | 窗口配置：`decorations` / `transparent` / `dragDropEnabled` / `additionalBrowserArgs` |
+| [`src/components/Layout/CustomTitlebar.vue`](../src/components/Layout/CustomTitlebar.vue):17-34 | 自定义标题栏与 `data-tauri-drag-region` 拖拽区 |
 
 ### E. 测试资产 `.sandbox-ime/`（672 MB · 顶层 69 文件 · 2297 张截图 · 2271 份日志）
 
@@ -1398,7 +1398,7 @@ updates: [docs/IME-CANDIDATE-WINDOW-REPORT.md, docs/IME-CANDIDATE-WINDOW-PLAN.md
 ---
 
 # IME 候选窗失锚 · 解决方案（v1 · 供评审）
-> 🗄 **本文件已归档（2026-09-30）**：内容已蒸馏合并入 [`docs/IME-CANDIDATE-WINDOW.md`](../IME-CANDIDATE-WINDOW.md)，本文仅作历史原件保留、不再维护。
+> 🗄 **本文件已归档（2026-09-30）**：内容已蒸馏合并入 [`docs/IME-CANDIDATE-WINDOW.md`](IME-CANDIDATE-WINDOW.md)，本文仅作历史原件保留、不再维护。
 
 > **本文状态**：`draft`，只做排查结论与方案，**未改动任何产品代码**。
 > **读者**：能对方案拍板的人 + 复核的外部工程师。
@@ -1746,7 +1746,7 @@ reviewed_by: OpenCode（2026-09-24 03:4x 复核回执见 §2.2 / §2.4 / §3）
 ---
 
 # IME 候选窗失锚 — 双向观点对照（供第三方评判）
-> 🗄 **本文件已归档（2026-09-30）**：内容已蒸馏合并入 [`docs/IME-CANDIDATE-WINDOW.md`](../IME-CANDIDATE-WINDOW.md)，本文仅作历史原件保留、不再维护。
+> 🗄 **本文件已归档（2026-09-30）**：内容已蒸馏合并入 [`docs/IME-CANDIDATE-WINDOW.md`](IME-CANDIDATE-WINDOW.md)，本文仅作历史原件保留、不再维护。
 
 ## 0. 本文性质与读法
 

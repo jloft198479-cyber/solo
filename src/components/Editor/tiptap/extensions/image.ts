@@ -101,6 +101,15 @@ type RemoteImageCacheEntry =
 const MAX_REMOTE_IMAGE_CACHE_ENTRIES = 500;
 const MAX_CONCURRENT_REMOTE_IMAGE_FETCHES = 4;
 const REMOTE_IMAGE_FAILURE_TTL_MS = 5 * 60 * 1000;
+/**
+ * 远程图片「未取回 / 取回失败」时的占位图（透明 1×1 GIF）。
+ *
+ * ⚠️ 绝**不能**退回原始远程 URL：Rust 侧的 SSRF 白名单只拦第一跳，
+ * 一旦把原始 URL 交给 `<img>`，WebView2 会自己再请求一次、把白名单整体绕过（M-16）。
+ * data: 在 CSP `img-src` 放行名单内，安全。
+ */
+export const REMOTE_IMAGE_PLACEHOLDER =
+  'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 const remoteImageCache = new Map<string, RemoteImageCacheEntry>();
 const remoteImageQueue: Array<() => void> = [];
 
@@ -187,7 +196,8 @@ export async function getRemoteImageDisplaySrc(src: string): Promise<string> {
     }
     if (cached.expiresAt > now) {
       touchRemoteImageCacheEntry(src, cached);
-      return src;
+      // 命中「失败缓存」：返回占位图，绝不返回原始 URL（见 REMOTE_IMAGE_PLACEHOLDER，M-16）
+      return REMOTE_IMAGE_PLACEHOLDER;
     }
     remoteImageCache.delete(src);
   }
@@ -206,7 +216,8 @@ export async function getRemoteImageDisplaySrc(src: string): Promise<string> {
         expiresAt: Date.now() + REMOTE_IMAGE_FAILURE_TTL_MS,
       });
       trimRemoteImageCache();
-      return src;
+      // 失败也不退回原始 URL：否则等于绕过 Rust 的 SSRF 白名单（M-16）
+      return REMOTE_IMAGE_PLACEHOLDER;
     });
 
   remoteImageCache.set(src, { status: 'pending', promise });
@@ -321,7 +332,10 @@ export const CustomImage = Image.extend({
 
       function syncView() {
         const attrs = getAttrs();
-        const fallbackSrc = attrs.src;
+        // 远程图片先给占位图，绝不把原始 URL 交给 <img>——否则打开一篇陌生 md 时
+        // WebView2 会自行请求（CSP 放行 http:），Rust 的 SSRF 白名单被绕过（M-16）。
+        // 取回成功后再由下方异步路径换成 asset:// URL。
+        const fallbackSrc = isRemoteImageSrc(attrs.src) ? REMOTE_IMAGE_PLACEHOLDER : attrs.src;
 
         if (displaySrc !== fallbackSrc) {
           displaySrc = fallbackSrc;

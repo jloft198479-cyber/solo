@@ -207,18 +207,59 @@ pub fn unregister_shell_new() -> Result<(), AppError> {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let classes_path = "Software\\Classes";
 
+        // 敏感区第 21 条：注销**不得整键删除**。
+        // 扩展名主键（.md / .markdown）可能与其它程序共享——只有在「默认值仍指向 solo」
+        // 时才清掉这一个值，绝不递归删整棵键（旧实现曾把用户系统里所有 .md 打开方式一并抹掉）。
+        let prog_id = "solo.markdown";
+        let mut failures: Vec<String> = Vec::new();
+
         for ext in &[".md", ".markdown"] {
-            let _ = hkcu.delete_subkey_all(format!("{}\\{}\\ShellNew", classes_path, ext));
-            let _ = hkcu.delete_subkey_all(format!("{}\\{}", classes_path, ext));
+            // ShellNew 是 solo 独占创建的，可整键删除
+            if let Err(e) = hkcu.delete_subkey_all(format!("{}\\{}\\ShellNew", classes_path, ext)) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    failures.push(format!("{}\\ShellNew: {}", ext, e));
+                }
+            }
+            // 只清「属于 solo 的」默认值：先读，确认指向我们的 ProgID 才删值（不删键）
+            if let Ok(key) = hkcu
+                .open_subkey_with_flags(format!("{}\\{}", classes_path, ext), KEY_READ | KEY_WRITE)
+            {
+                let owned = key.get_value::<String, _>("").ok().as_deref() == Some(prog_id);
+                if owned {
+                    if let Err(e) = key.delete_value("") {
+                        if e.kind() != std::io::ErrorKind::NotFound {
+                            failures.push(format!("{} 默认值: {}", ext, e));
+                        }
+                    }
+                }
+            }
         }
 
-        let _ = hkcu.delete_subkey_all(format!("{}\\solo.markdown\\DefaultIcon", classes_path));
-        let _ = hkcu.delete_subkey_all(format!("{}\\solo.markdown\\shell\\open\\command", classes_path));
-        let _ = hkcu.delete_subkey_all(format!("{}\\solo.markdown\\shell\\open", classes_path));
-        let _ = hkcu.delete_subkey_all(format!("{}\\solo.markdown\\shell", classes_path));
-        let _ = hkcu.delete_subkey_all(format!("{}\\solo.markdown", classes_path));
+        // solo 自己的 ProgID 子树（独占）可整树删除
+        for sub in ["DefaultIcon", "shell\\open\\command", "shell\\open", "shell", ""] {
+            let path = if sub.is_empty() {
+                format!("{}\\{}", classes_path, prog_id)
+            } else {
+                format!("{}\\{}\\{}", classes_path, prog_id, sub)
+            };
+            if let Err(e) = hkcu.delete_subkey_all(&path) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    failures.push(format!("{}: {}", path, e));
+                }
+            }
+        }
 
-        Ok(())
+        // 注销侧同样要通知 Explorer 刷新缓存（旧实现只挂了注册侧，M-02）
+        notify_shell_change();
+
+        if failures.is_empty() {
+            Ok(())
+        } else {
+            Err(AppError::Native(format!(
+                "文件关联清理未完全成功：{}",
+                failures.join("；")
+            )))
+        }
     }
 
     #[cfg(not(target_os = "windows"))]

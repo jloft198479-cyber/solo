@@ -1,7 +1,7 @@
 use crate::events::emit_menu_event;
 use crate::state::FocusedWindow;
 use std::collections::HashMap;
-use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu};
+use tauri::menu::{IsMenuItem, Menu, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu};
 use tauri::Manager;
 
 fn accelerator(
@@ -29,52 +29,72 @@ fn build_menu(
     let save_as_accel = accelerator(shortcuts, "file.saveAs", Some("CmdOrCtrl+Shift+S"));
     let undo_accel = accelerator(shortcuts, "editor.undo", Some("CmdOrCtrl+Z"));
     let redo_accel = accelerator(shortcuts, "editor.redo", Some("CmdOrCtrl+Shift+Z"));
-    let find_accel = accelerator(shortcuts, "edit.find", Some("CmdOrCtrl+G"));
-    let replace_accel = accelerator(shortcuts, "edit.replace", Some("CmdOrCtrl+Shift+G"));
+    // 兜底键位必须与 registry.ts 的默认值一致：此前 find/replace 写的是
+    // CmdOrCtrl+G / CmdOrCtrl+Shift+G，与 registry 的 Mod-f / Mod-h 不符，
+    // 仅靠启动后 IPC 同步才盖住 ⇒ 首屏窗口期按的是错键（M-12）。
+    let find_accel = accelerator(shortcuts, "edit.find", Some("CmdOrCtrl+F"));
+    let replace_accel = accelerator(shortcuts, "edit.replace", Some("CmdOrCtrl+H"));
 
     let focus_mode_accel = accelerator(shortcuts, "view.focusMode", Some("CmdOrCtrl+Alt+F"));
-    let fullscreen_accel = accelerator(shortcuts, "view.fullscreen", Some("CmdOrCtrl+Shift+F"));
+    // registry 里 view.fullscreen 的默认：mac = Mod-Shift-f，其它平台 = F11
+    #[cfg(target_os = "macos")]
+    let fullscreen_default = "CmdOrCtrl+Shift+F";
+    #[cfg(not(target_os = "macos"))]
+    let fullscreen_default = "F11";
+    let fullscreen_accel = accelerator(shortcuts, "view.fullscreen", Some(fullscreen_default));
 
+    // ── 「solo」应用菜单 ─────────────────────────────────────────────
+    // macOS 专属项（服务 / 隐藏 / 隐藏其他 / 显示全部）**只在 mac 构建**：
+    //   1) Windows 上它们的事件被 attach_menu_events 吞掉，点了没有任何反应（死项）；
+    //   2) 「隐藏 solo」硬编码的 CmdOrCtrl+H 会在 Windows 上注册成系统加速键，
+    //      抢在 WebView2 之前吃掉 Ctrl+H，使 registry 的 edit.replace 永远收不到（M-06 / M-31）。
+    let about_item = MenuItem::with_id(app, "help.about", "关于 solo", true, about_accel.as_deref())?;
+    let settings_item =
+        MenuItem::with_id(app, "settings.open", "设置...", true, settings_accel.as_deref())?;
+    let quit_item = MenuItem::with_id(app, "app.quit", "退出 solo", true, quit_accel.as_deref())?;
+    let sep_1 = PredefinedMenuItem::separator(app)?;
+    let sep_2 = PredefinedMenuItem::separator(app)?;
+
+    #[cfg(target_os = "macos")]
+    let app_menu = {
+        let services = PredefinedMenuItem::services(app, Some("服务"))?;
+        let sep_3 = PredefinedMenuItem::separator(app)?;
+        let hide = MenuItem::with_id(app, "app.hide", "隐藏 solo", true, Some("CmdOrCtrl+H"))?;
+        let hide_others =
+            MenuItem::with_id(app, "app.hideOthers", "隐藏其他", true, Some("CmdOrCtrl+Alt+H"))?;
+        let show_all = MenuItem::with_id(app, "app.showAll", "显示全部", true, None::<&str>)?;
+        let sep_4 = PredefinedMenuItem::separator(app)?;
+        Submenu::with_items(
+            app,
+            "solo",
+            true,
+            &[
+                &about_item as &dyn IsMenuItem<tauri::Wry>,
+                &sep_1,
+                &settings_item,
+                &sep_2,
+                &services,
+                &sep_3,
+                &hide,
+                &hide_others,
+                &show_all,
+                &sep_4,
+                &quit_item,
+            ],
+        )?
+    };
+
+    #[cfg(not(target_os = "macos"))]
     let app_menu = Submenu::with_items(
         app,
         "solo",
         true,
         &[
-            &MenuItem::with_id(
-                app,
-                "help.about",
-                "关于 solo",
-                true,
-                about_accel.as_deref(),
-            )?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(
-                app,
-                "settings.open",
-                "设置...",
-                true,
-                settings_accel.as_deref(),
-            )?,
-            &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::services(app, Some("服务"))?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, "app.hide", "隐藏 solo", true, Some("CmdOrCtrl+H"))?,
-            &MenuItem::with_id(
-                app,
-                "app.hideOthers",
-                "隐藏其他",
-                true,
-                Some("CmdOrCtrl+Alt+H"),
-            )?,
-            &MenuItem::with_id(app, "app.showAll", "显示全部", true, None::<&str>)?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(
-                app,
-                "app.quit",
-                "退出 solo",
-                true,
-                quit_accel.as_deref(),
-            )?,
+            &about_item as &dyn IsMenuItem<tauri::Wry>,
+            &sep_1,
+            &settings_item,
+            &sep_2,
+            &quit_item,
         ],
     )?;
 

@@ -5,6 +5,7 @@ import {
   formatImageMarkdown,
   getRemoteImageDisplaySrc,
   parseImageMarkdown,
+  REMOTE_IMAGE_PLACEHOLDER,
 } from '../image';
 
 beforeEach(() => {
@@ -139,16 +140,17 @@ describe('getRemoteImageDisplaySrc', () => {
     await expect(Promise.all(requests)).resolves.toEqual(urls.map((url) => `data:${url}`));
   });
 
-  it('caches failures briefly and falls back to the original URL', async () => {
+  it('caches failures briefly and falls back to a safe placeholder (never the raw remote URL)', async () => {
     const fetcher = vi.fn(async () => {
       throw new Error('network failed');
     });
     __setRemoteImageFetcherForTests(fetcher);
 
+    // ⚠️ 绝不退回原始远程 URL：那会让 WebView2 绕过 Rust 的 SSRF 白名单（M-16）
     await expect(getRemoteImageDisplaySrc('https://example.com/missing.png'))
-      .resolves.toBe('https://example.com/missing.png');
+      .resolves.toBe(REMOTE_IMAGE_PLACEHOLDER);
     await expect(getRemoteImageDisplaySrc('https://example.com/missing.png'))
-      .resolves.toBe('https://example.com/missing.png');
+      .resolves.toBe(REMOTE_IMAGE_PLACEHOLDER);
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 

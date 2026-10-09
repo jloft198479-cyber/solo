@@ -20,6 +20,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+> 未发版的改动在此累积，发版时并入对应版本段落。
+> 本批 = **2026-10-09 第三方全面审查的修复**（审查见 [REVIEW-2026-10-09-第三方全面审查-问题总账.md](./REVIEW-2026-10-09-第三方全面审查-问题总账.md)，核实见 [独立核实结论](./REVIEW-2026-10-09-qoder审查-独立核实结论.md)）。
+
+### Fixed
+- **编码兜底（M-01）**：`open_document` 从 `fs::read_to_string`（严格 UTF-8）改为带 BOM 兜底的解码——UTF-8 BOM 去 BOM、UTF-16 LE/BE 按 UTF-16 解码（记事本「Unicode」另存可正常打开）；非 UTF-8（GBK/ANSI）给出**可读原因**而非裸 IO 错误。
+- **关闭 Shell 集成不再连带清空系统里所有 `.md` 打开方式（M-02）**：`unregister_shell_new` 原先对 `.md`/`.markdown` 执行 `delete_subkey_all`（递归删整棵扩展名键，会连带清掉 `OpenWithProgids` 等**他人程序**登记），且三处结果全 `let _ =` 吞错、最后无条件 `Ok(())`、注销侧不通知 Explorer。现改为：只删 solo 自己写的值（删前判 `(默认)` 是否仍指向 `solo.markdown`）+ 独占的 `solo.markdown` 子树与 `ShellNew`；补 `SHChangeNotify`；失败如实返回错误。
+- **`Ctrl+S` 脏态门控（M-03）**：`saveCurrentDocument` 未修改时直接返回不写盘——否则打开别人的 CRLF 文件按一下保存，行尾就被静默归一。与自动保存 / 状态栏按钮的门控对齐。
+- **Word 粘贴补 MSO 清理（M-07）**：新增 `transformPastedHTML` 钩子，命中 Word 特征即跑 `stripMsoMarkup`。此前该清理**只在「剪贴板无 text/html」那条分支**跑，真带 HTML 时一行都没跑。
+- **远程图片不再回退原始 URL（M-16）**：Rust 白名单取回失败 / 未取回时改给透明占位图，绝不把原始远程 URL 交给 `<img>`——否则 WebView2 会自行请求，SSRF 白名单被整体绕过。
+- **Windows 菜单去掉 macOS 专属死项（M-06 / M-31）**：`服务 / 隐藏 / 隐藏其他 / 显示全部` 只在 mac 构建。其中「隐藏 solo」硬编码的 `CmdOrCtrl+H` 会在 Windows 注册成系统加速键、吃掉 `Ctrl+H`，使查找替换的快捷键永远收不到。
+- **菜单兜底键位与 registry 对齐（M-12）**：`menu.rs` 的 find / replace / fullscreen 兜底改为 `CmdOrCtrl+F` / `CmdOrCtrl+H` / `F11`（此前与 registry 默认不符 ⇒ 首屏窗口期按错键）。
+- **IME 护栏 A/B 开关加 DEV 门控（M-14）**：`localStorage['solo:imeAnchorGuard']` 只在 dev 构建可关闭护栏，正式版一律视为未设。
+- **折叠态记忆加上限（M-26）**：`foldedByPath` 封顶 50 篇，超出按插入序淘汰最旧，避免长期运行无界增长。
+- **工具提示键位改为从注册表动态取（M-32）**：保存 / 设置 / 收起大纲三处不再硬编码 `(Ctrl+S)` 等，用户改键后不会说谎。
+- **状态栏「复制全文」失败给反馈 + 与命令面板区分（M-22 / M-35）**：按钮文案改为「复制全文为 Markdown」（原「复制 Markdown」与命令面板那条「复制**选区**源码」同名不同事）；失败时按钮短暂提示而非静默。
+- **方向键快捷键显示（M-36）**：`Alt+↑` 不再显示成「Alt+ARROWUP」。
+- **清掉 6 处永不生效的 CSS 死兜底（M-39）**：`var(--token, #陈旧硬编码值)` 的兜底值一律删除。
+- **杂项（M-45）**：`.tmp` 命名加 PID 防同毫秒撞名；删掉 `map_label` 的 `main-*` 死分支；删死代码 `ThemeState`；清掉测试里的 `console.log`。
+- **「复制为 HTML」不再输出明文 frontmatter（M-04）**：复制前剥掉 YAML frontmatter（此前渲染成两条横线夹一段 bare 文本）。callout / wikilink / mermaid 的降级**未处理**（需合并两条 markdown-it 管线，见 §二 #16）。
+
+### Added
+- `menu-consistency.spec.ts`：registry 默认键位 ⟷ `menu.rs` 兜底键位必须一致（M-13；此类漂移已复发三次，此前无护栏）。
+- `serializer-perf-guard.spec.ts`：源码结构断言，禁止序列化退回字符串 `+=` 的 O(n²)（M-27）。
+
+### Documentation
+- `TROUBLESHOOTING.md`：删掉「文档修改后 2s 自动保存」的误导（实为**默认关闭**），并修正 `.tmp` 命名与「Windows 上 `.` 开头不是隐藏文件」（M-05）。
+- `FEATURE-MATRIX.md`：补登「列表区幕布式大纲（折叠）」行；修正以 grep 为判据、已失真的两行（`restoreScroll` / `collapse`）（M-11 / M-37）。
+- 消除多处硬编码测试计数（M-38，禁令 14）。
+
+### 排查记录（留档自省，非版本变更）
+- 最初据代码推断「开了 Shell 集成 ⇒ 每次启动重写注册表 ⇒ 桌面闪动」，随后查注册表发现 `.md`/`solo.markdown` 全不存在，**据此反过来否定用户的现象**。实际是**取证时机不对**——用户刚把开关关掉去验证对照实验。**用户自己做 A/B 对照得出的因果关系，比我从代码推的可靠**。取证纪律补充：**用户报障时先采信观察，再查状态；且查状态要挑对时机。**
+
 ## [1.2.58] - 2026-10-08
 
 > 列表区幕布式大纲体验（折叠）+ 桌面端文件关联注册幂等修复。
@@ -36,7 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `docs/KNOWN-ISSUES.md` 登记 §二 #23（列表打字后敲标点呈选中态，未见因果，待真机 A/B）。
 
 ### 验证
-- 四道闸门全过：版本号四源一致 ｜ `vitest` 1510 通过 / 0 失败 ｜ `vue-tsc` 0 错 ｜ `vite build` 通过。
+- 四道闸门全过：版本号四源一致 ｜ `vitest` 全量通过 / 0 失败 ｜ `vue-tsc` 0 错 ｜ `vite build` 通过。
 
 ## [1.2.57] - 2026-10-03
 
@@ -62,22 +96,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 四道闸门全过：`cargo check` Finished ｜ `vue-tsc` 0 错 ｜ `vitest` 1487 通过 / 0 失败 ｜ `vite build` 通过。
 - 静态合规 7 条禁令逐条扫过；前后端 Tauri 命令 **26 ↔ 26 双向零差异**；版本号四源一致；文档真死链零。
 - 性能无退步（口径对齐后）：85,318 字 23.91ms（基线 24.10）、443,457 字 110.40ms（基线 127.95，快 14%）；**复杂度指数 1.02**（块数 ×20 →耗时 ×20.4），`O(n²)` 未复现。
-
----
-
-## [Unreleased]
-
-> 未发版的改动在此累积，发版时并入对应版本段落。
-
-### Fixed
-- **开启 Shell 集成后，每次启动 solo 都让桌面所有文件夹重绘闪动（§二 #21）**：`register_shell_new` 此前**每次启动都无条件**重写 5 处注册表并调 `SHChangeNotify(SHCNE_ASSOCCHANGED)`，Explorer 收到「文件关联变了」就重算全盘图标关联 ⇒ 桌面所有文件夹闪一下。已加**幂等短路**：读注册表快照与预期逐项比对，已一致则直接返回（连 `KEY_WRITE` 句柄和 `SHChangeNotify` 都不碰）。**exe 路径参与比对** ⇒ 升级换版本、换安装目录后仍会自动重新登记；任何读取失败按「不一致」处理（保守），不会因判断失败丢关联。判据抽成纯函数 `association_is_current` 并补 7 条 `cargo test`（六项判据 + 空串边界 + exe 路径变化）；**已做反向校准**——强制判据为 false 时 2 条用例如期转红，证明非假绿。
-  - 踩坑记录（自查发现）：`ShellNew\NullFile` 的值**就是空字符串**，初版用 `reg_string` 读它会把空串判成「没配」⇒ 判据恒为 false ⇒ **修复静默失效、闪动照旧**。已拆出 `reg_exists` 只判存在性，并写用例锁死该边界。
-
-### Known issues（已登记未修）
-- **`unregister_shell_new` 越界删除他人注册表项（§二 #22）**：关闭 Shell 集成时它对 `.md` 执行 `delete_subkey_all` —— 删的是**整个扩展名键**，连带清掉 `OpenWithProgids`（Windows 维护的「可打开 .md 的程序」清单，含 Word / VS Code / Typora 等他人程序）、`PerceivedType` 等。修法已想清（只删 solo 自己写的值与独占子树，删前判 `(默认)` 是否仍指向 solo），**本次未修**，超出授权范围。
-
-### 排查过程中的一次误判（留档自省）
-- 最初据代码推断「开了 Shell 集成 ⇒ 每次启动重写注册表 ⇒ 桌面闪动」，随后查注册表发现 `.md`/`solo.markdown` 全不存在，**据此反过来否定用户的现象**。实际是**取证时机不对**——用户刚把开关关掉去验证对照实验。**用户自己做 A/B 对照得出的因果关系，比我从代码推的可靠**。这已是本会话第二次「拿代码/单点证据当全部事实」（前一次：算反性能数字的除法方向）。取证纪律补充：**用户报障时先采信观察，再查状态；且查状态要挑对时机。**
 
 ---
 

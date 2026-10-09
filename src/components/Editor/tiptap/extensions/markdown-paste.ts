@@ -545,6 +545,14 @@ export function markdownPastePlugin(opts?: {
         return cachedTryParseMarkdown($context.doc.type.schema, text, parseCache);
       }) as any,
 
+      // ── Layer 2b: transformPastedHTML 钩子 ────────────────────────
+      // PM 默认的 HTML 粘贴路径**不经过** parseHtmlSlice（那只在 Layer 4 的占位升级里跑），
+      // 于是 Word 带 mso-* 的 HTML 直接进 DOMParser 时，stripMsoMarkup 一行都没跑（M-07）。
+      // 这里补一道闸：命中 Word 特征才清理，非 Word HTML 原样返回（零副作用）。
+      transformPastedHTML(html: string) {
+        return hasMsoHtml(html) ? stripMsoMarkup(html) : html;
+      },
+
       // ── Layer 2: transformPasted 钩子 ─────────────────────────────
       // 触发：所有粘贴路径（HTML 和纯文本都会过这一环）
       // 职责：装饰性 HTML 塌方时，从 slice.content 反查 Markdown 源救回

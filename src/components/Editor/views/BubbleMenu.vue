@@ -330,6 +330,6 @@ defineExpose({
 .bubble-menu-clear-btn:hover {
   background-color: var(--hover-bg);
   /* hover 切 error 色，暗示这是破坏性操作（去掉格式） */
-  color: var(--error-color, #d33);
+  color: var(--error-color);
 }
 </style>

@@ -9,7 +9,7 @@ import type { MarkdownSyntaxPlugin, Preprocessor } from './index';
  * 序列化器始终输出 LF，保存后的文件统一为 LF 行尾。
  * 但打开其他编辑器创建的 CRLF 文件时同样能正确解析。
  */
-const FRONTMATTER_RE = /^---(?:\r?\n)([\s\S]*?)(?:\r?\n)---(?:\r?\n)*/;
+export const FRONTMATTER_RE = /^---(?:\r?\n)([\s\S]*?)(?:\r?\n)---(?:\r?\n)*/;
 
 interface FrontmatterData {
   raw: string;

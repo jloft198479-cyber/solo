@@ -78,6 +78,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 焦点模式 | ✅ | [`paragraph-focus.ts`](../src/components/Editor/tiptap/extensions/paragraph-focus.ts) + `<html>.focus-mode` | 非当前段落整体变淡；组字期装饰只平移不重建（一/15） |
 | 字数统计（含大文档降级） | ✅ | [`editor-metadata.ts`](../src/components/Editor/tiptap/editor-metadata.ts) + `App.vue` `degradedWordCountTitle` | 150ms 防抖；大文档显示 `≈` 前缀 |
 | 大纲面板 | ✅ | [`useOutline.ts`](../src/composables/useOutline.ts) + [`OutlinePanel.vue`](../src/components/Editor/OutlinePanel.vue) | `Mod+/` 开合（`view.toggleOutline`，**可在设置自定义**） |
+| 列表区幕布式大纲（折叠） | ✅ | [`list-fold.ts`](../src/components/Editor/tiptap/extensions/list-fold.ts) + `editor.css` | 悬停列表行左侧箭头折叠/展开该项下全部子层级；折叠态按文档路径在内存里跨文档记忆（上限 50 篇）。**入口只有鼠标悬停箭头**：无快捷键、不进命令面板、无「全部折叠/展开」（已知缺口） |
 | 命令面板 | ✅ | [`CommandPalette.vue`](../src/components/CommandPalette.vue) | `Mod+K`（`view.commandPalette`，`fixedShortcut` **不可自定义**）；**无「最近文件」分组**（§二 #4） |
 | 上下文菜单 | ✅ | [`ContextMenu.vue`](../src/components/Editor/views/ContextMenu.vue) | — |
 | 特殊块整体删除（`Mod+Backspace`） | ✅ | [`code-block.ts`](../src/components/Editor/tiptap/extensions/code-block.ts) / `math-block.ts` / `mermaid-block.ts` | 隔离区，标准退格不删块 |
@@ -243,14 +244,14 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 
 **未实现（可作功能缺口核查靶子）**
 
-> 判定方式：已落台账的给出条目号；标「无」的为 `grep -ri` 全 `src/` + `src-tauri/src/` 无任何命中（命中即证明我判错，请直接改本表）。
+> 判定方式：已落台账的给出条目号；标「无」的以**最近一次** `grep -ri` 全 `src/` + `src-tauri/src/` 为准（判据会随代码变化而失真，命中即证明我判错，请直接改本表）。
 
 | # | 缺口 | 出处 / 依据 |
 | --- | --- | --- |
 | 1 | 最近文件快开（依赖 Rust 侧最近文件记录） | §二 #4 |
-| 2 | 阅读位置记忆（重开回到上次位置） | 无（`scrollPosition` / `restoreScroll` 零命中） |
-| 3 | 崩溃恢复 / 会话自动备份 | 无（仅 `.tmp` 残留兜底） |
-| 4 | 标题折叠（Markdown 标题层级折叠） | 无（`collapse` 命中仅 callout 的 `fold` 属性） |
+| 2 | 阅读位置记忆（重开回到上次位置） | 无（`scrollPosition` 零命中；`restoreScroll` 命中仅 IME 重锚的滚动还原，与本项无关） |
+| 3 | 崩溃恢复 / 会话自动备份 | 无（仅 `.tmp` 残留兜底，且**不呈现给用户**——崩溃瞬间的未保存内容就在 `.tmp` 里却不提示恢复） |
+| 4 | 标题折叠（Markdown **标题**层级折叠） | 无（已实现的是**列表**折叠，见上表「列表区幕布式大纲」；标题折叠未做） |
 | 5 | 跳转历史（前进/后退） | 无（`goBack` / `historyStack` 零命中） |
 | 6 | 表格列宽持久化 | §二 #6 |
 | 7 | 粘贴兜底 `isLowQualityParse` 漏救援修正 | §二 #13 |

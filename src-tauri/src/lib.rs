@@ -268,13 +268,8 @@ pub fn run() {
                         | StateFlags::POSITION
                         | StateFlags::MAXIMIZED,
                 )
-                .map_label(|label| {
-                    if label.starts_with("main-") {
-                        "secondary"
-                    } else {
-                        label
-                    }
-                })
+                // 不设 map_label：窗口 label 恒为 "main" / "editor-N"，
+                // 原「main-* → secondary」分支永不命中（死配置，M-45），默认即恒等映射。
                 .build(),
         )
         .setup(|app| {

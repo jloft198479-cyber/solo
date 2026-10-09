@@ -179,14 +179,6 @@ export interface Theme extends ThemeMeta {
   typography?: ThemeTypography;
 }
 
-/** Theme state */
-export interface ThemeState {
-  /** Current theme ID */
-  activeThemeId: ThemeId;
-  /** Custom themes */
-  customThemes: Theme[];
-}
-
 /** CSS variable map */
 export const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
   primaryColor: '--primary-color',
