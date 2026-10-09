@@ -4,7 +4,7 @@ type: record
 audience: agent
 status: active
 tags: [ime, 输入法, 候选窗, 修复档案, 分支, 可回滚, webview2]
-summary: 「blur → 隔 60ms → focus」重锚护栏的修复过程档案：分支/回滚点/验收判据（提前定死）/阶段记录/退出条件。跟随分支 fix/ime-anchor-guard，未验证前不合并 master。
+summary: 「blur → 隔 60ms → focus」重锚护栏的修复过程档案：分支/回滚点/验收判据（v2：因问题概率性，改为被动探针对账，见 §2.0 修订申报）/阶段记录/退出条件。触发面已按真机反馈修订为「窗口移动 + 缩放」。跟随分支 fix/ime-anchor-guard，未验证前不合并 master。
 updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Editor/tiptap/composition-freeze.ts]
 ---
 
@@ -20,12 +20,12 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 
 | 项 | 值 |
 |---|---|
-| **做法** | 窗口尺寸稳定后（防抖 120ms）把可编辑元素重锚一次：`blur()` → 隔 60ms → `focus({preventScroll:true})` + 还原选区与滚动 |
+| **做法** | 窗口**移动 / 缩放**稳定后（防抖 120ms）把可编辑元素重锚一次：`blur()` → 隔 60ms → `focus` + 还原选区与滚动 |
 | **来源** | [`observer130/lanmark` commit `ba451f0`](https://github.com/observer130/lanmark/commit/ba451f06178dbb08d6f97b9f5d53b46b26aca5e9)（2026-10-07），引用同一上游 `MicrosoftEdge/WebView2Feedback#5675` |
 | **分支** | `fix/ime-anchor-guard`（自 `55bbbc1` 开出） |
 | **基线提交** | `55bbbc1` |
-| **当前阶段** | 阶段 2（实现 + 闸门）—— **已完成**，代码已提交本分支 |
-| **状态** | 🟢 **待真机验收**（阶段 3，简乐执行） |
+| **当前阶段** | 阶段 3（**自然观察期**）—— 触发面已按简乐反馈修订（只缩放 → **移动 + 缩放**）并过闸门 |
+| **状态** | 🟡 **观察中**：不再人工刻意测试，改为**日常使用 + 被动探针留痕对账**（见 §2.0） |
 
 ---
 
@@ -43,12 +43,34 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 
 ---
 
-## 2. ⭐ 验收判据（**提前定死，不许事后改**）
+## 2. ⭐ 验收判据
 
-> 本项目 2026-09 的死穴是「**不可证真**」：35 次自动实验零复现 ⇒ 修没修好说不清。
-> 本次用**临时 A/B 开关**绕过该死穴——同一台机器、同一操作，开/关各测，直接对比。
+### 2.0 ⚠️ 判据修订（2026-10-09，**主动申报，不偷偷改**）
 
-### 2.1 真机操作（简乐执行）
+> 本节原写「判据**提前定死、不许事后改**」。现**主动申报一次修订**——因为原判据的**前提被证明不成立**。
+
+| 项 | 原判据（v1） | 现判据（v2，2026-10-09 修订） |
+|---|---|---|
+| 复现方式 | 人工按 §2.1 刻意操作，开/关各 2 轮 | ❌ **前提不成立**：该问题**概率性**出现、**无法按需复现**（简乐原话：〝你专门测，它不一定问题能暴露出来〞） |
+| 判定依据 | 「关 = HIT 且 开 = OK」 | ✅ 改为**被动探针对账**（见下） |
+| 触发面 | 只挂 DOM `resize`（＝只缩放） | ✅ 改为 **Tauri `onMoved` + `onResized`**（**移动 + 缩放**） |
+
+**⭐ 为什么要改触发面（本轮最关键）**：简乐指出失锚**多数发生在「移动窗口」时**；而 Windows **纯移动窗口不发 `resize` / `Resized`，只发 `Moved`** ⇒ **首版对「移动」完全无感**，一直在治非主因。首轮真机「开着护栏仍失锚」与此吻合（见 §9.4）。
+
+**新判据怎么用（零人工负担）**：探针把护栏每次触发 / 跳过写盘到
+`%APPDATA%\com.solomarkdown\ime-anchor-probe.json`。简乐**照常使用**；若再次见到候选窗飞角，读该文件最近的记录：
+
+| 失锚前探针里有什么 | 结论 |
+|---|---|
+| **有** `reanchor / action: blur+focus` | 护栏**跑了但没用** ⇒ 该机制对本机无效，需换招（转 §7 退出条件） |
+| **只有 `skip`**（`not-focused` / `ab-off` / `no-view`） | 护栏被跳过了 ⇒ 看 `reason` 定位（多半是焦点判定或开关） |
+| **什么都没有** | 护栏**没跑** ⇒ 触发面仍不够（继续扩，如切文档 / 切焦点） |
+
+---
+
+### 2.1 原判据：真机操作（~~已不适用~~，保留存档）
+
+> ⛔ **以下 2.1–2.4 为 v1 判据，已不适用**（概率性问题无法按需复现）。仅作存档，不再执行。
 
 1. 打开 solo，打开任意一个 md 文档，把光标点进正文。
 2. **用鼠标拖窗口边框缩放**（不是最大化；拖完松手）。
@@ -99,12 +121,13 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 | **0** | 证据进 master + 开分支 + 建本档案 + 判据定死 | ❌ 否 | ✅ 完成 |
 | **1** | 实现护栏：新建 `tiptap/ime-anchor.ts`，走 `composition-freeze.ts`；挂 resize 防抖；带**临时 A/B 开关** | ✅ 是 | ✅ 完成 |
 | **2** | 闸门：`vue-tsc --noEmit` / `vitest` / `vite build`（沙盒）/ `eslint` | ❌ 否 | ✅ 完成 |
-| **3** | **真机验收**（简乐按 §2.1 操作，A/B 各 2 轮），结果写入 §4 | ❌ 否 | ⬜ 待做 |
-| **4** | 定案：有效 → 删临时开关、合并 master、更新文档；无效 → 保留档案、回滚、转观察 | ✅ 视结果 | ⬜ 待做 |
+| **2b** | **按简乐反馈修订触发面**（只缩放 → **移动 + 缩放**）+ 加被动探针 + 重跑闸门 | ✅ 是 | ✅ 完成 |
+| **3** | **自然观察期**（替代原「人工 A/B」）：简乐照常使用，探针被动留痕；再次失锚时读盘对账 | ❌ 否 | 🟡 进行中 |
+| **4** | 定案：有效 → **删探针 + 删 A/B 开关**、合并 master、更新文档；无效 → 保留档案、回滚、转观察 | ✅ 视结果 | ⬜ 待做 |
 
 ---
 
-## 4. 真机验收记录表（阶段 3 填写）
+## 4. 真机验收记录表（~~阶段 3 填写~~ → v2 改为「自然观察 + 探针对账」，本表仅存档）
 
 | # | 日期 | WebView2 版本 | solo 版本 | 护栏 | 窗口缩放 | 拼音串 | 候选框落点 | 判定 | 备注 |
 |---|---|---|---|---|---|---|---|---|---|
@@ -129,7 +152,7 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 
 | 点 | 方案 | 理由 |
 |---|---|---|
-| 触发事件 | 先**只挂 `resize`**（与 Lanmark 一致） | 最小改动、最可对照；我们的"切文档/切焦点"触发留给后续扩展 |
+| 触发事件 | **DOM `resize` + Tauri `onMoved` / `onResized`**（**移动 + 缩放**） | ⚠️ 2026-10-09 修订：原「只挂 `resize`」**漏掉主因**（Windows 移动窗口**不发** `resize`）；「切文档 / 切焦点」仍留后续扩展 |
 | 防抖 | 120ms（Lanmark 实测值） | 拖动期间 resize 连发，须等稳定 |
 | blur→focus 间隔 | 60ms | 同步/`setTimeout(0)` 会被渲染进程合并；ProseMirror 对间隔不敏感 ⇒ 60ms 够稳 |
 | 平台门控 | 仅 Windows（UA 判 `Windows`） | Linux/macOS 输入法行为不同，不做 |
@@ -161,8 +184,8 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 
 出现**任一**即停止投入、保留档案、回到观察：
 
-1. 按 §2.2 判定护栏**无效**（关=HIT 且 开=HIT）；
-2. 连续 **3 次**验收均因"关=OK"而作废（说明本机已难触发该 bug，无法证真）；
+1. 按 §2.0 判据：探针显示失锚前**有** `blur+focus` 记录（＝跑了但没用）⇒ 该机制对本机无效；
+2. 扩到「移动 + 缩放」后，日常使用中**仍**频繁失锚（说明触发面还漏了别的路径，继续扩收益递减）；
 3. 上游微软修复本族 issue 或给出官方方案（直接改走官方路线）。
 
 ---
@@ -247,7 +270,40 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 
 > 📌 **基线更新**：本档案 §2 撰写时套件为「1484 通过 / 3 失败」（`composition-freeze` 的 fakeView 缺 `dom` 字段，属**旧基线**）。其后已由 commit `19cea95` 补全修至全绿。**当前零失败是最新基线**，本次改动**未引入任何失败**。
 
+### 9.4 首轮真机接触 + 触发面修订（2026-10-09 08:12~08:25）
+
+**首轮观察**：简乐启动 dev 构建后**直接测了一轮**，报「候选框飞到屏幕角」。
+- 只读核验（方法可复用）：进程路径 = `src-tauri/target/debug/solo.exe`；Vite `1420` LISTENING；`curl http://localhost:1420/src/components/Editor/tiptap/ime-anchor.ts` 能取到本模块源码 ⇒ **确系 dev 构建、护栏确已加载**。
+- ⚠️ 但该轮**混杂**：简乐自述「拖边框缩放，**也移动了**」⇒ 无法区分「护栏没触发」与「触发了但无效」。
+
+**⭐ 简乐的关键纠正**（本人长期经验）：该问题**概率性**出现、**无法随时复现**；**多数发生在「移动窗口」时**。
+⇒ 直接推翻首版触发面：**移动窗口不发 `resize`，首版对它全无感知**；且**概率性 ⇒ 人工刻意 A/B 本身不成立**。据此修订 §2.0（判据）与触发面。
+
+### 9.5 修订后落地（v2）
+
+| 文件 | 动作 | 说明 |
+|---|---|---|
+| `src/components/Editor/tiptap/ime-anchor.ts` | 改（重写触发层） | 新增 `AnchorTrigger` 类型与 `subscribeGeometry` 注入点；默认订阅 Tauri `onMoved` / `onResized`（**异步建立 + 退订防泄漏**）；保留 DOM `resize` 兜底；接入探针 |
+| `src/components/Editor/tiptap/ime-anchor-probe.ts` | **新建（临时设施）** | 被动探针：写 `%APPDATA%\com.solomarkdown\ime-anchor-probe.json`；仅 dev + Tauri 生效；异常全吞 |
+| `src/components/Editor/tiptap/__tests__/ime-anchor.spec.ts` | 改 | **11 → 16 例**（新增：移动触发 / 缩放触发 / 移动+缩放合并为一次 / 卸载退订 / 非 Tauri 默认空订阅不抛错） |
+
+### 9.6 闸门（v2，全绿）
+
+| 闸门 | 结果 |
+|---|---|
+| `vitest run`（全量） | ✅ 49 文件 / **1526 例全绿**（含 16 例护栏测试） |
+| `vue-tsc --noEmit` | ✅ exit 0 |
+| `eslint`（改动 4 文件） | ✅ exit 0 |
+| `vite build`（沙盒，已清理） | ✅ `built in 15.12s` |
+
+### 9.7 ⚠️ 合并 master 前**必须清除**的临时设施（阶段 4 清单）
+
+- [ ] 删整个 `src/components/Editor/tiptap/ime-anchor-probe.ts`
+- [ ] 删 `ime-anchor.ts` 里的 `import { probe }` 与**全部** `probe(...)` 调用
+- [ ] 删 `ime-anchor.ts` 里的 A/B 开关（`AB_SWITCH_KEY` / `isDisabledBySwitch`）
+- [ ] 删探针产物 `%APPDATA%\com.solomarkdown\ime-anchor-probe.json`（本机文件，非仓库内容）
+
 ---
 
 **档案建立**：2026-10-09 ｜ **分支**：`fix/ime-anchor-guard`（基线 `55bbbc1`）
-**当前阶段**：2 / 4 ｜ **下一步**：阶段 3 真机验收（简乐按 §2.1，A/B 各 2 轮，结果填 §4）
+**当前阶段**：3 / 4（自然观察期）｜ **下一步**：简乐照常使用；再次失锚 → 读探针文件对账（§2.0）
