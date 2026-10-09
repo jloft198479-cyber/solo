@@ -332,14 +332,19 @@ export const CustomImage = Image.extend({
 
       function syncView() {
         const attrs = getAttrs();
-        // 远程图片先给占位图，绝不把原始 URL 交给 <img>——否则打开一篇陌生 md 时
+        // 远程图片在 Rust 取回前**不设 src**：绝不把原始 URL 交给 <img>，否则打开一篇陌生 md 时
         // WebView2 会自行请求（CSP 放行 http:），Rust 的 SSRF 白名单被绕过（M-16）。
-        // 取回成功后再由下方异步路径换成 asset:// URL。
-        const fallbackSrc = isRemoteImageSrc(attrs.src) ? REMOTE_IMAGE_PLACEHOLDER : attrs.src;
+        // 不给 src 的同时保留骨架屏（见下方 loading 占位），体验与改前一致。
+        const remote = isRemoteImageSrc(attrs.src);
+        const fallbackSrc = remote ? '' : attrs.src;
 
         if (displaySrc !== fallbackSrc) {
           displaySrc = fallbackSrc;
-          image.src = fallbackSrc;
+          if (fallbackSrc) {
+            image.src = fallbackSrc;
+          } else {
+            image.removeAttribute('src');
+          }
         }
 
         image.alt = attrs.alt;
@@ -363,8 +368,10 @@ export const CustomImage = Image.extend({
           caption.style.display = 'none';
         }
 
-        // loading 占位：图片加载中显示 skeleton 背景，加载完移除
-        if (image.src && !image.complete && !image.dataset.loaded) {
+        // loading 占位：图片加载中显示 skeleton 背景，加载完移除。
+        // 远程图片此时**还没有 src**（占位期不设 src，见上），故不能靠 image.complete 判断，
+        // 单独按 remote 处理——否则会白白丢掉骨架屏（改前有、改后不该少）。
+        if (!image.dataset.loaded && (remote || (image.src && !image.complete))) {
           image.classList.add('is-loading');
         }
 

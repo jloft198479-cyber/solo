@@ -30,8 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **关闭 Shell 集成不再连带清空系统里所有 `.md` 打开方式（M-02）**：`unregister_shell_new` 原先对 `.md`/`.markdown` 执行 `delete_subkey_all`（递归删整棵扩展名键，会连带清掉 `OpenWithProgids` 等**他人程序**登记），且三处结果全 `let _ =` 吞错、最后无条件 `Ok(())`、注销侧不通知 Explorer。现改为：只删 solo 自己写的值（删前判 `(默认)` 是否仍指向 `solo.markdown`）+ 独占的 `solo.markdown` 子树与 `ShellNew`；补 `SHChangeNotify`；失败如实返回错误。
 - **`Ctrl+S` 脏态门控（M-03）**：`saveCurrentDocument` 未修改时直接返回不写盘——否则打开别人的 CRLF 文件按一下保存，行尾就被静默归一。与自动保存 / 状态栏按钮的门控对齐。
 - **Word 粘贴补 MSO 清理（M-07）**：新增 `transformPastedHTML` 钩子，命中 Word 特征即跑 `stripMsoMarkup`。此前该清理**只在「剪贴板无 text/html」那条分支**跑，真带 HTML 时一行都没跑。
-- **远程图片不再回退原始 URL（M-16）**：Rust 白名单取回失败 / 未取回时改给透明占位图，绝不把原始远程 URL 交给 `<img>`——否则 WebView2 会自行请求，SSRF 白名单被整体绕过。
-- **Windows 菜单去掉 macOS 专属死项（M-06 / M-31）**：`服务 / 隐藏 / 隐藏其他 / 显示全部` 只在 mac 构建。其中「隐藏 solo」硬编码的 `CmdOrCtrl+H` 会在 Windows 注册成系统加速键、吃掉 `Ctrl+H`，使查找替换的快捷键永远收不到。
+- **远程图片不再回退原始 URL（M-16）**：取回失败 / 未取回时改给透明占位图，绝不把原始远程 URL 交给 `<img>`——否则 WebView2 会自行请求，SSRF 白名单被整体绕过。取回前**不给 `<img>` 设 `src`**（只显骨架屏），保持与改前一致的加载体验。
+- **Windows 菜单不再构建 macOS 专属项（M-06 / M-31）**：`服务 / 隐藏 / 隐藏其他 / 显示全部` 改为只在 mac 构建（这几项在 Windows 上点了没有反应）。**说明（2026-10-09 真机反馈修正）**：本应用窗口无边框（`decorations:false`），Windows 上原生菜单栏**本就不可见**——用户实测「菜单里从来没有这几项」⇒ 本改动**对用户无可见变化**；「其 `CmdOrCtrl+H` 曾抢占系统加速键、吃掉查找替换」属**静态推断、未经实测**（用户实测改动后 Ctrl+H 正常，但改动前是否异常未验证）。保留改动，因它只减不加、无副作用。
 - **菜单兜底键位与 registry 对齐（M-12）**：`menu.rs` 的 find / replace / fullscreen 兜底改为 `CmdOrCtrl+F` / `CmdOrCtrl+H` / `F11`（此前与 registry 默认不符 ⇒ 首屏窗口期按错键）。
 - **IME 护栏 A/B 开关加 DEV 门控（M-14）**：`localStorage['solo:imeAnchorGuard']` 只在 dev 构建可关闭护栏，正式版一律视为未设。
 - **折叠态记忆加上限（M-26）**：`foldedByPath` 封顶 50 篇，超出按插入序淘汰最旧，避免长期运行无界增长。
