@@ -131,11 +131,13 @@ updates: [src/components/Editor/tiptap/editor.css, src/components/Editor/tiptap/
 
 | 键                   | 动作       | 现状                     |
 | ------------------- | -------- | ---------------------- |
-| `Tab` / `Shift+Tab` | 缩进 / 反缩进 | ✅ **已有**，不需新增          |
+| `Tab` / `Shift+Tab` | 缩进 / 反缩进 | `Tab` ✅ 已有；**`Shift+Tab` ⚠️ 〔2026-10-10 复审改判〕不是"已有不需新增"，而是"已有但会劈开列表"**：顶层中间项行首按它实测与 Backspace 同样把 `bulletList` 切成两段（它绑的就是 `liftListItem`）。见 [`PROPOSAL-list-structure-fix.md`](./PROPOSAL-list-structure-fix.md) §十 F-3          |
 | `Enter`             | 新建同级项    | ✅ **已有**，不需新增          |
 | `Alt+↑/↓`           | 整项上下移动   | ❌ 需新增（约 30 行，一个 PM 命令） |
 
 **极简原则**：只补唯一缺失的那一个（`Alt+↑/↓`），已有的绝不重写。
+
+> **〔2026-10-10 复审订正〕「唯一缺失的那一个」不成立**：同批实测发现键盘矩阵还缺 `Backspace` / `Mod-Backspace` 两个入口（列表项行首退格会把列表劈成两段，直接导致 `Alt+↑` 挪不动），且上表的 `Shift+Tab` 判为"已有即正常"是误判。根因、方案与复审证据见 [`PROPOSAL-list-structure-fix.md`](./PROPOSAL-list-structure-fix.md)（本案 §三 阶段 4 的补充）。**"已有的绝不重写"这条原则本身不变**——`Tab` / `Enter` 实测确实正常，不要顺手重写。
 
 ---
 
