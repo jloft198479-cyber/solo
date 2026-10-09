@@ -146,6 +146,41 @@ describe('useDocumentSession', () => {
     expect(fileStoreState.setFile).toHaveBeenCalledWith('# title', '/tmp/demo.md', 123);
   });
 
+  it('未修改时不写盘：Ctrl+S 不再把 CRLF 文件静默改成 LF（M-03 回归锁）', async () => {
+    fileStoreState.currentFile = {
+      path: '/tmp/demo.md',
+      content: 'a\r\nb\r\n',
+      isDirty: false,
+      lastModifiedTime: 1000,
+      displayName: 'demo',
+      originalBaseName: 'demo',
+    };
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({ resetViewMode: vi.fn() });
+
+    await expect(session.saveCurrentDocument(false, true)).resolves.toBe(true);
+    expect(saveDocumentMock).not.toHaveBeenCalled();
+  });
+
+  it('有未保存修改时 Ctrl+S 仍然写盘（门控不误伤正常保存）', async () => {
+    fileStoreState.currentFile = {
+      path: '/tmp/demo.md',
+      content: 'draft',
+      isDirty: true,
+      lastModifiedTime: 1000,
+      displayName: 'demo',
+      originalBaseName: 'demo',
+    };
+    saveDocumentMock.mockResolvedValueOnce({ path: '/tmp/demo.md', lastModifiedMs: 1500 });
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({ resetViewMode: vi.fn() });
+
+    await expect(session.saveCurrentDocument(false, true)).resolves.toBe(true);
+    expect(saveDocumentMock).toHaveBeenCalledTimes(1);
+  });
+
   it('retries save with force after a document conflict is confirmed', async () => {
     fileStoreState.currentFile = {
       path: '/tmp/demo.md',
