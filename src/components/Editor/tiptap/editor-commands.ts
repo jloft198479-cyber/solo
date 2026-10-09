@@ -1,5 +1,6 @@
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 import { serializeClipboardSlice } from './markdown/serializer';
+import { moveListItem } from './list-move';
 
 export interface BubbleMenuActionData {
   href?: string;
@@ -125,6 +126,12 @@ export function executeEditorCommand(editor: TiptapEditor | null, commandId: str
         });
       return true;
     }
+    // 列表项同层换位（Alt+↑/↓）。刻意不走上面那个 chain：
+    // chain 头里挂了 `.focus()`，而换位自己管焦点（组字期还要直接拒绝执行，
+    // 见 list-move.ts 的铁律 3），多一次抢焦点没好处。
+    case 'list.moveItemUp':
+    case 'list.moveItemDown':
+      return moveListItem(editor.view, commandId === 'list.moveItemUp' ? -1 : 1);
     default:
       return false;
   }

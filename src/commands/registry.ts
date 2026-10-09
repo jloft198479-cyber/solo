@@ -260,6 +260,31 @@ export const COMMANDS: CommandDefinition[] = [
     palette: true,
   },
   {
+    id: 'list.moveItemUp',
+    title: '列表项上移',
+    description: '把光标所在列表项在同层内上移一位',
+    // 作用域必须是 app：窗口级快捷键分发器对「editor 作用域 + 默认快捷键」的组合一律
+    // 跳过（假定由 ProseMirror 内置 keymap 处理，见 useAppDomEvents），而 PM 并没有
+    // 「整项移动」的内置命令 —— 标 editor 会让 Alt+↑ 在编辑区内彻底按不动。
+    // 与 edit.copyAsMarkdown 同款解法：app 作用域 + 经 editorRef 落到编辑器上。
+    scope: 'app',
+    group: 'list',
+    defaultShortcut: 'Alt-ArrowUp',
+    // 刻意不给 menuSection：只有给了才会进原生菜单，而 toTauriAccelerator 的别名表
+    // 没有方向键（ArrowUp 会原样透传成 "Alt+ArrowUp"，Tauri 加速键不认这个名字）。
+    palette: true,
+  },
+  {
+    id: 'list.moveItemDown',
+    title: '列表项下移',
+    description: '把光标所在列表项在同层内下移一位',
+    // scope / menuSection 的理由同上（两条命令成对，改一条别忘了另一条）
+    scope: 'app',
+    group: 'list',
+    defaultShortcut: 'Alt-ArrowDown',
+    palette: true,
+  },
+  {
     id: 'editor.blockquote',
     title: '引用块',
     description: '切换引用块',
