@@ -96,8 +96,16 @@ onUnmounted(() => {
 watch(
   () => settingsStore.isFocusMode,
   (active) => {
+    // 每次切换先「归零」：清掉定时器，并把两条提示一起复位。
+    // 只清定时器、不复位标志的话，「进入后 3.5s 内又退出」这条路径会把引导条永久钉在屏幕上
+    // ——定时器被清掉后，再没有任何代码把 focusEnterNotice 置回 false（全项目仅此一个写入点）。
+    // 同理，退出提示若在 2s 内被下一次「进入」打断，也会残留。
     if (_focusNoticeTimer.value) clearTimeout(_focusNoticeTimer.value);
     if (_focusEnterTimer.value) clearTimeout(_focusEnterTimer.value);
+    _focusNoticeTimer.value = null;
+    _focusEnterTimer.value = null;
+    focusEnterNotice.value = false;
+    focusModeNotice.value = null;
     if (active) {
       focusEnterNotice.value = true;
       _focusEnterTimer.value = setTimeout(() => {
