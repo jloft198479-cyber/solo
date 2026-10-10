@@ -439,11 +439,35 @@ html.doc-heavy .tiptap-editor > hr {
 
 /*
  * 列表项首块是标题时（`- # 标题`，#30），折叠箭头 widget 渲染在标题内部开头，
- * `position: absolute` 需要 heading 自身作定位锚（同 `li p` 的 relative）——
+ * `position: absolute` 需要标题自身作定位锚（同 `li p` 的 relative）——
  * 原 heading-fold 扩展的 gutter 槽位规则已随该扩展下线（2026-10-10 撤功能）。
+ * 用**后代**选择器而非 `li >`：待办项首块被 TaskItem 包在 `li > label + div` 里
+ * （同 `li p` 用后代选择器的理由），`li > h1` 匹配不到，任务项的箭头会丢锚点。
  */
-.tiptap-editor li > :is(h1, h2, h3, h4, h5, h6):first-child {
+.tiptap-editor li :is(h1, h2, h3, h4, h5, h6):first-child {
   position: relative;
+}
+
+/* 同场景的显隐与盒尺寸：通用显隐判定挂 `li p:hover`，标题首块匹配不到 p
+ * （heading-fold 撤下时其 hover 显隐随 gutter 段一起删除，在此补回标题路径；
+ * 折叠态常显由上方全局 `.is-folded` 规则覆盖，无需重复）。
+ * 盒尺寸不用 em —— 继承标题字号会放大（h1 1.6em 字号下 -2.5em ≈ -64px，箭头飘出老远），
+ * 用正文字号换算的固定 px 与段落场景同线（16px 正文 × 2.5em = -40px，圆点左侧）。 */
+.tiptap-editor li :is(h1, h2, h3, h4, h5, h6):first-child .list-fold-toggle {
+  width: 16px;
+  height: 16px;
+  left: -40px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.tiptap-editor li :is(h1, h2, h3, h4, h5, h6):first-child:hover .list-fold-toggle {
+  opacity: 0.6;
+}
+
+.tiptap-editor li :is(h1, h2, h3, h4, h5, h6):first-child:hover .list-fold-toggle:hover {
+  opacity: 1;
+  color: var(--text-color);
 }
 
 /*
