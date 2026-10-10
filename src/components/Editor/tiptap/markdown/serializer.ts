@@ -752,8 +752,13 @@ const nodeSerializers: Record<string, NodeSerializer> = {
     node.forEach((row) => rows.push(row));
     if (rows.length === 0) return;
 
-    // 收集列数
-    const colCount = rows[0].childCount;
+    // 列数取**各行最大值**，不能只看表头（rows[0]）。
+    // 为什么：schema 不约束各行格数相等（HTML 粘贴带 colspan/rowspan 可造出「表头 2 格 +
+    // 数据行 3 格」），此时分隔行会按 3 列写出而表头只有 2 格 ⇒ GFM 判「分隔行与表头
+    // 格数不一致」⇒ **整张表退化成纯文本**；反之若按表头截断，多出的格内容直接丢。
+    // 取最大值 + 逐行补齐（见下）两个方向都不丢。
+    const colCount = rows.reduce((max, row) => Math.max(max, row.childCount), 0);
+    if (colCount === 0) return;
 
     // 每列对齐（A3）：取该列**首个非空** align（表头未设时回落到数据行，
     // 与 Tiptap Table 扩展的判定一致）。schema 值域 'left'|'right'|'center'|null。
@@ -783,6 +788,12 @@ const nodeSerializers: Record<string, NodeSerializer> = {
         const text = cellToText(state, cell);
         cells.push(padEndVisual(text, colWidths[colIndex]));
       });
+      // 格数不足的行补齐到 colCount（**表头也补**）——GFM 要求分隔行的格数与表头一致，
+      // 且各行格数不齐时多余的格会被丢弃；补空是唯一两个方向都不丢的写法。
+      // `colWidths` 长度已是 colCount 且只增不减，故此处索引恒在界内（旧代码里
+      // 「越界取到 undefined ⇒ alignDelimiter 的 `-`.repeat(NaN) = 空片段」的路径
+      // 被这一处根因修复从结构上消掉了，无需再叠加 NaN 守卫）。
+      while (cells.length < colCount) cells.push(padEndVisual('', colWidths[cells.length]));
       state.writeLine('| ' + cells.join(' | ') + ' |');
 
       // 在第一行（表头）后插入分隔行
