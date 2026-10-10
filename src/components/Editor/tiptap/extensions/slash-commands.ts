@@ -9,6 +9,15 @@ import { demoteListItemToBlock, hasListItemToDemote, isInsideListOf } from '../l
 
 const slashPluginKey = new PluginKey('slashCommands');
 
+/**
+ * 列表项内的斜杠命令：先删掉候选词，再走托孤（正文 / 各列表 4 个入口共用同一段病态路径，
+ * 台账 §一 #50）。是否接管由调用方的闸门决定，这里只负责「删词 + 托孤」这组固定动作。
+ */
+function demoteAfterDelete(editor: Editor, range: Range): void {
+  editor.chain().focus().deleteRange(range).run();
+  demoteListItemToBlock(editor.view);
+}
+
 export interface SlashCommandItem {
   title: string;
   description: string;
@@ -44,8 +53,7 @@ export const slashCommandItems: SlashCommandItem[] = [
       // 常见路径保持原样的一整条 chain（单事务、一次撤销）；只有「列表项转正文」
       // 这条病态路径才先删文本再托孤（台账 §一 #50）。
       if (hasListItemToDemote(editor.view)) {
-        editor.chain().focus().deleteRange(range).run();
-        demoteListItemToBlock(editor.view);
+        demoteAfterDelete(editor, range);
         return;
       }
       editor.chain().focus().deleteRange(range).setParagraph().run();
@@ -89,9 +97,9 @@ export const slashCommandItems: SlashCommandItem[] = [
     category: '列表',
     alias: 'wxxb ul lb',
     command: ({ editor, range }) => {
-      if (hasListItemToDemote(editor.view) && isInsideListOf(editor.view, 'listItem')) {
-        editor.chain().focus().deleteRange(range).run();
-        demoteListItemToBlock(editor.view);
+      // isInsideListOf 已含「在列表项内」的判定，无需再叠 hasListItemToDemote
+      if (isInsideListOf(editor.view, 'listItem')) {
+        demoteAfterDelete(editor, range);
         return;
       }
       editor.chain().focus().deleteRange(range).toggleBulletList().run();
@@ -104,9 +112,9 @@ export const slashCommandItems: SlashCommandItem[] = [
     category: '列表',
     alias: 'yxxb ol lb',
     command: ({ editor, range }) => {
-      if (hasListItemToDemote(editor.view) && isInsideListOf(editor.view, 'listItem')) {
-        editor.chain().focus().deleteRange(range).run();
-        demoteListItemToBlock(editor.view);
+      // isInsideListOf 已含「在列表项内」的判定，无需再叠 hasListItemToDemote
+      if (isInsideListOf(editor.view, 'listItem')) {
+        demoteAfterDelete(editor, range);
         return;
       }
       editor.chain().focus().deleteRange(range).toggleOrderedList().run();
@@ -119,9 +127,9 @@ export const slashCommandItems: SlashCommandItem[] = [
     category: '列表',
     alias: 'rwlb task todo lb',
     command: ({ editor, range }) => {
-      if (hasListItemToDemote(editor.view) && isInsideListOf(editor.view, 'taskItem')) {
-        editor.chain().focus().deleteRange(range).run();
-        demoteListItemToBlock(editor.view);
+      // isInsideListOf 已含「在列表项内」的判定，无需再叠 hasListItemToDemote
+      if (isInsideListOf(editor.view, 'taskItem')) {
+        demoteAfterDelete(editor, range);
         return;
       }
       editor.chain().focus().deleteRange(range).toggleTaskList().run();

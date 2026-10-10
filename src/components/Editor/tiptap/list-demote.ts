@@ -24,7 +24,7 @@ import { ITEM_NODE_TYPES, LIST_NODE_TYPES } from './list-move';
  *
  * 为什么结构部分自己写、不去指挥 TipTap 命令：TipTap 的 `chain` 里每个命令看到的
  * 都是**同一份初始 state**（累积的 tr 不回写 state），连续 lift 会基于旧坐标算错。
- * 故这里直接用 PM 原语；而「把内容提出列表」这一步复用 PM 官方 `lift`，不另写一套。
+ * 故这里直接用 PM 原语（`replaceWith` / `Fragment`）自己重组，不指挥命令层。
  */
 
 /**
@@ -41,21 +41,6 @@ function innermostItemAt(doc: PMNode, pos: number): number | null {
   return null;
 }
 
-/**
- * 该不该接管 = 光标所在的列表项（任意列表项都归本模块管）。
- *
- * 早先只接管「含子列表」的项，那是给「清除格式」划的、没有原理支撑的条件；
- * 现在「清除格式」已不动结构，本模块只服务「转普通段落」这族动词 ——
- * 有没有子列表只影响「要不要托孤」，不影响「该不该接管」。
- */
-function targetItemAt(doc: PMNode, from: number): number | null {
-  const itemPos = innermostItemAt(doc, from);
-  if (itemPos == null) return null;
-  const item = doc.nodeAt(itemPos);
-  if (!item) return null;
-  return itemPos;
-}
-
 /** 托孤出去的内容：同类型子列表展开成项（并入父列表），异类型整块保留（保住自己的符号） */
 type Carried =
   | { kind: 'items'; nodes: PMNode[] }
@@ -64,7 +49,7 @@ type Carried =
 /**
  * 拆开目标项：普通块留下（它们将变成段落），子列表托孤出去。
  *
- * **只拆不改** —— 落点由 `replaceItemWithItsBlocks` 一处决定。
+ * **只拆不改** —— 落点由 `demoteItemStructure` 一处决定。
  * 早先这里（搬）和那里（切父列表）各有一套落点假设，混排双子列表时顺序就会错乱。
  */
 function splitItem(item: PMNode, parentList: PMNode): { blocks: PMNode[]; carried: Carried[] } {
@@ -104,6 +89,8 @@ function isPureShell(node: PMNode): boolean {
   if (!ITEM_NODE_TYPES.has(node.type.name)) return false;
   let onlyLists = true;
   node.forEach((c) => {
+    // 空段落子节点（无文字）不打破 onlyLists ⇒ 含「空段落 + 子列表」的项也算纯壳，
+    // 会连空段落一起溶解 —— 空段落没有 markdown 表达，属预期取舍。
     if (!LIST_NODE_TYPES.has(c.type.name) && c.textContent.trim().length > 0) onlyLists = false;
   });
   return onlyLists;
@@ -161,12 +148,14 @@ function rebuildList(from: PMNode, parts: PMNode[]): PMNode {
 }
 
 /**
- * 装配「父列表内移除目标项」后的内容：before + 托孤子列表 + after，
- * 尽量合并成一张列表；遇到异类型整块列表才断开成多张。
- * 与顶层路径不同：这里目标项是从父列表里**被摘除**（不是把自己所在列表拆开），
- * 所以 before / after 应当并回同一张列表，仅中间让位给托孤内容。
+ * 装配序列：把「项组 / 整块列表」交替的序列里**相邻的项组合并成一张列表**，
+ * 遇到整块列表（异类型）才断开。顶层路径与嵌套路径**共用这一条装配规则**。
+ *
+ * - 嵌套路径：目标项从父列表里被摘除，before / 托孤 / after 应当并回同一张列表。
+ * - 顶层路径：before 与托孤之间隔着让位的段落块，各自独立成表；
+ *   只有「托孤 + after」相邻，需要合并。
  */
-function assembleInner(parentList: PMNode, before: PMNode[], carried: Carried[], after: PMNode[]): PMNode[] {
+function assembleRuns(parentList: PMNode, runs: Array<PMNode[] | PMNode>): PMNode[] {
   const seq: PMNode[] = [];
   let pending: PMNode[] = [];
   const flush = () => {
@@ -175,17 +164,20 @@ function assembleInner(parentList: PMNode, before: PMNode[], carried: Carried[],
       pending = [];
     }
   };
-  for (const b of before) pending.push(b);
-  for (const c of carried) {
-    if (c.kind === 'items') pending.push(...c.nodes);
+  for (const run of runs) {
+    if (Array.isArray(run)) pending.push(...run);
     else {
       flush();
-      seq.push(c.node);
+      seq.push(run);
     }
   }
-  for (const a of after) pending.push(a);
   flush();
   return seq;
+}
+
+/** Carried[] → 装配序列：同类型展开成项组（并入父列表），异类型整块保留 */
+function carriedRuns(carried: Carried[]): Array<PMNode[] | PMNode> {
+  return carried.map((c) => (c.kind === 'items' ? c.nodes : c.node));
 }
 
 /**
@@ -206,7 +198,7 @@ function assembleInner(parentList: PMNode, before: PMNode[], carried: Carried[],
  *
  * @returns 段落块的区间 [from, to]（文档级）供调用方统一转类型；空壳项返回 null。
  */
-function replaceItemWithItsBlocks(tr: Transaction, itemPos: number): [number, number] | null {
+function demoteItemStructure(tr: Transaction, itemPos: number): [number, number] | null {
   const item = tr.doc.nodeAt(itemPos);
   if (!item) return null;
 
@@ -243,7 +235,7 @@ function replaceItemWithItsBlocks(tr: Transaction, itemPos: number): [number, nu
 
   // ---- 嵌套项：父列表内只摘除目标 + 托孤，正文块留到顶层再插 ----
   if (hasOuter) {
-    const inner = assembleInner(parentList, before, carried, after);
+    const inner = assembleRuns(parentList, [before, ...carriedRuns(carried), after]);
     if (inner.length === 0) tr.delete(listStart, listStart + parentList.nodeSize);
     else tr.replaceWith(listStart, listStart + parentList.nodeSize, Fragment.from(inner));
 
@@ -268,19 +260,24 @@ function replaceItemWithItsBlocks(tr: Transaction, itemPos: number): [number, nu
       if (i <= outerIdx) seg1.push(child);
       else seg2.push(child);
     });
+    // seg1List 构建一次，插入与「块落点测量」共用同一节点（不造一次性节点量尺寸）
+    const seg1List = seg1.length > 0 ? rebuildList(Ltop, seg1) : null;
     const replacement: PMNode[] = [];
-    if (seg1.length > 0) replacement.push(rebuildList(Ltop, seg1));
+    if (seg1List) replacement.push(seg1List);
     replacement.push(...blocks);
     if (seg2.length > 0) replacement.push(rebuildList(Ltop, seg2));
     tr.replaceWith(LtopStart, LtopStart + Ltop.nodeSize, Fragment.from(replacement));
 
     // 最外层祖先若因托孤变成了纯空壳（没有文字、只剩子列表），溶解它，
     // 否则落盘会留下 `- - 丙` 这种畸形（退化输入才会触发，正常大纲不会）。
+    // ⚠️ outermost.itemPos 是改动前算的坐标，跨上面两次 replaceWith 仍然有效，
+    // 靠两条几何事实（破坏任一条 ⇒ isPureShell 判空 ⇒ 静默 no-op，空壳残留）：
+    // ① Edit 1 只重写 parentList —— 它在祖先项内部，不影响 itemPos；
+    // ② Edit 2 里祖先项落在 seg1 前缀，前缀子节点原样保留 ⇒ 前缀字节布局不变。
     dissolveShell(tr, outermost.itemPos);
 
     // 块落点（文档级）：seg1 列表之后
-    let start = LtopStart;
-    if (seg1.length > 0) start += rebuildList(Ltop, seg1).nodeSize;
+    let start = LtopStart + (seg1List ? seg1List.nodeSize : 0);
     let end = start;
     blocks.forEach((b) => {
       end += b.nodeSize;
@@ -298,34 +295,19 @@ function replaceItemWithItsBlocks(tr: Transaction, itemPos: number): [number, nu
     return null;
   }
 
-  // 尾部序列：托孤内容（按原次序）+ 后段兄弟；相邻的项合并进同一张列表
-  const tail: PMNode[] = [];
-  let pending: PMNode[] = [];
-  const flush = () => {
-    if (pending.length > 0) {
-      tail.push(rebuildList(parentList, pending));
-      pending = [];
-    }
-  };
-  for (const c of carried) {
-    if (c.kind === 'items') pending.push(...c.nodes);
-    else {
-      flush();
-      tail.push(c.node);
-    }
-  }
-  pending.push(...after);
-  flush();
+  // 尾部序列：托孤内容（按原次序）+ 后段兄弟，合并进同一张列表（与嵌套路径共用装配规则）
+  const tail = assembleRuns(parentList, [...carriedRuns(carried), after]);
 
+  // beforeList 构建一次，插入与「块落点测量」共用同一节点（不造一次性节点量尺寸）
+  const beforeList = before.length > 0 ? rebuildList(parentList, before) : null;
   const parts: PMNode[] = [];
-  if (before.length > 0) parts.push(rebuildList(parentList, before));
+  if (beforeList) parts.push(beforeList);
   parts.push(...blocks);
   parts.push(...tail);
   tr.replaceWith(listStart, listStart + parentList.nodeSize, Fragment.from(parts));
 
   // 段落块的落点：前段之后（前段是列表节点时占它整段宽度）
-  let start = listStart;
-  if (before.length > 0) start += rebuildList(parentList, before).nodeSize;
+  let start = listStart + (beforeList ? beforeList.nodeSize : 0);
   let end = start;
   blocks.forEach((b) => {
     end += b.nodeSize;
@@ -350,13 +332,17 @@ export function isInsideListOf(view: EditorView, itemType: string): boolean {
 }
 
 /**
- * 光标是否落在需要接管的列表项上（任意列表项：listItem / taskItem）。
- * 斜杠命令「正文 / 各类列表」用它在「要不要走托孤路径」上做闸门。
+ * 光标是否落在需要接管的列表项上（任意列表项：listItem / taskItem）——
+ * 「该不该接管」的闸门。斜杠命令「正文 / 各类列表」用它决定要不要走托孤路径。
+ *
+ * 早先只接管「含子列表」的项，那是给「清除格式」划的、没有原理支撑的条件；
+ * 现在「清除格式」已不动结构，本模块只服务「转普通段落」这族动词 ——
+ * 有没有子列表只影响「要不要托孤」，不影响「该不该接管」。
  */
 export function hasListItemToDemote(view: EditorView): boolean {
   if (view.composing) return false;
   const { doc, selection } = view.state;
-  return targetItemAt(doc, selection.from) != null;
+  return innermostItemAt(doc, selection.from) != null;
 }
 
 /**
@@ -375,7 +361,7 @@ export function demoteListItemToBlock(view: EditorView): boolean {
   const { schema } = state;
   const from = state.selection.from;
 
-  const itemPos = targetItemAt(state.doc, from);
+  const itemPos = innermostItemAt(state.doc, from);
   if (itemPos == null) return false;
 
   const tr = state.tr;
@@ -383,12 +369,12 @@ export function demoteListItemToBlock(view: EditorView): boolean {
 
   // **只处理光标所在的那一项目，且只做一次**。
   //
-  // 不做循环重扫的原因（踩过）：`replaceItemWithItsBlocks` 会重写整个父列表，
+  // 不做循环重扫的原因（踩过）：`demoteItemStructure` 会重写整个父列表，
   // 前后两段是**重建出来的新节点**；再扫一遍会把它们当成新的目标继续处理，
   // 于是整张表被逐层打散（`B → D/1/3/2/...` 这种鬼东西就是这么来的）。
   // 多选区跨多个列表项目前只转光标所在的第一项 —— 已知边界（PROPOSAL §6），
   // 宁可少做，不可做坏。
-  const range = replaceItemWithItsBlocks(tr, itemPos);
+  const range = demoteItemStructure(tr, itemPos);
   if (range) blocks.push(range);
 
   // 有没有真的改动才算数：清理空壳项时不产出块，但文档确实变了，仍要落盘
