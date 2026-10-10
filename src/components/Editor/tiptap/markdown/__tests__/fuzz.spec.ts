@@ -27,10 +27,22 @@ const CASES = 200;
 
 // ── 随机 markdown 生成器（全部走种子化随机源）────────────────────
 
+/**
+ * 词表（G5 扩充：CJK 标点 / `_` / 表格竖线 —— 这些都是「组合叠加」的触发剂）。
+ *
+ * 为什么词表本身就是判据的一部分：历史上 #35（强调里包行内代码 + 闭合符后接标点）
+ * 的病灶就是「该组合不在生成器词表里」——生成器看不见的形态，fuzz 永远撞不到。
+ */
 const WORDS = [
   'hello', 'world', 'test', 'markdown', '中文', '测试', '文档',
   'alpha', 'beta', 'code', 'data', 'note', 'foo', 'bar', 'baz',
   '重点', '说明', '示例', '参数', '配置', '部署', '优化',
+  // CJK 标点（属 \p{P}，正是 flanking / 转义规则最敏感的一类）
+  '重点、说明', '「引用」', '（括号）', '甲；乙', '问题？', '第一：',
+  // `_` 选择性转义的对象（B1）
+  'snake_case', 'a_b_c', 'foo_bar',
+  // 表格竖线（转义形态 \| ，跨单元格必须保住）
+  'x\\|y', '甲\\|乙',
 ];
 
 function randomText(rng: Rand): string {
@@ -38,23 +50,33 @@ function randomText(rng: Rand): string {
   return Array.from({ length: len }, () => pick(rng, WORDS)).join(' ');
 }
 
+/**
+ * 行内片段生成器（G5 扩充）。
+ *
+ * 新增三类此前**零覆盖**的形态：
+ *  - `_斜体_`（B1 的选择性转义对象）、`^上标^` / `~下标~`（sup/sub 容器）；
+ *  - 链接 / 图片 / 行内 `$数学$`；
+ *  - **mark 套 mark**：`**`code`**`、`==[文](url)==` —— 外层更长、内层更短，
+ *    正是 §2 #1（定界符开启序）的病灶区；旧生成器从不把 code 嵌进别的 mark。
+ */
 function randomSegment(rng: Rand): string {
   const text = randomText(rng);
   const r = rng();
 
-  // code 优先返回（排除其他嵌套）
-  if (r < 0.08) return `\`${text}\``;
-  // bold + italic
-  if (r < 0.15) return `***${text}***`;
-  // bold
-  if (r < 0.35) return `**${text}**`;
-  // italic
-  if (r < 0.5) return `*${text}*`;
-  // strikethrough
-  if (r < 0.6) return `~~${text}~~`;
-  // highlight
-  if (r < 0.7) return `==${text}==`;
-  // plain
+  if (r < 0.07) return `\`${text}\``;
+  if (r < 0.12) return `***${text}***`;
+  if (r < 0.24) return `**${text}**`;
+  if (r < 0.32) return `*${text}*`;
+  if (r < 0.38) return `~~${text}~~`;
+  if (r < 0.44) return `==${text}==`;
+  if (r < 0.48) return `_${text}_`;
+  if (r < 0.52) return `^${text}^`;
+  if (r < 0.56) return `~${text}~`;
+  if (r < 0.64) return `[${text}](https://x.com/a)`;
+  if (r < 0.68) return `![${text}](https://x.com/a.png)`;
+  if (r < 0.72) return `$${text.replace(/\s/g, '')}$`;
+  if (r < 0.80) return `**\`${text}\`**`;
+  if (r < 0.86) return `==[${text}](https://x.com/a)==`;
   return text;
 }
 
@@ -111,18 +133,55 @@ function genTable(rng: Rand): string {
   return [row(), sep, ...body].join('\n');
 }
 
-/** 结构块生成器 */
-function genBlock(rng: Rand): string {
+/**
+ * 含**转义竖线**的表格（G5）：单元格里出现 `\|` 或 `` `x\|y` ``。
+ * 这是 #3 / §2 那条「单元格内裸竖线会切断该行」的**合法对照形态**——裸竖线属已知
+ * 读取侧缺口（由 `safety-net.spec.ts` 单独锁定），这里只压**转义形态必须往返保住**。
+ */
+function genTableWithPipe(rng: Rand): string {
+  const cols = randInt(rng, 2, 3);
+  const cell = () => (rng() < 0.5 ? '`x\\|y`' : '甲\\|乙');
+  const row = () => `| ${Array.from({ length: cols }, () => (rng() < 0.45 ? cell() : randomText(rng))).join(' | ')} |`;
+  const sep = `| ${Array.from({ length: cols }, () => '---').join(' | ')} |`;
+  const body = Array.from({ length: randInt(rng, 1, 2) }, row);
+  return [row(), sep, ...body].join('\n');
+}
+
+/**
+ * 脚注（定义 + 引用）（G5）：`[^n]: …` 的多段形态曾是 #6 的病灶。
+ *
+ * ⚠️ 标签必须**逐块唯一**（用块序号当后缀）。原因：solo 对**重复标签**的多个定义
+ * 会静默丢掉较早那个的正文（见 `safety-net.spec.ts` 的登记锁）。生成器若随机撞出
+ * 重复标签，fuzz 会红在一个已知缺口上，把「新问题」的信号淹掉。
+ */
+function genFootnote(rng: Rand, seq: number): string {
+  const n = randInt(rng, 1, 2);
+  const labels = Array.from({ length: n }, (_, i) => `f${seq}${i}`);
+  const body = labels.map((lb, i) => `文字${i}[^${lb}]`).join(' ');
+  const defs = labels.map((lb) => `[^${lb}]: ${randomText(rng)}`).join('\n\n');
+  return `${body}\n\n${defs}`;
+}
+
+/** 块级数学（G5）：`$$…$$` 独占块，旧版在容器内会逐轮加深缩进（#5） */
+function genMathBlock(rng: Rand): string {
+  return `$$\nE = mc^${randInt(rng, 1, 9)}\n$$`;
+}
+
+/** 结构块生成器（`seq` = 块序号，供脚注标签去重） */
+function genBlock(rng: Rand, seq: number): string {
   const r = rng();
-  if (r < 0.22) return genParagraph(rng);
-  if (r < 0.32) return genHeading(rng);
-  if (r < 0.44) return genBulletList(rng);
-  if (r < 0.53) return genOrderedList(rng);
-  if (r < 0.61) return genTaskList(rng);
-  if (r < 0.69) return genNestedList(rng);
-  if (r < 0.77) return genFence(rng);
-  if (r < 0.85) return genBlockquote(rng);
-  if (r < 0.92) return genTable(rng);
+  if (r < 0.18) return genParagraph(rng);
+  if (r < 0.26) return genHeading(rng);
+  if (r < 0.36) return genBulletList(rng);
+  if (r < 0.43) return genOrderedList(rng);
+  if (r < 0.49) return genTaskList(rng);
+  if (r < 0.56) return genNestedList(rng);
+  if (r < 0.63) return genFence(rng);
+  if (r < 0.70) return genBlockquote(rng);
+  if (r < 0.78) return genTable(rng);
+  if (r < 0.84) return genTableWithPipe(rng);
+  if (r < 0.90) return genFootnote(rng, seq);
+  if (r < 0.95) return genMathBlock(rng);
   return '---';
 }
 
@@ -136,7 +195,7 @@ function genBlock(rng: Rand): string {
  */
 function generateFuzzMarkdown(rng: Rand): string {
   const blockCount = randInt(rng, 1, 5);
-  return Array.from({ length: blockCount }, () => genBlock(rng)).join('\n\n');
+  return Array.from({ length: blockCount }, (_, i) => genBlock(rng, i)).join('\n\n');
 }
 
 describe('Fuzz 保真', () => {

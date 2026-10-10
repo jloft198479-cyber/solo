@@ -17,6 +17,7 @@ import spec from 'commonmark-spec';
 import { createTestSchema } from './test-utils';
 import { parseMarkdown } from '../parser';
 import { serializeMarkdown } from '../serializer';
+import { SKIP } from './commonmark-skips';
 
 const schema = createTestSchema();
 
@@ -25,70 +26,9 @@ function roundTrip(md: string): string {
   return serializeMarkdown(doc);
 }
 
-// ── 已知限制 / 设计约束（skip，34 条） ────────────────────────
-// 分组说明：
-//   entity — parser 解码 HTML 实体后 serializer 不再重编码
-//   hr     — 分隔线 ***/___→--- 归一化
-//   heading— setext→ATX 转换
-//   fence  — 缩进代码→围栏
-//   emphasis— 嵌套强调同类型（ProseMirror 平铺 marks 限制）
-//   link   — label 内 inline 格式丢失 / ref→inline 中 * 转义
-//   list*  — 列表标记归一化 / 深层嵌套 / 多 block 列表项 loose 化
-const SKIP: Record<number, string> = {
-  // Entity and numeric character references
-  14: 'entity: &ouml;→ö，serializer 不重编码',
-  40: 'entity: &#9;→tab→缩进代码围栏化',
-
-  // Thematic breaks
-  43: 'hr: ***/___→--- 归一化',
-  47: 'hr: 空格前缀分隔线归一化',
-  61: 'hr: 列表项内分隔线归一化',
-
-  // Setext headings
-    81: 'heading: setext→ATX，跨行 emphasis 丢失',
-    82: 'heading: setext→ATX，跨行 emphasis 丢失',
-    95: 'heading: setext→ATX，双行段落结构变化',
-
-  // Link reference definitions
-  207: 'link ref: 内联格式在 ref→inline 转换中丢失',
-
-  // List items — indented code multi-blocks 转 loose
-  273: 'list: 缩进代码 fenced + 多 block loose 化',
-  274: 'list: 缩进代码 fenced + 多 block loose 化',
-  278: 'list: 代码块在列表项内 loose 化',
-
-  // List items — blockquote continuation
-  292: 'list: lazy continuation > 修复不足',
-  293: 'list: lazy continuation > 修复不足',
-
-  // List items — marker normalization / nesting
-  296: 'list: )→. + 子列表缩进损失',
-  299: 'list: 深层嵌套结构 unstable',
-  301: 'list: +→- 标记归一化',
-  302: 'list: )→. + 空行差异',
-
-  // Lists — loose 副作用 / continuation
-  309: 'list: 多 block 列表项→loose 副作用',
-  316: 'list: 多 block 列表项→loose 副作用',
-  318: 'list: 围栏代码在列表项内',
-  319: 'list: 多 block 列表项→loose 副作用',
-  320: 'list: blockquote 在列表项内',
-  321: 'list: blockquote+code 在列表项内',
-  324: 'list: 围栏代码在列表项内',
-
-  // Emphasis and strong emphasis（ProseMirror 平铺 mark 模型限制）
-  418: 'emphasis: 嵌套 * 同类型 marks 无法区分深度',
-  432: 'emphasis: 同类型 marks 嵌套无法序列化',
-
-  // Links — various
-    484: 'link: 内联格式在 link label 中丢失',
-    487: 'link: 内联格式在 link label 中丢失',
-    516: 'link: label 内 emphasis + code 丢失',
-  530: 'link: ref 定义中 inline 格式丢失',
-  554: 'link: ref→inline 转换中 * 转义',
-  558: 'link: ref→inline 转换中 * 转义',
-  559: 'link: ref→inline 转换中 * 转义',
-};
+// ── 已知限制 / 设计约束（skip） ────────────────────────────────
+// 跳过表本体在 `./commonmark-skips.ts`（与 `safety-net.spec.ts` 共用同一份定义，
+// 避免「两处清单漂移」）。2026-10-10 批次 4 · G6 已清理 22 条陈旧条目（34 → 12）。
 
 /** 将 spec 用例按 section 分组 */
 const groups: Record<string, typeof spec.tests> = {};

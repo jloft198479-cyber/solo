@@ -48,6 +48,29 @@ export function roundTrip(md: string): string {
   return serializeMarkdown(doc);
 }
 
+/**
+ * **行为级**签名：把 markdown 摊平成一串 `文本|mark集合`（mark 名排序）。
+ *
+ * 为什么需要它（治 B7）：`mark-delimiter-coverage.spec.ts` 从源码正则抠 `case 'xxx'` 名，
+ * 只能证明「序列化器里有个分支」，**证明不了「写出去还能重开」**——外层 mark 与内层 mark
+ * 同起点且外层更长时定界符交叉（§2 #1）在它眼下全绿。本签名走完整
+ * `parse → serialize → parse`，直接比两个 PM doc 的行为。
+ *
+ * 用**序列**而非多重集：顺序变了（`ab`→`ba`）也是保真事故，不该放过。
+ */
+export function behaviorSignature(md: string): string[] {
+  const schema = createTestSchema();
+  const doc = parseMarkdown(schema, md);
+  const out: string[] = [];
+  doc.descendants((node) => {
+    if (!node.isText) return true;
+    const marks = node.marks.map((m) => m.type.name).sort().join('+') || '-';
+    out.push(`${node.text}|${marks}`);
+    return true;
+  });
+  return out;
+}
+
 export function roundTripClipboard(md: string): string {
   const schema = createTestSchema();
   const doc = parseMarkdown(schema, md);
@@ -109,6 +132,53 @@ function charBag(s: string): string {
   return [...s].sort().join('');
 }
 
+/**
+ * 「内容字符」多重集 —— 用于**正向包含检查**（治 B1）。
+ *
+ * 为什么不能复用上面那套「参照系解析后的可见文字」：
+ * `visibleText()` 是拿 markdown-it **解析**原文得出的，一旦某个形态让 markdown-it
+ * **两侧都丢同一份**（典型：表格单元格里的裸竖线 `` | `a|b` | `` —— 竖线把该行切断，
+ * 原文与输出都被切），① 的差值就恒为 0，判据**报绿**（台账 §一 #29 的 `WM_MOVING`
+ * 整段消失就是这么漏的）。
+ *
+ * 本函数绕开任何解析器，直接从**原始字符串**取字符，并做三步归一消除「非内容差异」：
+ *  1. 删掉 HTML 实体引用（`&ouml;` 与 `ö` 不该被算成不同内容——实体解码是合法归一）；
+ *  2. 删掉**列表标记**（`- ` / `1. ` / `1) ` 与任务勾选框 `[x]`）——序号是**语法**：
+ *     相邻列表被 markdown-it 合并后会整体重编号（`1,2` + `1,2` → `1,2,3,4`），
+ *     把序号当内容会天天误报（实测 fuzz 4 例全是这个）；
+ *  3. 只保留 Unicode 的**字母与数字**（`\p{L}` / `\p{N}`）。
+ *     ——标点、空白、markdown 语法符、ZWNJ 全被剔除，故 `***`→`---`、`\|` 转义、
+ *     表格补空格这类**格式规整**不会误报；而「整段字被吞」必然表现为字母/数字丢失。
+ */
+function contentBag(md: string): string {
+  const stripped = md
+    .replace(/&[a-zA-Z0-9#x]+;/g, ' ')
+    .replace(/^[ \t>]*(?:[-*+]|\d{1,9}[.)])[ \t]+/gm, '')
+    .replace(/\[[ xX]\]/g, ' ');
+  return [...stripped.replace(/[^\p{L}\p{N}]/gu, '')].sort().join('');
+}
+
+/** 逐个 Unicode 字符统计（用于子多重集判定） */
+function countByChar(s: string): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const ch of s) counts.set(ch, (counts.get(ch) ?? 0) + 1);
+  return counts;
+}
+
+/**
+ * 正向包含：`needle` 的字符多重集是否被 `haystack` 包含（子多重集）。
+ * @returns 缺失的 `[字符, 缺几个]` 列表（空 = 全部包含）
+ */
+export function missingContentChars(needle: string, haystack: string): Array<[string, number]> {
+  const have = countByChar(haystack);
+  const missing: Array<[string, number]> = [];
+  for (const [ch, need] of countByChar(needle)) {
+    const got = have.get(ch) ?? 0;
+    if (got < need) missing.push([ch, need - got]);
+  }
+  return missing.sort((a, b) => b[1] - a[1]);
+}
+
 /** 取第一段「在 got 中找不到」的原文片段，供报错定位 */
 function firstMissingFragment(ref: string, got: string): string {
   const WIN = 6;
@@ -125,6 +195,9 @@ function firstMissingFragment(ref: string, got: string): string {
  * 判据用**独立参照系**（markdown-it）比对两件事：
  *  ① 可见文字的**多重集** —— 抓内容增减（列表段被吞、文字消失）
  *  ② 块级结构直方图 —— 抓结构塌陷
+ *  ③ **正向包含**（B1 补丁）—— 原文的「内容字符」必须全部出现在输出里。
+ *     ①② 都建立在「两侧都过 markdown-it」之上，参照系自身丢的形态会**对称抵消**；
+ *     ③ 绕开解析器直接从原始字符串取字母/数字，专抓那类「两边同丢」的隐形丢失。
  *
  * 为什么这样切：
  *  - 不用字节比对：它把「格式规整」（表格对齐、mark 顺序归一、尾随空格）与「真丢内容」
@@ -144,6 +217,17 @@ export function reopenDrift(md: string, out: string): string[] {
       `内容增减：原文 ${refText.length} 字 → 输出 ${gotText.length} 字` +
         (missing ? `；输出中缺失「${missing}」` : ''),
     );
+  }
+
+  // ③ 正向包含（治 B1）：参照系两边同丢时 ① 的差值恒为 0，必须独立补一条
+  const missingChars = missingContentChars(contentBag(md), contentBag(out));
+  if (missingChars.length) {
+    const total = missingChars.reduce((sum, [, n]) => sum + n, 0);
+    const sample = missingChars
+      .slice(0, 6)
+      .map(([ch, n]) => `${ch}×${n}`)
+      .join(' ');
+    drift.push(`内容丢失（正向包含）：原文有 ${total} 个内容字符未出现在输出中（${sample}）`);
   }
 
   const refStruct = blockHistogram(md);
