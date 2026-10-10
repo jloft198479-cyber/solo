@@ -763,6 +763,39 @@ describe('Round-trip: parse → serialize', () => {
     });
   });
 
+  /**
+   * Phase H: 空 YAML 头 / 围栏 info 大小写（2026-10-10 保真链路复核 · 批次 3）
+   *
+   * 两条都是「打开→保存就改文件」家族的**真损失/真改写**：
+   *   F10 空 YAML 头 —— 前置处理已把两个 `---` 从正文切走，却因 raw 为空没建节点 ⇒ 整块消失
+   *   F11 围栏语言名 —— info 串被无条件 toLowerCase ⇒ `JavaScript` 首次保存被压成 `javascript`
+   */
+  describe('Phase H: 空 YAML 头 / 围栏 info 大小写（批次 3）', () => {
+    const stable = (md: string): string => {
+      const first = roundTrip(md);
+      expect(roundTrip(first), `两轮不收敛：${JSON.stringify(md)}`).toBe(first);
+      return first;
+    };
+
+    it('空 YAML 头（两个 --- 之间为空）不丢分隔符', () => {
+      expect(stable('---\n\n---\n正文\n')).toBe('---\n\n---\n\n正文\n');
+    });
+
+    it('正常 YAML 头照常往返（回归锁）', () => {
+      expect(stable('---\ntitle: x\n---\n正文\n')).toBe('---\ntitle: x\n---\n\n正文\n');
+    });
+
+    it('围栏语言名大小写原样保留（不再压小写）', () => {
+      expect(stable('```JavaScript\nx\n```\n')).toBe('```JavaScript\nx\n```\n');
+      expect(stable('```JS\nx\n```\n')).toBe('```JS\nx\n```\n');
+    });
+
+    it('math / mermaid 围栏仍被识别（大小写不敏感回归锁）', () => {
+      expect(roundTrip('```Math\nE\n```\n')).toBe('$$\nE\n$$\n');
+      expect(roundTrip('```MERMAID\nA-->B\n```\n')).toBe('```mermaid\nA-->B\n```\n');
+    });
+  });
+
   describe('edge cases', () => {
     it('empty document', () => {
       const result = roundTrip('');
