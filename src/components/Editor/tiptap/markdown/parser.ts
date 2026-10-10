@@ -60,7 +60,7 @@ function protectCodeRegions(content: string): { text: string; restore: (value: s
  * **反引号**（属 `\p{S}`），而 NUL 既不是 `\p{P}\p{S}`、也不是空白 ⇒ 会被下面两条
  * flanking 规则当成「普通字」，于是在**闭合 `**` 之后**错插 ZWNJ，把
  * `**加粗 \`代码\`**——后文` 这类「强调里包行内代码」的加粗整段吃掉
- * （台账 §一 #33）。把 `\u0000` 与 `\p{P}\p{S}` 同等对待，占位前后的行为才与原字符一致。
+ * （台账 §一 #35）。把 `\u0000` 与 `\p{P}\p{S}` 同等对待，占位前后的行为才与原字符一致。
  */
 // eslint-disable-next-line no-control-regex -- \u0000 是故意的占位哨兵，与 protectCodeRegions 成对
 const ASCII_SYNTAX_PUNCT = /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E\u0000]/;

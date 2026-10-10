@@ -2,6 +2,7 @@ import type { Schema } from '@tiptap/pm/model';
 import type { MarkdownParseState, TokenHandler } from '../parser';
 import type { MarkdownSerializerState, NodeSerializer } from '../serializer';
 import type { MarkdownSyntaxPlugin } from './index';
+import { stripZwnj } from '../../zwnj';
 
 function parseWikilinkText(state: MarkdownParseState, content: string) {
   const regex = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g;
@@ -42,8 +43,11 @@ export function wikilinkTokenHandlers(schema: Schema): Record<string, TokenHandl
 
 export const wikilinkNodeSerializers: Record<string, NodeSerializer> = {
   wikilink(state: MarkdownSerializerState, node) {
-    const target = node.attrs.target as string;
-    const alias = node.attrs.alias as string;
+    // stripZwnj：target / alias 走属性通道，**不经过** escapeInline。
+    // ⚠️ 2026-10-10 实测这是**当下就触发**的落点（不是潜在）：`[[a，**b]]` 会建
+    // wikilink 且 target="a，\u200C**b"，落盘带 ZWNJ（第三方 F-1 补充 + 我方直接构造实测）
+    const target = stripZwnj(node.attrs.target as string);
+    const alias = stripZwnj(node.attrs.alias as string);
     if (alias) {
       state.write(`[[${target}|${alias}]]`);
     } else {

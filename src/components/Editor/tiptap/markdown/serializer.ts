@@ -386,7 +386,9 @@ export class MarkdownSerializerState {
       case 'link': {
         if (_opening) return '[';
         const href = escapeLinkDestination(mark.attrs.href as string);
-        return `](${href}${mark.attrs.title ? ` "${escapeLinkTitle(mark.attrs.title as string)}"` : ''})`;
+        // stripZwnj：link 的 title 同样走属性通道（不经过 escapeInline）
+        const title = mark.attrs.title ? stripZwnj(mark.attrs.title as string) : '';
+        return `](${href}${title ? ` "${escapeLinkTitle(title)}"` : ''})`;
       }
       // ⚠️ default 分支是**数据损失出口**，不是「未知类型兜底」：
       // mark 无 case ⇒ 开闭都不写 ⇒ 文本在、格式静默消失（用户看不出已丢）。
@@ -664,9 +666,11 @@ const nodeSerializers: Record<string, NodeSerializer> = {
   },
 
   image(state, node) {
-    const alt = node.attrs.alt || '';
+    // stripZwnj：alt / title 是**属性通道**——解析期插的 ZWNJ 会落进 attrs，
+    // 这里**不经过** escapeInline，不剥就写进用户文件（台账 §二 #32 / 敏感区 #23④）
+    const alt = stripZwnj(node.attrs.alt || '');
+    const title = node.attrs.title ? stripZwnj(node.attrs.title as string) : undefined;
     const src = escapeLinkDestination(node.attrs.src || '');
-    const title = node.attrs.title;
     const width = node.attrs.width;
     const height = node.attrs.height;
     // 有尺寸时输出 `![alt|WxH](src)`，无尺寸时输出 `![alt](src)`

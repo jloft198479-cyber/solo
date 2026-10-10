@@ -18,6 +18,7 @@ import type { NodeSerializer } from '../serializer';
 import type { MarkdownSerializerState } from '../serializer';
 import type { MarkdownSyntaxPlugin, TokenInterceptor } from './index';
 import { normalizeCalloutType } from '../../extensions/callout';
+import { stripZwnj } from '../../zwnj';
 
 /**
  * 检测 inline token 是否以 [!TYPE] 开头（接受任意类型，兼容旧文档）
@@ -190,7 +191,11 @@ const calloutNodeSerializers: Record<string, NodeSerializer> = {
     const type = normalizeCalloutType(node.attrs.calloutType as string);
     // B10：折叠标记与标题回写（`> [!NOTE]+ 标题`），roundtrip 保 Obsidian 语义
     const fold = node.attrs.fold === '+' || node.attrs.fold === '-' ? node.attrs.fold : '';
-    const title = typeof node.attrs.title === 'string' ? node.attrs.title.trim() : '';
+    // stripZwnj：title 走属性通道（不经过 escapeInline）。⚠️ 2026-10-10 实测这是
+    // **当下就触发**的落点（不是潜在）：`> [!note] 甲，**乙`（未闭合 ** + 标点）的
+    // title 会带 ZWNJ 并落盘（台账 §二 #32 / 敏感区 #23④）；此处剥一次即覆盖 :200 写出点
+    const title =
+      typeof node.attrs.title === 'string' ? stripZwnj(node.attrs.title.trim()) : '';
     // C2：与 blockquote 序列化器统一（serializer.ts blockquote）——先渲染到
     // 临时 state 再逐行加 > 前缀。之前只在 renderNode 前写一次 >，代码块/数学块
     // 等多行内容的后续行没有前缀 → 产出非法 Markdown，重解析会吞掉后续内容。

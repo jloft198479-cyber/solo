@@ -4,6 +4,7 @@ import type { MarkdownParseState, TokenHandler } from '../parser';
 import type { NodeSerializer } from '../serializer';
 import type { MarkdownSerializerState } from '../serializer';
 import type { MarkdownSyntaxPlugin } from './index';
+import { stripZwnj } from '../../zwnj';
 
 export function footnoteTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   const handlers: Record<string, TokenHandler> = {};
@@ -37,7 +38,9 @@ export function footnoteTokenHandlers(schema: Schema): Record<string, TokenHandl
 
 export const footnoteNodeSerializers: Record<string, NodeSerializer> = {
   footnoteRef(state: MarkdownSerializerState, node) {
-    state.write(`[^${node.attrs.label || ''}]`);
+    // stripZwnj：label 是**引用与定义的配对键**，还会进 HTML 的 id / href
+    // ⇒ 属性通道必须剥（台账 §二 #32 / 敏感区 #23④）
+    state.write(`[^${stripZwnj(node.attrs.label || '')}]`);
   },
 
   footnoteSection(state: MarkdownSerializerState, node) {
@@ -49,7 +52,9 @@ export const footnoteNodeSerializers: Record<string, NodeSerializer> = {
   },
 
   footnoteDef(state: MarkdownSerializerState, node) {
-    const label = node.attrs.label as string;
+    // stripZwnj：label 走属性通道，Def 侧有 3 个写出点（下方 3 个分支各一），
+    // 在取值处剥一次即全覆盖（台账 §二 #32 / 敏感区 #23④）
+    const label = stripZwnj(node.attrs.label as string);
     const firstChild = node.firstChild;
     if (firstChild && firstChild.isTextblock && node.childCount <= 1) {
       state.write(`[^${label}]: `);

@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { Schema } from '@tiptap/pm/model';
+import type { Node as PMNode } from '@tiptap/pm/model';
 import { parseMarkdown } from '../parser';
 import { serializeMarkdown, serializeMarkdownForClipboard } from '../serializer';
 import { createTestSchema, roundTrip, normalize } from './test-utils';
@@ -197,6 +198,99 @@ describe('Round-trip: parse → serialize', () => {
 
       it('正文的 CJK 边界修正不受影响', () => {
         expect(roundTrip('嘿**「注意**\n')).toBe(normalize('嘿**「注意**\n'));
+      });
+    });
+
+    // ── Phase A4: 属性通道 ZWNJ 不落盘（台账 §二 #32 / 敏感区 #23④）──────────
+    //
+    // 属性通道 = alt / title / label / target / alias / callout title：解析期插入的
+    // ZWNJ 会固化进 attrs，序列化时**不经过** escapeInline（那只作用于文本节点）
+    // ⇒ 必须在各写出点显式剥。
+    // 上游「解析期能否把 ZWNJ 送进 attrs」受其它 bug 拦截（互链含闭合 ** 不建节点、
+    // callout 闭合标题截断），会随修复漂移 ⇒ 属性侧一律**直接构造脏节点**（绕开上游），
+    // 只锁「出口收口」这条不变量；「当下真实落点」另用真实 markdown 全链路各锁一条。
+    describe('Phase A4: 属性通道 ZWNJ 不落盘', () => {
+      const ZW = '\u200C';
+
+      /** 直接构造含脏 attrs 的节点并序列化（绕开解析期拦截 bug） */
+      function serializeWith(schema: Schema, build: (s: Schema) => PMNode[]): string {
+        return serializeMarkdown(schema.topNodeType.create(null, build(schema)));
+      }
+
+      it('image：alt / title 脏节点落盘不含 ZWNJ', () => {
+        const out = serializeWith(createTestSchema(), (s) => [
+          s.nodes.paragraph.create(null, [
+            s.nodes.image.create({ src: 'x.png', alt: `甲${ZW}**乙`, title: `他${ZW}**说` }),
+          ]),
+        ]);
+        expect(out).not.toContain(ZW);
+        expect(out).toBe(normalize('![甲**乙](x.png "他**说")\n'));
+      });
+
+      it('link：title 脏 mark 落盘不含 ZWNJ', () => {
+        const out = serializeWith(createTestSchema(), (s) => [
+          s.nodes.paragraph.create(null, [
+            s.text('文字', [s.marks.link.create({ href: 'u', title: `他${ZW}**说` })]),
+          ]),
+        ]);
+        expect(out).not.toContain(ZW);
+        expect(out).toBe(normalize('[文字](u "他**说")\n'));
+      });
+
+      it('footnote：Ref 与 Def 两侧 label 脏节点落盘均不含 ZWNJ', () => {
+        const out = serializeWith(createTestSchema(), (s) => [
+          s.nodes.paragraph.create(null, [s.nodes.footnoteRef.create({ label: `甲${ZW}**乙` })]),
+          s.nodes.footnoteDef.create({ label: `甲${ZW}**乙` }, [
+            s.nodes.paragraph.create(null, [s.text('定义内容')]),
+          ]),
+        ]);
+        expect(out).not.toContain(ZW);
+        expect(out).toContain('[^甲**乙]');
+        expect(out).toContain('[^甲**乙]: 定义内容');
+      });
+
+      it('footnote：Def 侧多块分支（第二写出点）同样不含 ZWNJ', () => {
+        const out = serializeWith(createTestSchema(), (s) => [
+          s.nodes.footnoteDef.create({ label: `甲${ZW}**乙` }, [
+            s.nodes.paragraph.create(null, [s.text('首段')]),
+            s.nodes.paragraph.create(null, [s.text('续段')]),
+          ]),
+        ]);
+        expect(out).not.toContain(ZW);
+        expect(out).toContain('[^甲**乙]: 首段');
+      });
+
+      it('wikilink：target / alias 脏节点落盘不含 ZWNJ', () => {
+        const out = serializeWith(createTestSchema(), (s) => [
+          s.nodes.paragraph.create(null, [
+            s.nodes.wikilink.create({ target: `a${ZW}**b`, alias: `显${ZW}示` }),
+          ]),
+        ]);
+        expect(out).not.toContain(ZW);
+        expect(out).toBe(normalize('[[a**b|显示]]\n'));
+      });
+
+      it('callout：title 脏节点落盘不含 ZWNJ', () => {
+        const out = serializeWith(createTestSchema(), (s) => [
+          s.nodes.callout.create({ calloutType: 'note', title: `甲${ZW}**乙` }, [
+            s.nodes.paragraph.create(null, [s.text('内容')]),
+          ]),
+        ]);
+        expect(out).not.toContain(ZW);
+        expect(out).toBe(normalize('> [!NOTE] 甲**乙\n> 内容\n'));
+      });
+
+      // 「当下真实落点」全链路锁（2026-10-10 实测，未闭合 ** + 标点即可触发）：
+      it('真实落点：未闭合 ** 互链 target 落盘不含 ZWNJ', () => {
+        for (const md of ['[[a，**b]]\n', '[[a**，b]]\n']) {
+          expect(roundTrip(md)).toBe(normalize(md));
+        }
+      });
+
+      it('真实落点：未闭合 ** + 标点的 callout title 落盘不含 ZWNJ', () => {
+        const out = roundTrip('> [!note] 甲，**乙\n> 内容\n');
+        expect(out).not.toContain(ZW);
+        expect(out).toBe(normalize('> [!NOTE] 甲，**乙\n> 内容\n'));
       });
     });
   });
