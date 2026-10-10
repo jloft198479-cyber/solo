@@ -50,6 +50,19 @@ function protectCodeRegions(content: string): { text: string; restore: (value: s
   };
 }
 
+/**
+ * 「ASCII 语法标点 + 代码区占位符」判定（ZWNJ 预处理的守卫用）。
+ *
+ * 为什么必须含 `\u0000`：行内 / 围栏代码区在 ZWNJ 预处理**之前**就被
+ * `protectCodeRegions` 换成了 `\u0000N\u0000` 占位符。占位前该位置的字符是
+ * **反引号**（属 `\p{S}`），而 NUL 既不是 `\p{P}\p{S}`、也不是空白 ⇒ 会被下面两条
+ * flanking 规则当成「普通字」，于是在**闭合 `**` 之后**错插 ZWNJ，把
+ * `**加粗 \`代码\`**——后文` 这类「强调里包行内代码」的加粗整段吃掉
+ * （台账 §一 #33）。把 `\u0000` 与 `\p{P}\p{S}` 同等对待，占位前后的行为才与原字符一致。
+ */
+// eslint-disable-next-line no-control-regex -- \u0000 是故意的占位哨兵，与 protectCodeRegions 成对
+const ASCII_SYNTAX_PUNCT = /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E\u0000]/;
+
 // ── markdown-it 实例 ───────────────────────────────────────────
 
 // texmath 插件需要一个 KaTeX 引擎用于渲染 HTML，但解析器只调用 md.parse()（仅分词），
@@ -618,15 +631,18 @@ export function parseMarkdown(schema: Schema, content: string): PMNode {
   // 同样需要 flanking 处理，而它们不在 CJK 范围内。
   // 代码区先占位保护：ZWNJ 落进代码内容会随代码原样存盘（序列化只有普通文本走
   // escapeInline 剥离），在外部编辑器 / 版本比对时现形。
+  // ⚠️ 占位符 `\u0000` 必须与 `\p{P}\p{S}` 同等对待（见 ASCII_SYNTAX_PUNCT 注释）：
+  // 漏了它，闭合 `**` 会被误判成「前面是字、可开启」而错插 ZWNJ，吃掉整段加粗。
   const codeRegions = protectCodeRegions(content);
   const zwnjSource = codeRegions.text;
   content = codeRegions.restore(
     zwnjSource
       .replace(
-        /(?<!\*)(?<=[\p{P}\p{S}])(\*+)(?=[^\s\p{P}\p{S}])/gu,
+        // eslint-disable-next-line no-control-regex -- \u0000 = 代码区占位符，须与 \p{P}\p{S} 同等
+        /(?<!\*)(?<=[\p{P}\p{S}\u0000])(\*+)(?=[^\s\p{P}\p{S}\u0000])/gu,
         (_match, delim: string, offset: number) => {
           const prevChar = zwnjSource[offset - 1];
-          if (prevChar && /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/.test(prevChar)) {
+          if (prevChar && ASCII_SYNTAX_PUNCT.test(prevChar)) {
             return delim;
           }
           return '\u200C' + delim;
@@ -634,10 +650,11 @@ export function parseMarkdown(schema: Schema, content: string): PMNode {
       )
       // 开启方向：word**punct → word**\u200Cpunct（如 嘿**「→ left_flanking=false）
       .replace(
-        /(?<!\*)(?<=[^\s\p{P}\p{S}])(\*{1,2})(?=[\p{P}\p{S}])(?!\*)/gu,
+        // eslint-disable-next-line no-control-regex -- \u0000 = 代码区占位符，须与 \p{P}\p{S} 同等
+        /(?<!\*)(?<=[^\s\p{P}\p{S}\u0000])(\*{1,2})(?=[\p{P}\p{S}\u0000])(?!\*)/gu,
         (_match, delim: string, offset: number) => {
           const nextChar = zwnjSource[offset + delim.length];
-          if (nextChar && /[\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E]/.test(nextChar)) {
+          if (nextChar && ASCII_SYNTAX_PUNCT.test(nextChar)) {
             return delim;
           }
           return delim + '\u200C';

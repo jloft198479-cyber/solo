@@ -134,6 +134,34 @@ describe('Round-trip: parse → serialize', () => {
         const md = '**第一段，**\n\n**第二段。**\n';
         expect(roundTrip(md)).toBe(normalize(md));
       });
+
+      // ⭐ 强调里包行内代码 + 闭合符后接标点（台账 §一 #33）
+      // 病灶：ZWNJ 预处理先于解析执行，而代码区此时已被 `protectCodeRegions` 换成
+      // `\u0000N\u0000` 占位符；NUL 既非 `\p{P}\p{S}` 也非空白 ⇒ 闭合 `**` 被误判成
+      // 「前面是字、可开启」，ZWNJ 被插到**闭合符之后**，整段加粗退化成字面 `**`
+      // （渲染上从「加粗」变「星号」，静默）。修法见 `ASCII_SYNTAX_PUNCT` 注释。
+      it('bold 里包 code + 闭合符后接破折号：加粗不丢', () => {
+        const md = '**加粗 `代码`**——后文\n';
+        expect(roundTrip(md)).toBe(normalize(md));
+      });
+      it('bold 里包 code + 闭合符后接中文句号 / 逗号：加粗不丢', () => {
+        for (const tail of ['。后文', '，后文']) {
+          const md = `**加粗 \`代码\`**${tail}\n`;
+          expect(roundTrip(md), tail).toBe(normalize(md));
+        }
+      });
+      it('反向锁：闭合符后接空白时照常加粗（原有能力不退化）', () => {
+        const md = '**加粗 `代码`** 后文\n';
+        expect(roundTrip(md)).toBe(normalize(md));
+      });
+      it('反向锁：闭合符后紧跟字母时仍不加粗（CommonMark 语义，不许多加）', () => {
+        const doc = parseMarkdown(createTestSchema(), '**加粗 `代码`**后文\n');
+        let hasBold = false;
+        doc.descendants((node) => {
+          if (node.marks.some((mark) => mark.type.name === 'bold')) hasBold = true;
+        });
+        expect(hasBold).toBe(false);
+      });
     });
 
     describe('Phase A3: ZWNJ 预处理不进入代码区', () => {
