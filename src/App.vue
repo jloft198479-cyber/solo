@@ -80,6 +80,11 @@ async function handleOpenFile(path: string, silent = false) {
   await documentSession.openDocumentWithPrompt(path, silent);
 }
 
+/** 命令面板「最近文件」入口：含脏态确认，取消时返回 false 让面板保持打开 */
+async function handleOpenRecentFile(path: string) {
+  return documentSession.openDocumentWithPrompt(path);
+}
+
 /**
  * 标题栏重命名：统一延迟模型。
  * 无论文件是否已保存，都只改 displayName 并标脏。
@@ -186,6 +191,8 @@ const windowSession = useAppWindowSession({
   shellIntegration: () => settingsStore.settings.shellIntegration,
   stopAutoSave: documentSession.stopAutoSave,
   flushSettings: () => settingsStore.flushPendingSettings(),
+  // 关窗前把 800ms 防抖窗口内的最后滚动位置强制落盘
+  flushReadingPosition: () => editorRef.value?.flushReadingPosition?.(),
 });
 
 function switchToImageView() {
@@ -485,6 +492,7 @@ onUnmounted(() => {
       :open="paletteOpen"
       :execute-command="(id) => executeCommand(id, 'palette')"
       :custom-shortcuts="settings.customShortcuts"
+      :open-recent-file="handleOpenRecentFile"
       @close="paletteOpen = false"
     />
   </div>

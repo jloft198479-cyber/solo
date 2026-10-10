@@ -12,6 +12,8 @@ export const TAURI_COMMANDS = {
   newEditorWindow: 'new_editor_window',
   openDocument: 'open_document',
   readClipboardHtml: 'read_clipboard_html',
+  readDocumentSession: 'read_document_session',
+  recordDocumentSession: 'record_document_session',
   refreshNativeMenuShortcuts: 'refresh_native_menu_shortcuts',
   renameFile: 'rename_file',
   registerShellNew: 'register_shell_new',

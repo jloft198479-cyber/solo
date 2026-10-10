@@ -36,6 +36,8 @@ interface AppWindowSessionOptions {
   stopAutoSave?: () => void;
   /** 关闭前强制落盘防抖窗口内的设置改动，避免丢最后一次配置修改 */
   flushSettings?: () => Promise<void> | void;
+  /** 关闭前强制落盘防抖窗口内的阅读位置，避免丢最后 800ms 内的滚动位置 */
+  flushReadingPosition?: () => void;
 }
 
 /** 当前打开的确认弹窗的清理函数，供外部（如组件 unmount 时）强制关闭 */
@@ -164,6 +166,13 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
       await options.flushSettings?.();
     } catch {
       // 设置落盘失败不阻断关闭流程
+    }
+
+    // 800ms 防抖窗口内的最后一次阅读位置同理强制落盘（同步 invoke，fire-and-forget）
+    try {
+      options.flushReadingPosition?.();
+    } catch {
+      // 阅读位置落盘失败不阻断关闭流程
     }
 
     if (options.isDirty()) {

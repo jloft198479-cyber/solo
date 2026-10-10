@@ -51,8 +51,8 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 改名后同步入链文档 | ✅ | `document.rs` `sync_wikilinks_on_rename`（`dry_run` 预览 → 用户确认 → 原子改写） | **仅同目录、裸名与 `.md`**；手打的 `[[子/文]]`、`[[x.markdown]]` 不覆盖；缩进/行内代码不保护（§二 一/23 已知限制） |
 | 自动保存 | ⚠️ | [`useDocumentSession.ts`](../src/composables/useDocumentSession.ts) 递归 `setTimeout`；[`settings.ts`](../src/stores/settings.ts) `autoSave` / `autoSaveInterval` | **默认关闭**（`autoSave: false`），默认间隔 **30 秒**，下限 5 秒。⚠️ wiki 写「2 秒自动保存」是错的，见附录 B-1 |
 | 崩溃 / 意外退出恢复 | ⚠️ | 只靠 `.tmp` 残留兜底：[`document.rs`](../src-tauri/src/commands/document.rs) `cleanup_stale_tmp_files`（>1h 才清） | **无自动备份/会话恢复**（§二 一/19 是残留清理，不是恢复） |
-| 最近文件快开 | ⛔ | 无 | §二 #4，可选未做 |
-| 阅读位置记忆 | ⛔ | 无 | 无任何 scroll 恢复代码 |
+| 最近文件快开 | ✅ | [`session.rs`](../src-tauri/src/commands/session.rs)（落盘 `app_local_data_dir/session/`，上限 10 去重置顶）+ [`CommandPalette.vue`](../src/components/CommandPalette.vue)「最近文件」分组 | `Ctrl+K` 面板首组，点击经脏态确认打开；无历史时该组自动隐藏 |
+| 阅读位置记忆 | ✅ | [`session.rs`](../src-tauri/src/commands/session.rs)（按比例记 scrollTop，上限 50 篇）+ [`MarkdownEditor.vue`](../src/components/Editor/MarkdownEditor.vue)（滚动 800ms 防抖落盘、重开/切回按比例恢复、关窗强制 flush） | 大文档开 `content-visibility` 时恢复位置有偏差（占位估值，首版接受） |
 | 拖 `.md` 进窗口打开 | ✅ | [`events.ts`](../src/services/tauri/events.ts) `Set<DragDropHandler>` 广播 | KNOWN-ISSUES 一/2 已修（原单值变量被覆盖） |
 | Windows 文件关联（右键新建） | ✅ | [`desktop.rs`](../src-tauri/src/commands/desktop.rs) `register_shell_new` | 需在设置「保存策略」里手动开启 |
 | 扩展名白名单（读 md/markdown/txt，写多 json） | ✅ | `document.rs` `validate_document_extension` + `lib.rs` `supported_open_path` | **新增可编辑类型须两处同改**（敏感区 §11.4）。`json` 是给主题模板导出复用的 |
@@ -80,7 +80,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 大纲面板 | ✅ | [`useOutline.ts`](../src/composables/useOutline.ts) + [`OutlinePanel.vue`](../src/components/Editor/OutlinePanel.vue) | `Mod+/` 开合（`view.toggleOutline`，**可在设置自定义**） |
 | 列表区幕布式大纲（折叠） | ✅ | [`list-fold.ts`](../src/components/Editor/tiptap/extensions/list-fold.ts) + `editor.css` | 悬停列表行左侧箭头折叠/展开该项下全部子层级；折叠态按文档路径在内存里跨文档记忆（上限 50 篇）。**入口只有鼠标悬停箭头**：无快捷键、不进命令面板、无「全部折叠/展开」（已知缺口） |
 | 标题区幕布式大纲（折叠） | ✅ | [`heading-fold.ts`](../src/components/Editor/tiptap/extensions/heading-fold.ts) + `editor.css` | 悬停标题行左侧箭头折叠/展开该标题到下一个同级或更高级标题间的顶层块（对标 Obsidian「Fold heading」；只支持 doc 顶层）；箭头与 H1–H6 结构标记同槽互斥；折叠态按文档路径在内存里跨文档记忆（上限 50 篇）；大文档整体降级。**入口只有鼠标悬停箭头**（同列表折叠的已知缺口）；纯视图层装饰，零保真风险 |
-| 命令面板 | ✅ | [`CommandPalette.vue`](../src/components/CommandPalette.vue) | `Mod+K`（`view.commandPalette`，`fixedShortcut` **不可自定义**）；**无「最近文件」分组**（§二 #4） |
+| 命令面板 | ✅ | [`CommandPalette.vue`](../src/components/CommandPalette.vue) | `Mod+K`（`view.commandPalette`，`fixedShortcut` **不可自定义**）；首组「最近文件」（§二 #4 已实现） |
 | 上下文菜单 | ✅ | [`ContextMenu.vue`](../src/components/Editor/views/ContextMenu.vue) | — |
 | 特殊块整体删除（`Mod+Backspace`） | ✅ | [`code-block.ts`](../src/components/Editor/tiptap/extensions/code-block.ts) / `math-block.ts` / `mermaid-block.ts` | 隔离区，标准退格不删块 |
 
@@ -249,8 +249,8 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 
 | # | 缺口 | 出处 / 依据 |
 | --- | --- | --- |
-| 1 | 最近文件快开（依赖 Rust 侧最近文件记录） | §二 #4 |
-| 2 | 阅读位置记忆（重开回到上次位置） | 无（`scrollPosition` 零命中；`restoreScroll` 命中仅 IME 重锚的滚动还原，与本项无关） |
+| 1 | ~~最近文件快开（依赖 Rust 侧最近文件记录）~~ **已实现（2026-10-10）** | §二 #4；见上表「最近文件快开」 |
+| 2 | ~~阅读位置记忆（重开回到上次位置）~~ **已实现（2026-10-10）** | 见上表「阅读位置记忆」 |
 | 3 | 崩溃恢复 / 会话自动备份 | 无（仅 `.tmp` 残留兜底，且**不呈现给用户**——崩溃瞬间的未保存内容就在 `.tmp` 里却不提示恢复） |
 | 4 | ~~标题折叠（Markdown **标题**层级折叠）~~ **已实现（2026-10-10）** | 见上表「标题区幕布式大纲（折叠）」 |
 | 5 | 跳转历史（前进/后退） | 无（`goBack` / `historyStack` 零命中） |

@@ -371,7 +371,9 @@ pub fn run() {
             set_window_background_color,
             register_shell_new,
             unregister_shell_new,
-            detect_proxy_for_update
+            detect_proxy_for_update,
+            record_document_session,
+            read_document_session
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

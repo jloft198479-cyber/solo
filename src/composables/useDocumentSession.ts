@@ -8,6 +8,7 @@ import {
   type DocumentOpenResult,
 } from '../services/tauri/document';
 import { normalizeTauriError } from '../services/tauri/client';
+import { recordDocumentSession } from '../services/tauri/session';
 import { confirm, message, open, save } from '../services/tauri/dialog';
 import { useFileStore } from '../stores/file';
 import { DEFAULT_DISPLAY_NAME } from '../stores/file';
@@ -124,6 +125,11 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
   function applyLoadedDocument(document: DocumentOpenResult) {
     fileStore.setFile(document.content, document.path, document.lastModifiedMs);
+    // 记入「最近文件」（scroll_ratio=null 只更新 recent_files，不动阅读位置——
+    // 位置由编辑器滚动防抖单独记录）。失败只留痕，不影响打开流程。
+    void recordDocumentSession(document.path, null).catch((error: unknown) => {
+      console.warn('[session] 记录最近文件失败:', normalizeTauriError(error).message);
+    });
   }
 
   /** 闸口前强制用编辑器实时内容评估脏态（坑2）：绕开 500ms 序列化防抖，

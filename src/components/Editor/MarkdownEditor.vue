@@ -47,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, shallowRef, onBeforeUnmount, watch } from 'vue';
+import { onMounted, ref, shallowRef, onBeforeUnmount, watch, nextTick } from 'vue';
 import { Editor as TiptapEditor, EditorContent } from '@tiptap/vue-3';
 
 import { useFileStore } from '../../stores/file';
@@ -86,6 +86,7 @@ import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch, pulseJumpTarget } from './tiptap/useEditorSearch';
 import { getBlockElFromPos, scrollElementIntoView } from './tiptap/editor-dom';
 import { resolveImageDisplay, getFileMtime, saveDocument } from '../../services/tauri/document';
+import { recordDocumentSession, readDocumentSession } from '../../services/tauri/session';
 import { normalizeTauriError } from '../../services/tauri/client';
 import { confirm, message } from '../../services/tauri/dialog';
 import { toAssetUrl } from '../../services/tauri/asset';
@@ -385,6 +386,90 @@ function createEditor(content: string) {
   window.dispatchEvent(new Event('solo:editor-ready'));
 }
 
+// ── 阅读位置记忆 + 最近文件 ──────────────────────────────────
+// 折叠态记忆（list-fold / heading-fold）只活在进程内；阅读位置要跨进程恢复
+// （关掉重开回到上次位置），落盘走 record_document_session 命令（Rust 侧
+// session/document-session.json）。记录的是「滚动比例」而非像素——窗口尺寸
+// 变化后比例仍成立。失败全部静默：这份数据不值得打断用户。
+
+/** 滚动防抖：停止滚动 800ms 后落盘一次（切文档/关窗另有 flush 兜底） */
+const POSITION_SAVE_DEBOUNCE_MS = 800;
+let positionSaveTimer: ReturnType<typeof setTimeout> | null = null;
+/** 已恢复过阅读位置的文档路径（防 immediate watch 与切换 watch 重复恢复） */
+let restoredPath: string | null = null;
+
+function currentScrollRatio(): number | null {
+  const el = editorWrapRef.value;
+  if (!el) return null;
+  const max = el.scrollHeight - el.clientHeight;
+  if (max <= 0) return 0;
+  return Math.min(1, Math.max(0, el.scrollTop / max));
+}
+
+function saveReadingPositionNow(path: string | null) {
+  if (!path) return;
+  const ratio = currentScrollRatio();
+  if (ratio == null) return;
+  void recordDocumentSession(path, ratio).catch((error) => {
+    console.warn('[reading-position] save failed:', error);
+  });
+}
+
+/** 关窗 / 卸载前的强制落盘：取消待触发的防抖、立即写入当前比例 */
+function flushReadingPosition() {
+  if (positionSaveTimer) {
+    clearTimeout(positionSaveTimer);
+    positionSaveTimer = null;
+  }
+  saveReadingPositionNow(fileStore.currentFile.path);
+}
+
+function scheduleReadingPositionSave() {
+  if (positionSaveTimer) clearTimeout(positionSaveTimer);
+  positionSaveTimer = setTimeout(() => {
+    positionSaveTimer = null;
+    saveReadingPositionNow(fileStore.currentFile.path);
+  }, POSITION_SAVE_DEBOUNCE_MS);
+}
+
+/** 编辑器懒建（rAF 延迟创建）场景下等待创建完成信号；已建则立即返回 */
+function whenEditorReady(): Promise<void> {
+  if (editor.value && !editor.value.isDestroyed) return Promise.resolve();
+  return new Promise((resolve) => {
+    const handler = () => {
+      window.removeEventListener('solo:editor-ready', handler);
+      resolve();
+    };
+    window.addEventListener('solo:editor-ready', handler);
+  });
+}
+
+/** 恢复文档的阅读位置：等编辑器与布局就绪（ready 信号 + nextTick + 双 rAF）
+ *  后按比例回设 scrollTop。必须晚于切换 watch 里的 focus('start')（它会滚到顶），
+ *  异步恢复天然满足。大文档开 content-visibility 时 scrollHeight 是占位估值，
+ *  恢复位置有偏差——首版接受。 */
+async function restoreReadingPosition(path: string) {
+  if (path === restoredPath) return;
+  restoredPath = path;
+  try {
+    const session = await readDocumentSession();
+    const entry = session.readingPositions[path];
+    if (!entry) return;
+    await whenEditorReady();
+    await nextTick();
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+    const el = editorWrapRef.value;
+    if (!el) return;
+    const max = el.scrollHeight - el.clientHeight;
+    if (max <= 0) return;
+    el.scrollTop = entry.ratio * max;
+  } catch (error) {
+    console.warn('[reading-position] restore failed:', error);
+  }
+}
+
 // ── 文件切换：复用 editor 实例替换文档（避免全量重建） ─────────
 watch(
   // watch [path, reloadToken]：reloadToken 仅由 fileStore.setFile（磁盘载入）递增，
@@ -393,8 +478,20 @@ watch(
   // 误标脏，用户一保存就把外部修改覆盖掉（静默数据损坏）。
   // 不直接 watch content：编辑期 syncEditedContent 也写 content，
   // 会在 store 滞后于编辑器时把正在编辑的内容回退成旧基线。
+  // immediate：启动恢复场景（文档在挂载前已进 store）也要恢复阅读位置。
   () => [fileStore.currentFile.path, fileStore.reloadToken] as const,
-  ([path], [prevPath]) => {
+  // immediate 首次触发无旧值，oldVal 可能是 undefined——安全解构
+  ([path], prev) => {
+    const prevPath = prev?.[0];
+    // 跨文件切换：先把旧文档的阅读位置落盘。此时 DOM 尚未替换（flush:'pre'），
+    // editorWrapRef.scrollTop 还是旧文档的；防抖窗口里挂起的旧保存一并作废。
+    if (prevPath && prevPath !== path) {
+      if (positionSaveTimer) {
+        clearTimeout(positionSaveTimer);
+        positionSaveTimer = null;
+      }
+      saveReadingPositionNow(prevPath);
+    }
     resolvedImageCache.clear();
     // 预取互链 [[ 补全候选：切文档即后台刷新，首次敲 [[ 时直接命中缓存
     void refreshWikilinkCandidates(path);
@@ -434,7 +531,11 @@ watch(
     // preventUpdate 事务不触发 onUpdate → 手动补发字数和大纲
     emitImmediateStats(editor.value);
     editor.value.commands.focus('start');
+    // 跨文件切换（含首次挂载即有文档）：恢复该文档的阅读位置。
+    // 异步执行，天然晚于上面的 focus('start')（滚到顶），不会被它覆盖。
+    if (path && path !== prevPath) void restoreReadingPosition(path);
   },
+  { immediate: true },
 );
 
 // ── BubbleMenu ────────────────────────────────────────────────
@@ -688,6 +789,9 @@ onMounted(async () => {
   editorWrapRef.value?.addEventListener('scroll', repositionBubbleMenu, { passive: true });
   window.addEventListener('resize', repositionBubbleMenu);
 
+  // 阅读位置：滚动停稳后防抖落盘（切换/关窗另有直接保存兜底）
+  editorWrapRef.value?.addEventListener('scroll', scheduleReadingPositionSave, { passive: true });
+
   // IME 候选窗失锚护栏（仅 Windows/WebView2）：窗口缩放后把编辑焦点重锚一次。
   // 详见 docs/IME-ANCHOR-GUARD-2026-10-09.md
   disposeImeAnchor = installImeAnchorGuard({ getView: () => editor.value?.view ?? null });
@@ -727,6 +831,7 @@ onBeforeUnmount(() => {
   if (gateEl) {
     gateEl.removeEventListener('editor:image-dblclick', handleImageDblClick);
     gateEl.removeEventListener('scroll', repositionBubbleMenu);
+    gateEl.removeEventListener('scroll', scheduleReadingPositionSave);
   }
   window.removeEventListener('resize', repositionBubbleMenu);
   disposeImeAnchor?.();
@@ -738,6 +843,9 @@ onBeforeUnmount(() => {
 
   // 7. 清空远程图片内存缓存（重置 LRU 状态）
   releaseRemoteImageCache();
+
+  // 8. 阅读位置最后一次落盘（fire-and-forget：IPC 已发出，窗口销毁不影响 Rust 侧落盘）
+  flushReadingPosition();
 });
 
 // 拼写检查：编辑器创建后 settings 变更时动态更新 DOM 属性
@@ -818,6 +926,8 @@ defineExpose({
   closeSearch,
   /** 拖入文档时的互链接线（App 经 requestWikilinkDrop 调用）；未命中返回 false 回落「打开」 */
   handleDocumentDrop,
+  /** 关窗链路（useAppWindowSession.handleCloseRequest）调用：强制落盘当前阅读位置 */
+  flushReadingPosition,
 });
 </script>
 

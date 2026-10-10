@@ -8,11 +8,15 @@ import {
   type CommandDefinition,
   type CommandGroup,
 } from '../commands/registry';
+import { readDocumentSession } from '../services/tauri/session';
+import { normalizeTauriError } from '../services/tauri/client';
 
 const props = defineProps<{
   open: boolean;
   executeCommand: (commandId: string, source: 'palette') => Promise<boolean> | boolean;
   customShortcuts: Record<string, string>;
+  /** 点击「最近文件」条目时打开该文档（内部含脏态确认）；返回 false = 取消，面板不关 */
+  openRecentFile?: (path: string) => boolean | Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
@@ -44,7 +48,31 @@ const filtered = computed<CommandDefinition[]>(() => {
   );
 });
 
+// ── 最近文件：面板打开时异步读取，排在命令列表最前 ──────────────
+interface RecentFileEntry {
+  path: string;
+  name: string;
+}
+
+const recentFiles = ref<RecentFileEntry[]>([]);
+
+function fileNameOf(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
+
+const visibleRecentFiles = computed<RecentFileEntry[]>(() => {
+  const q = query.value.trim().toLowerCase();
+  if (!q) return recentFiles.value;
+  return recentFiles.value.filter(
+    (f) => f.path.toLowerCase().includes(q) || f.name.toLowerCase().includes(q),
+  );
+});
+
+/** 键盘导航的总条目数 = 最近文件 + 命令（activeIndex 是全局扁平索引） */
+const totalItems = computed(() => visibleRecentFiles.value.length + filtered.value.length);
+
 const grouped = computed<GroupedEntry[]>(() => {
+  const offset = visibleRecentFiles.value.length;
   const result: GroupedEntry[] = [];
   filtered.value.forEach((cmd, index) => {
     let entry = result.find((g) => g.group === cmd.group);
@@ -52,7 +80,7 @@ const grouped = computed<GroupedEntry[]>(() => {
       entry = { group: cmd.group, label: GROUP_LABELS[cmd.group], items: [] };
       result.push(entry);
     }
-    entry.items.push({ cmd, index });
+    entry.items.push({ cmd, index: offset + index });
   });
   return result;
 });
@@ -68,6 +96,15 @@ watch(
       query.value = '';
       activeIndex.value = 0;
       nextTick(() => inputRef.value?.focus());
+      // 异步取最近文件；失败静默——没历史 / 读盘失败都不影响命令列表
+      readDocumentSession()
+        .then((state) => {
+          recentFiles.value = state.recentFiles.map((p) => ({ path: p, name: fileNameOf(p) }));
+        })
+        .catch((error: unknown) => {
+          recentFiles.value = [];
+          console.warn('[palette] 读取最近文件失败:', normalizeTauriError(error).message);
+        });
     }
   },
 );
@@ -87,14 +124,22 @@ function scrollActiveIntoView() {
 }
 
 function onMove(delta: number) {
-  const len = filtered.value.length;
+  const len = totalItems.value;
   if (len === 0) return;
   activeIndex.value = (activeIndex.value + delta + len) % len;
   scrollActiveIntoView();
 }
 
 async function onEnter() {
-  const cmd = filtered.value[activeIndex.value];
+  const offset = visibleRecentFiles.value.length;
+  if (activeIndex.value < offset) {
+    const file = visibleRecentFiles.value[activeIndex.value];
+    if (!file) return;
+    const opened = await props.openRecentFile?.(file.path);
+    if (opened !== false) emit('close');
+    return;
+  }
+  const cmd = filtered.value[activeIndex.value - offset];
   if (!cmd) return;
   const ok = await props.executeCommand(cmd.id, 'palette');
   if (ok) emit('close');
@@ -144,7 +189,22 @@ function onKeydown(event: KeyboardEvent) {
           </div>
 
           <div class="palette-list" ref="listRef">
-            <template v-if="filtered.length > 0">
+            <template v-if="totalItems > 0">
+              <div v-if="visibleRecentFiles.length > 0" class="palette-group">
+                <div class="palette-group-label">最近文件</div>
+                <button
+                  v-for="(f, i) in visibleRecentFiles"
+                  :key="`recent-${f.path}`"
+                  class="palette-item"
+                  :class="{ 'is-active': i === activeIndex }"
+                  :data-cmd-index="i"
+                  @mousemove="activeIndex = i"
+                  @click="onClickItem(i)"
+                >
+                  <span class="palette-item-title">{{ f.name }}</span>
+                  <span class="palette-item-desc">{{ f.path }}</span>
+                </button>
+              </div>
               <div v-for="g in grouped" :key="g.group" class="palette-group">
                 <div class="palette-group-label">{{ g.label }}</div>
                 <button
