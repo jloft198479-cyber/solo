@@ -96,14 +96,27 @@ function handleListBackspace(editor: Editor): boolean {
   const list = state.selection.$from.node(itemDepth - 1);
   const firstBlock = item.firstChild as PMNode;
 
-  // 首块是空 textblock（如 F-8 修复后列表项里的补位空段）：只删这个空块，
-  // 项结构不动。单项空列表除外——那是「退出列表」+「撤销 - 输入规则」的
-  // 上游出口（undoInputRule 在上游 handleBackspace 第一行，复审 F-2），必须放行
+  // 首块是空 textblock（如 F-8 修复后列表项里的补位空段）：
+  // ① 项里还有别的块 ⇒ 只删这个空块，项结构不动（产物合法）。
+  // ② 空段是唯一子块 ⇒ 绝不能只删块——会留下**零子块 listItem**（违反 schema
+  //    `block+`），圆点壳残留且上游命令对非法结构全部失效 = 「列表删不掉」
+  //    （2026-10-10 用户报告，回归锁 list-backspace.spec.ts「圆点不留壳」组）。
+  //    此时删掉**整个空项**；单项空列表仍放行上游——那是「退出列表」+
+  //    「撤销 - 输入规则」的出口（undoInputRule 在上游 handleBackspace 第一行，
+  //    复审 F-2），必须保持。
   if (firstBlock.isTextblock && firstBlock.content.size === 0) {
-    if (list.childCount === 1) return false;
     const tr = state.tr;
-    const from = state.selection.$from.before(itemDepth + 1);
-    const to = state.selection.$from.after(itemDepth + 1);
+    if (item.childCount > 1) {
+      const from = state.selection.$from.before(itemDepth + 1);
+      const to = state.selection.$from.after(itemDepth + 1);
+      tr.delete(from, to);
+      tr.setSelection(TextSelection.near(tr.doc.resolve(from), -1));
+      view.dispatch(tr);
+      return true;
+    }
+    if (list.childCount === 1) return false;
+    const from = state.selection.$from.before(itemDepth);
+    const to = state.selection.$from.after(itemDepth);
     tr.delete(from, to);
     tr.setSelection(TextSelection.near(tr.doc.resolve(from), -1));
     view.dispatch(tr);

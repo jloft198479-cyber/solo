@@ -186,3 +186,28 @@ describe('列表行首 Backspace 契约（修复前应红）', () => {
     expect(treeSig(editor.state.doc)).toBe('bulletList(「甲」 / 「乙」 / 「丙」)');
   });
 });
+
+describe('删光一项文字后退格 ⇒ 空项整行消失（2026-10-10 用户报告「列表删不掉」）', () => {
+  /** 用户操作：选中某项文字删除（行内容删光），再按退格想删掉这一行 */
+  function clearTextThenBackspace(editor: Editor, text: string): void {
+    const from = posOfText(editor.state.doc, text);
+    editor.commands.setTextSelection({ from, to: from + text.length });
+    editor.commands.deleteSelection();
+    editor.view.dom.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Backspace' }),
+    );
+  }
+
+  it('【圆点不留壳】末项删空后退格 ⇒ 整个空项消失', () => {
+    const editor = makeEditor('- 甲\n- 乙\n');
+    clearTextThenBackspace(editor, '乙');
+    expect(treeSig(editor.state.doc)).toBe('bulletList(「甲」)');
+  });
+
+  it('【圆点不留壳】中间项删空后退格 ⇒ 空项消失、列表不劈', () => {
+    const editor = makeEditor(THREE);
+    clearTextThenBackspace(editor, '乙');
+    expect(treeSig(editor.state.doc)).toBe('bulletList(「甲」 / 「丙」)');
+    expect(topLevelTypes(editor.state.doc)).toEqual(['bulletList']);
+  });
+});
