@@ -24,12 +24,12 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | ------------------------------------------------------ | ------- | --------- | ------ | ----------------------------------------------------------------- |
 | [`README.md`](../README.md)（+ zh-CN / ja-JP / ko-KR） | product | user      | active | 产品导览：介绍、安装、dev 起步。4 语言本地化，DOC-STANDARD §二 确认保留 |
 | [`AGENTS.md`](../AGENTS.md)                            | core    | agent     | active | Agent 契约：禁令清单 + 真理源地图 + 敏感区索引 + 工作流 + 协作方式 |
-| [`ARCHITECTURE.md`](../ARCHITECTURE.md)                | core    | dev/agent | active | 架构真相：技术栈版本/命令清单/目录树（敏感区速查见 ./sensitive-areas.md）             |
+| [`ARCHITECTURE.md`](../ARCHITECTURE.md)                | core    | dev       | active | 架构真相：技术栈版本/命令清单/目录树（敏感区速查见 ./sensitive-areas.md）             |
 | [`docs/sensitive-areas.md`](./sensitive-areas.md) | core | dev | active | 敏感区安全网：易错区速查表 + §11.1–§11.8 详解（改码前必读） |
 | [`BUILD_GUIDE.md`](../BUILD_GUIDE.md)                  | core    | dev       | active | 构建手册真理源：工具链/环境变量/编译命令/故障排查                 |
 | [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md)           | guide   | user      | active | 用户侧运行时故障排查（症状→修法）                                 |
 | [`CLAUDE.md`](../CLAUDE.md)                            | guide   | agent     | active | Agent 入口指路牌（Claude Code）：仅指向 AGENTS.md，不复制规则内容 |
-| [`.cursor/rules/solo.mdc`](../.cursor/rules/solo.mdc)  | guide   | agent     | active | Agent 入口指路牌（Cursor）：仅指向 AGENTS.md，不复制规则内容      |
+| [`.cursor/rules/solo.mdc`](../.cursor/rules/solo.mdc)  | —       | agent     | active | Agent 入口指路牌（Cursor）：仅指向 AGENTS.md，不复制规则内容。⚠️ **豁免 DOC-STANDARD frontmatter** —— `.mdc` 用 Cursor 规定的 `description`/`globs`/`alwaysApply`，故三列是派生登记而非源 |
 
 ### docs/ 核心真理源
 
@@ -61,6 +61,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`ui-redesign-handover.md`](./ui-redesign-handover.md)                                 | guide | agent            | active | UI 改造交接（活跃分支 refactor/editor-decouple）          |
 | [`ui-typography-eval.md`](./ui-typography-eval.md)                                     | guide | agent            | active | 排版微调 + 文字变浅评估（设计决策留痕，§一 为改动前快照） |
 | [`BENCHMARK-editing-experience.md`](./BENCHMARK-editing-experience.md)                 | guide | agent            | active | 编辑体验行业对标基线：三种编辑形态 + 逐项基准 × solo 差距 + 下一优先建议（「所有问题先对标」方针的常驻挂靠点） |
+| [`00-今日修改总览-2026-10-10.md`](./00-今日修改总览-2026-10-10.md)                     | archive | maintainer      | archive | 2026-10-10 当日 39 个提交的系统梳理（时间线 / 解决与未解决 / 可控性评估）；**一次性快照**，未结项一律以 [`KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) 为准 |
 
 ### docs/ 原则、提案、归档
 
@@ -74,7 +75,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`PROPOSAL-list-row-drag.md`](./PROPOSAL-list-row-drag.md) | proposal | maintainer       | proposal | 列表行**拖拽换位（仅同层）**：鼠标抓把手上下拖整行换位、一次撤销可还原、格式零改动；含难易评估与四决策（建议独立把手）、分阶段验收；**跨层/圆点即把手暂不做**；未执行 |
 | [`PROPOSAL-list-structure-fix.md`](./PROPOSAL-list-structure-fix.md) | proposal | maintainer | proposal | 列表结构与回退行为修复：**列表项开头按 Backspace 会把列表劈成两段并留下孤立段落**（实测确认，是 `Alt+↑/↓` 挪不动的真因）；含三处根因、三方案对比、影响面评估与 Phase 0–4 计划；**方案未执行**——2026-10-10 追加独立复审（§十）：诊断成立，但方案 A 的 `joinBackward` 预判被实测推翻、`Mod-Backspace` / `Shift-Tab` / 引用块同罪未覆盖，另牵出 KNOWN-ISSUES §二 #25–#29 |
 | [`PROPOSAL-list-semantics.md`](./PROPOSAL-list-semantics.md) | proposal | maintainer | active | **列表语义契约（规则来源）**：Markdown 里没有树、只有缩进 ⇒「清除格式」不得重排树，「转普通段落 / toggle 第二次」才处理层级且直属下级减一级；含动词表、业界依据（Word / Notion / Obsidian / Typora）与已知边界。改列表相关命令前先读它 |
-| [`TODO-list-semantics-round2.md`](./TODO-list-semantics-round2.md) | proposal | maintainer | active | **#50 第二轮修复执行清单**：🔴A（待办 toggle 出 `- [ ] - 乙`）与 🔴B（段落缩进残留）已修完并经真机验收；**🔴C（嵌套项转段落 relocate 导致顺序错乱）仍待处置**；含验收闸门与「断言必须能红」的三查判据 |
+| [`TODO-list-semantics-round2.md`](./TODO-list-semantics-round2.md) | proposal | maintainer | done | **#50 第二轮修复执行清单**：🔴A（待办 toggle 出 `- [ ] - 乙`）与 🔴B（段落缩进残留）已修完并经真机验收；🔴C（嵌套项转段落 relocate 顺序代价）已拍板「接受」；含验收闸门与「断言必须能红」的三查判据 |
 | [`REVIEW-PLAN-第三方全面审查-2026-10-09.md`](./REVIEW-PLAN-第三方全面审查-2026-10-09.md) | proposal | maintainer | proposal | 第三方全面审查**作业书**（宏观→微观，对标 Typora/Obsidian）：目标口径/差分定位（不重复既有 4 轮审查）/交底材料包/三层审查法/交付物与红线；**仅方案，未执行** |
 | [`architecture/refactoring-report.md`](./architecture/refactoring-report.md) | archive   | agent            | archive  | 减法重构历史报告（22→17 命令等，**历史快照**，现状以 ARCHITECTURE 为准） |
 | [`archive/settings-audit-report.md`](./archive/settings-audit-report.md)     | archive   | agent            | archive  | 设置面板排查历史报告（P0 死代码已清理，**历史快照**）                    |

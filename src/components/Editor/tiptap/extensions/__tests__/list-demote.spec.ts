@@ -201,13 +201,12 @@ describe('不该管的别管（零副作用降级）', () => {
   it('嵌套叶子项转段落：自己真正退出列表（零缩进），祖先与兄弟层级不动', () => {
     // 嵌套项被「转普通段落」必须彻底脱离 listItem（公理 1），而不是留在父项里当 2 空格缩进段落。
     const editor = makeEditor(MD);
-    const before = textSeq(editor);
     selectText(editor, 'C');
     pressMod0(editor);
     const out = saved(editor);
 
-    // 文字守恒（不丢字、不重复）
-    expect([...textSeq(editor)].sort()).toEqual([...before].sort());
+    // 精确顺序断言（含文字守恒）：C 从 D/3 与 E 之间挪到 B 整棵子树之后（§7 拍板接受）
+    expect(textSeq(editor)).toEqual(['B', 'D', '1', '2', '3', 'E', 'C', 'A']);
     // C 不再是列表项，而是零缩进的纯段落（真正退出列表）
     expect(out).not.toContain('- C');
     expect(out.split('\n').some((l) => l === 'C')).toBe(true);
@@ -248,8 +247,10 @@ function textSeq(editor: Editor): string[] {
 const MATRIX: { name: string; md: string; target: string; order: 'keep' | string[]; nested?: boolean }[] = [
   { name: '目标前有兄弟', md: '- 前\n- 甲\n  - 乙\n- 后\n', target: '甲', order: 'keep' },
   { name: '目标在末位', md: '- 前\n- 甲\n  - 乙\n', target: '甲', order: 'keep' },
-  // 嵌套目标：Ctrl+0 后整体「退出列表」落到文档级（末尾），故次序里 B 移到最后
+  // 嵌套目标：落点是「最外层祖先整棵子树之后」的文档级位置（Markdown 无「半脱出」语法，
+  // 2026-10-11 拍板接受由此带来的顺序跳动 —— 论证与实测表见 PROPOSAL-list-semantics.md §7）
   { name: '深层目标（嵌套在父项里）', md: '- A\n  - B\n    - C\n    - E\n', target: 'B', order: ['A', 'C', 'E', 'B'], nested: true },
+  { name: '深嵌套 + 祖先后续兄弟（§7 场景三）', md: '- 上\n  - X\n  - 甲\n    - 乙\n  - 下\n- 尾\n', target: '甲', order: ['上', 'X', '乙', '下', '甲', '尾'], nested: true },
   { name: '双子列表混排（无序+有序）', md: '- 甲\n  - 乙\n  1. 丙\n', target: '甲', order: 'keep' },
   { name: '三层 + 兄弟', md: '- 上\n- 甲\n  - 乙\n    - 丙\n- 下\n', target: '甲', order: 'keep' },
 ];
@@ -263,9 +264,9 @@ describe('输入矩阵 · 不变量（文字守恒 / 次序守恒 / 无畸形壳
       pressMod0(editor);
       const out = saved(editor);
 
-      // ① 文字守恒（不丢字、不重复）—— 用多重集比对，避免次序干扰
-      expect([...textSeq(editor)].sort()).toEqual([...before].sort());
-      // ② 次序：顶层目标原地不变；嵌套目标整体移到末尾（契约「退出列表」的必然结果）
+      // ① 文字守恒 + 次序：一步到位的精确序列断言（丢字/重复/换位任一发生即红）。
+      //    ⛔ 不许退回 `.sort()` 多重集比对 —— 那会让顺序破坏天然不可见（§7 方法论欠账，2026-10-11 已修）。
+      //    顶层目标 order='keep'（原地不动）；嵌套目标按 §7 拍板：落到最外层祖先子树之后。
       const expectOrder = c.order === 'keep' ? before : c.order;
       expect(textSeq(editor)).toEqual(expectOrder);
       // ③ 无畸形壳（既 `- -` 也含 `- [ ] -`）
@@ -284,12 +285,12 @@ describe('输入矩阵 · 不变量（文字守恒 / 次序守恒 / 无畸形壳
     it('B1 深层目标：A/E 顶层不变，C 上提到 A 下，B 真正退出到文档级', () => {
       const md = '- A\n  - B\n    - C\n- E\n';
       const editor = makeEditor(md);
-      const before = textSeq(editor);
       selectText(editor, 'B');
       pressMod0(editor);
       const out = saved(editor);
 
-      expect([...textSeq(editor)].sort()).toEqual([...before].sort()); // 文字守恒
+      // 精确顺序（§7 场景一拍板值）：B 从 C 之前挪到 A 整棵子树之后
+      expect(textSeq(editor)).toEqual(['A', 'C', 'B', 'E']);
       expect(out).not.toContain('- -'); // 无畸形壳
       const lines = out.split('\n');
       expect(lines.some((l) => l === '- A')).toBe(true); // A 仍是顶层项
@@ -302,12 +303,12 @@ describe('输入矩阵 · 不变量（文字守恒 / 次序守恒 / 无畸形壳
     it('B2 叶子中间项：B/A 顶层不变，D/E 仍在 B 下，C 真正退出到文档级', () => {
       const md = '- B\n  - D\n  - C\n  - E\n- A\n';
       const editor = makeEditor(md);
-      const before = textSeq(editor);
       selectText(editor, 'C');
       pressMod0(editor);
       const out = saved(editor);
 
-      expect([...textSeq(editor)].sort()).toEqual([...before].sort());
+      // 精确顺序（§7 场景二拍板值）：C 从 D 与 E 之间挪到 B 整棵子树之后
+      expect(textSeq(editor)).toEqual(['B', 'D', 'E', 'C', 'A']);
       expect(out).not.toContain('- -');
       const lines = out.split('\n');
       expect(lines.some((l) => l === '- B')).toBe(true);
@@ -348,7 +349,8 @@ describe('输入矩阵 · 不变量（文字守恒 / 次序守恒 / 无畸形壳
     selectText(editor, '甲');
     pressMod0(editor);
 
-    expect([...textSeq(editor)].sort()).toEqual([...before].sort());
+    // 顶层目标：原地不动（精确顺序，含文字守恒）
+    expect(textSeq(editor)).toEqual(before);
     expect(saved(editor)).not.toContain('- -');
     expect(saved(editor)).not.toContain('- [ ] -');
   });

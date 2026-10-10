@@ -2,9 +2,9 @@
 title: 修复清单 · 列表语义契约（#50 第二轮复核）
 type: proposal
 audience: maintainer
-status: active
+status: done
 tags: [修复清单, 列表, 契约, 待办]
-summary: #50 第二轮复核的执行清单：🔴A/🔴B 已修完并经真机验收；🔴C（嵌套项转段落 relocate）仍待处置
+summary: #50 第二轮复核的执行清单：🔴A/🔴B 已修完并经真机验收；🔴C 已拍板「接受」（relocate 顺序代价），测试矩阵欠账已修（精确顺序断言 + 反向校准 5 红），全部闭环
 updates:
   [
     docs/PROPOSAL-list-semantics.md,
