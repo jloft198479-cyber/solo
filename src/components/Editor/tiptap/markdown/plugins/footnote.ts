@@ -66,6 +66,9 @@ export const footnoteNodeSerializers: Record<string, NodeSerializer> = {
       state.write('\n');
       for (let i = 1; i < node.childCount; i++) {
         const child = node.child(i);
+        // 续块前必须留**空行**：脚注定义的后续段落靠「空行 + 4 空格缩进」才成为独立段落，
+        // 只缩进不空行会被重开时并回上一段（且首轮不收敛，第二轮又变一次）。
+        state.blankLine();
         state.write('    ');
         if (child.isTextblock) state.renderInline(child);
         else state.renderNode(child);
