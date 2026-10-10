@@ -22,6 +22,8 @@ import {
   getPluginTokenHandlers,
   getPluginTokenInterceptors,
 } from './plugins';
+// 块级公式的「独占整行」守卫（对齐业界标准，修台账 §二 #50 / #51）
+import { installBlockMathGuard } from './plugins/math';
 import type { Preprocessor, TokenInterceptor } from './plugins';
 import { extractDimsFromAlt, unescapeImageAlt } from '../extensions/image';
 // ZWNJ 常量唯一来源（解析期插入 / 各读出点剥离，见 ../zwnj 与敏感区 #23）
@@ -121,6 +123,9 @@ function createMarkdownIt(): MarkdownIt {
     engine: dummyKatexEngine,
     delimiters: 'dollars',
   });
+  // 必须在 texmath 之后：它是「替换 texmath 已注册的两条块规则」。
+  // 作用只是补回上游缺失的「闭合 $$ 后必须到行尾」约束 —— 详见该函数头注释。
+  installBlockMathGuard(md);
 
   md.use(markdownItFootnote);
 

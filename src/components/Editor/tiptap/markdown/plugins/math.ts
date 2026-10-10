@@ -1,3 +1,4 @@
+import type MarkdownIt from 'markdown-it';
 import type Token from 'markdown-it/lib/token.mjs';
 import type { Schema } from '@tiptap/pm/model';
 import type { MarkdownParseState, TokenHandler } from '../parser';
@@ -43,6 +44,84 @@ function standsAloneOnLine(tokens: Token[] | undefined, index: number | undefine
   const isBoundary = (t?: Token): boolean =>
     t === undefined || t.type === 'softbreak' || t.type === 'hardbreak';
   return isBoundary(tokens[index - 1]) && isBoundary(tokens[index + 1]);
+}
+
+/**
+ * 「块起点出现的 `$$…$$` 是否真的独占整行」——块级公式的**准入判据**。
+ *
+ * 与 texmath 自己的块级正则**同源**（同一条 rex），只是多判一个**行尾锚点**。
+ * 返回 false ⇒ 该规则不生效 ⇒ 这一行退回**行内**解析（内容一个字符都不会丢）。
+ */
+function blockMathOwnsLine(state: BlockMathState, begLine: number): boolean {
+  const start = state.bMarks[begLine] + state.tShift[begLine];
+  const str = state.src;
+  // 不是块起点 `$$` ⇒ 与守卫无关，放行（原规则本就会 return false）
+  if (!str.startsWith('$$', start)) return true;
+
+  BLOCK_MATH_REX.lastIndex = start;
+  if (!BLOCK_MATH_REX.exec(str)) return true;
+  // texmath 自己算的闭合位置：匹配末尾的前一个字符 = 闭合 `$$` 的最后一个 `$`
+  const endpos = BLOCK_MATH_REX.lastIndex - 1;
+
+  // endpos 落在哪一行（块公式可以跨行，闭合在后面某行）
+  let closeLine = begLine;
+  for (let line = begLine; line < state.lineMax; line++) {
+    if (endpos >= state.bMarks[line] + state.tShift[line] && endpos <= state.eMarks[line]) {
+      closeLine = line;
+      break;
+    }
+  }
+  // ★ 业界标准：闭合 `$$` 之后到行尾只能有空白
+  return str.slice(endpos + 1, state.eMarks[closeLine]).trim() === '';
+}
+
+/** texmath 块规则用到的 markdown-it 块级 state 的**最小**切片（只为类型安全） */
+interface BlockMathState {
+  src: string;
+  bMarks: number[];
+  tShift: number[];
+  eMarks: number[];
+  lineMax: number;
+}
+
+/** 与 texmath `dollars.block` 完全相同的正则 —— 只为复算出同一个闭合位置 */
+const BLOCK_MATH_REX = /\${2}([^$]*?[^\\])\${2}/gmy;
+
+/**
+ * 给 texmath 的**块级**公式规则补「独占整行」守卫 —— **对齐业界标准**，不是自创方言。
+ *
+ * ⚠️ 背景（台账 §二 #50 / #51）：texmath 的块规则（`texmath.js:41` 注入、
+ * `dollars.block` 正则 `\${2}([^$]*?[^\\])\${2}`）**没有行尾锚点**，且命中后
+ * `state.line = curline + 1` 直接跳过整行剩余 ⇒ `$$a$$ 正文` 的"正文"**连 token 都不
+ * 会产生**、被静默吞掉；`$$a$$ (1)` 走 eqno 分支，整块消失。
+ *
+ * **业界标准**（micromark-extension-math / remark-math，GitHub 用的就是这套）的 BNF：
+ *   `fenceDollarClose ::= sequenceDollarFlow spaceOrTab`
+ * 即**闭合 `$$` 之后只能有空白到行尾**；后面还有内容 ⇒ 它不是块级公式，应按行内处理。
+ * ⇒ 本函数只是**补回上游缺失的这条约束**，不引入任何新语法。
+ *
+ * **为什么风险可控**：刻意做成**纯加法守卫** —— 只在判定「不是块级公式」时返回 false
+ * 让原规则不生效（随后行内规则接手，`$$…$$` 与尾文**都保住**），其余情况**原样调用
+ * texmath 的原有实现**、一行不改。⇒ 受影响面只有「行首 `$$` 且闭合后同行还有字」
+ * 这一种形态，其余所有公式（独占行、跨行、引用内、列表内）行为完全不变。
+ */
+export function installBlockMathGuard(md: MarkdownIt): void {
+  // `at()` 是 markdown-it 官方的「按名替换规则」API；读取原 fn 需经 `__rules__`，
+  // 这是 markdown-it 插件生态替换规则的事实标准入口（只读，不改结构）
+  const ruler = md.block.ruler as unknown as {
+    __find__: (name: string) => number;
+    __rules__: Array<{ fn: (...args: never[]) => boolean }>;
+    at: (name: string, fn: (state: BlockMathState, begLine: number, endLine: number, silent: boolean) => boolean) => void;
+  };
+  for (const ruleName of ['math_block', 'math_block_eqno']) {
+    const index = ruler.__find__(ruleName);
+    if (index < 0) continue;
+    const original = ruler.__rules__[index].fn;
+    ruler.at(ruleName, (state, begLine, endLine, silent) => {
+      if (!blockMathOwnsLine(state, begLine)) return false;
+      return original(state as never, begLine as never, endLine as never, silent as never);
+    });
+  }
 }
 
 export function mathTokenHandlers(schema: Schema): Record<string, TokenHandler> {

@@ -329,29 +329,47 @@ describe('Trae 第三轮 R1~R3（R1 已修；R2 为上游登记）', () => {
     }
   });
 
-  it('R2 块起点 $$ 的同行尾文仍整段消失（上游；修好后本用例转红）', () => {
-    // 形态：`$$…$$` 独占块起点、同一行后面还有正文。texmath 的**块规则**先行匹配
-    // `$$…$$` 并把整行剩余部分丢弃（token 流里只剩 `math_block"a"`，尾文从未出现）。
-    for (const [src, lost] of [
+  it('【已修】R2 块起点 $$ 的同行尾文必须保住（内容不得消失）', () => {
+    // 修法：给 texmath 的两条块规则补「闭合 $$ 后必须到行尾」守卫（业界标准约束）。
+    // 不合法 ⇒ 块规则不生效 ⇒ 退回行内解析 ⇒ `$$…$$` 与尾文都在段落里，一个字符不丢。
+    for (const [src, kept] of [
       ['$$a$$ 正文\n', '正文'],
       ['$$\na\n$$ 正文\n', '正文'],
       ['> $$a$$ 正文\n', '正文'],
+      ['- $$a$$ 正文\n', '正文'],
+      ['$$a$$ **加粗**\n', '加粗'],
     ] as const) {
       const out = roundTrip(src);
-      expect(out, `R2 已修好（尾文保住了）？请删登记并同步台账 §二 #50：${JSON.stringify(src)}`).not.toContain(
-        lost,
+      expect(reopenDrift(src, out).join('\n'), `不得丢内容字符：${JSON.stringify(src)}`).not.toContain(
+        '正向包含',
       );
-      expect(roundTrip(out), '无论如何必须收敛').toBe(out);
+      expect(out, `尾文必须保住：${JSON.stringify(src)}`).toContain(kept);
+      expect(roundTrip(out), `必须一次收敛：${JSON.stringify(src)}`).toBe(out);
     }
   });
 
-  it('R2b 块级公式带编号 `$$a$$ (1)` 整块消失（上游；修好后本用例转红）', () => {
-    // 同一个 `dollars` 块规则下另有一条 `math_block_eqno` —— **全项目没有它的 handler**
-    // ⇒ token 被静默跳过、整块公式连同内容消失（台账 §二 #51）。
+  it('【已修】R2b 块级公式带编号 `$$a$$ (1)` 必须保住（不再整块消失）', () => {
+    // 同一条守卫覆盖 `math_block_eqno`：闭合 `$$` 后有 `(1)` ⇒ 不是块公式 ⇒ 走行内。
+    // （修前：无 handler ⇒ token 被跳过 ⇒ 输出为空串。）
     const out = roundTrip('$$a$$ (1)\n');
-    expect(
-      out.trim(),
-      'eqno 已修好（能落节点了）？请删登记并同步台账 §二 #51',
-    ).toBe('');
+    expect(out.trim(), '不得输出空串').not.toBe('');
+    expect(out, '编号必须保住').toContain('(1)');
+    expect(roundTrip(out), '必须一次收敛').toBe(out);
+  });
+
+  it('【回归】合法的块级公式（独占整行）不许被守卫误伤', () => {
+    // 守卫是加法：只允许「闭合后还有字」这一种形态退回行内，其余一律放行原逻辑。
+    for (const src of [
+      '$$\na\n$$\n',
+      '$$\nE=mc^2\n$$\n',
+      '正文\n\n$$\nE=mc^2\n$$\n',
+      '- 项\n\n  $$\n  E=mc^2\n  $$\n',
+      '> 正文\n> $$\n> E=mc^2\n> $$\n',
+      '$$\na\n$$   \n', // 闭合后仅空白 ⇒ 仍算独占整行
+    ]) {
+      const out = roundTrip(src);
+      expect(out, `必须保持块级公式：${JSON.stringify(src)}`).toContain('$$');
+      expect(roundTrip(out), `必须收敛：${JSON.stringify(src)}`).toBe(out);
+    }
   });
 });
