@@ -180,7 +180,7 @@ SOLO_FIDELITY_SCAN=1 bunx vitest run src/components/Editor/tiptap/markdown/__tes
 |---|---|
 | Tauri 命令（新增/改名/删除） | `command-names.ts` → `commands/mod.rs` → `lib.rs` |
 | 字体 / 主题 / 排版 CSS | `ARCHITECTURE.md` → [docs/font-handling.md](./docs/font-handling.md) → [docs/ui-typography-eval.md](./docs/ui-typography-eval.md) |
-| parser / serializer / schema | `fixtures.spec.ts` + `roundtrip.spec.ts` Phase E + `schema-contract.spec.ts` + [docs/cjk-boundary.md](./docs/cjk-boundary.md) + 敏感区 #15/#16 |
+| parser / serializer / schema | `fixtures.spec.ts` + `roundtrip.spec.ts` Phase E + `schema-contract.spec.ts` + [`fidelity-scan.spec.ts`](./src/components/Editor/tiptap/markdown/__tests__/fidelity-scan.spec.ts)（全仓体检，命令见 §4）+ [docs/cjk-boundary.md](./docs/cjk-boundary.md) + 敏感区 #15/#16/#23 |
 | 发版 / 版本号 | 三处同步 → [docs/CHANGELOG.md](./docs/CHANGELOG.md) → [docs/RELEASE_PROCESS.md](./docs/RELEASE_PROCESS.md) → [docs/SECURITY.md](./docs/SECURITY.md) |
 | **任意改动** | `grep -rn "<改动文件>" --include=*.md` 跑死链扫描 —— **死链即 Bug** |
 

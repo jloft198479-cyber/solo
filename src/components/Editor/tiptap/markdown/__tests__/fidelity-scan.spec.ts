@@ -18,14 +18,33 @@
  * 故极少数用例会因插件差异产生噪声，逐个复核后再下结论。
  */
 import { describe, it } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import MarkdownIt from 'markdown-it';
 import { parseMarkdown } from '../parser';
 import { serializeMarkdown } from '../serializer';
 import { createTestSchema } from './test-utils';
 
-const ROOT = join(__dirname, '../../../../../..');
+/**
+ * 仓库根：从**本文件位置向上找 `package.json`**。
+ *
+ * 为什么不用 `__dirname`：项目是 `"type": "module"`，`__dirname` 不属于 ESM
+ * （现在能跑只是靠打包器的 interop 兜着）。也不要硬编码 `..` 层数——目录一挪就
+ * **静默指错**，工具会照样"通过"却根本没扫该扫的东西；**静默指错比直接报错危险**。
+ */
+function findRepoRoot(from: string): string {
+  let dir = from;
+  for (let i = 0; i < 12; i++) {
+    if (existsSync(join(dir, 'package.json'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error(`[fidelity-scan] 找不到仓库根：从 ${from} 向上 12 层无 package.json`);
+}
+
+const ROOT = findRepoRoot(dirname(fileURLToPath(import.meta.url)));
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'src-tauri', 'target', 'website', 'design-samples', 'public']);
 const WATCHED = ['strong', 'em', 'code', 'table', 'li', 'h1', 'h2', 'h3'];
 
@@ -56,7 +75,7 @@ describe.skipIf(!process.env.SOLO_FIDELITY_SCAN)('全仓保真体检', () => {
       const lost = WATCHED.map((tag) => ({ tag, diff: count(before, tag) - count(after, tag) }))
         .filter((entry) => entry.diff > 0)
         .map((entry) => `${entry.tag}-${entry.diff}`);
-      if (lost.length) rows.push(`${file.replace(ROOT + '/', '')}  →  ${lost.join(' ')}`);
+      if (lost.length) rows.push(`${relative(ROOT, file)}  →  ${lost.join(' ')}`);
     }
 
     console.log(`\n扫描 ${files.length} 份 md；渲染结果有变化的 ${rows.length} 份：`);

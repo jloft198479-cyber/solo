@@ -162,6 +162,14 @@ describe('Round-trip: parse → serialize', () => {
         });
         expect(hasBold).toBe(false);
       });
+      it('该形态解析后文档不含 ZWNJ（隐形字符不得残留在正文里）', () => {
+        // 为什么断言 doc、而不是只比往返：序列化会剥 ZWNJ ⇒「往返字节相等」会**掩盖**误插。
+        // 而 doc 里多出的 U+200C 是隐形字符，会连带影响字数统计 / 搜索 / 复制（详见敏感区 #23）。
+        // 注意：正文 CJK 标点场景（如 `**沉浸式体验，**继续`）**必须**插 ZWNJ，故本条只锁本形态。
+        for (const md of ['**加粗 `代码`**——后文\n', '**加粗 `代码`**，后文\n']) {
+          expect(parseMarkdown(createTestSchema(), md).textContent.includes('\u200C'), md).toBe(false);
+        }
+      });
     });
 
     describe('Phase A3: ZWNJ 预处理不进入代码区', () => {
