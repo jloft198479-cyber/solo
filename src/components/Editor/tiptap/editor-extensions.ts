@@ -10,6 +10,7 @@ import Highlight from '@tiptap/extension-highlight';
 import Link from '@tiptap/extension-link';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
+import { ListItem } from '@tiptap/extension-list';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { CustomCodeBlock } from './extensions/code-block';
@@ -200,6 +201,9 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
       // 列表容器需要放开 content 约束，故关闭内置版本、改用下方的 extend 版本
       bulletList: false,
       orderedList: false,
+      // 列表项首格放开为 `block+`（台账 §二 #30），关闭内置、改用下方的 extend 版本
+      // （不关会与下方同名重复注册，触发 tiptap duplicate 警告）
+      listItem: false,
       // paragraph / blockquote / strike 三项关闭内置、改用下方的 extend 版本：
       // 键位对齐注册表（键位真理源 src/commands/registry.ts，台账 §二 #28）。
       // TipTap 默认键（Mod-Alt-0 / Mod-Shift-b / Mod-Shift-s）与注册表承诺的
@@ -287,7 +291,13 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     BulletList.extend({ content: '(listItem | taskItem)+' }),
     OrderedList.extend({ content: '(listItem | taskItem)+' }),
     TaskList,
-    TaskItem.configure({ nested: true }),
+    // 列表项首格放开为 `block+`（台账 §二 #30，Typora 同款）：TipTap 默认
+    // `paragraph block*` 逼着「列表项里打标题」产出占位空段（`- # 标题` 读盘
+    // 被 createAndFill 补成 [空段, heading]，手打走 markdown-input 的 split 同构）。
+    // 放开后对齐 CommonMark 语义（`- # 标题` ⇒ <li><h1>标题</h1></li>）：
+    // 读盘直接装下 heading、手打原地转型，占位空段从读写两侧同时消失。
+    ListItem.extend({ content: 'block+' }),
+    TaskItem.extend({ content: 'block+' }).configure({ nested: true }),
     // 列表行首退格「永不劈开列表」守卫——必须在 ListKeymap（StarterKit 内，
     // priority 100）之前接管 Backspace / Mod-Backspace / Shift-Tab，
     // 方案与契约锁见 extensions/list-backspace-guard.ts 头注释

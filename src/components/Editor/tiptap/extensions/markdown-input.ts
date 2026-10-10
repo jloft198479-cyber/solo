@@ -644,37 +644,28 @@ function findPendingHeading(doc: PMNode): PendingHeading | null {
 }
 
 /**
- * 段落所在父块接纳 heading 的方式。
- *
- * - `in-place`：父块允许该槽位直接换成 heading。引用块、表格单元格、列表项第二块等。
- * - `split`：父块第一格只收 paragraph（`listItem` / `taskItem`），heading 只能另起一块。
- *   做法照抄「打开已有 `- # 标题` 文件」的解析结果 —— 空出第一格、标题在后，
- *   手打与读盘从此走同一条路（对比：CommonMark 规范里 `- # Foo` ⇒ `<li><h1>Foo</h1></li>`，
- *   只是 ProseMirror 的 `paragraph block*` 约束逼出一个占位空段落）。
- * - `null`：两种都收不下，整步不做。
+ * 段落所在父块能否**原地**接纳 heading（该槽位直接换成 heading 节点）。
+ * listItem / taskItem 首格放开为 `block+`（台账 §二 #30）后，所有能含段落的
+ * 父块（doc / 引用块 / callout / 列表项首格与后续块 / 表格单元格…）都收得下；
+ * 收不下返回 false，整步不做——绝不允许「先删前缀再改型失败」（§二 #25 教训）。
  *
  * 判据必须**三处一致**：转换本身、段落装饰（初始全量 + 后续增量）——任一处漏掉，
  * 结果不是静默丢字符，就是「内容还是 `# 文字`、却按标题字号渲染」。
  */
-type HeadingConversion = 'in-place' | 'split';
-
-function resolveHeadingConversion(
+function canConvertHeadingInPlace(
   doc: PMNode,
   paragraphPos: number,
   headingType: NodeType | undefined,
-): HeadingConversion | null {
-  if (!headingType) return null;
-  if (paragraphPos < 0 || paragraphPos + 1 > doc.content.size) return null;
+): boolean {
+  if (!headingType) return false;
+  if (paragraphPos < 0 || paragraphPos + 1 > doc.content.size) return false;
 
   const $pos = doc.resolve(paragraphPos + 1);
   const parentDepth = $pos.depth - 1;
-  if (parentDepth < 0) return null;
+  if (parentDepth < 0) return false;
 
   const slot = $pos.index(parentDepth);
-  const parent = $pos.node(parentDepth);
-  if (parent.canReplaceWith(slot, slot + 1, headingType)) return 'in-place';
-  if (parent.canReplaceWith(slot + 1, slot + 1, headingType)) return 'split';
-  return null;
+  return $pos.node(parentDepth).canReplaceWith(slot, slot + 1, headingType);
 }
 
 export function convertPendingHeading(
@@ -697,36 +688,14 @@ export function convertPendingHeading(
 
   // 先判可行性再动刀。旧顺序（先删前缀再改型）在改型被拒时会留下
   // 「`# ` 已删、标题没生成」的静默字符丢失（KNOWN-ISSUES §二 #25）。
-  const mode = resolveHeadingConversion(doc, pending.paragraphPos, headingType);
-  if (!mode) return null;
+  if (!canConvertHeadingInPlace(doc, pending.paragraphPos, headingType)) return null;
 
+  // 原地转换：删 `# ` 前缀 + 段落改型 heading（一次事务，一次撤销即回滚）。
+  // 光标随 delete 映射自然落到标题正文末尾，无需显式落点。
   const contentPos = pending.paragraphPos + 1;
-
-  if (mode === 'in-place') {
-    tr.delete(contentPos, contentPos + pending.prefixLength);
-    tr.setBlockType(contentPos, contentPos, headingType, { level: pending.level });
-    return tr.docChanged ? tr : null;
-  }
-
-  // split：一次 replaceWith 把「`# 标题` 段落」换成「空段落 + 标题」两块。
-  // 单步 = 单次撤销回滚；产出结构与 parse('- # 标题') 逐字一致。
-  const paragraphType = doc.type.schema.nodes.paragraph;
-  if (!paragraphType) return null;
-
-  const inner = paragraph.content.cut(pending.prefixLength);
-  const placeholder = paragraphType.create(paragraph.attrs, null);
-  tr.replaceWith(pending.paragraphPos, pending.paragraphPos + paragraph.nodeSize, [
-    placeholder,
-    headingType.create({ level: pending.level }, inner),
-  ]);
-  if (!tr.docChanged) return null;
-
-  // 光标落到标题正文末尾：用户接着打字不跳位（split 换掉了整个节点，selection 不显式落点会飘）。
-  // 位置 = 段落起点 + 占位段 nodeSize + 标题的开放 token + 正文长度。
-  // ⚠ nodeSize 含首尾两个 token（空段落 nodeSize = 2，不是 1），漏算这个 1 会让光标停在标题倒数第二字前。
-  const headingTextEnd = pending.paragraphPos + placeholder.nodeSize + 1 + inner.size;
-  tr.setSelection(TextSelection.create(tr.doc, headingTextEnd));
-  return tr;
+  tr.delete(contentPos, contentPos + pending.prefixLength);
+  tr.setBlockType(contentPos, contentPos, headingType, { level: pending.level });
+  return tr.docChanged ? tr : null;
 }
 
 /** 为单个 pending heading 段落构建装饰（node + 行内前缀各一条）。 */
@@ -756,7 +725,7 @@ function buildPendingHeadingDecorations(doc: PMNode): DecorationSet {
     if (node.type.name !== 'paragraph') return true;
 
     const match = /^(#{1,6})\s/.exec(node.textContent);
-    if (!match || !resolveHeadingConversion(doc, pos, headingType)) return true;
+    if (!match || !canConvertHeadingInPlace(doc, pos, headingType)) return true;
 
     decorations.push(...buildParagraphPendingDecorations(node, pos, match));
     return true;
@@ -797,7 +766,7 @@ function updatePendingDecorations(tr: Transaction, decoSet: DecorationSet): Deco
 
         if (node.type.name === 'paragraph') {
           const match = /^(#{1,6})\s/.exec(node.textContent);
-          if (match && resolveHeadingConversion(tr.doc, pos, headingType)) {
+          if (match && canConvertHeadingInPlace(tr.doc, pos, headingType)) {
             result = result.add(tr.doc, buildParagraphPendingDecorations(node, pos, match));
           }
         }

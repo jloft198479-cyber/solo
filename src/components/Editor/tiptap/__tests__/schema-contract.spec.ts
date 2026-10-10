@@ -61,11 +61,13 @@ describe('生产 schema 契约锁', () => {
       expect(schema.nodes.taskList.spec.content).toBe('taskItem+');
     });
 
-    it('listItem / taskItem 首块须是 paragraph', () => {
-      // 该约束是解析侧「块级内容进列表项时补位空段落」的依据；
-      // 序列化侧据此跳过补位段（否则 `- # 标题` 会被写散成两个块，见 §一 #26-C）。
-      expect(schema.nodes.listItem.spec.content).toBe('paragraph block*');
-      expect(schema.nodes.taskItem.spec.content).toBe('paragraph block*');
+    it('listItem / taskItem 首格放开为 block+（台账 §二 #30，Typora 同款）', () => {
+      // 放开后：读盘 `- # 标题` 由 createAndFill 直接装下 heading（不再逼出占位空段落），
+      // 手打 `# 标题` 在项内原地转型（markdown-input 的 in-place），对齐 CommonMark
+      // `<li><h1>` 语义。序列化侧的「跳过补位空段」补丁已随之删除——项内空段从此
+      // 只能是用户手造，按空行语义落盘（与 doc / 引用块内空段同款策略）。
+      expect(schema.nodes.listItem.spec.content).toBe('block+');
+      expect(schema.nodes.taskItem.spec.content).toBe('block+');
     });
   });
 

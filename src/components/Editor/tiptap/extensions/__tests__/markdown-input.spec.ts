@@ -243,14 +243,12 @@ describe('convertPendingHeading', () => {
 });
 
 /**
- * 父块接纳方式契约（KNOWN-ISSUES §二 #25）。
+ * 父块接纳方式契约（KNOWN-ISSUES §二 #25 / §二 #30）。
  *
- * `listItem` / `taskItem` 首格只收 paragraph，标题塞不进去 ⇒ **空出第一格、标题另起一块**，
- * 产出结构与 `parse('- # 标题')` 逐字一致 —— 手打与读盘走同一条路。
- * 能原地改型的位置（引用块、列表项第二块）不得白白多出一个空段落。
- *
- * 旧实现「先 `tr.delete(前缀)` 再 `setBlockType`」：改型一旦被父块拒绝，
- * 前缀已经删掉且事务照发 ⇒ `# ` 静默消失、标题也不生成（用户可见的字符丢失）。
+ * listItem / taskItem 首格已放开为 `block+`：**所有**能含段落的父块都能原地改型，
+ * 不产生占位空段落（读盘 `- # 标题` 与手打同构，均为 listItem[heading]）。
+ * 判不过的位置（没有 paragraph 的父块等）整步不做，绝不允许「先删前缀再失败」——
+ * 旧实现正是这样丢过 `# `（§二 #25）。
  */
 describe('convertPendingHeading 的父块接纳方式', () => {
   /** 复现生产调用形态：`appendTransaction` 恒显式传 pending。 */
@@ -274,7 +272,7 @@ describe('convertPendingHeading 的父块接纳方式', () => {
     return { tr, state, next: tr ? state.apply(tr).doc : doc };
   }
 
-  /** 列表项首块 = 唯一走 split 的形态 */
+  /** 列表项首块打标题（#30 放开后与读盘同构的主形态） */
   function listItemDoc() {
     const schema = createTestSchema();
     return schema.nodes.doc.create(null, [
@@ -284,7 +282,7 @@ describe('convertPendingHeading 的父块接纳方式', () => {
     ]);
   }
 
-  it('列表项首格收不下 ⇒ 空出第一格、标题另起一块，字符零丢失', () => {
+  it('列表项首格原地转 heading，不产生占位空段落（#30）', () => {
     const { tr, next } = convertInDoc(listItemDoc());
 
     expect(tr).not.toBeNull();
@@ -296,10 +294,7 @@ describe('convertPendingHeading 的父块接纳方式', () => {
           content: [
             {
               type: 'listItem',
-              content: [
-                { type: 'paragraph' },
-                { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: '标题' }] },
-              ],
+              content: [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: '标题' }] }],
             },
           ],
         },
@@ -321,10 +316,9 @@ describe('convertPendingHeading 的父块接纳方式', () => {
     expect(tr).not.toBeNull();
 
     const item = next.firstChild?.firstChild;
-    expect(item?.child(0).type.name).toBe('paragraph');
-    expect(item?.child(0).textContent).toBe('');
-    expect(item?.child(1).type.name).toBe('heading');
-    expect(item?.child(1).textContent).toBe('标题');
+    expect(item?.childCount).toBe(1);
+    expect(item?.child(0).type.name).toBe('heading');
+    expect(item?.child(0).textContent).toBe('标题');
   });
 
   it('列表项内第二块可原地改型 ⇒ 不产生多余空段落', () => {
@@ -370,13 +364,25 @@ describe('convertPendingHeading 的父块接纳方式', () => {
     expect(next.toJSON()).toEqual(parseMarkdown(schema, '- # 标题\n').toJSON());
   });
 
-  it('整步一个事务、一次撤销即回滚', () => {
+  it('整步一条事务、一次撤销即回滚', () => {
     const { tr } = convertInDoc(listItemDoc());
-    expect(tr?.steps.length).toBe(1);
+    // in-place = delete + setBlockType 两步，但同处一条事务 ⇒ 一次撤销即回滚
+    expect(tr!.steps.length).toBe(2);
   });
 
   it('转换后光标落在标题正文末尾（接着打字不跳位）', () => {
-    const { tr, state } = convertInDoc(listItemDoc());
+    const schema = createTestSchema();
+    const doc = listItemDoc();
+    // 生产形态：用户刚打完「标题」，光标停在段落正文末尾；转换删掉的是
+    // 光标**前方**的 `# `，选区随 delete 映射保持在正文末尾
+    const pending = pendingOf(doc, '# 标题');
+    const textEnd = pending.paragraphPos + 1 + (doc.nodeAt(pending.paragraphPos)?.content.size ?? 0);
+    const state = EditorState.create({
+      schema: doc.type.schema,
+      doc,
+      selection: TextSelection.create(doc, textEnd),
+    });
+    const tr = convertPendingHeading(state.tr, state.doc, schema.nodes.heading, pending);
     const $from = state.apply(tr!).selection.$from;
 
     expect($from.parent.type.name).toBe('heading');
@@ -387,7 +393,7 @@ describe('convertPendingHeading 的父块接纳方式', () => {
 
 /**
  * 装饰层必须与转换层同判据。装饰的含义是「这一段马上会变成标题」的预览，
- * 所以**能转换**的位置都得挂（列表项首格的 split 与文档级的 in-place 都算）；
+ * 所以**能转换**的位置都得挂（列表项首格与文档级现在都走 in-place）；
  * 挂不上却硬挂，会按标题字号渲染出一段永远变不了的死文本。
  */
 describe('pending heading 装饰的父块接纳方式', () => {
@@ -428,7 +434,7 @@ describe('pending heading 装饰的父块接纳方式', () => {
     return state.apply(state.tr.insertText('字', at));
   }
 
-  it('初始全量构建：split 与 in-place 两处都挂装饰（每段 2 条）', () => {
+  it('初始全量构建：列表项与文档级两处都挂装饰（每段 2 条）', () => {
     const { doc, state } = setup();
     const froms = decoratedPositions(state);
 
@@ -452,10 +458,9 @@ describe('pending heading 装饰的父块接纳方式', () => {
     const next = typeAtEndOf(state, doc, '# 列表标题');
 
     const item = next.doc.firstChild?.firstChild;
-    expect(item?.child(0).type.name).toBe('paragraph');
-    expect(item?.child(0).textContent).toBe('');
-    expect(item?.child(1).type.name).toBe('heading');
-    expect(item?.child(1).textContent).toBe('列表标题字');
+    expect(item?.childCount).toBe(1);
+    expect(item?.child(0).type.name).toBe('heading');
+    expect(item?.child(0).textContent).toBe('列表标题字');
 
     // 转换落地后该处不再是 pending，装饰只剩文档级那一处
     expect(decoratedPositions(next).length).toBe(2);

@@ -13,11 +13,6 @@ import { stripZwnj } from '../zwnj';
 
 // ── 序列化状态 ──────────────────────────────────────────────────
 
-/** 空段落（无子节点）——常为 parser 为满足 schema 约束补的占位，非用户内容 */
-function isEmptyParagraph(node: PMNode): boolean {
-  return node.type.name === 'paragraph' && node.childCount === 0;
-}
-
 /** 三种列表容器（嵌套紧凑度判定用，见 renderContent） */
 const LIST_NODE_NAMES = new Set(['bulletList', 'orderedList', 'taskList']);
 
@@ -499,22 +494,16 @@ export class MarkdownSerializerState {
 
   /** 递归序列化子节点 */
   renderContent(parent: PMNode) {
-    // 仅列表项适用：首块是空段落、且后面还有块 ⇒ 它是**模型补位**而非用户内容，
-    // 跳过不输出。例：`- # 标题` 解析后 listItem 首块被补成空 paragraph（为满足
-    // schema 的 `paragraph block*` 约束），不跳过就会写出 `-  \n\n# 标题`，把列表拆散。
-    // 独块的空段落不跳：那是 `- ` 这类真实的空列表项。
-    // ⚠️ 此补丁不能作用到 doc：doc 首块空段落是用户真实内容（文档顶部敲出的空行），
-    // 跳过即静默丢内容（KNOWN-ISSUES §二 #29 症状①）。
-    const isListItem = parent.type.name === 'listItem' || parent.type.name === 'taskItem';
-    const skipLeadingEmpty = isListItem && parent.childCount > 1 && isEmptyParagraph(parent.child(0));
     // 列表项内「文本块 → 子列表」用单换行（紧凑嵌套）。此前一律插空行，后果有两层：
     // ① 列表被读成 loose（外部渲染留白变化）；② 每次保存都把文件重写一遍。
     // CommonMark 实测：子列表缩进到项内容列即留在项内，空行并非必需。
     // 见 fixtures 登记表 lists.md / real-world.md（修好后对应登记须删除）。
-    const tightChildList = isListItem;
+    // 注：首块空段落不再跳过（跳过补丁随 schema 放开 `block+` 删除，台账 §二 #30）——
+    // schema 不再逼出占位段后，项内空段只能是用户手造，按空行语义落盘，
+    // 与 doc / 引用块内空段同款策略（serializer paragraph 分支）。
+    const tightChildList = parent.type.name === 'listItem' || parent.type.name === 'taskItem';
     let prev: PMNode | null = null;
-    parent.forEach((child, _offset, index) => {
-      if (skipLeadingEmpty && index === 0) return;
+    parent.forEach((child, _offset) => {
       if (prev && child.isBlock) {
         if (prev.type.name === 'horizontalRule' && child.type.name === 'horizontalRule') {
           this.ensureNewline();

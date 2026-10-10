@@ -1221,6 +1221,29 @@ describe('Round-trip: parse → serialize', () => {
           expect(item?.lastChild?.type.name).toBe('bulletList');
         }
       });
+
+      it('项首标题 `- # 标题`：读盘不补位（首块就是 heading）、落盘原样（#30）', () => {
+        const src = '- # 标题\n- 正文项\n';
+        expect(roundTrip(src)).toBe(normalize(src));
+
+        // 结构断言：schema 放开 `block+` 后首块直接是 heading，无占位空段
+        const doc = parseMarkdown(createTestSchema(), src);
+        const item = doc.firstChild?.firstChild;
+        expect(item?.childCount).toBe(1);
+        expect(item?.child(0).type.name).toBe('heading');
+      });
+
+      it('任务项内 `# 文字`：字面文本保形、二次收敛（行首 # 按既有转义策略防误读）', () => {
+        const src = '- [ ] # 任务项标题\n';
+        const out = roundTrip(src);
+        // 勾选框后的 `#` 是字面量而非标题标记；出站按既有行首转义策略写 `\#`（保守防误读）
+        const doc = parseMarkdown(createTestSchema(), out);
+        const para = doc.firstChild?.firstChild?.child(0);
+        expect(para?.type.name).toBe('paragraph');
+        expect(para?.textContent).toBe('# 任务项标题');
+        // 二次收敛：转义产物重存不变
+        expect(roundTrip(out)).toBe(normalize(out));
+      });
     });
 
     // 列表项内嵌块（2026-09-15 修）：此前项内容不缩进 ⇒ 代码块/引用/表格/图片/分隔线
