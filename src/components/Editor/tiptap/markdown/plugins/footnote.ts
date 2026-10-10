@@ -69,10 +69,22 @@ export const footnoteNodeSerializers: Record<string, NodeSerializer> = {
         // 续块前必须留**空行**：脚注定义的后续段落靠「空行 + 4 空格缩进」才成为独立段落，
         // 只缩进不空行会被重开时并回上一段（且首轮不收敛，第二轮又变一次）。
         state.blankLine();
-        state.write('    ');
-        if (child.isTextblock) state.renderInline(child);
-        else state.renderNode(child);
-        state.write('\n');
+        // ⚠️ **先渲染到子 state，再逐行加 4 空格前缀**（与 callout 序列化器的 C2 同款）。
+        // 旧实现只在 `renderNode` 之前 `write('    ')` **一次** ⇒ 多行块的**后续行拿不到
+        // 前缀**：缩进列表的第二项逃到列 0（重开时整项迁出脚注节、还换位），缩进围栏代码
+        // 被打散降级成普通段落（围栏与语言名一起丢 = 内容损失）。callout 当年踩的是同一个坑，
+        // 那条注释写着「产出非法 Markdown，重解析会吞掉后续内容」——此处同样成立。
+        //
+        // ⚠️⚠️ 判据**不能用 `isTextblock`**：`codeBlock` / `heading` 的 content 分别是
+        // `text*` / `inline*`，在 ProseMirror 里 **`isTextblock === true`**（实测），
+        // 但它们必须走**自己的**序列化器（写围栏 / 写 `#`）——用 renderInline 会把围栏与
+        // 语言名、标题标记一起吞掉。这里只把**段落**当「裸文本行」处理。
+        const inner = state.createChild();
+        if (child.type.name === 'paragraph') inner.renderInline(child);
+        else inner.renderNode(child);
+        // 块渲染器收尾常留空行（closeBlock）：去掉尾部换行再逐行加前缀，避免多出空行
+        const lines = inner.output.replace(/\n+$/, '').split('\n');
+        for (const line of lines) state.write('    ' + line + '\n');
       }
     } else {
       state.write(`[^${label}]: `);

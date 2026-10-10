@@ -1755,5 +1755,42 @@ describe('Round-trip: parse → serialize', () => {
         expect(roundTrip(out), '必须一次收敛').toBe(out);
       });
     });
+
+    describe('Phase J: 脚注续块为多行块（Trae N2 / N4 · 2026-10-11）', () => {
+      // 续块原来只在 renderNode 之前 write('    ') **一次** ⇒ 多行块的后续行没有前缀：
+      // 缩进列表第二项逃到列 0（重开时整项迁出脚注节并换位）、缩进围栏被打散降级
+      // （围栏 + 语言名一起丢 = 内容损失）。修法：先渲染到子 state、再**逐行**加前缀
+      // （callout 序列化器 C2 同款）。
+      // ⚠️ 判据不能用 `isTextblock` —— 实测 `codeBlock` / `heading` 的它都是 true，
+      // 用 renderInline 会把围栏与语言名、标题标记一起吞掉；只有段落按裸文本行处理。
+
+      it('续块为无序 / 有序列表：逐字节保真且收敛', () => {
+        for (const md of [
+          '文字[^1]\n\n[^1]: 首段\n\n    - x\n    - y\n',
+          '文字[^1]\n\n[^1]: 首段\n\n    1. x\n    2. y\n',
+        ]) {
+          expect(roundTrip(md)).toBe(md);
+          expect(roundTrip(roundTrip(md))).toBe(md);
+        }
+      });
+
+      it('续块为围栏代码：围栏与语言名都保住', () => {
+        const md = '文字[^1]\n\n[^1]: 首段\n\n    ```js\n    x\n    ```\n';
+        expect(roundTrip(md)).toBe(md);
+        expect(roundTrip(roundTrip(md))).toBe(md);
+      });
+
+      it('续块为引用；既有续段 / 多段 / 多脚注形态不许改坏', () => {
+        for (const md of [
+          '文字[^1]\n\n[^1]: 首段\n\n    > 引用\n',
+          '文字[^1]\n\n[^1]: 只有一段\n',
+          '文字[^1]\n\n[^1]: 首段\n\n    续段\n',
+          '文字[^1]\n\n[^1]: 甲段\n\n    乙段\n\n    丙段\n',
+          '甲[^1] 乙[^2]\n\n[^1]: 定义一\n\n[^2]: 定义二\n',
+        ]) {
+          expect(roundTrip(md), JSON.stringify(md)).toBe(md);
+        }
+      });
+    });
   });
 });
