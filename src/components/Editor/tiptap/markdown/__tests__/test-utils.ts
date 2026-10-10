@@ -63,7 +63,8 @@ export function roundTripClipboard(md: string): string {
 const refMd = new MarkdownIt('commonmark', { html: false }).enable(['table', 'strikethrough']);
 
 /** 提取可见文字：原文与输出用同一参照系，差异自然抵消（如过逃逸 / mark 顺序）。
- *  NBSP 是编辑器用于占位的**不可见字符**（防空段落被丢弃），不算内容，剥离。 */
+ *  NBSP 是历史版本空段落的占位符（#29 已改为零输出，见 serializer paragraph），
+ *  存量文件与用户真实输入仍可能含它，不可见、不算内容，剥离。 */
 function visibleText(md: string): string {
   const parts: string[] = [];
   for (const t of refMd.parse(md, {})) {
@@ -79,7 +80,7 @@ function visibleText(md: string): string {
 }
 
 /** 块级结构直方图：只数「开标签」类型计数，不受 tight/loose、对齐空格影响。
- *  空段落（无可见文字，如空文件写出的 NBSP 占位）不计入——它不承载内容。 */
+ *  空段落（无可见文字，如历史版本写出的 NBSP 占位行）不计入——它不承载内容。 */
 function blockHistogram(md: string): string {
   const tokens = refMd.parse(md, {});
   const counts: Record<string, number> = {};

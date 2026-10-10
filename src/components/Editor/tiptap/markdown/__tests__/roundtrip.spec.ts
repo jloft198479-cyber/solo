@@ -551,6 +551,41 @@ describe('Round-trip: parse → serialize', () => {
       expect(result.trim()).toBe('');
     });
 
+    it('空列表项首轮即真收敛（旧写法漂移成 `- \\u00a0`，#29）', () => {
+      expect(roundTrip('- \n- 甲\n')).toBe('- \n- 甲\n');
+    });
+
+    it('doc 尾空段落（TrailingNode 补段形态）零输出，不落 NBSP 行（#29）', () => {
+      const schema = createTestSchema();
+      const item = schema.nodes.listItem.create(null, [
+        schema.nodes.paragraph.create(null, [schema.text('甲')]),
+      ]);
+      const list = schema.nodes.bulletList.create(null, [item]);
+      // StarterKit 的 TrailingNode 在文档以列表结尾时必补一个空段落
+      const doc = schema.nodes.doc.create(null, [list, schema.nodes.paragraph.create()]);
+      expect(serializeMarkdown(doc)).toBe('- 甲\n');
+    });
+
+    it('doc 首块空段落是用户内容（顶部空行），落盘不丢（#29 症状①）', () => {
+      const schema = createTestSchema();
+      const doc = schema.nodes.doc.create(null, [
+        schema.nodes.paragraph.create(),
+        schema.nodes.paragraph.create(null, [schema.text('乙')]),
+      ]);
+      expect(serializeMarkdown(doc)).toBe('\n乙\n');
+    });
+
+    it('引用块内空段落写干净空行，不落 NBSP（#29）', () => {
+      const schema = createTestSchema();
+      const quote = schema.nodes.blockquote.create(null, [
+        schema.nodes.paragraph.create(null, [schema.text('甲')]),
+        schema.nodes.paragraph.create(),
+        schema.nodes.paragraph.create(null, [schema.text('乙')]),
+      ]);
+      const doc = schema.nodes.doc.create(null, [quote]);
+      expect(serializeMarkdown(doc)).toBe('> 甲\n> \n> 乙\n');
+    });
+
     it('multiple paragraphs', () => {
       const md = 'first\n\nsecond\n';
       expect(roundTrip(md)).toBe(normalize(md));
