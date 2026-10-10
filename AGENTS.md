@@ -136,11 +136,23 @@ solo 是一款**本地优先**的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + 
 | 改动类型 | 必跑 |
 |---|---|
 | 任意 Rust | `cargo check`（本机缺 MSVC 也不许跳过，CI 是最终闸门） |
-| parser / serializer / schema | `bun run test` + `vue-tsc --noEmit` + `bun run build` |
+| parser / serializer / schema | `bun run test` + `vue-tsc --noEmit` + `bun run build` + **全仓保真体检**（见下） |
 | 前端任意 | `vue-tsc --noEmit` + `bun run build` |
 | 时序 / UI / IME / 异步 | 上述 + **真机手感**（人工或 CDP 探针） |
 
 > ⚙️ **Agent 在本机（WorkBuddy 托管 shell）跑验证的已知坑**：`bun` / `bunx` 偶发 segfault、`bun run build` 清 `dist/` 会被安全删除闸门拦 —— 对策见 [RELEASE_PROCESS.md §11.2 / §11.3](./docs/RELEASE_PROCESS.md)，**别自己重新发明**。
+
+**🧪 全仓保真体检**（2026-10-10 立，动 parser / serializer / schema 必跑）：
+
+```
+SOLO_FIDELITY_SCAN=1 bunx vitest run src/components/Editor/tiptap/markdown/__tests__/fidelity-scan.spec.ts
+```
+
+拿**真实文档**当输入，对比「打开 → 保存」前后**渲染结果**是否缩水，逐份列出。为什么必须有它：单测是**人工列举**的（只覆盖作者想到的形态），而漏网 bug 恰恰长在「没人想到的形态叠加」上 —— 台账 §一 #35（强调 + 行内代码 + 闭合符后接标点）就是这么藏了三周。**两者互补，缺一个就漏。**
+
+**🔁 新形态必须回灌用例**：体检或排查里发现的每一个新形态，**当场补进 `roundtrip.spec.ts`（或对应 spec）**，否则下次照样漏。
+
+**✅ 「已修复」需独立复核证据**：台账标 `已修复` 必须由**改动者以外**按最小复现重跑并贴出结果；**AI 自称修好不算证据**。准入规则见 [KNOWN-ISSUES.md §一](./docs/KNOWN-ISSUES.md)。
 
 **验收等级必须匹配风险类型**（源于 slash 菜单事故）：单测验逻辑，风险常在**时序**。高频 UI 交互（按 `/` `:` `[[` 弹不弹、Esc 收不收）发版前必冒烟。
 
