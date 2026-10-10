@@ -25,7 +25,8 @@ export const ZWNJ = '\u200C';
  * 剥离 ZWNJ。
  *
  * 用 `split/join` 而非正则：无 `lastIndex` 状态、无 `replaceAll`（本项目 TS target
- * 是 ES2020），且 `includes` 短路让「无 ZWNJ」的常见路径零额外开销——本函数在
+ * 是 ES2020），且 `includes` 短路让「无 ZWNJ」的常见路径零额外**分配**（不含扫描——
+ * `includes` 本身仍是一次 O(len) 判断）——本函数在
  * `escapeInline` 里是**逐文本节点**调用的热点。
  */
 export function stripZwnj(text: string): string {
