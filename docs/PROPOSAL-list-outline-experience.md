@@ -1,12 +1,12 @@
 ---
-title: 列表区幕布式大纲体验（执行分案）  
-type: proposal  
-audience: maintainer  
-status: proposal  
-tags: [提案, 大纲, 列表, 折叠, 聚焦, 交互]  
-summary: 只把文档中的嵌套列表改造成幕布式可折叠可聚焦树，非列表区零改动  
-updates: [src/components/Editor/tiptap/editor.css, src/components/Editor/tiptap/editor-extensions.ts, src/components/Editor/tiptap/extensions/list-fold.ts, src/components/Editor/tiptap/transaction-shape.ts]  
-\---
+title: 列表区幕布式大纲体验（执行分案）
+type: proposal
+audience: maintainer
+status: proposal
+tags: [提案, 大纲, 列表, 折叠, 聚焦, 交互]
+summary: 只把文档中的嵌套列表改造成幕布式可折叠可聚焦树，非列表区零改动
+updates: [src/components/Editor/tiptap/editor.css, src/components/Editor/tiptap/editor-extensions.ts, src/components/Editor/tiptap/extensions/list-fold.ts, src/components/Editor/tiptap/transaction-shape.ts]
+---
 
 # 列表区幕布式大纲体验（执行分案）
 
