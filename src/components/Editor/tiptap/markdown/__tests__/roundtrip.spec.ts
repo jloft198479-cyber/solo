@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { Schema } from '@tiptap/pm/model';
 import type { Node as PMNode } from '@tiptap/pm/model';
-import { parseMarkdown } from '../parser';
+import { parseMarkdown, MarkdownParseState } from '../parser';
 import { serializeMarkdown, serializeMarkdownForClipboard } from '../serializer';
 import { createTestSchema, roundTrip, normalize } from './test-utils';
 
@@ -601,6 +601,24 @@ describe('Round-trip: parse → serialize', () => {
       expect(roundTrip('- 项\n$$a$$\n')).toBe('- 项\n\n  $$\n  a\n  $$\n');
     });
 
+    it('公式后的正文不落空（addNode 收掉段落后，同一 inline 的后续文本须仍有 textblock 承接）', () => {
+      // 野路径：`math_inline_double` 在段落中途把段落收掉后，同一 inline 的**后续文本**
+      // 若直接 push 就会落进 block 容器 ⇒ 根节点内容非法 ⇒ buildDoc 兜底成**空文档**
+      // （整篇凭空消失，2026-10-10 实测）。
+      expect(stable('甲\n$$\nE\n$$\n乙\n')).toBe('甲\n\n$$\nE\n$$\n\n乙\n');    });
+
+    it('根层混入裸文本 / 行内节点时整篇不消失（buildDoc 最后一道闸）', () => {
+      const schema = createTestSchema();
+      const state = new MarkdownParseState(schema);
+      state.addText('裸文本'); // 栈顶是 doc（非 textblock）
+      state.addNode(schema.nodes.mathBlock, {}, [schema.text('x')]);
+      state.addText('尾文本');
+      const doc = state.buildDoc();
+      expect(doc.textContent).toContain('裸文本');
+      expect(doc.textContent).toContain('尾文本');
+      expect(doc.textContent).toContain('x');
+    });
+
     // ── F3 表格单元格内行内代码的 `|`（GFM：code span 内也必须转义）──
     it('表格单元格内行内代码含 | 须转义，重开不切列、文字不丢', () => {
       const md = '| a | b |\n| --- | --- |\n| `WM_MOVE\\|WM_MOVING` 调它 | z |\n';
@@ -653,6 +671,95 @@ describe('Round-trip: parse → serialize', () => {
         if (n.type.name === 'image') images++;
       });
       expect([tables, images]).toEqual([1, 1]);
+    });
+  });
+
+  /**
+   * Phase G: 容器与块边界（2026-10-10 保真链路复核 · 批次 2）
+   *
+   * 四条都在「容器 × 块」的接缝上，且都在**打开→保存**时就坏：
+   *   F6 callout 与嵌套引用互吃（引用层静默塌成段落）
+   *   F7 表格各行格数不等（分隔行与表头格数不一致 ⇒ 整表退化成纯文本）
+   *   F8 列表项 / 引用块内 mathBlock 的缩进被加两遍（每存一次再加深一层，永不收敛）
+   *   F9 脚注定义的后续段落被并回上一段（且首轮不收敛）
+   */
+  describe('Phase G: callout 嵌套引用 / 表格列数 / 数学缩进 / 脚注多段（批次 2）', () => {
+    const stable = (md: string): string => {
+      const first = roundTrip(md);
+      expect(roundTrip(first), `两轮不收敛：${JSON.stringify(md)}`).toBe(first);
+      return first;
+    };
+
+    // ── F6 callout 与嵌套引用 ──
+    it('callout 内的二层引用不塌成段落', () => {
+      expect(stable('> [!NOTE]\n> > 二层\n')).toBe('> [!NOTE]\n> > 二层\n');
+    });
+
+    it('二层引用里的 callout 不丢外层引用（标记须在**本层**首个段落）', () => {
+      expect(stable('> > [!NOTE]\n> > 内容\n')).toBe('> > [!NOTE]\n> > 内容\n');
+    });
+
+    it('普通 callout 仍是 callout（不回退）', () => {
+      expect(stable('> [!WARNING] 甲\n> 正文\n')).toBe('> [!WARNING] 甲\n> 正文\n');
+    });
+
+    // ── F7 表格列数不等 ──
+    /** 造一张「各行格数不等」的表（schema 层直接建，对应 HTML 粘贴带 colspan/rowspan 的产物） */
+    function buildRaggedTable(headerCols: number, bodyCols: number) {
+      const schema = createTestSchema();
+      const headerCell = (t: string) =>
+        schema.nodes.tableHeader.create(null, [schema.nodes.paragraph.create(null, [schema.text(t)])]);
+      const bodyCell = (t: string) =>
+        schema.nodes.tableCell.create(null, [schema.nodes.paragraph.create(null, [schema.text(t)])]);
+      const table = schema.nodes.table.create(null, [
+        schema.nodes.tableRow.create(null, Array.from({ length: headerCols }, (_, i) => headerCell(`h${i}`))),
+        schema.nodes.tableRow.create(null, Array.from({ length: bodyCols }, (_, i) => bodyCell(`b${i}`))),
+      ]);
+      return schema.nodes.doc.create(null, [table]);
+    }
+
+    it('表头 2 格 + 数据行 3 格：不退化、内容不丢', () => {
+      const out = serializeMarkdown(buildRaggedTable(2, 3));
+      expect(out).toBe('| h0  | h1  |     |\n| --- | --- | --- |\n| b0  | b1  | b2  |\n');
+      const back = parseMarkdown(createTestSchema(), out);
+      let tables = 0;
+      const texts: string[] = [];
+      back.descendants((n: PMNode) => {
+        if (n.type.name === 'table') tables++;
+        if (n.isText && n.text) texts.push(n.text);
+      });
+      expect(tables, '整张表退化成纯文本了').toBe(1);
+      expect(texts).toEqual(['h0', 'h1', 'b0', 'b1', 'b2']);
+    });
+
+    it('数据行比表头少：补齐不丢、仍是一张表', () => {
+      const out = serializeMarkdown(buildRaggedTable(3, 1));
+      expect(out).toBe('| h0  | h1  | h2  |\n| --- | --- | --- |\n| b0  |     |     |\n');
+      const back = parseMarkdown(createTestSchema(), out);
+      let tables = 0;
+      back.descendants((n: PMNode) => {
+        if (n.type.name === 'table') tables++;
+      });
+      expect(tables).toBe(1);
+    });
+
+    // ── F8 容器内 mathBlock 的缩进 ──
+    it('列表项 / 引用块内 mathBlock 首轮即收敛（缩进不逐轮加深）', () => {
+      for (const md of [
+        '- 项\n\n  $$\n  E=mc^2\n  $$\n',
+        '> $$\n> E=mc^2\n> $$\n',
+        '$$\nE=mc^2\n$$\n',
+      ]) {
+        expect(stable(md), md).toBe(md);
+      }
+    });
+
+    // ── F9 脚注定义多段 ──
+    it('脚注定义含多个段落：都保住（不被并段）且首轮收敛', () => {
+      expect(stable('文字[^1]\n\n[^1]: 首段\n\n    续段\n'))
+        .toBe('文字[^1]\n\n[^1]: 首段\n\n    续段\n');
+      expect(stable('文字[^1]\n\n[^1]: 一\n\n    二\n\n    三\n'))
+        .toBe('文字[^1]\n\n[^1]: 一\n\n    二\n\n    三\n');
     });
   });
 
