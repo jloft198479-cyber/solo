@@ -1715,5 +1715,45 @@ describe('Round-trip: parse → serialize', () => {
         expect(out).not.toContain('> \n');
       });
     });
+
+    describe('Phase I: $$ 的块 / 行内由位置决定（Trae N1 / N3 · 2026-10-11）', () => {
+      // texmath 对 `$$…$$` 一律产**行内** token（`math_inline_double`），块/行内只能由
+      // 位置判断。判错的代价：① 单行容器（单元格/标题）装不下块 ⇒ 单元格被 cellToText
+      // 把换行换成 `<br>`、再看回来又当公式 ⇒ **每存一次多一层、永不收敛**（台账 §二 #46）；
+      // ② 行中间的 `$$a$$` 当块处理 ⇒ 段落被切断 + 边缘空格 ⇒ 首轮漂移（#48）。
+
+      it('独占一行的 $$ 仍是行间公式（不许改坏 F2 原形态）', () => {
+        expect(roundTrip('正文\n$$\nE=mc^2\n$$\n')).toBe('正文\n\n$$\nE=mc^2\n$$\n');
+      });
+
+      it('列表项 / 引用内独占一行的 $$ 保持行间公式字节不动', () => {
+        const inList = '- 项\n\n  $$\n  E=mc^2\n  $$\n';
+        expect(roundTrip(inList)).toBe(inList);
+        // 引用内每行带 `> ` 前缀，故断完整行而不是裸 `$$\n…`
+        const inQuote = '> 正文\n> $$\n> E=mc^2\n> $$\n';
+        const outQuote = roundTrip(inQuote);
+        expect(outQuote).toContain('> $$\n> E=mc^2\n> $$');
+        expect(roundTrip(outQuote), '必须收敛').toBe(outQuote);
+      });
+
+      it('表格单元格内的 $$ 降级为行内公式（不再产 <br>、不再每存一次变异）', () => {
+        const out = roundTrip('| a | b |\n| --- | --- |\n| x $$b$$ y | z |\n');
+        expect(out).toContain('| x $b$ y |');
+        expect(out).not.toContain('<br>');
+        expect(roundTrip(out), '必须一次收敛').toBe(out);
+      });
+
+      it('标题内的 $$ 降级为行内公式（标题不被从中切断）', () => {
+        const out = roundTrip('## 标题 $$a$$\n');
+        expect(out).toBe('## 标题 $a$\n');
+        expect(roundTrip(out)).toBe(out);
+      });
+
+      it('行中间的 $$ 视为行内公式（段落不被切断、无边缘空格漂移）', () => {
+        const out = roundTrip('正文 $$a$$ 续文\n');
+        expect(out).toBe('正文 $a$ 续文\n');
+        expect(roundTrip(out), '必须一次收敛').toBe(out);
+      });
+    });
   });
 });

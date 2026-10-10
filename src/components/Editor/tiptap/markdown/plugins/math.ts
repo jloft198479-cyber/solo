@@ -20,6 +20,24 @@ import { stripZwnj } from '../../zwnj';
  * 全部自动干净（也顺带清洗存量脏文件）。**故序列化侧不再重复剥**——那会变成
  * 同一件事两处做。
  */
+/**
+ * `$$…$$` 在源文里是否**独占一行**（行首，或紧跟软/硬换行之后）。
+ *
+ * texmath 对 `$$…$$` 一律产出行内 token（`math_inline_double`），**块 / 行内只能由
+ * 位置决定**：独占一行 ⇒ 用户要的是**行间公式**（落 mathBlock）；写在行中间
+ * （如 `正文 $$a$$ 续文`）⇒ 是**行内公式**（落 mathInline）。
+ * 判错方向的代价（实测）：落成块级会把段落**从中切断**并多出边缘空格 ⇒ R1≠R2
+ * 首轮漂移（台账 §二 #48）。
+ *
+ * 无兄弟信息时返回 true（按行间公式处理）——保守偏向「原文就是这么写的」。
+ */
+function startsOwnLine(tokens: Token[] | undefined, index: number | undefined): boolean {
+  if (!tokens || index === undefined) return true;
+  if (index === 0) return true;
+  const prev = tokens[index - 1];
+  return prev.type === 'softbreak' || prev.type === 'hardbreak';
+}
+
 export function mathTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   const handlers: Record<string, TokenHandler> = {};
 
@@ -38,10 +56,29 @@ export function mathTokenHandlers(schema: Schema): Record<string, TokenHandler> 
     // 而是被解析进段落 inline 层的 `math_inline_double`（实测 token 流：
     // `正文\n$$\nE=mc^2\n$$\n` → inline[text"正文", softbreak, math_inline_double]）。
     // 此前**没有这个 handler** ⇒ token 被静默跳过 ⇒ **整块公式连同内容消失**，
-    // 且不报错（台账 §二 #38）。语义上 `$$…$$` 就是行间公式，故与 math_block 同映射。
-    // 它出现在段落内，`addNode` 会因「块级节点落进 textblock」先收掉段落再落块
-    // （见 parser.ts `addNode`），最终得到「段落 + mathBlock」两块，内容不丢。
-    handlers.math_inline_double = handlers.math_block;
+    // 且不报错（台账 §二 #38）。
+    //
+    // ⚠️ 落块还是落行内，**看位置**（都是 texmath 的行内 token，不能一律当块）：
+    //  ① **单行容器**（表格单元格 / 标题）装不下块级公式 ⇒ 必须行内 —— 否则序列化时
+    //     单元格把换行一律换成 `<br>`、再看回来又被当成公式 ⇒ **每存一次多一层 `<br>`、
+    //     永不收敛**（台账 §二 #46 的 N1）；标题则被从中切断（#48 的 N3b）。
+    //  ② 段落里**写在行中间**的 `$$…$$`（前面是文字而非换行）也是行内公式 ——
+    //     当块处理会把段落切断并留边缘空格 ⇒ 首轮漂移（#48 的 N3a/N3c）。
+    //  ③ 其余（段落里独占一行）维持块级 —— 这是 `正文\n$$\nE=mc^2\n$$\n` 的正确归宿。
+    handlers.math_inline_double = (
+      state: MarkdownParseState,
+      token: Token,
+      tokens?: Token[],
+      index?: number,
+    ) => {
+      const asInline =
+        schema.nodes.mathInline && (state.inSingleLineContainer || !startsOwnLine(tokens, index));
+      if (asInline) {
+        handlers.math_inline(state, token, tokens!, index!);
+        return;
+      }
+      handlers.math_block(state, token, tokens!, index!);
+    };
   }
 
   return handlers;

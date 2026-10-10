@@ -148,30 +148,69 @@ describe('安全网自检 · G6 CommonMark 丢格式 SKIP 双向锁', () => {
 });
 
 /**
- * 登记锁 · N1~N5（Trae 第二轮对抗探针发现，2026-10-11 本方逐条实跑复现）
+ * Trae 第二轮对抗探针 N1~N5 + N6（2026-10-11 本方逐条实跑复现）
  *
  * 共同特征：**都是「批次 1~3 的修复打开的新路径」**——以前这些输入整块解析不进去、
  * 或者根本进不了这个分支；修好之后能进去了，于是走到了没有测试覆盖的角落。
- * ⇒ 本组用例的判据一律写成「**确认它仍然坏**」，修好即转红（提示删登记 + 移出台账）。
+ *
+ * 现状：**N1 / N3 已修**（同批修好，判据已翻成「必须正确」，见下）；
+ *       **N2 / N4 / N5 待修**，判据写成「**确认它仍然坏**」——修好即转红（提示删登记 + 移出台账）。
  *
  * 逐条实跑值（两轮 roundTrip，2026-10-11）：
- *   N1 `| x $$b$$ y |`      → R1 `x $$<br>b<br>$$<br> y` → R2 每行再多一层 `<br>`，
- *                             **R1≠R2≠R3，永不收敛、每存一次文件变异一次**
+ *   N1 `| x $$b$$ y |`      → 修前：R1 `x $$<br>b<br>$$<br> y` → R2 每行再多一层 `<br>`，
+ *                             **R1≠R2≠R3，永不收敛、每存一次文件变异一次**（P1）
  *   N2 `[^1]: 首段` + 4 空格缩进列表 → R1 第二项逃到列 0；R2 **整项迁移到脚注节之前**（换位）
- *   N3 `正文 $$a$$ 续文` / `## 标题 $$a$$` → R1≠R2（首轮漂移 + 段落被拆）；R2 才剥净边缘空格
+ *   N3 `正文 $$a$$ 续文` / `## 标题 $$a$$` → 修前 R1≠R2（首轮漂移 + 段落被拆）
  *   N4 `[^1]: 首段` + 4 空格缩进围栏 → 围栏与**语言名 `js` 两个内容字符**一起丢，降级为缩进段落
  *   N5 callout 内嵌 callout → 内层 `[!TIP]` 退化成字面 `\[!TIP]`（类型丢失，收敛）
  */
-describe('登记锁 · Trae 第二轮 N1~N5（待修）', () => {
-  it('N1 表格单元格内的块级数学：每轮翻倍、永不收敛', () => {
+describe('Trae 第二轮 N1~N6（N1/N3 已修；N2/N4/N5 待修）', () => {
+  it('【已修】N1 单元格内块级数学：降级为行内公式、不再每存一次变异', () => {
+    // 修法：`math_inline_double` 在「单行容器」（表格单元格 / 标题）里落**行内**公式。
+    // 单元格装不下块级内容，硬塞会被 cellToText 把换行换成 <br>、再看回来又被当成
+    // 公式 ⇒ 每轮多一层。降级后落盘是单行 `$b$`，内容与数学语义都不丢。
     const src = '| a | b |\n| --- | --- |\n| x $$b$$ y | z |\n';
     const r1 = roundTrip(src);
-    const r2 = roundTrip(r1);
-    expect(r1, 'N1 已修好？请删登记并同步台账 §二').not.toBe(r2);
-    expect(r2.length).toBeGreaterThan(r1.length);
+    expect(r1, '必须一次收敛（原文每存一次变异一次）').toBe(roundTrip(r1));
+    expect(r1).not.toContain('<br>');
+    expect(r1).toContain('$b$');
+    // `$$`→`$` 是行内化的必然归一；**内容字符一个都不能少**
+    expect(reopenDrift(src, r1).join('\n'), '不得丢内容字符').not.toContain('正向包含');
   });
 
-  it('N2 脚注续块为列表：列表项逃逸 + 换位、不收敛', () => {
+  it('【已修】N1b 单元格独占 / N3b 标题内：同样降级行内', () => {
+    const cell = roundTrip('| a | b |\n| --- | --- |\n| $$b$$ | z |\n');
+    expect(cell).toBe(roundTrip(cell));
+    expect(cell).toContain('$b$');
+
+    const heading = roundTrip('## 标题 $$a$$\n');
+    expect(heading, '标题不得被从中切断').toBe(roundTrip(heading));
+    expect(heading).toContain('$a$');
+  });
+
+  it('【回归】独占一行的 $$ 仍必须是行间公式（F2 原形态不许改坏）', () => {
+    const src = '正文\n$$\nE=mc^2\n$$\n';
+    const r1 = roundTrip(src);
+    expect(r1).toBe(roundTrip(r1));
+    expect(r1, '独占一行 ⇒ 仍是行间公式').toContain('$$\nE=mc^2\n$$');
+    // 容器内同理（列表项 / 引用）
+    for (const s of ['- 项\n\n  $$\n  E=mc^2\n  $$\n', '> 正文\n> $$\n> E=mc^2\n> $$\n']) {
+      const o = roundTrip(s);
+      expect(o, `应保持行间公式：${JSON.stringify(s)}`).toBe(roundTrip(o));
+      expect(o).toContain('$$');
+    }
+  });
+
+  it('【已修】N3 行中间的 $$ 视为行内公式、段落不再被切断', () => {
+    // 修法：用前一个兄弟 token 判定「是否独占一行」——行中间写的 `$$a$$` 是行内公式。
+    for (const src of ['正文 $$a$$ 续文\n', '> 引用 $$a$$\n']) {
+      const r1 = roundTrip(src);
+      expect(r1, `应一次收敛：${JSON.stringify(src)}`).toBe(roundTrip(r1));
+      expect(r1, '不应再切成公式块').not.toContain('$$');
+    }
+  });
+
+  it('N2 脚注续块为列表：列表项逃逸 + 换位、不收敛（待修）', () => {
     const src = '文字[^1]\n\n[^1]: 首段\n\n    - x\n    - y\n';
     const r1 = roundTrip(src);
     const r2 = roundTrip(r1);
@@ -179,15 +218,7 @@ describe('登记锁 · Trae 第二轮 N1~N5（待修）', () => {
     expect(r1, '第二项应仍逃到列 0').toContain('\n- y');
   });
 
-  it('N3 正文内联 $$：首轮漂移（段落被拆 + 边缘空格）', () => {
-    const src = '正文 $$a$$ 续文\n';
-    const r1 = roundTrip(src);
-    const r2 = roundTrip(r1);
-    expect(r1, 'N3 已修好？请删登记并同步台账 §二').not.toBe(r2);
-    expect(r2).toBe(roundTrip(r2)); // 第二轮才稳定
-  });
-
-  it('N4 脚注续块为围栏代码：围栏与语言名一起丢', () => {
+  it('N4 脚注续块为围栏代码：围栏与语言名一起丢（待修）', () => {
     const src = '文字[^1]\n\n[^1]: 首段\n\n    ```js\n    x\n    ```\n';
     const r1 = roundTrip(src);
     expect(r1, 'N4 已修好？请删登记并同步台账 §二').not.toContain('js');

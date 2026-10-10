@@ -183,6 +183,26 @@ export class MarkdownParseState {
     return this.stack[this.stack.length - 1];
   }
 
+  /**
+   * 当前是否处在「**装不下块级内容**」的容器里（表格单元格 / ATX 标题）。
+   *
+   * 为什么需要它：`$$…$$` 在 texmath 里**始终是行内 token**（`math_inline_double`，
+   * 连「独占一行」那种也是——只是前面多个 softbreak）。落成块级还是行内，**只能由
+   * 上下文决定**：
+   *  · 普通段落里 ⇒ 行间公式（块），这是 `正文\n$$\nE=mc^2\n$$\n` 的正确归宿；
+   *  · 单元格 / 标题里 ⇒ GFM 单元格内容**只能是单行**、标题也是单行，块级公式无处
+   *    安放：序列化时单元格把换行一律换成 `<br>`（serializer 的 `cellToText`），
+   *    再看回来 `$$<br>b<br>$$` 又被当成公式 ⇒ **每存一次多一层 `<br>`、永不收敛**
+   *    （台账 §二 #46）；标题则会被从中切断（§二 #48 的 N3b）。
+   */
+  get inSingleLineContainer(): boolean {
+    for (const item of this.stack) {
+      const name = item.type.name;
+      if (name === 'tableCell' || name === 'tableHeader' || name === 'heading') return true;
+    }
+    return false;
+  }
+
   addText(text: string) {
     if (!text) return;
     // 文本只能进 textblock（`inline*`）。栈顶若**不是** textblock——例如块级节点
