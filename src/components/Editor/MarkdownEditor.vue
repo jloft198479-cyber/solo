@@ -387,7 +387,7 @@ function createEditor(content: string) {
 }
 
 // ── 阅读位置记忆 + 最近文件 ──────────────────────────────────
-// 折叠态记忆（list-fold / heading-fold）只活在进程内；阅读位置要跨进程恢复
+// 折叠态记忆（list-fold）只活在进程内；阅读位置要跨进程恢复
 // （关掉重开回到上次位置），落盘走 record_document_session 命令（Rust 侧
 // session/document-session.json）。记录的是「滚动比例」而非像素——窗口尺寸
 // 变化后比例仍成立。失败全部静默：这份数据不值得打断用户。

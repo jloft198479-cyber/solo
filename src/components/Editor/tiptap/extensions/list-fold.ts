@@ -107,10 +107,9 @@ const TOGGLE_KEY_FOLDED = 'list-fold-toggle:folded';
  * 项内第一个子块的正文起点——箭头挂这里，紧贴项首。
  *
  * 首块可以是段落也可以是标题（schema 首格 `block+`，台账 §二 #30），但任意块的
- * 开放 token 恒为 1，同一个 `+2` 对所有形态都成立。DOM 锚点两种情况各有归宿：
- * 段落靠 `li p` 的 `position: relative`（editor.css），标题由 heading 折叠的
- * gutter 槽位规则接管（`:is(h1..h6) .list-fold-toggle`，两扩展本就复用同一 class）。
- * 待办项的差别只在 DOM 包装（多一层 `div`），不影响文档坐标。
+ * 开放 token 恒为 1，同一个 `+2` 对所有形态都成立。widget 渲染进首块**内部**开头，
+ * 定位锚点即首块自身的 `position: relative`（`li p` 与 `li > :is(h1..h6)` 都有，
+ * 见 editor.css）。待办项的差别只在 DOM 包装（多一层 `div`），不影响文档坐标。
  */
 function widgetPosOf(itemPos: number): number {
   return itemPos + 2; // itemPos+1 → 进入项内；再 +1 → 进入首个子块的正文

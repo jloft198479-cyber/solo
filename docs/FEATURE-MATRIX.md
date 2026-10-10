@@ -79,7 +79,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 字数统计（含大文档降级） | ✅ | [`editor-metadata.ts`](../src/components/Editor/tiptap/editor-metadata.ts) + `App.vue` `degradedWordCountTitle` | 150ms 防抖；大文档显示 `≈` 前缀 |
 | 大纲面板 | ✅ | [`useOutline.ts`](../src/composables/useOutline.ts) + [`OutlinePanel.vue`](../src/components/Editor/OutlinePanel.vue) | `Mod+/` 开合（`view.toggleOutline`，**可在设置自定义**） |
 | 列表区幕布式大纲（折叠） | ✅ | [`list-fold.ts`](../src/components/Editor/tiptap/extensions/list-fold.ts) + `editor.css` | 悬停列表行左侧箭头折叠/展开该项下全部子层级；折叠态按文档路径在内存里跨文档记忆（上限 50 篇）。**入口只有鼠标悬停箭头**：无快捷键、不进命令面板、无「全部折叠/展开」（已知缺口） |
-| 标题区幕布式大纲（折叠） | ✅ | [`heading-fold.ts`](../src/components/Editor/tiptap/extensions/heading-fold.ts) + `editor.css` | 悬停标题行左侧箭头折叠/展开该标题到下一个同级或更高级标题间的顶层块（对标 Obsidian「Fold heading」；只支持 doc 顶层）；箭头与 H1–H6 结构标记同槽互斥；折叠态按文档路径在内存里跨文档记忆（上限 50 篇）；大文档整体降级。**入口只有鼠标悬停箭头**（同列表折叠的已知缺口）；纯视图层装饰，零保真风险 |
+| 标题区幕布式大纲（折叠） | ❌ 已下线（2026-10-10 用户撤回：折叠诉求只限列表，不放大到整个文档） | `heading-fold.ts`（已删除，git 历史可溯） | 曾实现：悬停标题行左侧箭头折叠/展开到下一个同级或更高级标题间的顶层块（对标 Obsidian「Fold heading」）。下线时列表项内标题首块的箭头锚点改由 `editor.css` 的 `li > :is(h1..h6):first-child` relative 提供 |
 | 命令面板 | ✅ | [`CommandPalette.vue`](../src/components/CommandPalette.vue) | `Mod+K`（`view.commandPalette`，`fixedShortcut` **不可自定义**）；首组「最近文件」（§二 #4 已实现） |
 | 上下文菜单 | ✅ | [`ContextMenu.vue`](../src/components/Editor/views/ContextMenu.vue) | — |
 | 特殊块整体删除（`Mod+Backspace`） | ✅ | [`code-block.ts`](../src/components/Editor/tiptap/extensions/code-block.ts) / `math-block.ts` / `mermaid-block.ts` | 隔离区，标准退格不删块 |
