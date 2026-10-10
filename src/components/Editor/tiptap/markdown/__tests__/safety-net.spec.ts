@@ -153,8 +153,9 @@ describe('安全网自检 · G6 CommonMark 丢格式 SKIP 双向锁', () => {
  * 共同特征：**都是「批次 1~3 的修复打开的新路径」**——以前这些输入整块解析不进去、
  * 或者根本进不了这个分支；修好之后能进去了，于是走到了没有测试覆盖的角落。
  *
- * 现状：**N1 / N2 / N3 / N4 已修**（判据已翻成「必须正确」）；
- *       **仅 N5 待修**，判据写成「**确认它仍然坏**」——修好即转红（提示删登记 + 移出台账）。
+ * 现状：**N1~N5 全部已修**（N1/N3 一批、N2/N4 一批、N5 一批），判据均已翻成「必须正确」；
+ *       **N6** 不是待修项，而是台账 §二 #33 的**跨型交叉姊妹形态**（`==` 配对失败即按
+ *       字面转义），判据写成「确认它仍然坏」——修好即转红。
  *
  * 逐条实跑值（两轮 roundTrip，2026-10-11）：
  *   N1 `| x $$b$$ y |`      → 修前：R1 `x $$<br>b<br>$$<br> y` → R2 每行再多一层 `<br>`，
@@ -164,7 +165,7 @@ describe('安全网自检 · G6 CommonMark 丢格式 SKIP 双向锁', () => {
  *   N4 `[^1]: 首段` + 4 空格缩进围栏 → 修前围栏与**语言名 `js` 两个内容字符**一起丢，降级为缩进段落
  *   N5 callout 内嵌 callout → 内层 `[!TIP]` 退化成字面 `\[!TIP]`（类型丢失，收敛）
  */
-describe('Trae 第二轮 N1~N6（N1~N4 已修；仅 N5 待修）', () => {
+describe('Trae 第二轮 N1~N6（N1~N5 已修；N6 为 #33 姊妹形态）', () => {
   it('【已修】N1 单元格内块级数学：降级为行内公式、不再每存一次变异', () => {
     // 修法：`math_inline_double` 在「单行容器」（表格单元格 / 标题）里落**行内**公式。
     // 单元格装不下块级内容，硬塞会被 cellToText 把换行换成 <br>、再看回来又被当成
@@ -242,10 +243,41 @@ describe('Trae 第二轮 N1~N6（N1~N4 已修；仅 N5 待修）', () => {
     }
   });
 
-  it('N5 callout 内嵌 callout：内层类型退化成字面量（待修）', () => {
-    const src = '> [!NOTE]\n> > [!TIP]\n> > 内容\n';
-    const r1 = roundTrip(src);
-    expect(r1, 'N5 已修好？请删登记并同步台账 §二').toContain('\\[!TIP]');
+  it('【已修】N5 callout 内嵌 callout：内层类型保住（含标题 / 三层）', () => {
+    // 修法：拦截器命名为 `interceptor` 以便**自递归** —— 委托循环里遇到嵌套
+    // `blockquote_open` 时先过一遍本拦截器（它可能自己就是 callout）；命中后整段
+    // 跳到内层 `blockquote_close`（那段 token 已在递归里消费过，不跳会重复处理）。
+    // 旧实现直接下发 handlers ⇒ 内层一律变普通引用、marker 不剥、`[!TIP]` 退化成
+    // 字面量 `\[!TIP]`。
+    for (const src of [
+      '> [!NOTE]\n> > [!TIP]\n> > 内容\n',
+      '> [!NOTE] 外层\n> > [!TIP] 内层\n> > 内容\n',
+      '> [!NOTE]\n> > [!TIP]\n> > > [!WARNING]\n> > > 深\n',
+    ]) {
+      const r1 = roundTrip(src);
+      expect(r1, `应逐字节保真：${JSON.stringify(src)}`).toBe(src);
+      expect(r1, '不得出现转义后的 marker 字面量').not.toContain('\\[!');
+      expect(roundTrip(r1), '必须一次收敛').toBe(r1);
+    }
+  });
+
+  it('【回归】callout / 引用的既有形态不许改坏（F6 + C1）', () => {
+    for (const src of [
+      '> [!NOTE]\n> > 二层\n', // F6：callout 内二层普通引用
+      '> > [!NOTE]\n> > 内容\n', // F6：外层普通引用内层 callout
+      '> [!NOTE]\n> 内容段落\n',
+      '> [!NOTE]\n> - 甲\n> - 乙\n',
+      '> [!NOTE]\n> ```js\n> x\n> ```\n',
+      '> [!NOTE]\n> 甲\n>\n> ---\n',
+      '> [!NOTE]\n> 第一段\n>\n> 第二段\n',
+      '> [!NOTE] 标题\n> 正文\n',
+      '> [!NOTE]+\n> 内容\n',
+    ]) {
+      expect(roundTrip(src), `应逐字节保真：${JSON.stringify(src)}`).toBe(src);
+    }
+    // 注：**普通**引用里嵌普通引用（`> 甲\n> > 乙`）序列化会补一个空行 —— 那是
+    // blockquote 序列化器的既有行为（嵌套块之间补空行），与 callout 无关、也不丢内容，
+    // 因此不在上面这条「逐字节」清单里。
   });
 
   /**

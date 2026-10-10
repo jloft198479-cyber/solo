@@ -106,7 +106,14 @@ const calloutTokenInterceptor: (schema: Schema) => TokenInterceptor = (schema) =
   // 构建完整的 token handler 映射（含所有插件注册的 handler）
   const handlers = getTokenHandlers(schema);
 
-  return (state: MarkdownParseState, token: Token, tokens: Token[], index: number): boolean => {
+  // 命名以便**自递归**：嵌套 blockquote 也要先过一遍本拦截器，否则内层 callout
+  // 会被当成普通引用、`[!TIP]` 退化成字面量（台账 §二 #49 的 N5）。
+  const interceptor: TokenInterceptor = (
+    state: MarkdownParseState,
+    token: Token,
+    tokens: Token[],
+    index: number,
+  ): boolean => {
     const parseState = getCalloutParseState(state);
 
     // 如果正在跳过 callout blockquote 的内部 token
@@ -183,6 +190,22 @@ const calloutTokenInterceptor: (schema: Schema) => TokenInterceptor = (schema) =
         continue;
       }
       if (markerInlineEmpty && (i === inlineIdx || i === skipOpen || i === skipClose)) continue;
+      // 嵌套 blockquote：**先过一遍本拦截器**（递归）——它可能自己就是一个 callout
+      // （`> [!NOTE]` 里套 `> > [!TIP]`）。旧实现直接下发给 handlers ⇒ 内层一律变成
+      // 普通引用，marker 不剥离、`[!TIP]` 退化成字面量 `\[!TIP]`（台账 §二 #49）。
+      // 递归命中后必须**整段跳过**到内层的 blockquote_close：那段 token 已在递归里
+      // 被消费过，不跳会重复处理。
+      if (t.type === 'blockquote_open' && interceptor(state, t, tokens, i)) {
+        let nestedClose = closeIdx;
+        for (let j = i + 1; j < closeIdx; j++) {
+          if (tokens[j].type === 'blockquote_close' && tokens[j].level === t.level) {
+            nestedClose = j;
+            break;
+          }
+        }
+        i = nestedClose;
+        continue;
+      }
       const handler = handlers[t.type];
       if (handler) {
         handler(state, t, tokens, i);
@@ -199,6 +222,8 @@ const calloutTokenInterceptor: (schema: Schema) => TokenInterceptor = (schema) =
 
     return true; // 跳过 blockquote_open
   };
+
+  return interceptor;
 };
 
 const calloutNodeSerializers: Record<string, NodeSerializer> = {

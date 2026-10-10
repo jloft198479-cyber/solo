@@ -1792,5 +1792,43 @@ describe('Round-trip: parse → serialize', () => {
         }
       });
     });
+
+    describe('Phase K: callout 内嵌 callout（Trae N5 · 2026-10-11）', () => {
+      // 拦截器原来把嵌套 blockquote 直接下发给 handlers ⇒ 内层一律变普通引用、
+      // marker 不剥、`[!TIP]` 退化成字面量 `\[!TIP]`（类型丢失）。
+      // 修法：拦截器自递归 —— 嵌套 blockquote_open 先过一遍拦截器（它可能自己就是
+      // callout），命中后整段跳到内层 blockquote_close。
+
+      it('内层 callout 类型保住（含带标题 / 三层嵌套）', () => {
+        for (const md of [
+          '> [!NOTE]\n> > [!TIP]\n> > 内容\n',
+          '> [!NOTE] 外层\n> > [!TIP] 内层\n> > 内容\n',
+          '> [!NOTE]\n> > [!TIP]\n> > > [!WARNING]\n> > > 深\n',
+        ]) {
+          expect(roundTrip(md), JSON.stringify(md)).toBe(md);
+          expect(roundTrip(roundTrip(md))).toBe(md);
+        }
+      });
+
+      it('内层普通引用 / 外层普通引用内层 callout / 各 C1 形态不许改坏', () => {
+        for (const md of [
+          '> [!NOTE]\n> > 二层\n',
+          '> > [!NOTE]\n> > 内容\n',
+          '> [!NOTE]\n> 内容段落\n',
+          '> [!NOTE]\n> - 甲\n> - 乙\n',
+          '> [!NOTE]\n> ```js\n> x\n> ```\n',
+          '> [!NOTE]\n> 甲\n>\n> ---\n',
+          '> [!NOTE]\n> 第一段\n>\n> 第二段\n',
+          '> [!NOTE] 标题\n> 正文\n',
+          '> [!NOTE]+\n> 内容\n',
+        ]) {
+          expect(roundTrip(md), JSON.stringify(md)).toBe(md);
+        }
+        // 注：**普通**引用里嵌普通引用会补一个空行（blockquote 序列化器嵌套块之间的
+        // 既有行为，与 callout 无关、不丢内容）⇒ 只断收敛，不断字节。
+        const nested = '> 甲\n> > 乙\n';
+        expect(roundTrip(roundTrip(nested))).toBe(roundTrip(nested));
+      });
+    });
   });
 });
