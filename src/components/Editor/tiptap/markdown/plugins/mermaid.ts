@@ -9,7 +9,8 @@ export function mermaidFenceHandler(schema: Schema): FenceHandler | null {
   }
 
   return (state, _token, language, content) => {
-    if (language !== 'mermaid') {
+    // 大小写不敏感：info 串现已按原样保留（不再 toLowerCase），故此处自己比对
+    if (language?.toLowerCase() !== 'mermaid') {
       return false;
     }
 

@@ -54,7 +54,8 @@ export function mathFenceHandler(schema: Schema): FenceHandler | null {
 
   // fence 形式（```math）的解析入口：内容含 $$ 的 math 块以此形式落盘（见序列化侧）
   return (state, _token, language, content) => {
-    if (language !== 'math') {
+    // 大小写不敏感：info 串现已按原样保留（不再 toLowerCase），故此处自己比对
+    if (language?.toLowerCase() !== 'math') {
       return false;
     }
     // 围栏内容本就被 protectCodeRegions 保护，此处剥 ZWNJ 是为**清洗存量**被污染的

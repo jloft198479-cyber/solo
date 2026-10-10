@@ -443,7 +443,10 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   };
 
   handlers.fence = (state, token) => {
-    const lang = token.info?.trim()?.toLowerCase() || null;
+    // 保留 info 串**原样大小写**（旧实现 toLowerCase ⇒ ```` ```JavaScript ```` 首次保存即被
+    // 改写成 ```` ```javascript ````，属「打开→保存就改文件」家族；台账 §一 #49）。
+    // 规模判定（math / mermaid）改用大小写不敏感比较，见各插件 fenceHandler。
+    const lang = token.info?.trim() || null;
     const content = token.content.replace(/\n$/, '');
 
     for (const handler of fenceHandlers) {
