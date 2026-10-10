@@ -167,6 +167,7 @@ md-editor/
 │   │   │       ├── editor-image-drop.ts  # 图片拖放
 │   │   │       ├── editor-metadata.ts    # 大纲/字数/光标提取
 │   │   │       ├── composition-freeze.ts # 组字态（IME）真相源：isFrozen / mapFrozenDecorations
+│   │   │       ├── list-demote.ts      # 列表项托孤式降级（子列表上位）
 │   │   │       ├── editor-dom.ts         # 编辑器 DOM 工具
 │   │   │       ├── useEditorAppearance.ts# 字体/主题/代码高亮注入
 │   │   │       ├── useEditorSearch.ts    # 编辑器内搜索替换

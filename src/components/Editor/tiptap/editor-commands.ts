@@ -1,9 +1,19 @@
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 import { serializeClipboardSlice } from './markdown/serializer';
 import { moveListItem } from './list-move';
+import { demoteListItemToBlock, isInsideListOf } from './list-demote';
 
 export interface BubbleMenuActionData {
   href?: string;
+}
+
+/**
+ * toggle 家族的「第二次按 = 退出」：只在**已经在同类型列表里**且目标含子列表时接管。
+ *
+ * 叶子项交回 toggle —— 它自己就能正确退出列表，不必惊动托孤。
+ */
+function exitList(editor: TiptapEditor, listType: string): boolean {
+  return isInsideListOf(editor.view, listType) && demoteListItemToBlock(editor.view);
 }
 
 export function runBubbleMenuAction(
@@ -42,10 +52,18 @@ export function runBubbleMenuAction(
       chain.toggleHeading({ level: 2 }).run();
       break;
     case 'bulletList':
-      chain.toggleBulletList().run();
+      // 「第二次按 = 退出列表」：已经在无序列表里再按一次 ⇒ 走托孤，不许重排出 `- - 乙`
+      if (!exitList(editor, 'listItem')) chain.toggleBulletList().run();
       break;
     case 'clearFormat':
-      chain.clearNodes().unsetAllMarks().run();
+      // 「清除格式」= 洗澡，不换身份：只去掉装饰（粗体/斜体/高亮/链接…），
+      // **块类型与缩进一概不动**（契约见 docs/PROPOSAL-list-semantics.md）。
+      //
+      // 这里原先是 `clearNodes().unsetAllMarks()`，而 clearNodes 会一路拆掉外层容器 ——
+      // 在列表里它等于给了「清除」重排树的能力：给子项清格式，结果把父项降级了、
+      // 全家还被提升一级。去掉 clearNodes 之后，这类 bug 从根上不再有发生的可能。
+      // 要改块类型请走「转普通段落」（Ctrl+0），那条路才负责把缩进说清楚。
+      chain.unsetAllMarks().run();
       break;
   }
 }
@@ -96,12 +114,17 @@ export function executeEditorCommand(editor: TiptapEditor | null, commandId: str
     case 'editor.heading6':
       return chain.toggleHeading({ level: 6 }).run();
     case 'editor.paragraph':
+      // 同上：列表项「转为正文」走的是同一条 PM 转换路径，同样会把子列表憋成空壳项
+      if (demoteListItemToBlock(editor.view)) return true;
       return chain.setParagraph().run();
     case 'editor.bulletList':
+      if (exitList(editor, 'listItem')) return true;
       return chain.toggleBulletList().run();
     case 'editor.orderedList':
+      if (exitList(editor, 'listItem')) return true;
       return chain.toggleOrderedList().run();
     case 'editor.taskList':
+      if (exitList(editor, 'taskItem')) return true;
       return chain.toggleTaskList().run();
     case 'editor.blockquote':
       return chain.toggleBlockquote().run();

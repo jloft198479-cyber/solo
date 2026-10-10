@@ -5,6 +5,7 @@ import type { Editor, Range } from '@tiptap/core';
 import { PluginKey } from '@tiptap/pm/state';
 
 import { guardedFindSuggestionMatch } from './suggestion-guard';
+import { demoteListItemToBlock, hasListItemToDemote, isInsideListOf } from '../list-demote';
 
 const slashPluginKey = new PluginKey('slashCommands');
 
@@ -40,6 +41,13 @@ export const slashCommandItems: SlashCommandItem[] = [
     category: '基础',
     alias: 'zw',
     command: ({ editor, range }) => {
+      // 常见路径保持原样的一整条 chain（单事务、一次撤销）；只有「列表项转正文」
+      // 这条病态路径才先删文本再托孤（台账 §一 #50）。
+      if (hasListItemToDemote(editor.view)) {
+        editor.chain().focus().deleteRange(range).run();
+        demoteListItemToBlock(editor.view);
+        return;
+      }
       editor.chain().focus().deleteRange(range).setParagraph().run();
     },
   },
@@ -81,6 +89,11 @@ export const slashCommandItems: SlashCommandItem[] = [
     category: '列表',
     alias: 'wxxb ul lb',
     command: ({ editor, range }) => {
+      if (hasListItemToDemote(editor.view) && isInsideListOf(editor.view, 'listItem')) {
+        editor.chain().focus().deleteRange(range).run();
+        demoteListItemToBlock(editor.view);
+        return;
+      }
       editor.chain().focus().deleteRange(range).toggleBulletList().run();
     },
   },
@@ -91,6 +104,11 @@ export const slashCommandItems: SlashCommandItem[] = [
     category: '列表',
     alias: 'yxxb ol lb',
     command: ({ editor, range }) => {
+      if (hasListItemToDemote(editor.view) && isInsideListOf(editor.view, 'listItem')) {
+        editor.chain().focus().deleteRange(range).run();
+        demoteListItemToBlock(editor.view);
+        return;
+      }
       editor.chain().focus().deleteRange(range).toggleOrderedList().run();
     },
   },
@@ -101,6 +119,11 @@ export const slashCommandItems: SlashCommandItem[] = [
     category: '列表',
     alias: 'rwlb task todo lb',
     command: ({ editor, range }) => {
+      if (hasListItemToDemote(editor.view) && isInsideListOf(editor.view, 'taskItem')) {
+        editor.chain().focus().deleteRange(range).run();
+        demoteListItemToBlock(editor.view);
+        return;
+      }
       editor.chain().focus().deleteRange(range).toggleTaskList().run();
     },
   },

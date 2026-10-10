@@ -122,6 +122,7 @@ solo 是一款**本地优先**的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + 
 | 互链改名同步（围栏代码块跳过） | 敏感区第 19 条 |
 | `.tmp` 原子写残留清理 | 敏感区第 20 条 |
 | **Windows 文件关联注册 / 注销**（`HKCU\Software\Classes` 写入、`SHChangeNotify` 通知） | 敏感区第 21 条（**注册必须幂等；注销不得整键删除**） |
+| **列表命令语义（清除格式 / 转普通段落 / toggle 退出列表 / Tab）** | 先读 [`docs/PROPOSAL-list-semantics.md`](./docs/PROPOSAL-list-semantics.md)；实现在 [`list-demote.ts`](./src/components/Editor/tiptap/list-demote.ts)（托孤的唯一落点决策处） |
 | **CJK 强调 / ZWNJ 预处理**（插 ZWNJ 让中文标点边界也能加粗）或**任何读正文文本后计数 / 呈现 / 写盘**的地方 | 敏感区第 23 条（**ZWNJ 是横切不变量**：`stripZwnj` 唯一来源在 `tiptap/zwnj.ts`；代码区与 `$$…$$` 必须先清洗，否则会写进用户文件） |
 
 > 敏感区每条另有 KNOWN-ISSUES 溯源编号（如 #15→§二 #10、#16→§一 #26），详见 [docs/sensitive-areas.md](./docs/sensitive-areas.md) 表格末列。

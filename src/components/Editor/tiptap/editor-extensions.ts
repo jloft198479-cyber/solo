@@ -14,6 +14,7 @@ import { ListItem } from '@tiptap/extension-list';
 import Placeholder from '@tiptap/extension-placeholder';
 import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { CustomCodeBlock } from './extensions/code-block';
+import { demoteListItemToBlock } from './list-demote';
 import { SemanticHeading } from './extensions/semantic-heading';
 import {
   CustomTable,
@@ -257,7 +258,13 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     // 键位对齐注册表承诺（Mod-0 / Mod-Shift-q / Mod-Shift-x）
     Paragraph.extend({
       addKeyboardShortcuts() {
-        return { 'Mod-0': () => this.editor.commands.setParagraph() };
+        // Ctrl+0 是「转正文」最高频的入口，同样要先托孤（台账 §一 #50）——
+        // 只补命令面板那条是不够的，键盘路径会绕过它。
+        return {
+          'Mod-0': () =>
+            demoteListItemToBlock(this.editor.view) ||
+            this.editor.commands.setParagraph(),
+        };
       },
     }),
     Blockquote.extend({
