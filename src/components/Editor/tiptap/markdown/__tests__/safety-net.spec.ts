@@ -146,3 +146,69 @@ describe('安全网自检 · G6 CommonMark 丢格式 SKIP 双向锁', () => {
     expect(fixed, `以下用例的缺口似乎已修好：\n  ${fixed.join('\n  ')}`).toEqual([]);
   });
 });
+
+/**
+ * 登记锁 · N1~N5（Trae 第二轮对抗探针发现，2026-10-11 本方逐条实跑复现）
+ *
+ * 共同特征：**都是「批次 1~3 的修复打开的新路径」**——以前这些输入整块解析不进去、
+ * 或者根本进不了这个分支；修好之后能进去了，于是走到了没有测试覆盖的角落。
+ * ⇒ 本组用例的判据一律写成「**确认它仍然坏**」，修好即转红（提示删登记 + 移出台账）。
+ *
+ * 逐条实跑值（两轮 roundTrip，2026-10-11）：
+ *   N1 `| x $$b$$ y |`      → R1 `x $$<br>b<br>$$<br> y` → R2 每行再多一层 `<br>`，
+ *                             **R1≠R2≠R3，永不收敛、每存一次文件变异一次**
+ *   N2 `[^1]: 首段` + 4 空格缩进列表 → R1 第二项逃到列 0；R2 **整项迁移到脚注节之前**（换位）
+ *   N3 `正文 $$a$$ 续文` / `## 标题 $$a$$` → R1≠R2（首轮漂移 + 段落被拆）；R2 才剥净边缘空格
+ *   N4 `[^1]: 首段` + 4 空格缩进围栏 → 围栏与**语言名 `js` 两个内容字符**一起丢，降级为缩进段落
+ *   N5 callout 内嵌 callout → 内层 `[!TIP]` 退化成字面 `\[!TIP]`（类型丢失，收敛）
+ */
+describe('登记锁 · Trae 第二轮 N1~N5（待修）', () => {
+  it('N1 表格单元格内的块级数学：每轮翻倍、永不收敛', () => {
+    const src = '| a | b |\n| --- | --- |\n| x $$b$$ y | z |\n';
+    const r1 = roundTrip(src);
+    const r2 = roundTrip(r1);
+    expect(r1, 'N1 已修好？请删登记并同步台账 §二').not.toBe(r2);
+    expect(r2.length).toBeGreaterThan(r1.length);
+  });
+
+  it('N2 脚注续块为列表：列表项逃逸 + 换位、不收敛', () => {
+    const src = '文字[^1]\n\n[^1]: 首段\n\n    - x\n    - y\n';
+    const r1 = roundTrip(src);
+    const r2 = roundTrip(r1);
+    expect(r1, 'N2 已修好？请删登记并同步台账 §二').not.toBe(r2);
+    expect(r1, '第二项应仍逃到列 0').toContain('\n- y');
+  });
+
+  it('N3 正文内联 $$：首轮漂移（段落被拆 + 边缘空格）', () => {
+    const src = '正文 $$a$$ 续文\n';
+    const r1 = roundTrip(src);
+    const r2 = roundTrip(r1);
+    expect(r1, 'N3 已修好？请删登记并同步台账 §二').not.toBe(r2);
+    expect(r2).toBe(roundTrip(r2)); // 第二轮才稳定
+  });
+
+  it('N4 脚注续块为围栏代码：围栏与语言名一起丢', () => {
+    const src = '文字[^1]\n\n[^1]: 首段\n\n    ```js\n    x\n    ```\n';
+    const r1 = roundTrip(src);
+    expect(r1, 'N4 已修好？请删登记并同步台账 §二').not.toContain('js');
+    expect(r1).toContain('x'); // 正文内容仍在（丢的是围栏与语言名）
+  });
+
+  it('N5 callout 内嵌 callout：内层类型退化成字面量', () => {
+    const src = '> [!NOTE]\n> > [!TIP]\n> > 内容\n';
+    const r1 = roundTrip(src);
+    expect(r1, 'N5 已修好？请删登记并同步台账 §二').toContain('\\[!TIP]');
+  });
+
+  /**
+   * N6 单独判：**不能**用 `behaviorSignature`（它是对「自身 parse vs 重开后 parse」，
+   * 而 `==` 的配对在 solo 的**首次解析**就已经失败 ⇒ 两个 doc 一样 ⇒ 判据报绿）。
+   * 与 B1 同源的失明。改用「是否被字面转义」这个直接证据 —— 与台账 §二 #33 同一根因
+   * （`==` 配对失败即被按字面转义），属其**跨型交叉姊妹形态**。
+   */
+  it('N6 跨型交叉 mark：highlight 静默丢、== 被字面转义', () => {
+    const src = '**foo ==bar** baz==\n';
+    const r1 = roundTrip(src);
+    expect(r1, 'N6 已修好（== 能配对了）？请删登记并同步台账 §二').toContain('\\=\\=');
+  });
+});
