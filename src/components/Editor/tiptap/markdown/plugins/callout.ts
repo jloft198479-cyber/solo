@@ -121,20 +121,27 @@ const calloutTokenInterceptor: (schema: Schema) => TokenInterceptor = (schema) =
 
     if (token.type !== 'blockquote_open') return false;
 
-    // 向前查找 blockquote 的第一个 inline token
+    // 向前查找 callout 自己那一层的首个 inline token
     let inlineIdx = -1;
     let closeIdx = -1;
+    let nestedQuoteBeforeMarker = false;
     for (let i = index + 1; i < tokens.length; i++) {
-      if (tokens[i].type === 'inline' && inlineIdx === -1) {
+      const t = tokens[i];
+      // 标记必须出现在**本引用自己的首个段落**里：`> > [!NOTE]` 的外层是普通引用，
+      // `[!TYPE]` 属于内层。若在找到标记前先遇到嵌套 `blockquote_open`，说明本层不是
+      // callout ⇒ 交回主循环按普通引用处理（随后内层会作为 callout 再次进入本拦截器）。
+      if (t.type === 'blockquote_open' && inlineIdx === -1) nestedQuoteBeforeMarker = true;
+      if (t.type === 'inline' && inlineIdx === -1) {
         inlineIdx = i;
       }
-      if (tokens[i].type === 'blockquote_close' && tokens[i].level === token.level) {
+      if (t.type === 'blockquote_close' && t.level === token.level) {
         closeIdx = i;
         break;
       }
     }
 
     if (inlineIdx === -1 || closeIdx === -1) return false;
+    if (nestedQuoteBeforeMarker) return false;
 
     const inlineToken = tokens[inlineIdx];
     const calloutType = matchCalloutMarker(inlineToken);
@@ -166,7 +173,15 @@ const calloutTokenInterceptor: (schema: Schema) => TokenInterceptor = (schema) =
 
     for (let i = index + 1; i < closeIdx; i++) {
       const t = tokens[i];
-      if (t.type === 'blockquote_open' || t.type === 'blockquote_close') continue;
+      // 只跳过**本 callout 自己那一对** blockquote（level 相同）；嵌套引用
+      // （level 更深）正常下发给 handlers → 在 callout 内建出真 blockquote。
+      // 旧实现无条件跳过所有 blockquote open/close ⇒ callout 里的二层引用静默塌成段落。
+      if (
+        (t.type === 'blockquote_open' || t.type === 'blockquote_close') &&
+        t.level === token.level
+      ) {
+        continue;
+      }
       if (markerInlineEmpty && (i === inlineIdx || i === skipOpen || i === skipClose)) continue;
       const handler = handlers[t.type];
       if (handler) {
