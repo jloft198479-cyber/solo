@@ -159,6 +159,19 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
       console.warn('[close] ack 失败:', error);
     });
 
+    try {
+      return await runCloseChain();
+    } catch (error) {
+      // ack 已发出 ⇒ Rust 侧 CloseGuard 停在 Waiting，之后每次点 X 都被静默吞掉。
+      // 链路中途抛异常（大文档序列化炸、destroy 失败等）若不 abort 复位，窗口就**再也
+      // 关不掉**，只能杀进程。统一兜底：abort + 留在原窗口，让用户能重走一遍确认。
+      console.error('[close] 关闭链异常，复位逃生舱看门狗:', error);
+      void abortCloseHandshake();
+      return false;
+    }
+  }
+
+  async function runCloseChain(): Promise<boolean> {
     options.stopAutoSave?.();
 
     // 300ms 防抖窗口内的最后一次设置改动要在销毁前强制落盘
@@ -196,15 +209,9 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
     } catch {
       // 窗口状态保存失败不影响关闭流程
     }
-    try {
-      await destroyCurrentWindow();
-    } catch (error) {
-      // destroy 失败时若保持 acked 状态，CloseGuard 会永久停在 Waiting，
-      // 逃生舱失效、后续所有关闭被吞——必须 abort 让下一次关闭重新走确认。
-      console.error('[close] destroy 失败:', error);
-      void abortCloseHandshake();
-      throw error;
-    }
+    // destroy 失败交给 handleCloseRequest 的 catch：abort 复位看门狗 + 返回 false。
+    // 若保持 acked 状态，CloseGuard 会永久停在 Waiting，逃生舱失效、后续关闭全被吞。
+    await destroyCurrentWindow();
     return true;
   }
 

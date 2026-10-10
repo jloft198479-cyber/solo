@@ -122,9 +122,5 @@ export const useFileStore = defineStore('file', {
         this.currentFile.lastModifiedTime = lastModifiedTime;
       }
     },
-
-    reset() {
-      this.currentFile = createEmptyFileState();
-    },
   },
 });

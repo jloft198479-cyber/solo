@@ -7,8 +7,12 @@ use base64::{engine::general_purpose, Engine as _};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
+
+/// 进程内自增序号，参与 `.tmp` 命名（见 `temp_path`）。
+static TMP_SEQ: AtomicU32 = AtomicU32::new(0);
 
 // 图片扩展名白名单（用于显示授权校验 validate_image_asset_path）。
 // ⚠️ 必须与前端 editor-image-drop.ts 的 supportedImageExtensions 保持一致，
@@ -870,8 +874,19 @@ fn temp_path(path: &Path) -> PathBuf {
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or("solo");
-    // 命名 .{名}.{毫秒}.{pid}.tmp：带 PID，避免同毫秒内双进程撞名（M-45）
-    path.with_file_name(format!(".{}.{}.{}.tmp", file_name, millis, std::process::id()))
+    // 命名 .{名}.{毫秒}.{pid}.{序号}.tmp：
+    // - PID 防「双开进程」同毫秒撞名（M-45）；
+    // - 序号防「同进程多窗口」撞名——一个进程可有多窗口（lib.rs create_editor_window），
+    //   PID 相同，同毫秒保存同一文件时后者 File::create 会截断前者正在写的 tmp。
+    // 序号段同样是纯数字，cleanup_stale_tmp_files 的「各段全数字」识别不受影响。
+    let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
+    path.with_file_name(format!(
+        ".{}.{}.{}.{}.tmp",
+        file_name,
+        millis,
+        std::process::id(),
+        seq
+    ))
 }
 
 fn unique_asset_target(assets_dir: &Path, filename: &str) -> (PathBuf, String) {
@@ -1273,20 +1288,24 @@ mod tests {
         // 注意：文件名含扩展名 ⇒ 前缀是「.demo.md.」（不是「.demo.」）
         assert!(filename.starts_with(".demo.md."));
         assert!(filename.ends_with(".tmp"));
-        // 中间必须是「毫秒.pid」两段纯数字（M-45：加 PID 防同毫秒撞名）
+        // 中间必须是「毫秒.pid.序号」三段纯数字（PID 防双进程、序号防同进程多窗口撞名）
         let stem = filename
             .strip_prefix(".demo.md.")
             .and_then(|s| s.strip_suffix(".tmp"))
-            .expect("tmp 名应为 .demo.md.{毫秒}.{pid}.tmp");
+            .expect("tmp 名应为 .demo.md.{毫秒}.{pid}.{序号}.tmp");
         let parts: Vec<&str> = stem.split('.').collect();
-        assert_eq!(parts.len(), 2, "应为「毫秒」与「pid」两段：{}", filename);
+        assert_eq!(parts.len(), 3, "应为「毫秒」「pid」「序号」三段：{}", filename);
         assert!(
             parts
                 .iter()
                 .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())),
-            "两段都必须是非空纯数字：{}",
+            "三段都必须是非空纯数字：{}",
             filename
         );
+
+        // 同进程连拿两个 tmp 名必须不同：同毫秒的多窗口保存靠这一段分开
+        let other = super::temp_path(&path);
+        assert_ne!(tmp, other, "同进程内 temp_path 不得重名");
 
         let _ = fs::remove_dir_all(dir);
     }
@@ -1322,6 +1341,11 @@ mod tests {
         fs::write(&stale_tmp, b"stale").unwrap();
         set_modified_hours_ago(&stale_tmp, 2);
 
+        // 新格式（带 PID + 序号）的 stale 残留同样要认出并清理
+        let stale_seq_tmp = dir.join(".demo.md.1000002.4242.7.tmp");
+        fs::write(&stale_seq_tmp, b"stale-seq").unwrap();
+        set_modified_hours_ago(&stale_seq_tmp, 2);
+
         // fresh 残留：mtime 当前 → 应保留（双开进程可能正在写入）
         let fresh_tmp = dir.join(".demo.md.1000001.4242.tmp");
         fs::write(&fresh_tmp, b"fresh").unwrap();
@@ -1338,6 +1362,10 @@ mod tests {
         super::cleanup_stale_tmp_files(&doc_path);
 
         assert!(!stale_tmp.exists(), "stale tmp (mtime > 1h) should be deleted");
+        assert!(
+            !stale_seq_tmp.exists(),
+            "带序号的新格式 stale 残留也应被清理"
+        );
         assert!(fresh_tmp.exists(), "fresh tmp should be kept");
         assert!(!legacy_stale.exists(), "旧格式（无 pid）stale 残留也应被清理");
         assert!(bad_num_tmp.exists(), "含非数字段的名字应保留");

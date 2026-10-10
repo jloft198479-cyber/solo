@@ -176,18 +176,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     return loaded;
   }
 
-  async function handleNewDocument() {
-    if (!(await confirmDiscardUnsavedChanges())) {
-      return;
-    }
-
-    clearExternalWarning();
-    // 必须先复位档位再写 store：新建文档不该继承上一个超大文档的降级设置。
-    setDocumentTier('normal');
-    fileStore.reset();
-    options.resetViewMode();
-  }
-
   async function handleOpenDocument() {
     const selected = await open({
       multiple: false,
@@ -234,10 +222,16 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       return saveRenamedDocument();
     }
 
-    // 未修改则不写盘（M-03）：Ctrl+S 此前是全链路唯一无 isDirty 门控的保存入口，
-    // 打开一个别人的 CRLF 文件、不动内容按一下保存，行尾就会被静默归一成 LF。
-    // 与自动保存 / 状态栏按钮的门控保持一致；force（冲突重试 / 另存为）不受影响。
-    if (!force && !fileStore.currentFile.isDirty) {
+    // 未修改则不写盘（M-03）：否则打开一个别人的 CRLF 文件、不动内容按一下保存，
+    // 行尾就被静默归一成 LF（台账 §二 #20）。force（冲突重试 / 另存为）不受影响。
+    //
+    // 但 `isDirty` 有滞后：序列化防抖 500ms + 空闲调度至多 2s 才回写 store
+    // （useEditorSync）。刚敲完就按 Ctrl+S / 点菜单「保存」会被这个滞后门整个吞掉——
+    // 不写盘、不报错、状态栏还显示「已保存」（P1-①）。所以 store 报「干净」时不能
+    // 直接短路，要先按编辑器**实时**内容评估一次再判：真没改（与规范化基线语义相等）
+    // 仍不写盘，§二 #20 不回潮。短路顺序要紧——store 已报脏时绝不先评估，否则白付
+    // 一次全文序列化（4MB 文档上就是几百毫秒的按键卡顿）。
+    if (!force && !fileStore.currentFile.isDirty && !evaluateDirtyFromEditor()) {
       return true;
     }
 
@@ -247,8 +241,22 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     _savePromise = (async () => {
       try {
         const { result, content } = await persistDocument(savePath, force, saveLastModified);
+        // P1-② 的判据必须在 markSaved **之前**取：markSaved 一执行，store 内容就被
+        // 覆盖成快照，之后再比永远相等（写错这一步 = 修复静默失效）。
+        // 「store 内容已不等于刚写盘的快照」只可能由 IPC 往返期间落地的空闲序列化造成，
+        // 故常规保存（含每一次自动保存）零额外开销：一次字符串比对，不碰序列化。
+        const storeMovedDuringSave = fileStore.currentFile.content !== content;
         // 保存成功才同步基线：写入磁盘的内容成为新的语义比对基准
         fileStore.markSaved(result.lastModifiedMs, content);
+        // 竞态发生过：空闲序列化先把新内容写进 store，紧接着被 markSaved 的旧快照覆盖
+        // 并清脏，同时那个回调还把代际追平 ⇒ `isSyncedWithStore()` 谎报已同步 ⇒ 关窗不弹
+        // 确认、自动保存不再保存 ⇒ 那笔编辑静默丢失。重算一次把基线与脏态拉回事实——
+        // 磁盘仍是快照，多出的部分重新标脏。此处取实时内容是**缓存命中**
+        // （那个回调的 onSerialize 刚刷新过 cachedSerialize），不额外序列化。
+        if (storeMovedDuringSave) {
+          const liveAfterSave = options.getContent?.();
+          if (liveAfterSave != null) fileStore.syncEditedContent(liveAfterSave);
+        }
         autoSaveFailCount = 0;
         return true;
       } catch (error) {
@@ -506,7 +514,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     externalFileWarning,
     loadDocumentFromPath,
     openDocumentWithPrompt,
-    handleNewDocument,
     handleOpenDocument,
     saveCurrentDocument,
     saveCurrentDocumentAs,

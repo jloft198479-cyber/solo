@@ -248,22 +248,6 @@ describe('useFileStore', () => {
     });
   });
 
-  describe('reset', () => {
-    it('恢复为初始未命名空文件', () => {
-      const store = useFileStore();
-      store.setFile('内容', '/path/file.md', 1000);
-      store.setDisplayName('新名字');
-
-      store.reset();
-
-      expect(store.currentFile.path).toBeNull();
-      expect(store.currentFile.content).toBe('');
-      expect(store.currentFile.isDirty).toBe(false);
-      expect(store.currentFile.lastModifiedTime).toBeNull();
-      expect(store.currentFile.displayName).toBe('未命名');
-    });
-  });
-
   describe('setLoading', () => {
     it('切换 isLoading 标志', () => {
       const store = useFileStore();

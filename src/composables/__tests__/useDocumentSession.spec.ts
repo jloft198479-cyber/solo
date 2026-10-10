@@ -47,8 +47,12 @@ const fileStoreState = {
     fileStoreState.currentFile.isDirty = false;
     fileStoreState.currentFile.lastModifiedTime = lastModifiedTime;
   }),
-  /** 语义比对的真实实现见 stores/file（由 file.spec.ts 覆盖）；这里只需可被调用与断言 */
-  syncEditedContent: vi.fn(() => false),
+  /**
+   * 默认桩「永远不相等且不动脏态」，仅供不关心脏态的用例通过。
+   * 脏态判定相关的用例必须调 `withFaithfulSyncEditedContent()` 换成忠实语义版
+   * （真实实现见 stores/file.ts，stores/__tests__/file.spec.ts 覆盖）。
+   */
+  syncEditedContent: vi.fn((_content: string): boolean => false),
   renamePath: vi.fn((newPath: string) => {
     const baseName = newPath
       ? (newPath.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
@@ -126,6 +130,8 @@ describe('useDocumentSession', () => {
     fileStoreState.markSaved.mockClear();
     fileStoreState.renamePath.mockClear();
     fileStoreState.reset.mockClear();
+    // 忠实语义版只在其用例内需要，每个用例开头复位回默认桩，防跨用例泄漏
+    fileStoreState.syncEditedContent.mockImplementation(() => false);
   });
 
   it('loads document content and mtime together', async () => {
@@ -179,6 +185,136 @@ describe('useDocumentSession', () => {
 
     await expect(session.saveCurrentDocument(false, true)).resolves.toBe(true);
     expect(saveDocumentMock).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 数据安全线复现锁（见 docs/REVIEW-2026-10-10-数据安全线复审-二次核实.md P1-①/②）。
+   * 这两条改的是「脏态判定」，桩版 syncEditedContent 不会推进基线，必须换成语义
+   * 比对真身，否则断言的是测试自己的假设。
+   */
+  function withFaithfulSyncEditedContent() {
+    fileStoreState.syncEditedContent.mockImplementation((next: string) => {
+      const strip = (s: string) => s.replace(/\n+$/, '');
+      if (strip(next) === strip(fileStoreState.currentFile.content)) return false;
+      fileStoreState.currentFile.content = next;
+      fileStoreState.currentFile.isDirty = true;
+      return true;
+    });
+  }
+
+  it('编辑后 store 未追平（防抖窗口内）按 Ctrl+S 必须落盘（P1-① 复现锁）', async () => {
+    fileStoreState.currentFile = {
+      path: '/tmp/demo.md',
+      content: '磁盘原文',
+      // 500ms 序列化防抖 + 空闲调度（useEditorSync）还没把新内容写回 store，
+      // 此刻 isDirty 仍是 false —— 修复前 Ctrl+S 被这个滞后门吞掉，静默不落盘。
+      isDirty: false,
+      lastModifiedTime: 1000,
+      displayName: 'demo',
+      originalBaseName: 'demo',
+    };
+    withFaithfulSyncEditedContent();
+    saveDocumentMock.mockResolvedValue({ path: '/tmp/demo.md', lastModifiedMs: 2000 });
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => '磁盘原文＋刚敲的一个字',
+      isSyncedWithStore: () => false,
+    });
+
+    await expect(session.saveCurrentDocument(false, true)).resolves.toBe(true);
+    expect(saveDocumentMock).toHaveBeenCalledTimes(1);
+    expect(saveDocumentMock.mock.calls[0][1]).toBe('磁盘原文＋刚敲的一个字');
+  });
+
+  it('走实时评估后内容仍未变 ⇒ 照样不写盘（守住 §二 #20，修 P1-① 不许回潮）', async () => {
+    // 基线是「编辑器序列化产物」（LF 规范化，见 MarkdownEditor.vue setContent(baseline)），
+    // 拦住房 CRLF 被静默归一的是这个规范化基线 + 语义比对，不是快路径。
+    fileStoreState.currentFile = {
+      path: '/tmp/demo.md',
+      content: '第一行\n第二行',
+      isDirty: false,
+      lastModifiedTime: 1000,
+      displayName: 'demo',
+      originalBaseName: 'demo',
+    };
+    withFaithfulSyncEditedContent();
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => '第一行\n第二行',
+      // 故意让快路径失效，逼门控走「冲刷实时内容再判」那条分支
+      isSyncedWithStore: () => false,
+    });
+
+    await expect(session.saveCurrentDocument(false, true)).resolves.toBe(true);
+    expect(saveDocumentMock).not.toHaveBeenCalled();
+    expect(fileStoreState.currentFile.isDirty).toBe(false);
+  });
+
+  it('保存往返期间的新编辑不得被旧快照 markSaved 洗成「已保存」（P1-② 复现锁）', async () => {
+    let editorText = 'v1';
+    fileStoreState.currentFile = {
+      path: '/tmp/demo.md',
+      content: 'v1',
+      isDirty: true,
+      lastModifiedTime: 1000,
+      displayName: 'demo',
+      originalBaseName: 'demo',
+    };
+    withFaithfulSyncEditedContent();
+    saveDocumentMock.mockImplementation(async (_path: string, content: string) => {
+      // IPC 往返期间空闲序列化落地：store 基线被推进到写盘快照之外的新内容
+      editorText = `${content}＋往返期间又敲的字`;
+      fileStoreState.syncEditedContent(editorText);
+      return { path: '/tmp/demo.md', lastModifiedMs: 2000 };
+    });
+    const getContentMock = vi.fn(() => editorText);
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: getContentMock,
+      // 空闲回调把 syncedGeneration 追平了 ⇒ 代际比对此刻正在**谎报**已同步
+      isSyncedWithStore: () => true,
+    });
+
+    await expect(session.saveCurrentDocument(false, true)).resolves.toBe(true);
+    // 磁盘上确实只有快照 v1（不许事后追写，那属另一个话题）
+    expect(saveDocumentMock.mock.calls[0][1]).toBe('v1');
+    // 修复前：markSaved(v1) 把基线拉回 v1 并清了脏 ⇒「已保存」是假的，
+    // 自动保存不再保存、关窗不弹确认 ⇒ 往返期间那笔编辑静默丢失。
+    expect(fileStoreState.currentFile.isDirty).toBe(true);
+    expect(fileStoreState.currentFile.content).toBe('v1＋往返期间又敲的字');
+    // 竞态真发生过时才会二次取内容——那一次在生产里是缓存命中（回调刚刷过缓存）
+    expect(getContentMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('常规保存全链路只取一次实时内容（自动保存不许多跑一遍全文序列化）', async () => {
+    fileStoreState.currentFile = {
+      path: '/tmp/demo.md',
+      content: 'draft',
+      isDirty: true,
+      lastModifiedTime: 1000,
+      displayName: 'demo',
+      originalBaseName: 'demo',
+    };
+    saveDocumentMock.mockResolvedValue({ path: '/tmp/demo.md', lastModifiedMs: 1500 });
+    const getContentMock = vi.fn(() => 'draft');
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: getContentMock,
+      isSyncedWithStore: () => true,
+    });
+
+    await expect(session.saveCurrentDocument()).resolves.toBe(true);
+    // 只有 persistDocument 取快照这一次：store 没被中途改动 ⇒ 保存后的 P1-② 复查不得触发。
+    // 这条锁的意义是「有自动保存的会话里，每一次保存都多跑一遍全文序列化」不能发生。
+    expect(getContentMock).toHaveBeenCalledTimes(1);
   });
 
   it('retries save with force after a document conflict is confirmed', async () => {
@@ -667,18 +803,6 @@ describe('useDocumentSession 大文档档位闸门（阈值分层 + 自动降级
     const md = `![p](data:image/png;base64,${'A'.repeat(EXTREME_DOC_CHARS)})\n正文`;
     await expect(loadWith(md)).resolves.toBe(true);
     expect(confirmMock).not.toHaveBeenCalled();
-    expect(documentTier.value).toBe('normal');
-  });
-
-  it('新建文档复位档位：不继承上一个超大文档的降级设置', async () => {
-    confirmMock.mockResolvedValueOnce(true);
-    await loadWith('x'.repeat(EXTREME_DOC_CHARS));
-    expect(documentTier.value).toBe('extreme');
-
-    const { useDocumentSession } = await import('../useDocumentSession');
-    const session = useDocumentSession({ resetViewMode: vi.fn() });
-    await session.handleNewDocument();
-
     expect(documentTier.value).toBe('normal');
   });
 });
