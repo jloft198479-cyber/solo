@@ -472,8 +472,11 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 - `plugins/`：解析插件（`frontmatter` / `callout` / `math` / `mermaid` / `wikilink` / `footnote` / `fence` + `index.ts` 汇总），承载扩展语法的 token 与序列化钩子。
 - `__tests__/roundtrip.spec.ts`：**Markdown 保真度的主要安全网**——动 parser/serializer 前先看它。
 - `__tests__/fixtures.spec.ts`：19 个 fixture 的**保真回归**——「重开等价」（参照系是 markdown-it，抓内容丢失）+ 字节保真（差异须登记在 `KNOWN_FIDELITY_GAPS`）；未登记缺口与「登记项已修好」都会红（**双向锁**）。
-- `__tests__/fuzz.spec.ts`：随机**结构块**组合压测（标题/列表/嵌套/任务列表/代码围栏/引用/表格/分隔线 + 行内样式），断言重开等价 + 收敛。**随机源种子化**（同种子 → 同序列，失败可原样重放；`FUZZ_SEED` 可覆盖）。
-- `__tests__/commonmark.spec.ts`：CommonMark spec 全量 roundtrip 验证（**条数与 pass/skip 分档以 `bun run test` 输出为准，不在此硬编码**；skip 项是设计约束）。**只验收敛，不是保真防线**——收敛 ≠ 内容不丢。
+- `__tests__/fuzz.spec.ts`：随机**结构块**组合压测（标题/列表/嵌套/任务列表/代码围栏/引用/表格/转义竖线表格/脚注/块级数学/分隔线 + 行内样式，含 **mark 套 mark**），断言重开等价 + 收敛。**随机源种子化**（同种子 → 同序列，失败可原样重放；`FUZZ_SEED` 可覆盖）。**词表本身就是判据的一部分**——历史上 #35 的病根就是「该组合不在词表里」。
+- `__tests__/commonmark.spec.ts`：CommonMark spec 全量 roundtrip 验证（**条数与 pass/skip 分档以 `bun run test` 输出为准，不在此硬编码**）。**只验收敛，不是保真防线**——收敛 ≠ 内容不丢。跳过表在 `__tests__/commonmark-skips.ts`（与 `safety-net.spec.ts` 共用，避免两处漂移）；2026-10-10 已清掉 22 条陈旧条目（**跳过表不会自己收缩**）。
+- `__tests__/mark-matrix.spec.ts`：**行为级 mark 矩阵**——构造 → 落盘 → 重开，比两个 PM doc 的「文本 ⊕ mark 集合」。为什么不能只靠 `mark-delimiter-coverage`：那是从源码正则抠 `case 'xxx'` 名，只证明「有分支」，证明不了「写出去能重开」。
+- `__tests__/safety-net.spec.ts`：**安全网自检 + 登记锁**——证明判据本身能抓东西（反向校准：关掉判据该转红）、并对已知缺口（CommonMark 5 条丢格式 SKIP、脚注重复标签）做双向锁。
+- `__tests__/test-utils.ts`：测试共享工具。`reopenDrift` 有**三条**判据：可见文字多重集、块结构直方图、**正向包含**（原始内容字符 ⊆ 输出，专抓「参照系两侧同丢」的隐形丢失）。
 
 ---
 

@@ -53,7 +53,7 @@ solo 是一款**本地优先**的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + 
 **编辑内核**
 
 4. 🚫 不许用 `String.replaceAll` —— TS target ES2020，用 `.split().join()`。
-5. 🚫 不许改 **parser / serializer / schema** 前不看契约锁 —— 必跑 `fixtures`（重开等价）+ `roundtrip` **Phase E**（mark「后开先关」）+ `schema-contract`（正向契约锁）+ **`mark-delimiter-coverage`**（mark 全量载体比对）。
+5. 🚫 不许改 **parser / serializer / schema** 前不看契约锁 —— 必跑 `fixtures`（重开等价）+ `roundtrip` **Phase E**（mark「后开先关」）+ `schema-contract`（正向契约锁）+ **`mark-delimiter-coverage`**（mark 全量载体比对）+ **`mark-matrix`**（行为级：构造→落盘→重开，比 mark 集合守恒——`mark-delimiter-coverage` 只证明「有分支」，证明不了「写出去能重开」）。
    5b. 🚫 **不许新增无 markdown 载体的 mark** —— `markDelimiter()` 无 `case` ⇒ 落 `default: return ''` **静默吞格式**（文本在、格式消失、不报错）。且 `StarterKit` 默认成员必须**显式关掉**（`underline` 即漏网案例，见敏感区 16b）。
 6. 🚫 嵌套序列化不许 `new MarkdownSerializerState()` —— 用 `state.createChild()`，否则外层剪贴板转义标记丢失（粘出多出 `\=` `\$`）。
 7. 🚫 NodeView 不许漏清理 —— 监听器挂 `AbortController` 的 `signal`，`destroy()` 里 `abort()` + 单独清 timer；销毁后的异步回写要查 `signal.aborted`（`requestId` 挡不住）。
@@ -181,7 +181,7 @@ SOLO_FIDELITY_SCAN=1 bunx vitest run src/components/Editor/tiptap/markdown/__tes
 |---|---|
 | Tauri 命令（新增/改名/删除） | `command-names.ts` → `commands/mod.rs` → `lib.rs` |
 | 字体 / 主题 / 排版 CSS | `ARCHITECTURE.md` → [docs/font-handling.md](./docs/font-handling.md) → [docs/ui-typography-eval.md](./docs/ui-typography-eval.md) |
-| parser / serializer / schema | `fixtures.spec.ts` + `roundtrip.spec.ts` Phase E + `schema-contract.spec.ts` + [`fidelity-scan.spec.ts`](./src/components/Editor/tiptap/markdown/__tests__/fidelity-scan.spec.ts)（全仓体检，命令见 §4）+ [docs/cjk-boundary.md](./docs/cjk-boundary.md) + 敏感区 #15/#16/#23 |
+| parser / serializer / schema | `fixtures.spec.ts` + `roundtrip.spec.ts` Phase E + `schema-contract.spec.ts` + `mark-matrix.spec.ts`（行为级 mark 矩阵）+ [`fidelity-scan.spec.ts`](./src/components/Editor/tiptap/markdown/__tests__/fidelity-scan.spec.ts)（全仓体检，命令见 §4）+ [`safety-net.spec.ts`](./src/components/Editor/tiptap/markdown/__tests__/safety-net.spec.ts)（判据自检 / 登记锁）+ [docs/cjk-boundary.md](./docs/cjk-boundary.md) + 敏感区 #15/#16/#23 |
 | 发版 / 版本号 | 三处同步 → [docs/CHANGELOG.md](./docs/CHANGELOG.md) → [docs/RELEASE_PROCESS.md](./docs/RELEASE_PROCESS.md) → [docs/SECURITY.md](./docs/SECURITY.md) |
 | **任意改动** | `grep -rn "<改动文件>" --include=*.md` 跑死链扫描 —— **死链即 Bug** |
 
