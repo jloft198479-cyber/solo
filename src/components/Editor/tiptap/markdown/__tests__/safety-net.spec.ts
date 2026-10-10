@@ -292,3 +292,66 @@ describe('Trae 第二轮 N1~N6（N1~N5 已修；N6 为 #33 姊妹形态）', () 
     expect(r1, 'N6 已修好（== 能配对了）？请删登记并同步台账 §二').toContain('\\=\\=');
   });
 });
+
+/**
+ * Trae 第三轮 R1~R3（2026-10-11 本方逐条实跑复现；N 系列的第二轮之后又一轮）
+ *
+ *   R1【已修】「独行判定只看前一个兄弟」的**残留族** —— `正文\n$$a$$ 续`、
+ *             `> 正文\n> $$a$$ 续`、`> [!NOTE]\n> $$a$$ 续`：`$$` 前面确实是换行，
+ *             但**同一行后面还跟着正文**（`text" 续"`），所以它仍是**行内**公式。
+ *             只看 `prev` 会判成块 ⇒ 段落被切成三段，且**第二轮才稳定**（首轮就改文件、
+ *             尾文前导空格在第二轮被吃）。修法：判定改为**前后都看**。
+ *   R2【登记 · 上游】`$$a$$ 正文` ⇒ **同行尾文整段消失**。根因在 texmath 的块规则
+ *             （`texmath.js:41` 注入、`dollars.block` 的 rex 无行尾锚点）——`$$` 出现在
+ *             **块起点**（行首且上一行已收段）时由**块规则**先行吞掉整行，尾文连
+ *             token 都不会产生 ⇒ 本侧 handler 拿不到、无从恢复。**非本轮引入**。
+ *             ⚠️ 这是**静默内容丢失**，不是「格式降级」。
+ *   R3【非缺陷】嵌套引用里的惰性续行是 CommonMark 规范行为，不入锁。
+ *
+ * 双向锁：R1 已翻成「必须正确」；R2 写成「确认它仍然坏」——修好即转红。
+ */
+describe('Trae 第三轮 R1~R3（R1 已修；R2 为上游登记）', () => {
+  it('【已修】R1 前有换行但同行仍有尾文 ⇒ 行内公式、一次收敛', () => {
+    // 修法：`standsAloneOnLine()` 前后都判（原来 `startsOwnLine()` 只看 prev）。
+    for (const src of ['正文\n$$a$$ 续\n', '> 正文\n> $$a$$ 续\n', '> [!NOTE]\n> $$a$$ 续\n']) {
+      const r1 = roundTrip(src);
+      expect(roundTrip(r1), `必须一次收敛：${JSON.stringify(src)}`).toBe(r1);
+      expect(r1, '不得再切成公式块').not.toContain('$$');
+      expect(reopenDrift(src, r1).join('\n'), '不得丢内容字符').not.toContain('正向包含');
+    }
+  });
+
+  it('【回归】真正的独行 $$ 仍是行间公式（R1 的修法不得误伤）', () => {
+    for (const src of ['正文\n$$a$$\n', '$$\nE=mc^2\n$$\n']) {
+      const r1 = roundTrip(src);
+      expect(r1, `应保持行间公式：${JSON.stringify(src)}`).toContain('$$');
+      expect(roundTrip(r1), '必须收敛').toBe(r1);
+    }
+  });
+
+  it('R2 块起点 $$ 的同行尾文仍整段消失（上游；修好后本用例转红）', () => {
+    // 形态：`$$…$$` 独占块起点、同一行后面还有正文。texmath 的**块规则**先行匹配
+    // `$$…$$` 并把整行剩余部分丢弃（token 流里只剩 `math_block"a"`，尾文从未出现）。
+    for (const [src, lost] of [
+      ['$$a$$ 正文\n', '正文'],
+      ['$$\na\n$$ 正文\n', '正文'],
+      ['> $$a$$ 正文\n', '正文'],
+    ] as const) {
+      const out = roundTrip(src);
+      expect(out, `R2 已修好（尾文保住了）？请删登记并同步台账 §二 #50：${JSON.stringify(src)}`).not.toContain(
+        lost,
+      );
+      expect(roundTrip(out), '无论如何必须收敛').toBe(out);
+    }
+  });
+
+  it('R2b 块级公式带编号 `$$a$$ (1)` 整块消失（上游；修好后本用例转红）', () => {
+    // 同一个 `dollars` 块规则下另有一条 `math_block_eqno` —— **全项目没有它的 handler**
+    // ⇒ token 被静默跳过、整块公式连同内容消失（台账 §二 #51）。
+    const out = roundTrip('$$a$$ (1)\n');
+    expect(
+      out.trim(),
+      'eqno 已修好（能落节点了）？请删登记并同步台账 §二 #51',
+    ).toBe('');
+  });
+});

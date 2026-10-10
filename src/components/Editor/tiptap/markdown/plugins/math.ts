@@ -21,21 +21,28 @@ import { stripZwnj } from '../../zwnj';
  * 同一件事两处做。
  */
 /**
- * `$$…$$` 在源文里是否**独占一行**（行首，或紧跟软/硬换行之后）。
+ * `$$…$$` 在**自己那一行里是否没有别的正文**（＝真正独占一行）。
  *
  * texmath 对 `$$…$$` 一律产出行内 token（`math_inline_double`），**块 / 行内只能由
- * 位置决定**：独占一行 ⇒ 用户要的是**行间公式**（落 mathBlock）；写在行中间
- * （如 `正文 $$a$$ 续文`）⇒ 是**行内公式**（落 mathInline）。
- * 判错方向的代价（实测）：落成块级会把段落**从中切断**并多出边缘空格 ⇒ R1≠R2
+ * 位置决定**：前后都是换行（或段落边界）⇒ 用户要的是**行间公式**（落 mathBlock）；
+ * 只要**同一行里还有别的正文**（`正文 $$a$$ 续文`、`正文\n$$a$$ 续`）⇒ 是**行内公式**
+ * （落 mathInline）。判错方向的代价（实测）：落成块级会把段落**从中切断** ⇒ R1≠R2
  * 首轮漂移（台账 §二 #48）。
  *
- * 无兄弟信息时返回 true（按行间公式处理）——保守偏向「原文就是这么写的」。
+ * ⚠️ **必须同时看前后两侧**（2026-10-11 补，引自第三方第三轮 R1）：
+ * 只看**前一个**兄弟 token 会漏判「`$$` 前面是换行、但同一行后面还有正文」这种形态
+ * （`正文\n$$a$$ 续`）——`prev` 确实是 `softbreak`，可 `next` 紧跟着 `text`，仍是行内
+ * 公式；漏看 `next` 会把段落切成「正文 / 公式 / 续」**三段**，且第二轮才稳定
+ * ⇒ 首轮改文件、且「续」的前导空格被吃掉（台账 §二 #50 的 R1 族）。
+ *
+ * 无兄弟信息（非 inline 上下文）时返回 true（按行间公式处理）——保守偏向
+ * 「原文就是这么写的」。
  */
-function startsOwnLine(tokens: Token[] | undefined, index: number | undefined): boolean {
+function standsAloneOnLine(tokens: Token[] | undefined, index: number | undefined): boolean {
   if (!tokens || index === undefined) return true;
-  if (index === 0) return true;
-  const prev = tokens[index - 1];
-  return prev.type === 'softbreak' || prev.type === 'hardbreak';
+  const isBoundary = (t?: Token): boolean =>
+    t === undefined || t.type === 'softbreak' || t.type === 'hardbreak';
+  return isBoundary(tokens[index - 1]) && isBoundary(tokens[index + 1]);
 }
 
 export function mathTokenHandlers(schema: Schema): Record<string, TokenHandler> {
@@ -62,17 +69,19 @@ export function mathTokenHandlers(schema: Schema): Record<string, TokenHandler> 
     //  ① **单行容器**（表格单元格 / 标题）装不下块级公式 ⇒ 必须行内 —— 否则序列化时
     //     单元格把换行一律换成 `<br>`、再看回来又被当成公式 ⇒ **每存一次多一层 `<br>`、
     //     永不收敛**（台账 §二 #46 的 N1）；标题则被从中切断（#48 的 N3b）。
-    //  ② 段落里**写在行中间**的 `$$…$$`（前面是文字而非换行）也是行内公式 ——
-    //     当块处理会把段落切断并留边缘空格 ⇒ 首轮漂移（#48 的 N3a/N3c）。
-    //  ③ 其余（段落里独占一行）维持块级 —— 这是 `正文\n$$\nE=mc^2\n$$\n` 的正确归宿。
+    //  ② 段落里**同行还有别的正文**的 `$$…$$`（不管在行首还是行中间）
+    //     也是行内公式 —— 当块处理会把段落切断并留边缘空格 ⇒ 首轮漂移
+    //     （#48 的 N3a/N3c：行中间；#50 的 R1 族：`正文\n$$a$$ 续` 这种「前面换行、
+    //     后面却还跟着文字」）。判据必须**前后都看**，见 `standsAloneOnLine`。
+    //  ③ 其余（段落里**独占一行**）维持块级 —— 这是 `正文\n$$\nE=mc^2\n$$\n` 的正确归宿。
     handlers.math_inline_double = (
       state: MarkdownParseState,
       token: Token,
       tokens?: Token[],
       index?: number,
     ) => {
-      const asInline =
-        schema.nodes.mathInline && (state.inSingleLineContainer || !startsOwnLine(tokens, index));
+      const ownLine = standsAloneOnLine(tokens, index);
+      const asInline = schema.nodes.mathInline && (state.inSingleLineContainer || !ownLine);
       if (asInline) {
         handlers.math_inline(state, token, tokens!, index!);
         return;

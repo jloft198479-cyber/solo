@@ -1830,5 +1830,44 @@ describe('Round-trip: parse → serialize', () => {
         expect(roundTrip(roundTrip(nested))).toBe(roundTrip(nested));
       });
     });
+
+    describe('Phase L: $$ 的独行判定必须「前后都看」（Trae 第三轮 R1 · 2026-10-11）', () => {
+      // 只判「前一个兄弟是换行」会漏掉「前面是换行、但**同一行后面还有正文**」的形态
+      // （`正文\n$$a$$ 续`）：那依旧是行内公式；判成块会把段落切成三段、且第二轮才稳定
+      // ⇒ 首轮就改文件，且尾文的前导空格被吃（台账 §二 #50 的 R1 族）。
+      // 反向校准（两半各管一半）：
+      //   撤掉 `standsAloneOnLine` 的**向后**判定 ⇒ 第 1 条转红；
+      //   撤掉**向前**判定 ⇒ 第 2 条的 `正文 $$a$$`（行中间、公式在行尾）转红。
+
+      it('前有换行但同行仍有尾文 ⇒ 行内公式、段落不被切断、一次收敛', () => {
+        for (const [src, want] of [
+          ['正文\n$$a$$ 续\n', '正文\n$a$ 续\n'],
+          ['> 正文\n> $$a$$ 续\n', '> 正文\n> $a$ 续\n'],
+          ['> [!NOTE]\n> $$a$$ 续\n', '> [!NOTE]\n> $a$ 续\n'],
+        ] as const) {
+          const out = roundTrip(src);
+          expect(out, JSON.stringify(src)).toBe(want);
+          expect(roundTrip(out), `必须一次收敛：${JSON.stringify(src)}`).toBe(out);
+        }
+      });
+
+      it('公式在行尾、前面还有正文 ⇒ 仍是行内公式（不能只看「后面」）', () => {
+        const out = roundTrip('正文 $$a$$\n');
+        expect(out).toBe('正文 $a$\n');
+        expect(roundTrip(out), '必须一次收敛').toBe(out);
+      });
+
+      it('真正的独行 $$（前后都无正文）仍必须是行间公式', () => {
+        for (const src of [
+          '正文\n$$a$$\n',
+          '$$\nE=mc^2\n$$\n',
+          '- 项\n\n  $$\n  E=mc^2\n  $$\n',
+        ]) {
+          const out = roundTrip(src);
+          expect(out, `应保持行间公式：${JSON.stringify(src)}`).toContain('$$');
+          expect(roundTrip(out), `必须收敛：${JSON.stringify(src)}`).toBe(out);
+        }
+      });
+    });
   });
 });
