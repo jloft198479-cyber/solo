@@ -46,12 +46,16 @@
   --mk-heading4-line-height: 1.5;
   --mk-heading5-line-height: 1.5;
   --mk-heading6-line-height: 1.5;
-  --mk-heading1-margin: 2.4em 0 0.6em;
-  --mk-heading2-margin: 1.8em 0 0.5em;
-  --mk-heading3-margin: 1.2em 0 0.4em;
-  --mk-heading4-margin: 0.8em 0 0.3em;
-  --mk-heading5-margin: 0.6em 0 0.3em;
-  --mk-heading6-margin: 0.6em 0 0.3em;
+  /* 标题段前距 ≈ 0.5~0.8 行（≤ 正文行高 1.7em）：打标题 = 跳出一行醒目大字，
+     不是「空出一行再出字」（旧值 h1 2.4em ≈ 1.4 行，写作时视觉上像多打了空行，
+     台账 §二 #30 用户澄清的真正痛点）。层次感由「比段间距略宽 + 字号」承担，
+     对齐 Typora / iA Writer 的写作手感；段后距保持不变。 */
+  --mk-heading1-margin: 1.25em 0 0.6em;
+  --mk-heading2-margin: 1em 0 0.5em;
+  --mk-heading3-margin: 0.75em 0 0.4em;
+  --mk-heading4-margin: 0.6em 0 0.3em;
+  --mk-heading5-margin: 0.5em 0 0.3em;
+  --mk-heading6-margin: 0.5em 0 0.3em;
   --mk-heading1-letter-spacing: -0.02em;
   --mk-heading2-letter-spacing: -0.01em;
   --mk-quote-border-width: 2px;

@@ -29,11 +29,11 @@ updates: [src/components/Editor/tiptap/editor.css]
 | 行高        | `--mk-line-height` **1.7**                                                         |
 | 字距        | `--mk-letter-spacing` **0**                                                        |
 | 段距        | `--mk-paragraph-spacing` **1em**（无首行缩进，现代无缩进风格）                     |
-| H1          | 1.5em / lh 1.35 / margin 2.4em 0 0.6em / ls **-0.02em**                            |
-| H2          | 1.3em / lh 1.4 / margin 1.8em 0 0.5em / ls -0.01em                                 |
-| H3          | 1.2em / lh 1.45 / margin 1.2em 0 0.4em                                             |
-| H4–H6       | 1.05/1.0/0.9em，lh 1.5                                                             |
-| 标题间距比  | margin-top:bottom ≈ **4:1**（黄金节奏 ✓）                                          |
+| H1          | 1.5em / lh 1.35 / margin 1.25em 0 0.6em / ls **-0.02em**                           |
+| H2          | 1.3em / lh 1.4 / margin 1em 0 0.5em / ls -0.01em                                   |
+| H3          | 1.2em / lh 1.45 / margin 0.75em 0 0.4em                                            |
+| H4–H6       | 1.05/1.0/0.9em，lh 1.5，margin 0.6/0.5/0.5em 0 0.3em                               |
+| 标题间距比  | 段前 ≈ 0.5~0.8 行（≤ 行高 1.7）：打标题不产生「空一行」感（2026-10-10 调优）        |
 | 引用块      | 2px 主色左边框、padding 0.75em 1em、**斜体**、`--text-secondary` 色、右侧 4px 圆角 |
 | 链接        | 主色 + 40% 主色**伪下划线**（非默认下划线）、hover 加深、Ctrl+Click 跳转           |
 | 列表        | ul 缩进 1.5em + disc，margin 0.4em                                                 |
