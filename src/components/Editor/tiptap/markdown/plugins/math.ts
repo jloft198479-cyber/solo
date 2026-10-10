@@ -65,13 +65,35 @@ export function mathFenceHandler(schema: Schema): FenceHandler | null {
   };
 }
 
+/**
+ * 规范化数学块内容：去首尾空行 → 去掉各行**公共**前导空白（dedent）→ 去行尾空白。
+ *
+ * 为什么必须 dedent：`writeLine()` 会在**行首自动补一次外层 `lineIndent`**（列表项 /
+ * 引用块的续行缩进），而块内容里往往**已经带着源文件的前导空格** ⇒ 缩进被加两遍，
+ * 且每存一次再加一遍（`- 项\n\n  $$\n  E=mc^2\n  $$\n` R1 加 2、R2 再加 2，
+ * **永不收敛**；`> $$…$$` 每轮 +1 并留尾随空格）。dedent 只去掉**公共**前缀，
+ * 行与行之间的相对缩进（LaTeX 排版用）保持不动。
+ */
+function normalizeMathContent(raw: string): string {
+  const lines = raw.split('\n');
+  while (lines.length && !lines[0].trim()) lines.shift();
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  let common = Infinity;
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    common = Math.min(common, line.length - line.trimStart().length);
+  }
+  if (!Number.isFinite(common)) common = 0;
+  return lines.map((line) => line.slice(common).replace(/\s+$/, '')).join('\n');
+}
+
 export const mathNodeSerializers: Record<string, NodeSerializer> = {
   mathInline(state: MarkdownSerializerState, node) {
     state.write(`$${node.attrs.latex || ''}$`);
   },
 
   mathBlock(state: MarkdownSerializerState, node) {
-    const content = node.textContent;
+    const content = normalizeMathContent(node.textContent);
     // 内容含 $$ 时 $$ 定界形式会被提前闭合（texmath 非贪婪匹配到 $$ 即停）→
     // 落盘即损坏；改用 fence 形式（```math）。无冲突时维持 Obsidian 兼容的 $$ 形式
     if (content.includes('$$')) {
