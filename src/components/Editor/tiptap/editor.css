@@ -1187,87 +1187,113 @@ html.doc-heavy .tiptap-editor > hr {
   margin: 12px 0;
   background-color: var(--callout-note-bg);
 }
-.tiptap-editor .mk-callout::before {
-  content: attr(data-callout-type);
-  display: block;
+/* 标题行（header 里的 button/input，对齐代码块 language button 模式） */
+.tiptap-editor .mk-callout-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.tiptap-editor .mk-callout-title-button {
+  background: none;
+  border: none;
+  padding: 0;
   font-size: 0.7em;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--callout-note);
-  margin-bottom: 6px;
   opacity: 0.8;
+  cursor: pointer;
+  color: var(--callout-note); /* 默认 note 配色 */
+  font-family: inherit;
+  line-height: 1;
 }
-/* B10：有自定义标题时显示标题（保持类型配色），不再强制大写/宽字距 */
-.tiptap-editor .mk-callout[data-title]::before {
-  content: attr(data-title);
+/* 有自定义标题时，不强制大写/宽字距 */
+.tiptap-editor .mk-callout[data-title] .mk-callout-title-button {
   text-transform: none;
   letter-spacing: normal;
 }
+.tiptap-editor .mk-callout-title-input {
+  font-size: 0.7em;
+  font-weight: 700;
+  padding: 1px 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-family: inherit;
+  line-height: 1;
+  outline: none;
+  border-radius: 2px;
+}
+/* body 只是承载体，不需要额外样式 */
+.tiptap-editor .mk-callout-body {
+  /* 占位，ProseMirror 内容直接渲染进来 */
+}
+
+/* —— 各类型配色 —— */
 .tiptap-editor .mk-callout[data-callout-type='abstract'] {
   background-color: var(--callout-abstract-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='abstract']::before {
+.tiptap-editor .mk-callout[data-callout-type='abstract'] .mk-callout-title-button {
   color: var(--callout-abstract);
 }
 .tiptap-editor .mk-callout[data-callout-type='info'] {
   background-color: var(--callout-info-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='info']::before {
+.tiptap-editor .mk-callout[data-callout-type='info'] .mk-callout-title-button {
   color: var(--callout-info);
 }
 .tiptap-editor .mk-callout[data-callout-type='tip'] {
   background-color: var(--callout-tip-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='tip']::before {
+.tiptap-editor .mk-callout[data-callout-type='tip'] .mk-callout-title-button {
   color: var(--callout-tip);
 }
 .tiptap-editor .mk-callout[data-callout-type='success'] {
   background-color: var(--callout-success-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='success']::before {
+.tiptap-editor .mk-callout[data-callout-type='success'] .mk-callout-title-button {
   color: var(--callout-success);
 }
 .tiptap-editor .mk-callout[data-callout-type='question'] {
   background-color: var(--callout-question-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='question']::before {
+.tiptap-editor .mk-callout[data-callout-type='question'] .mk-callout-title-button {
   color: var(--callout-question);
 }
 .tiptap-editor .mk-callout[data-callout-type='warning'] {
   background-color: var(--callout-warning-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='warning']::before {
+.tiptap-editor .mk-callout[data-callout-type='warning'] .mk-callout-title-button {
   color: var(--callout-warning);
 }
 .tiptap-editor .mk-callout[data-callout-type='failure'] {
   background-color: var(--callout-failure-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='failure']::before {
+.tiptap-editor .mk-callout[data-callout-type='failure'] .mk-callout-title-button {
   color: var(--callout-failure);
 }
 .tiptap-editor .mk-callout[data-callout-type='danger'] {
   background-color: var(--callout-danger-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='danger']::before {
+.tiptap-editor .mk-callout[data-callout-type='danger'] .mk-callout-title-button {
   color: var(--callout-danger);
 }
 .tiptap-editor .mk-callout[data-callout-type='bug'] {
   background-color: var(--callout-bug-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='bug']::before {
+.tiptap-editor .mk-callout[data-callout-type='bug'] .mk-callout-title-button {
   color: var(--callout-bug);
 }
 .tiptap-editor .mk-callout[data-callout-type='example'] {
   background-color: var(--callout-example-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='example']::before {
+.tiptap-editor .mk-callout[data-callout-type='example'] .mk-callout-title-button {
   color: var(--callout-example);
 }
 .tiptap-editor .mk-callout[data-callout-type='quote'] {
   background-color: var(--callout-quote-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='quote']::before {
+.tiptap-editor .mk-callout[data-callout-type='quote'] .mk-callout-title-button {
   color: var(--callout-quote);
 }
 

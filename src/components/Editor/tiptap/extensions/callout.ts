@@ -4,8 +4,8 @@
  * 语法：> [!type] 其中 type 可为 note/warning/tip/info 等
  * 参见 Obsidian callout 语法兼容。
  */
-import { Node, mergeAttributes } from '@tiptap/core';
-import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { Node as TiptapNode, mergeAttributes } from '@tiptap/core';
+import type { Node as PMNode } from '@tiptap/pm/model';
 
 const VALID_TYPES = [
   'note', 'abstract', 'info', 'tip', 'success', 'question',
@@ -26,7 +26,7 @@ export function normalizeCalloutType(type: string | null | undefined): string {
   return lower; // 保留未知类型，不降级
 }
 
-export const Callout = Node.create({
+export const Callout = TiptapNode.create({
   name: 'callout',
 
   group: 'block',
@@ -71,12 +71,35 @@ export const Callout = Node.create({
   },
 
   addNodeView() {
-    return ({ node }) => {
+    return ({ node, getPos, editor }) => {
+      const eventController = new AbortController();
+
       const dom = document.createElement('div');
+
+      // header（可交互的标题按钮/输入框）
+      const header = document.createElement('div');
+      header.className = 'mk-callout-header';
+      dom.appendChild(header);
+
+      const titleButton = document.createElement('button');
+      titleButton.type = 'button';
+      titleButton.className = 'mk-callout-title-button';
+      header.appendChild(titleButton);
+
+      const titleInput = document.createElement('input');
+      titleInput.className = 'mk-callout-title-input';
+      titleInput.placeholder = '输入标题';
+      titleInput.style.display = 'none';
+      header.appendChild(titleInput);
+
+      // body（ProseMirror 内容渲染这里）
+      const body = document.createElement('div');
+      body.className = 'mk-callout-body';
+      dom.appendChild(body);
 
       // NodeView 的 DOM 不会自动应用 addAttributes 的 renderHTML（那只作用于
       // 剪贴板/HTML 序列化）——必须手动同步，否则类型配色/标题 CSS 全部失效
-      const applyAttrs = (n: ProseMirrorNode) => {
+      const applyAttrs = (n: PMNode) => {
         dom.className = 'mk-callout';
         dom.setAttribute('data-callout-type', normalizeCalloutType(n.attrs.calloutType as string));
         const title = typeof n.attrs.title === 'string' ? n.attrs.title.trim() : '';
@@ -88,13 +111,109 @@ export const Callout = Node.create({
       };
       applyAttrs(node);
 
+      // —— 标题编辑逻辑（对齐代码块 language button 模式）——
+
+      let isEditingTitle = false;
+
+      function syncTitleUI() {
+        if (isEditingTitle) return;
+        const title = typeof node.attrs.title === 'string' ? node.attrs.title.trim() : '';
+        const type = normalizeCalloutType(node.attrs.calloutType as string);
+        titleButton.textContent = title || type;
+      }
+
+      function enterTitleEdit() {
+        if (isEditingTitle) return;
+        isEditingTitle = true;
+        titleButton.style.display = 'none';
+        titleInput.style.display = 'block';
+        titleInput.value = typeof node.attrs.title === 'string' ? node.attrs.title : '';
+        titleInput.focus();
+        titleInput.select();
+      }
+
+      function exitTitleEdit() {
+        isEditingTitle = false;
+        titleInput.style.display = 'none';
+        titleButton.style.display = 'inline-flex';
+        syncTitleUI();
+      }
+
+      function commitTitle() {
+        const next = titleInput.value.trim();
+        const current = typeof node.attrs.title === 'string' ? node.attrs.title.trim() : '';
+        exitTitleEdit();
+        if (next === current) return;
+        if (typeof getPos !== 'function') return;
+        const pos = getPos();
+        if (typeof pos !== 'number') return;
+        // 对齐代码块 updateCodeBlockLanguage——用 ProseMirror 原生 setNodeMarkup 更新属性
+        const tr = editor.view.state.tr.setNodeMarkup(pos, undefined, {
+          ...node.attrs,
+          title: next,
+        });
+        editor.view.dispatch(tr);
+        editor.commands.focus();
+      }
+
+      function cancelTitleEdit() {
+        exitTitleEdit();
+      }
+
+      titleButton.addEventListener(
+        'click',
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          enterTitleEdit();
+        },
+        { signal: eventController.signal },
+      );
+
+      titleInput.addEventListener(
+        'blur',
+        () => commitTitle(),
+        { signal: eventController.signal },
+      );
+
+      titleInput.addEventListener(
+        'keydown',
+        (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commitTitle();
+            editor.commands.focus();
+            return;
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            cancelTitleEdit();
+            editor.commands.focus();
+          }
+        },
+        { signal: eventController.signal },
+      );
+
+      syncTitleUI();
+
       return {
         dom,
-        contentDOM: dom,
-        update: (updatedNode: ProseMirrorNode) => {
+        contentDOM: body,
+        update(updatedNode: PMNode) {
           if (updatedNode.type !== node.type) return false;
+          node = updatedNode;
           applyAttrs(updatedNode);
+          syncTitleUI();
           return true;
+        },
+        stopEvent(event) {
+          return event.target instanceof globalThis.Node && header.contains(event.target as Node);
+        },
+        ignoreMutation(mutation) {
+          return mutation.target instanceof globalThis.Node && header.contains(mutation.target as Node);
+        },
+        destroy() {
+          eventController.abort();
         },
       };
     };
