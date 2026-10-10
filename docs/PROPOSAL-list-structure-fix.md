@@ -6,11 +6,13 @@ status: proposal
 tags: [提案, 列表, 大纲, 键位, 段落划分, 修复方案]
 summary: 列表项开头按 Backspace 会把列表劈成两段并留下孤立段落（实测确认）；含根因拆解、方案对比、影响面评估与分阶段计划。**2026-10-10 已加独立复审 §十：诊断与根因成立，但方案 A 的 joinBackward 预判不成立、Shift+Tab/Mod-Backspace/引用块同罪未覆盖，另牵出 5 条同类缺陷（KNOWN-ISSUES §二 #25-#29）**
 updates: [docs/KNOWN-ISSUES.md, docs/INDEX.md, docs/PROPOSAL-list-outline-experience.md, docs/PROPOSAL-list-row-drag.md]
+related: [docs/KNOWN-ISSUES.md §二 #26/#27]
 ---
 
 # 列表结构与回退行为修复方案
 
-> **状态：方案未执行；已完成第二轮独立复审（2026-10-10，见 §十）**。本文只做审查与方案，未改动任何产品代码。
+> **状态：阶段 1（契约锁）+ 阶段 2（方案 A 实现）已于 2026-10-10 执行完毕；阶段 0 / 3 的真机复核仍欠**。本文只做审查与方案；产品代码改动 = `ListBackspaceGuard` 扩展（`src/components/Editor/tiptap/extensions/list-backspace-guard.ts`）+ 扩展清单注册一行。
+> **执行一句话**：按 §七 九条决定 + §十复审修订实现——「并成一段」语义（F-1 修订：连跑两次 `joinBackward`）、三入口同批接管（Backspace / `Mod-Backspace` / `Shift-Tab`，F-3/F-4）、引用块保持另案（§七 第 7 条）、F-7（#27）因合并语义待拍板未随本批落地。契约锁 [`list-backspace.spec.ts`](../src/components/Editor/tiptap/extensions/__tests__/list-backspace.spec.ts) 10/10 全绿；台账 §二 #26 已转「列表三入口已修复」。
 > **复审一句话**：病看对了（§2.1 / §三 全部实测复现、file:line 准确），药有三处核心假设错或不完整（F-1 / F-3 / F-4）⇒ **不建议按原文直接进入阶段 2**；另牵出比本案更常踩的 #25（列表项内敲 `# 标题` 吞标记）。
 > 触发背景：用户报「列表里母主题无法用 `Alt+↑/↓` 换位」，追查发现**根因不在换位功能本身，而在列表结构与回退（Backspace）行为**。
 

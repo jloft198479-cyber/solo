@@ -52,6 +52,7 @@ import {
 import { ParagraphFocus } from './extensions/paragraph-focus';
 import { ListFold } from './extensions/list-fold';
 import { HeadingFold } from './extensions/heading-fold';
+import { ListBackspaceGuard } from './extensions/list-backspace-guard';
 import { SearchHighlight, type SearchHighlightOptions } from './extensions/search-highlight';
 
 type SlashCommandSuggestionProps = SuggestionProps<SlashCommandItem, SlashCommandItem>;
@@ -287,6 +288,10 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     OrderedList.extend({ content: '(listItem | taskItem)+' }),
     TaskList,
     TaskItem.configure({ nested: true }),
+    // 列表行首退格「永不劈开列表」守卫——必须在 ListKeymap（StarterKit 内，
+    // priority 100）之前接管 Backspace / Mod-Backspace / Shift-Tab，
+    // 方案与契约锁见 extensions/list-backspace-guard.ts 头注释
+    ListBackspaceGuard,
     Placeholder.configure({
       placeholder: '开始写作… 输入 / 唤起命令',
     }),
