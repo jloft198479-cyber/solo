@@ -24,6 +24,8 @@ import {
 } from './plugins';
 import type { Preprocessor, TokenInterceptor } from './plugins';
 import { extractDimsFromAlt } from '../extensions/image';
+// ZWNJ 常量唯一来源（解析期插入 / 各读出点剥离，见 ../zwnj 与敏感区 #23）
+import { ZWNJ } from '../zwnj';
 
 /**
  * 把「代码区」替换为占位符，返回替换后的文本与还原函数。
@@ -645,7 +647,7 @@ export function parseMarkdown(schema: Schema, content: string): PMNode {
           if (prevChar && ASCII_SYNTAX_PUNCT.test(prevChar)) {
             return delim;
           }
-          return '\u200C' + delim;
+          return ZWNJ + delim;
         },
       )
       // 开启方向：word**punct → word**\u200Cpunct（如 嘿**「→ left_flanking=false）
@@ -657,7 +659,7 @@ export function parseMarkdown(schema: Schema, content: string): PMNode {
           if (nextChar && ASCII_SYNTAX_PUNCT.test(nextChar)) {
             return delim;
           }
-          return delim + '\u200C';
+          return delim + ZWNJ;
         },
       ),
   );

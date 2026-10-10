@@ -4,19 +4,32 @@ import type { MarkdownParseState, TokenHandler } from '../parser';
 import type { MarkdownSerializerState, NodeSerializer } from '../serializer';
 import type { FenceHandler, MarkdownSyntaxPlugin } from './index';
 import { computeFence } from './fence';
+// 解析期插入的 ZWNJ 不该留在「字面内容」里 —— 见 ../../zwnj 与敏感区 #23
+import { stripZwnj } from '../../zwnj';
 
+/**
+ * ⚠️ 为什么数学内容在**入口**就要剥 ZWNJ（而不是在序列化器兜底）：
+ * `$$…$$` / `$…$` **不在** `protectCodeRegions` 的覆盖范围内，所以 ZWNJ 预处理
+ * 会把 U+200C 插进数学源里（实测 `$$a**——b$$` 会中招）——`mathBlock` 落进
+ * `textContent`、`mathInline` 落进 `attrs.latex`，**输出时会被原样写进文件**
+ * （污染用户文件），同时脏 LaTeX 还会进 KaTeX 渲染。
+ *
+ * 数学内容的**唯一来源**就是这里 ⇒ 在入口剥一次，内存 / 渲染 / 落盘 / 剪贴板
+ * 全部自动干净（也顺带清洗存量脏文件）。**故序列化侧不再重复剥**——那会变成
+ * 同一件事两处做。
+ */
 export function mathTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   const handlers: Record<string, TokenHandler> = {};
 
   if (schema.nodes.mathInline) {
     handlers.math_inline = (state: MarkdownParseState, token: Token) => {
-      state.addNode(schema.nodes.mathInline, { latex: token.content.trim() });
+      state.addNode(schema.nodes.mathInline, { latex: stripZwnj(token.content.trim()) });
     };
   }
 
   if (schema.nodes.mathBlock) {
     handlers.math_block = (state: MarkdownParseState, token: Token) => {
-      const latex = token.content.replace(/^\n|\n$/g, '');
+      const latex = stripZwnj(token.content.replace(/^\n|\n$/g, ''));
       state.addNode(schema.nodes.mathBlock, {}, latex ? [schema.text(latex)] : undefined);
     };
   }
@@ -34,7 +47,10 @@ export function mathFenceHandler(schema: Schema): FenceHandler | null {
     if (language !== 'math') {
       return false;
     }
-    state.addNode(schema.nodes.mathBlock, {}, content ? [schema.text(content)] : undefined);
+    // 围栏内容本就被 protectCodeRegions 保护，此处剥 ZWNJ 是为**清洗存量**被污染的
+    // 文件（与 serializer 里 code block 那条同源口径）
+    const clean = content ? stripZwnj(content) : '';
+    state.addNode(schema.nodes.mathBlock, {}, clean ? [schema.text(clean)] : undefined);
     return true;
   };
 }

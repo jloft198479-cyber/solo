@@ -692,6 +692,25 @@ describe('Round-trip: parse → serialize', () => {
     });
   });
 
+  describe('math：落盘不得含 ZWNJ（字面内容入口清洗）', () => {
+    // `$$…$$` / `$…$` **不在** protectCodeRegions 覆盖内 ⇒ ZWNJ 预处理会把 U+200C
+    // 插进数学源，且**会被原样写进文件**（实测）。故在解析入口剥（见 plugins/math.ts
+    // 顶部注释 / 敏感区 #23）。这两条是「写坏用户文件」的回归锁。
+    it('mathBlock 内容含 * 与标点时，输出不含 ZWNJ', () => {
+      expect(roundTrip('$$a**——b$$\n')).not.toContain('\u200C');
+    });
+
+    it('mathInline 的 latex 属性不含 ZWNJ', () => {
+      const doc = parseMarkdown(createTestSchema(), '$a**——b$\n');
+      let latex = '';
+      doc.descendants((node) => {
+        if (node.type.name === 'mathInline') latex = String(node.attrs.latex ?? '');
+      });
+      expect(latex).toBe('a**——b');
+      expect(roundTrip('$a**——b$\n')).not.toContain('\u200C');
+    });
+  });
+
   describe('footnotes', () => {
     it('single footnote', () => {
       const md = 'Here is text[^1]\n\n[^1]: the footnote\n';

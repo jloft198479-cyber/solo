@@ -226,6 +226,15 @@ describe('serializeClipboardText（纯文本槽：干净文字 / 专有语法回
     expect(whole('C:\\Users\\me\\notes')).toBe('C:\\Users\\me\\notes');
   });
 
+  it('关键回归：ZWNJ 不随正文粘出去（隐形字符不得出站）', () => {
+    // 解析期会为「中文标点边界的强调」插入 U+200C；纯文本槽这条路径**不经过**
+    // escapeInline，必须自己剥——否则粘到微信 / Word 会带隐形字符
+    // （肉眼不可见，但影响对方搜索与长度判断）。见敏感区 #23 / 台账 §二 #32。
+    const out = whole('**沉浸式体验，**继续');
+    expect(out).not.toContain('\u200C');
+    expect(out).toBe('沉浸式体验，继续');
+  });
+
   it('真实场景：整篇笔记复制出去零反斜杠', () => {
     const md = ['# 标题', '', '价格 100$ 与 x=1，含 `代码` 与 *强调*。', '', '- 甲', '- 乙'].join('\n');
     expect(whole(md)).not.toContain('\\');

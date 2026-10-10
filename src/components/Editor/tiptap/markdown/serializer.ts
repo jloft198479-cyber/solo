@@ -8,16 +8,8 @@ import type { Node as PMNode, Mark, Slice } from '@tiptap/pm/model';
 import { Fragment } from '@tiptap/pm/model';
 import { getPluginNodeSerializers } from './plugins';
 import { computeFence } from './plugins/fence';
-
-/**
- * 移除零宽非连接符（U+200C）。
- * 该字符是解析阶段修正 CJK flanking 的临时手段，不应出现在任何输出里。
- * 代码内容（围栏块 / 行内码）不经过 escapeInline，故需单独剥离，
- * 顺带清洗历史上已被污染（解析期误插 ZWNJ）的存量文档。
- */
-function stripZwnj(text: string): string {
-  return text.includes('\u200C') ? text.replace(/\u200C/g, '') : text;
-}
+// ZWNJ 剥离是**跨模块契约**（解析期插入 / 各读出点剥离），实现与常量统一在 ../zwnj
+import { stripZwnj } from '../zwnj';
 
 // ── 序列化状态 ──────────────────────────────────────────────────
 
@@ -1067,5 +1059,7 @@ function hasProprietaryNode(frag: Fragment): boolean {
 export function serializeClipboardText(doc: PMNode, slice: Slice): string {
   const inner = stripOpenLayers(slice.content, slice.openStart, slice.openEnd);
   if (hasProprietaryNode(inner)) return serializeMarkdownForClipboard(doc.copy(inner));
-  return inner.textBetween(0, inner.size, '\n\n', (node) => PLAIN_TEXT_LEAF[node.type.name] ?? '');
+  // stripZwnj：这条路径**不经过** escapeInline，必须自己剥——否则解析期插入的
+  // U+200C 会随选区粘进微信 / Word（隐形字符，肉眼不可见但影响对方搜索与长度判断）
+  return stripZwnj(inner.textBetween(0, inner.size, '\n\n', (node) => PLAIN_TEXT_LEAF[node.type.name] ?? ''));
 }

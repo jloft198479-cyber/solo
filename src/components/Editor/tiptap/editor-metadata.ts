@@ -1,5 +1,7 @@
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 import type { EditorState } from '@tiptap/pm/state';
+// 解析期插入的 ZWNJ 不该外溢到任何「读数 / 计数 / 写盘」——见 ../zwnj 与敏感区 #23
+import { stripZwnj } from './zwnj';
 
 export interface EditorOutlineItem {
   level: number;
@@ -16,7 +18,9 @@ export function getEditorWordCount(editor: TiptapEditor): number {
   let count = 0;
   editor.state.doc.descendants((node) => {
     if (node.isText) {
-      count += (node.text ?? '').replace(/\s+/g, '').length;
+      // stripZwnj：ZWNJ **不是空白**（`\s` 不匹配 U+200C）⇒ 不剥就每个计 1 字，
+      // 「打开文档字数即虚高」（台账 §二 #32）。
+      count += stripZwnj(node.text ?? '').replace(/\s+/g, '').length;
       return false;
     }
     return true;
@@ -38,7 +42,9 @@ export function extractEditorOutline(editor: TiptapEditor): EditorOutlineItem[] 
     if (node.type.name === 'heading') {
       outline.push({
         level: node.attrs.level,
-        text: node.textContent,
+        // stripZwnj：大纲文本是对外读数。视觉上无差异（ZWNJ 不可见），纳入契约是为了
+        // 不让隐形字符流向下游（未来的复制 / 搜索联动 / 字符串比较），成本仅一次短路判断。
+        text: stripZwnj(node.textContent),
         pos,
       });
     }
