@@ -499,6 +499,36 @@ html.doc-heavy .tiptap-editor > hr {
   display: none;
 }
 
+/* ── 标题折叠箭头（heading-fold 扩展生成，复用列表箭头的 .list-fold-toggle）──
+   位置：与 H1–H6 结构标记完全同槽（gutter 内右对齐，像素级同位）。
+   互斥显示：可折叠标题悬停时 H 标记让位给箭头、折叠态箭头常显——
+   同一槽位不添堵，「悬停看到的是当前最该看的东西」。
+   字号差：箭头盒尺寸不能用 em（继承标题字号会放大），一律用 gutter 变量 / px。 */
+.tiptap-editor :is(h1, h2, h3, h4, h5, h6) .list-fold-toggle {
+  left: calc(-1 * var(--mk-heading-gutter-width));
+  top: 50%;
+  transform: translateY(-50%);
+  width: calc(var(--mk-heading-gutter-width) - var(--mk-heading-gutter-gap));
+  height: 16px;
+  justify-content: flex-end;
+}
+
+.tiptap-editor :is(h1, h2, h3, h4, h5, h6):hover .list-fold-toggle,
+.tiptap-editor :is(h1, h2, h3, h4, h5, h6) .list-fold-toggle.is-folded {
+  opacity: 0.6;
+}
+
+.tiptap-editor :is(h1, h2, h3, h4, h5, h6):hover .list-fold-toggle:hover {
+  opacity: 1;
+  color: var(--text-color);
+}
+
+/* 可折叠标题：悬停时（箭头浮现）与折叠态（箭头常显）下 H 标记让位，避免同槽重叠 */
+.tiptap-editor :is(h1, h2, h3, h4, h5, h6):has(> .list-fold-toggle):hover::before,
+.tiptap-editor :is(h1, h2, h3, h4, h5, h6):has(> .list-fold-toggle.is-folded)::before {
+  opacity: 0;
+}
+
 /* ── 任务列表 ──────────────────────────────────────────────── */
 .tiptap-editor ul[data-type='taskList'] {
   list-style: none;

@@ -51,6 +51,7 @@ import {
 } from './extensions/wikilink-suggest';
 import { ParagraphFocus } from './extensions/paragraph-focus';
 import { ListFold } from './extensions/list-fold';
+import { HeadingFold } from './extensions/heading-fold';
 import { SearchHighlight, type SearchHighlightOptions } from './extensions/search-highlight';
 
 type SlashCommandSuggestionProps = SuggestionProps<SlashCommandItem, SlashCommandItem>;
@@ -269,6 +270,8 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     // 列表折叠 / 展开（幕布式大纲体验）——纯视图层装饰，折叠态不进文档。
     // 注入 getDocumentPath：折叠态按文档路径记忆，切走再切回可恢复（进程内存，不落盘）
     ListFold.configure({ getPath: options.getDocumentPath ?? (() => null) }),
+    // 标题折叠 / 展开（对标 Obsidian Fold heading）——同款视图层装饰铁律，同款路径记忆
+    HeadingFold.configure({ getPath: options.getDocumentPath ?? (() => null) }),
     SearchHighlight.configure(options.searchHighlightOptions),
     Link.configure({
       openOnClick: false,
