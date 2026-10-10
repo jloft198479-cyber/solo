@@ -185,6 +185,18 @@ export class MarkdownParseState {
 
   addText(text: string) {
     if (!text) return;
+    // 文本只能进 textblock（`inline*`）。栈顶若**不是** textblock——例如块级节点
+    // 把所在段落提前收掉了，而同一 inline 里还有后续文本子节点——直接 push 会把裸
+    // 文本塞进 block 容器（doc / 列表项 / 单元格）⇒ 容器内容非法 ⇒ 逐层 `createAndFill`
+    // 失败 ⇒ `buildDoc` 兜底成**空文档**：整篇内容凭空消失。
+    // 兜底：补一个段落承接（字不丢，且结构仍合法）。
+    if (!this.top.type.isTextblock) {
+      this.openNode(this.schema.nodes.paragraph);
+      // 块边界处的换行没有语义（它就是「上一块结束」的那个软换行）——若留在新段落
+      // 开头，会多出一个空行、且首轮与次轮输出不一致（二次收敛）。
+      text = text.replace(/^\n+/, '');
+      if (!text) return;
+    }
     const top = this.top;
     const nodes = top.content;
     const last = nodes[nodes.length - 1];
@@ -243,23 +255,46 @@ export class MarkdownParseState {
     const node = type.createAndFill(attrs, content);
     if (!node) return null;
     // ⚠️ `createAndFill` 只校验「新节点装不装得下自己的 content」，**不校验它能否
-    // 放进父节点**。而块级节点不能落进还开着的段落/标题（其 content 是 `inline*`）——
-    // 旧实现直接 push 进去，使段落内容非法，随后 `closeNode` 的 `createAndFill` 失败，
-    // 走兜底 ⇒ **整段（含已收集文本）静默丢弃**：`正文\n$$\nE=mc^2\n$$\n` 里 texmath
-    // 产出的 `math_inline_double` 落进段落 ⇒ 公式与「正文」一起消失（台账 §二 #38）。
-    // 这里先收掉这个 textblock 再放块（对齐「遇块级内容先收段落」的通用语义）；
-    // 迟到的 `paragraph_close` 由 `closeNode(expected)` 守卫安全落空。
-    if (this.top.type.isTextblock && !type.isInline) this.closeNode();
+    // 放进父节点**。两类错位都必须在这里挡住，否则容器内容非法会**逐层放大**，
+    // 最终 `buildDoc` 兜底成空文档（整篇消失）：
+    //  · 块级节点落进 textblock（`inline*` 装不下块）⇒ 先把所在段落收掉再放
+    //    （`正文\n$$\nE=mc^2\n$$\n` 的 math_inline_double 走这条）；
+    //  · 行内节点落进非 textblock（block 容器装不下行内）⇒ 先补一个段落承接。
+    // 迟到的 `paragraph_close` / `heading_close` 由 `closeNode(expected)` 守卫安全落空。
+    if (type.isInline) {
+      if (!this.top.type.isTextblock) this.openNode(this.schema.nodes.paragraph);
+    } else if (this.top.type.isTextblock) {
+      this.closeNode();
+    }
     this.top.content.push(node);
     return node;
   }
 
   buildDoc(): PMNode {
     while (this.stack.length > 1) this.closeNode();
-    return (
-      this.top.type.createAndFill(this.top.attrs, this.top.content) ||
-      this.schema.nodes.doc.create()
-    );
+    const built = this.top.type.createAndFill(this.top.attrs, this.top.content);
+    if (built) return built;
+    // 最后一道闸：根节点内容非法时**绝不静默返回空文档**——旧兜底 `doc.create()`
+    // 会让**整篇内容凭空消失**（2026-10-10 实测：一个混进根层的裸文本节点即可引爆，
+    // 而全量单测全绿，是体检才现形）。把根节点装不下的子节点（裸文本 / 行内）按
+    // **连续段**收成段落再试一次：结构可能变化，但**字一个都不丢**。
+    const rescued: PMNode[] = [];
+    let pending: PMNode[] = [];
+    const flush = () => {
+      if (pending.length) {
+        rescued.push(this.schema.nodes.paragraph.create(null, pending));
+        pending = [];
+      }
+    };
+    for (const child of this.top.content) {
+      if (child.isText || child.isInline) pending.push(child);
+      else {
+        flush();
+        rescued.push(child);
+      }
+    }
+    flush();
+    return this.top.type.createAndFill(this.top.attrs, rescued) ?? this.schema.nodes.doc.create();
   }
 }
 
