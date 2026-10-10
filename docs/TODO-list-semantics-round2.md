@@ -1,10 +1,10 @@
 ---
-title: 修复清单 · 列表语义契约（#50 第二轮复核后遗留）
-type: plan
+title: 修复清单 · 列表语义契约（#50 第二轮复核）
+type: proposal
 audience: maintainer
-status: done
+status: active
 tags: [修复清单, 列表, 契约, 待办]
-summary: 复核隔壁对 #50 的修复后，3 条真 bug 已修好，但引出 2 个新问题 + 5 处文档错；本清单列出落点、判据与验证要求，**尚未执行**
+summary: #50 第二轮复核的执行清单：🔴A/🔴B 已修完并经真机验收；🔴C（嵌套项转段落 relocate）仍待处置
 updates:
   [
     docs/PROPOSAL-list-semantics.md,

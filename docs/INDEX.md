@@ -25,7 +25,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`README.md`](../README.md)（+ zh-CN / ja-JP / ko-KR） | product | user      | active | 产品导览：介绍、安装、dev 起步。4 语言本地化，DOC-STANDARD §二 确认保留 |
 | [`AGENTS.md`](../AGENTS.md)                            | core    | agent     | active | Agent 契约：禁令清单 + 真理源地图 + 敏感区索引 + 工作流 + 协作方式 |
 | [`ARCHITECTURE.md`](../ARCHITECTURE.md)                | core    | dev/agent | active | 架构真相：技术栈版本/命令清单/目录树（敏感区速查见 ./sensitive-areas.md）             |
-| [`docs/sensitive-areas.md`](./sensitive-areas.md) | core | dev/agent | active | 敏感区安全网：易错区速查表 + §11.1–§11.8 详解（改码前必读） |
+| [`docs/sensitive-areas.md`](./sensitive-areas.md) | core | dev | active | 敏感区安全网：易错区速查表 + §11.1–§11.8 详解（改码前必读） |
 | [`BUILD_GUIDE.md`](../BUILD_GUIDE.md)                  | core    | dev       | active | 构建手册真理源：工具链/环境变量/编译命令/故障排查                 |
 | [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md)           | guide   | user      | active | 用户侧运行时故障排查（症状→修法）                                 |
 | [`CLAUDE.md`](../CLAUDE.md)                            | guide   | agent     | active | Agent 入口指路牌（Claude Code）：仅指向 AGENTS.md，不复制规则内容 |
@@ -48,16 +48,16 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 
 | 路径                                                                                   | type  | 受众             | 状态   | tag / 摘要                                                |
 | -------------------------------------------------------------------------------------- | ----- | ---------------- | ------ | --------------------------------------------------------- |
-| [`CONTRIBUTING.md`](./CONTRIBUTING.md)                                                 | guide | dev/agent        | active | 协作规范：开发环境/提交纪律/PR 流程                       |
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md)                                                 | guide | dev        | active | 协作规范：开发环境/提交纪律/PR 流程                       |
 | [`SECURITY.md`](./SECURITY.md)                                                         | guide | maintainer       | active | 安全披露政策 + 攻击面 + 当前版本号                        |
-| [`PLAYBOOK.md`](./PLAYBOOK.md)                                                         | guide | maintainer/agent | active | 发布全生命周期剧本（A–F 六阶段总纲）                      |
+| [`PLAYBOOK.md`](./PLAYBOOK.md)                                                         | guide | maintainer | active | 发布全生命周期剧本（A–F 六阶段总纲）                      |
 | [`PUBLISH_GUIDE.md`](./PUBLISH_GUIDE.md)                                               | guide | maintainer       | active | 发版小白实操版（3 条命令），真理源 RELEASE_PROCESS        |
 | [`发布流程科普（从写完代码到用户下载）.md`](./发布流程科普（从写完代码到用户下载）.md) | guide | user             | active | 发版原理大白话科普，真理源 RELEASE_PROCESS                |
 | [`debugging.md`](./debugging.md)                                                       | guide | agent            | active | 开发者侧调试指南（DevTools/cargo/bun 兜底/快捷键拦截）    |
 | [`cjk-boundary.md`](./cjk-boundary.md)                                                 | guide | dev              | active | CJK 加粗边界经验（parser/serializer 必读）                |
 | [`font-handling.md`](./font-handling.md)                                               | guide | agent            | active | 字体处理手册：asset:// 首选 + 字节兜底/CORS 陷阱/排查树   |
 | [`network-proxy-guide.md`](./network-proxy-guide.md)                                   | guide | maintainer       | active | 更新检测代理（环境变量/注册表/端口探测）                  |
-| [`paste-compat-decision.md`](./paste-compat-decision.md)                               | guide | maintainer/agent | active | 粘贴兼容性决策备忘                                        |
+| [`paste-compat-decision.md`](./paste-compat-decision.md)                               | guide | maintainer | active | 粘贴兼容性决策备忘                                        |
 | [`ui-redesign-handover.md`](./ui-redesign-handover.md)                                 | guide | agent            | active | UI 改造交接（活跃分支 refactor/editor-decouple）          |
 | [`ui-typography-eval.md`](./ui-typography-eval.md)                                     | guide | agent            | active | 排版微调 + 文字变浅评估（设计决策留痕，§一 为改动前快照） |
 | [`BENCHMARK-editing-experience.md`](./BENCHMARK-editing-experience.md)                 | guide | agent            | active | 编辑体验行业对标基线：三种编辑形态 + 逐项基准 × solo 差距 + 下一优先建议（「所有问题先对标」方针的常驻挂靠点） |
@@ -67,13 +67,14 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | 路径                                                                         | type      | 受众             | 状态     | tag / 摘要                                                               |
 | ---------------------------------------------------------------------------- | --------- | ---------------- | -------- | ------------------------------------------------------------------------ |
 | [`project_rules：工作原则和纪律.md`](./project_rules：工作原则和纪律.md)     | principle | agent            | active   | 最高准则：实事求是/第一性原理/共识前置/多层验证（通用底线真理源）        |
-| [`architecture：产品开发总原则.md`](./architecture：产品开发总原则.md)       | principle | dev/agent        | active   | 技术设计原则：SSOT/高内聚低耦合/决策阶梯/绝不硬编码/退化安全             |
+| [`architecture：产品开发总原则.md`](./architecture：产品开发总原则.md)       | principle | dev        | active   | 技术设计原则：SSOT/高内聚低耦合/决策阶梯/绝不硬编码/退化安全             |
 | [`solo产品精神.md`](./solo产品精神.md)                                       | principle | dev              | active   | 产品理念：极简/极速/优雅 + 灵活/高效/可拓展                              |
-| [`solo外部文件监听方案.md`](./archive/solo外部文件监听方案.md)                       | archive   | maintainer/agent | archive  | 外部文件监听（Agent Sync）技术方案——**未执行**，已归档           |
+| [`solo外部文件监听方案.md`](./archive/solo外部文件监听方案.md)                       | archive   | maintainer | archive  | 外部文件监听（Agent Sync）技术方案——**未执行**，已归档           |
 | [`PROPOSAL-list-outline-experience.md`](./PROPOSAL-list-outline-experience.md) | proposal | maintainer       | proposal | 列表区幕布式大纲体验（只改列表、非列表区零改动；不改格式不引依赖）：**阶段 1-2 已实现**（折叠 / 悬停箭头 / 嵌套引导线，待真机验收），**阶段 3-4 决定不做**；§九 为落地记录 |
 | [`PROPOSAL-list-row-drag.md`](./PROPOSAL-list-row-drag.md) | proposal | maintainer       | proposal | 列表行**拖拽换位（仅同层）**：鼠标抓把手上下拖整行换位、一次撤销可还原、格式零改动；含难易评估与四决策（建议独立把手）、分阶段验收；**跨层/圆点即把手暂不做**；未执行 |
 | [`PROPOSAL-list-structure-fix.md`](./PROPOSAL-list-structure-fix.md) | proposal | maintainer | proposal | 列表结构与回退行为修复：**列表项开头按 Backspace 会把列表劈成两段并留下孤立段落**（实测确认，是 `Alt+↑/↓` 挪不动的真因）；含三处根因、三方案对比、影响面评估与 Phase 0–4 计划；**方案未执行**——2026-10-10 追加独立复审（§十）：诊断成立，但方案 A 的 `joinBackward` 预判被实测推翻、`Mod-Backspace` / `Shift-Tab` / 引用块同罪未覆盖，另牵出 KNOWN-ISSUES §二 #25–#29 |
 | [`PROPOSAL-list-semantics.md`](./PROPOSAL-list-semantics.md) | proposal | maintainer | active | **列表语义契约（规则来源）**：Markdown 里没有树、只有缩进 ⇒「清除格式」不得重排树，「转普通段落 / toggle 第二次」才处理层级且直属下级减一级；含动词表、业界依据（Word / Notion / Obsidian / Typora）与已知边界。改列表相关命令前先读它 |
+| [`TODO-list-semantics-round2.md`](./TODO-list-semantics-round2.md) | proposal | maintainer | active | **#50 第二轮修复执行清单**：🔴A（待办 toggle 出 `- [ ] - 乙`）与 🔴B（段落缩进残留）已修完并经真机验收；**🔴C（嵌套项转段落 relocate 导致顺序错乱）仍待处置**；含验收闸门与「断言必须能红」的三查判据 |
 | [`REVIEW-PLAN-第三方全面审查-2026-10-09.md`](./REVIEW-PLAN-第三方全面审查-2026-10-09.md) | proposal | maintainer | proposal | 第三方全面审查**作业书**（宏观→微观，对标 Typora/Obsidian）：目标口径/差分定位（不重复既有 4 轮审查）/交底材料包/三层审查法/交付物与红线；**仅方案，未执行** |
 | [`architecture/refactoring-report.md`](./architecture/refactoring-report.md) | archive   | agent            | archive  | 减法重构历史报告（22→17 命令等，**历史快照**，现状以 ARCHITECTURE 为准） |
 | [`archive/settings-audit-report.md`](./archive/settings-audit-report.md)     | archive   | agent            | archive  | 设置面板排查历史报告（P0 死代码已清理，**历史快照**）                    |
@@ -81,7 +82,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`large-document-performance.md`](./archive/large-document-performance.md)            | archive   | dev              | archive  | 大文档卡顿根因清单与分阶段方案（**P0/P1 已实施、P2 已砍、P3 简化**，已归档） |
 | [`optimization-plan-2026-09-06.md`](./archive/optimization-plan-2026-09-06.md)        | archive   | maintainer       | archive  | 全面审查优化方案：30 条发现（已逐条核实，交互/兼容/性能）+ P0-P3 分批路线图（**执行待拍板**，已归档） |
 | [`project-plan-2026-08-29.md`](./archive/project-plan-2026-08-29.md)                  | archive   | maintainer       | archive  | 产品演进建议清单（**非强制任务**，逐项可执行可不执行，已归档）            |
-| [`solo互链方案-2026-09-11.md`](./archive/solo互链方案-2026-09-11.md)                  | archive   | maintainer/agent | archive  | 互链一期方案（v5 定稿，已实施）：修 `[[`/`![` + 拖入即在落点成链（含审核收口） |
+| [`solo互链方案-2026-09-11.md`](./archive/solo互链方案-2026-09-11.md)                  | archive   | agent | archive  | 互链一期方案（v5 定稿，已实施）：修 `[[`/`![` + 拖入即在落点成链（含审核收口） |
 | [`执行记录-互链方案-2026-09-11.md`](./archive/执行记录-互链方案-2026-09-11.md)        | archive   | maintainer       | archive  | 互链一期执行/自检/回滚记录（执行人 qianwen；含落点收口补记；拖拽坐标待真机验证 → 未结项见 KNOWN-ISSUES §二 #9） |
 | [`执行记录-剪贴板纯文本范式-2026-09-12.md`](./archive/执行记录-剪贴板纯文本范式-2026-09-12.md) | archive | maintainer | archive | 剪贴板范式改造执行记录：复制默认改「干净纯文本」+ 显式源码入口；决策依据/证据链/回滚点/残余风险/评审清单（**供第三方评审**） |
 | [`solo深度审查报告-2026-09-11.md`](./archive/solo深度审查报告-2026-09-11.md)          | archive   | maintainer       | archive  | 四层只读审查（渲染/交互/速度/结构）：8 条发现 + 逐条处置记录（5 修 3 缓）        |
@@ -89,22 +90,22 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`PERF-AND-THEME-SUGGESTIONS-2026-09-18.md`](./archive/PERF-AND-THEME-SUGGESTIONS-2026-09-18.md) | archive | maintainer | archive | 性能/主题再优化空间评估：A 低风险 / B 中风险 / C 不建议三级（**未动代码，建议留档**，已归档） |
 | [`AUDIT-REPORT-2026-09-14.md`](./archive/AUDIT-REPORT-2026-09-14.md) | archive   | agent            | archive  | 六维度全量审计快照（v1.2.54）：三闸门基线 · 逐项功能核查 · 耦合热点与解耦分级 · Typora 差距决策单（**结论已进 KNOWN-ISSUES §二 #14-#16**，已归档） |
 | [`solo输入法合成冻结总闸方案-2026-09-13.md`](./archive/solo输入法合成冻结总闸方案-2026-09-13.md) | archive | agent | archive | 千问「合成冻结总闸」历史提案（**部分前提已被证据推翻**，作留痕用）；现况以 [`IME-CANDIDATE-WINDOW.md`](./IME-CANDIDATE-WINDOW.md) 为准 |
-| [`IME-CANDIDATE-WINDOW.md`](./IME-CANDIDATE-WINDOW.md) | record | agent | active | ⭐ **IME 候选窗失锚·主题唯一入口**（2026-09-30 由 4 份蒸馏合并，原件入 `archive/`）：🛑 已封存 + 5 条封存结论 · 锚点实测台账 · 已排除/死路清单 · 鼠标注入补丁三版全败史 · 外部 5 份建议评估 · 重启执行顺序 · 档案索引 |
+| [`IME-CANDIDATE-WINDOW.md`](./IME-CANDIDATE-WINDOW.md) | proposal | agent | active | ⭐ **IME 候选窗失锚·主题唯一入口**（2026-09-30 由 4 份蒸馏合并，原件入 `archive/`）：🛑 已封存 + 5 条封存结论 · 锚点实测台账 · 已排除/死路清单 · 鼠标注入补丁三版全败史 · 外部 5 份建议评估 · 重启执行顺序 · 档案索引 |
 | [`archive/IME-CANDIDATE-WINDOW-*.md`](./archive/IME-CANDIDATE-WINDOW-PLAN.md) | archive | agent | archive | 同上主题的 **4 份历史原件**（PLAN / REPORT / SOLUTION / 观点对照），2026-09-30 蒸馏后归档，仅作留痕、不再维护 |
-| [`REVIEW-2026-09-15-体验与代码评估.md`](./REVIEW-2026-09-15-体验与代码评估.md) | report    | human            | active   | 系统性评估（体验/保真/性能/代码）：12 类问题 + 逐条修复与实测收口（§7 行动清单含状态列、§9 复核结果；头号发现序列化 O(n²) 已修） |
-| [`REVIEW-2026-10-09-第三方全面审查-批1-宏观与对标.md`](./REVIEW-2026-10-09-第三方全面审查-批1-宏观与对标.md) | report | agent | active | 按 [`REVIEW-PLAN`](./REVIEW-PLAN-第三方全面审查-2026-10-09.md) 执行的**批 1 交付**（只读，未改码）：09-15「已修 6 项」验收口（5 成立 / 2 项无回归防线）· 入口四源一致性 11 条问题（Ctrl+H 与死菜单项撞键待实测）· 对标差距决策单。**一次性快照，结论未进台账** |
-| [`REVIEW-2026-10-09-第三方全面审查-批2-中观层.md`](./REVIEW-2026-10-09-第三方全面审查-批2-中观层.md) | report | agent | active | 同计划的**批 2 交付**（只读）：结构债 5 热点复审（1 项恶化）· **可复现性能新基线**（50 万字 124ms；固定字符块数 ×17.6 而耗时 ×1.26 ⇒ k=0.08，O(n²) 已死的量化证明）· 保真四网强度复核（硬判据确实在位 + 5 类新盲区）· 稳定安全 12 条（GBK 打不开 / 注册表越界删 / 崩溃恢复素材已在位）· 粘贴兼容性。**结论未进台账**；测量脚本 [`review-artifacts/perf-baseline-2026-10-09.ts`](./archive/review-artifacts/perf-baseline-2026-10-09.ts) |
-| [`REVIEW-2026-10-09-第三方全面审查-批3-微观层.md`](./REVIEW-2026-10-09-第三方全面审查-批3-微观层.md) | report | agent | active | 同计划的**批 3 交付**（只读，**收官**）：三闸门全绿（1547 / vue-tsc 0 错 / build 16.76s）· 代码健康实测 + **对上轮 2 处结论的更正** · **复制为 HTML 对 4 种自家语法失真** · 幽灵依赖 7 个 + mac 臂漏 re-export（§一 #32 同型复发）· 文档漂移逐条（B-1/B-2/B-5 未清根 + 6 条真死链 + 薛定谔归档）· 账龄表 · **折叠×换位实测互斥**。**结论未进台账**；探针 [`review-artifacts/`](./archive/review-artifacts/) |
+| [`REVIEW-2026-09-15-体验与代码评估.md`](./REVIEW-2026-09-15-体验与代码评估.md) | proposal    | maintainer            | active   | 系统性评估（体验/保真/性能/代码）：12 类问题 + 逐条修复与实测收口（§7 行动清单含状态列、§9 复核结果；头号发现序列化 O(n²) 已修） |
+| [`REVIEW-2026-10-09-第三方全面审查-批1-宏观与对标.md`](./REVIEW-2026-10-09-第三方全面审查-批1-宏观与对标.md) | proposal | maintainer | active | 按 [`REVIEW-PLAN`](./REVIEW-PLAN-第三方全面审查-2026-10-09.md) 执行的**批 1 交付**（只读，未改码）：09-15「已修 6 项」验收口（5 成立 / 2 项无回归防线）· 入口四源一致性 11 条问题（Ctrl+H 与死菜单项撞键待实测）· 对标差距决策单。**一次性快照，结论未进台账** |
+| [`REVIEW-2026-10-09-第三方全面审查-批2-中观层.md`](./REVIEW-2026-10-09-第三方全面审查-批2-中观层.md) | proposal | maintainer | active | 同计划的**批 2 交付**（只读）：结构债 5 热点复审（1 项恶化）· **可复现性能新基线**（50 万字 124ms；固定字符块数 ×17.6 而耗时 ×1.26 ⇒ k=0.08，O(n²) 已死的量化证明）· 保真四网强度复核（硬判据确实在位 + 5 类新盲区）· 稳定安全 12 条（GBK 打不开 / 注册表越界删 / 崩溃恢复素材已在位）· 粘贴兼容性。**结论未进台账**；测量脚本 [`review-artifacts/perf-baseline-2026-10-09.ts`](./archive/review-artifacts/perf-baseline-2026-10-09.ts) |
+| [`REVIEW-2026-10-09-第三方全面审查-批3-微观层.md`](./REVIEW-2026-10-09-第三方全面审查-批3-微观层.md) | proposal | maintainer | active | 同计划的**批 3 交付**（只读，**收官**）：三闸门全绿（1547 / vue-tsc 0 错 / build 16.76s）· 代码健康实测 + **对上轮 2 处结论的更正** · **复制为 HTML 对 4 种自家语法失真** · 幽灵依赖 7 个 + mac 臂漏 re-export（§一 #32 同型复发）· 文档漂移逐条（B-1/B-2/B-5 未清根 + 6 条真死链 + 薛定谔归档）· 账龄表 · **折叠×换位实测互斥**。**结论未进台账**；探针 [`review-artifacts/`](./archive/review-artifacts/) |
 | ⭐ [`REVIEW-2026-10-09-第三方全面审查-问题总账.md`](./REVIEW-2026-10-09-第三方全面审查-问题总账.md) | report | agent | active | **三轮审查的单一入口**（供其他 Agent 复查）：41 条编号问题（P1×7 / P2×19 / P3×15）· **§2 勘误表：8 条批间互相推翻的结论** · §6 「已验证无需动作」13 组（防重复上报）· §7 待实测定级 4 条含可复制步骤 · §8 **每条该落进哪个权威文件的工单映射**。冲突时**以本表为准** |
-| [`solo互链改名同步方案-2026-09-11.md`](./archive/solo互链改名同步方案-2026-09-11.md)  | archive   | maintainer/agent | archive  | 互链改名同步方案：改文件名后同步指向本文档的 `[[链接]]`（同目录、先列清单确认再原子改写），**代码已随 v1.2.53 落地** |
-| [`REVIEW-2026-10-09-qoder审查-独立核实结论.md`](./REVIEW-2026-10-09-qoder审查-独立核实结论.md) | report | agent | active | 对问题总账的**独立核实**（只核不修）：逐条回第一现场取证（重跑 grep / 读实现原文 / 数实例）——基线 4/4 准 · P1×7 全静态成立 · P2 18 成立 + 1 待实测 · P3 抽样全成立 · §6 硬禁令抽核全准 · **无一条被证伪**；并记录报告自身 4 处计数/行号偏差，文末附**决策记录**（各项修/不修与理由）。修复落账见 [`CHANGELOG`](./CHANGELOG.md) `[Unreleased]` |
+| [`solo互链改名同步方案-2026-09-11.md`](./archive/solo互链改名同步方案-2026-09-11.md)  | archive   | maintainer | archive  | 互链改名同步方案：改文件名后同步指向本文档的 `[[链接]]`（同目录、先列清单确认再原子改写），**代码已随 v1.2.53 落地** |
+| [`REVIEW-2026-10-09-qoder审查-独立核实结论.md`](./REVIEW-2026-10-09-qoder审查-独立核实结论.md) | proposal | agent | active | 对问题总账的**独立核实**（只核不修）：逐条回第一现场取证（重跑 grep / 读实现原文 / 数实例）——基线 4/4 准 · P1×7 全静态成立 · P2 18 成立 + 1 待实测 · P3 抽样全成立 · §6 硬禁令抽核全准 · **无一条被证伪**；并记录报告自身 4 处计数/行号偏差，文末附**决策记录**（各项修/不修与理由）。修复落账见 [`CHANGELOG`](./CHANGELOG.md) `[Unreleased]` |
 | ⭐ [`REVIEW-2026-10-10-保真链路修复审核材料.md`](./archive/REVIEW-2026-10-10-保真链路修复审核材料.md) | report | maintainer | active | **2026-10-10 会话的完整审核底稿**（供第三方独立审核）：7 提交 / 15 文件 / 4 个问题（**2 修 · 2 改判为设计取舍**）/ 3 项护栏与纪律 / **3 处自我订正** / 6 项未验证披露；含复现命令与「请重点挑战的 7 个问题」 |
 | ⭐ [`REVIEW-2026-10-10-保真链路修复-第三方审核结论.md`](./archive/REVIEW-2026-10-10-保真链路修复-第三方审核结论.md) | report | maintainer | active | 对上述底稿的**独立复审结论**（只审不改，原稿未动）：两处代码修复判定正确可合入 · **「ZWNJ 覆盖已闭环」不成立——实测漏掉「属性携带的文本」一整类，6 个落点把 U+200C 写进用户文件**（本仓 0 命中，属潜在）· 体检工具对四类问题结构性全盲且只报告不断言 · §11 七问逐条作答 · 另查出 4 处计数/行号断言失效 · 性能实测 11.6 万字 parse 46.5ms 无阻塞；探针 [`review-artifacts/zwnj-attrs-probe-2026-10-10.ts`](./archive/review-artifacts/zwnj-attrs-probe-2026-10-10.ts) |
 | ⭐ [`REVIEW-2026-10-10-属性通道补口-复审.md`](./archive/REVIEW-2026-10-10-属性通道补口-复审.md) | report | maintainer | active | 对补口提交 `d1b7cd7`+`510d04b` 的**第二轮复审**：**本方 §八「潜在落点」判定被实测证伪**（未闭合 `**`+标点当下即落盘，已在原报告标注订正）· 8 条 Phase A4 锁经**反向校准为真锁**（`stripZwnj` 改恒等 ⇒ 22 红）· 6 项文档订正全部落地对账 · **但 `href`/`src` 仍是落点**（1 处 `escapeLinkDestination` 可收口）· attrs 只锁落盘、内存与 DOM 侧仍脏（与 math 的入口路线不对称）· 建议改走「遍历 schema 字符串属性」的集合锁防第四次 |
 | ⭐ [`REVIEW-2026-10-10-第三方审核结论-独立核实.md`](./archive/REVIEW-2026-10-10-第三方审核结论-独立核实.md) | report | maintainer | active | **对第三方结论的逐条独立复现**（不采信自述、自写探针）：**11 条全部成立、无一条被证伪**（唯一微差：F-5 行号 62→63）；加值**排除 2 个候选落点**（互链 target/alias、callout.title）把 F-1 清单钉成"完整"；**我方待订正 6 处**（含 1 处实质否定：材料 §4「已闭环」不成立）；未复测对方性能数字（已标注） |
 | ⭐ [`REVIEW-2026-10-10-数据安全线复审-二次核实.md`](./REVIEW-2026-10-10-数据安全线复审-二次核实.md) | report | maintainer | active | 对「文档保存数据安全线」的**只读审核合并底稿**：首审 9 条 + 第三方逐条推翻 + 本方再核（认错 4 处 / 补正 3 处）+ 终核净结果；**P2-④ 死代码证伪**、P1-② 双方均未复现、台账 §二 #20 过期已更正；未改任何代码 |
 | [`IME-ANCHOR-GUARD-2026-10-09.md`](./IME-ANCHOR-GUARD-2026-10-09.md) | guide | agent | active | IME 重锚护栏的**修复档案**（可追溯）：分支/回滚点/验收判据（问题概率性 ⇒ 改为被动探针对账）/阶段记录/退出条件；触发面按真机反馈修订为「窗口移动 + 缩放」 |
-| [`IME-问题简报与资料汇编.md`](./IME-问题简报与资料汇编.md) | archive | external | archive | IME 候选窗失锚的**第三方统筹简报**（2026-09-30 已归档）：问题是什么 / 试过什么 / 卡在哪 / 给第三方的起点建议 + 4 份原始文档全文附录；现况以 [`IME-CANDIDATE-WINDOW.md`](./IME-CANDIDATE-WINDOW.md) 为准 |
+| [`IME-问题简报与资料汇编.md`](./IME-问题简报与资料汇编.md) | archive | user | archive | IME 候选窗失锚的**第三方统筹简报**（2026-09-30 已归档）：问题是什么 / 试过什么 / 卡在哪 / 给第三方的起点建议 + 4 份原始文档全文附录；现况以 [`IME-CANDIDATE-WINDOW.md`](./IME-CANDIDATE-WINDOW.md) 为准 |
 | [`solo-tour.html`](./solo-tour.html)                                         | product   | user             | active   | 产品功能导览 HTML 页（非 md，无 frontmatter）                            |
 
 ### wiki/（用户知识库）
