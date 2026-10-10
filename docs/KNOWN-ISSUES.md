@@ -123,6 +123,8 @@ updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src, docs/RELEASE_PROCESS.
 
 | 块首 Backspace 合并前块（列表/引用块/段落）（2026-10-10 用户实测定性「正常交互」） | **缘起**：台账原 §二 #27 登记「光标在列表/引用块之后那个块（标题、段落等）的 content 开头，按 Backspace ⇒ 当前块被吸进上一个容器末尾（`- 甲` + `## 标题` → `- 甲标题`）」，曾列为「未解决」。**实测复核 + 用户定性**：① 触发有**精确门槛**——光标必须精准落在当前块 content 的第 0 位（不是块中间、不是标签外），极低频；② **与 #26 语义完全不同**——#26 管「光标在列表项内部」（高频、破坏性、把列表劈开），本条是「光标在列表块外部、前一块是列表/引用块时」（极低频、建设性、两个块粘成一段）；③ 能精确把光标移到块 content 开头再按退格的用户，**意图就是合并**——这不是误操作。**不改代码**，属 ProseMirror 原生 Backspace 合并语义，行为清晰可控。 |
 
+| 窗口 resize 热区偶发不灵敏（2026-10-10 试验两轮后暂不修） | **现象**：`decorations: false` + `transparent: true` 无边框窗口，8 个前端 div 手柄（6px 边 / 12px 角）+ `startResizeDragging`（异步 IPC 链路）拉伸缩。偶发"拉一次不动、拉第二次才中"，位置不固定，右边稍多。**试验过的修法 + 结果**：① 改 `transparent: false`（去掉 `WS_EX_TRANSPARENT`）→ 稍好但仍不稳 + **新冒 DWM 阴影抖动**（resize 时边缘剧烈闪烁），不可接受，已回滚；② CSS 热区放大 + 不可见背景色 → 未试（方案 A 难度最低但用户明确反对"造轮子"式修补）。**根因**：Tauri v2 + tao 设计——`decorations: false` 时 tao 放弃 Win32 层的 `WM_NCHITTEST` 边缘 resize 返回，甩给前端。前端 div + 异步 IPC 天然有竞态窗口，WebView2 hit test 不稳定叠加。**彻底修法**（将来若要做）：在 Rust 层给窗口加 `SubclassProc`，拦截 `WM_NCHITTEST` 手动返回 `HTLEFT/HTRIGHT/HTTOP/HTBOTTOM/...`（约 40-60 行 Rust，Windows 平台特定，不跨平台）。**暂不修理由**：用户拍板——"影响体验但不影响工作"，且用户明确反对"在本该原生支持的地方自己造轮子"。**台账 §三 新增本条**。 |
+
 ## 四、文档类已知坑（[文档坑]，agent 必读）
 
 - **`.trae/documents/`**：旧架构文档（文件树/workspace watcher/fs.rs 等），**已失效，忽略**（不要链接、不要读取）。
