@@ -394,6 +394,12 @@ function updateCodeBlockLanguage(
 }
 
 export const CustomCodeBlock = CodeBlock.extend({
+  // 键位对齐注册表（键位真理源 src/commands/registry.ts，台账 §二 #28）：
+  // 注册表承诺 Mod-Shift-c，TipTap 默认是 Mod-Alt-c——承诺的键按了没反应。
+  addKeyboardShortcuts() {
+    return { 'Mod-Shift-c': () => this.editor.commands.toggleCodeBlock() };
+  },
+
   addAttributes() {
     const parent = this.parent?.() ?? {};
 

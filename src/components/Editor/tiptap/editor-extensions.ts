@@ -2,6 +2,9 @@ import type { Ref } from 'vue';
 import StarterKit from '@tiptap/starter-kit';
 import BulletList from '@tiptap/extension-bullet-list';
 import OrderedList from '@tiptap/extension-ordered-list';
+import Paragraph from '@tiptap/extension-paragraph';
+import Blockquote from '@tiptap/extension-blockquote';
+import Strike from '@tiptap/extension-strike';
 import Code from '@tiptap/extension-code';
 import Highlight from '@tiptap/extension-highlight';
 import Link from '@tiptap/extension-link';
@@ -195,8 +198,19 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
       // 列表容器需要放开 content 约束，故关闭内置版本、改用下方的 extend 版本
       bulletList: false,
       orderedList: false,
+      // paragraph / blockquote / strike 三项关闭内置、改用下方的 extend 版本：
+      // 键位对齐注册表（键位真理源 src/commands/registry.ts，台账 §二 #28）。
+      // TipTap 默认键（Mod-Alt-0 / Mod-Shift-b / Mod-Shift-s）与注册表承诺的
+      // 用户心智键（Mod-0 / Mod-Shift-q / Mod-Shift-x，Typora/中文软件惯例）不一致，
+      // 导致「设置页展示的键按了没反应、实际生效的键从未宣传」。覆写后编辑器内
+      // 真实生效的键 = 注册表声明的键，一致性由 commands/__tests__/shortcut-consistency.spec 锁定。
+      // 顺带修复：strike 的 TipTap 默认键 Mod-Shift-s 曾与 file.saveAs（Mod-Shift-s）
+      // 抢键——编辑区内 Ctrl+Shift+S 被删除线吃掉、另存为弹不出。覆写后该键归还另存为。
+      paragraph: false,
+      blockquote: false,
+      strike: false,
       // Underline 必须显式关闭（2026-10-03）——**它此前是唯一漏网的默认 mark**。
-      // 三个原因让它不能留在生产 schema 里：
+      //  三个原因让它不能留在生产 schema 里：
       //  ① Markdown/CommonMark/GFM **没有下划线语法**（那是 HTML `<u>` 的事），
       //     而 solo 刻意 `html:false` 不解析原始 HTML ⇒ 往返无处落地；
       //  ② serializer 的 `markDelimiter()` 没有 `case 'underline'`，落`default: return ''`
@@ -226,8 +240,31 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     // 「强调里包行内代码」很常见，截断既改坏文件内容、又让 round-trip 不收敛
     // （fixture `all-marks.md` 与 CommonMark Ex 478 / 479 实测命中）。
     // 放开后 code 可与 bold/italic 共存，序列化按嵌套正确输出。
-    Code.extend({ excludes: '' }),
+    // 键位对齐注册表（Mod-`，TipTap 默认 Mod-e 从未宣传过，理由见 configure 注释）。
+    Code.extend({
+      excludes: '',
+      addKeyboardShortcuts() {
+        return { 'Mod-`': () => this.editor.commands.toggleCode() };
+      },
+    }),
     Highlight.configure({ multicolor: false }),
+    // 三个 StarterKit 内置的 extend 替换版（configure 已关内置，理由见 configure 注释）：
+    // 键位对齐注册表承诺（Mod-0 / Mod-Shift-q / Mod-Shift-x）
+    Paragraph.extend({
+      addKeyboardShortcuts() {
+        return { 'Mod-0': () => this.editor.commands.setParagraph() };
+      },
+    }),
+    Blockquote.extend({
+      addKeyboardShortcuts() {
+        return { 'Mod-Shift-q': () => this.editor.commands.toggleBlockquote() };
+      },
+    }),
+    Strike.extend({
+      addKeyboardShortcuts() {
+        return { 'Mod-Shift-x': () => this.editor.commands.toggleStrike() };
+      },
+    }),
     ParagraphFocus,
     // 列表折叠 / 展开（幕布式大纲体验）——纯视图层装饰，折叠态不进文档。
     // 注入 getDocumentPath：折叠态按文档路径记忆，切走再切回可恢复（进程内存，不落盘）

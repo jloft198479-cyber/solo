@@ -20,6 +20,19 @@ export const SemanticHeading = Heading.extend({
   addInputRules() {
     return [];
   },
+  // 键位对齐注册表（键位真理源 src/commands/registry.ts，台账 §二 #28）：
+  // 注册表承诺 Mod-1..6（Typora 心智），但 TipTap 默认是 Mod-Alt-1..6——
+  // 承诺的键按了没反应、实际生效的键从未宣传过。此处覆写让编辑器内真实
+  // 生效的键 = 注册表声明的键，一致性由 commands/__tests__/shortcut-consistency.spec 锁定。
+  addKeyboardShortcuts() {
+    return this.options.levels.reduce(
+      (items, level) => ({
+        ...items,
+        [`Mod-${level}`]: () => this.editor.commands.toggleHeading({ level }),
+      }),
+      {},
+    );
+  },
 }).configure({
   levels: [1, 2, 3, 4, 5, 6],
 });
