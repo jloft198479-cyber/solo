@@ -10,6 +10,8 @@ import { getPluginNodeSerializers } from './plugins';
 import { computeFence } from './plugins/fence';
 // ZWNJ 剥离是**跨模块契约**（解析期插入 / 各读出点剥离），实现与常量统一在 ../zwnj
 import { stripZwnj } from '../zwnj';
+// alt 的最小转义与「插入图片」路径共用同一份规则（真理源一处，避免两套写法漂移）
+import { escapeImageAlt } from '../extensions/image';
 
 // ── 序列化状态 ──────────────────────────────────────────────────
 
@@ -153,6 +155,11 @@ export class MarkdownSerializerState {
     this.inTableCell = true;
   }
 
+  /** 是否正在序列化表格单元格内容（供节点序列化器按上下文转义，如 image 的 alt 尺寸后缀） */
+  get isInTableCell(): boolean {
+    return this.inTableCell;
+  }
+
   /**
    * 写入文本。行首自动补 `lineIndent` 缩进（文本内含换行时**每行**都补）——
    * 这是「列表项内的块留在项内」的唯一机制，块序列化器无需各自关心缩进。
@@ -220,8 +227,19 @@ export class MarkdownSerializerState {
       if (child.isText) {
         this.renderMarks(child, parent, index, true, codeDelims);
         const hasCodeMark = child.marks.some((mark) => mark.type.name === 'code');
-        // 行内 code 不属于 flanking 处理对象，一并剥离 ZWNJ（顺带清洗存量脏数据）
-        this.write(hasCodeMark ? stripZwnj(child.text ?? '') : this.escapeInline(child.text ?? ''));
+        if (hasCodeMark) {
+          // 行内 code 内容按字面写出（不做内联转义），但**表格单元格内的 `|` 例外**：
+          // GFM 规定表格里的 `|` 即使位于 code span 也必须写成 `\|`，否则重开时
+          // markdown-it 的表格规则会在此切列，该行竖线之后的文字被当新列**丢弃**
+          // （`| A | `WM_MOVE|WM_MOVING` 调它 |` 丢掉「WM_MOVING 调它」）。
+          // 注：解析侧无需配套（裸 `|` 在 GFM 里本来就非法，GitHub 同样切列）——
+          // 这里只负责不再产出「solo 自己读回来会坏」的文件。
+          let text = stripZwnj(child.text ?? '');
+          if (this.inTableCell) text = text.replace(/\|/g, '\\|');
+          this.write(text);
+        } else {
+          this.write(this.escapeInline(child.text ?? ''));
+        }
         this.renderMarks(child, parent, index, false, codeDelims);
       } else {
         this.renderMarks(child, parent, index, true, codeDelims);
@@ -265,8 +283,9 @@ export class MarkdownSerializerState {
     const marks = node.marks;
 
     if (opening) {
-      for (const mark of marks) {
-        if (mark.isInSet(this.activeMarks)) continue;
+      const fresh = marks.filter((mark) => !mark.isInSet(this.activeMarks));
+      if (fresh.length > 1) this.sortOpeningMarks(fresh, parent, index);
+      for (const mark of fresh) {
         // 追加而非 addToSet：数组即「打开时间栈」，关闭时要靠它定序
         this.activeMarks = [...this.activeMarks, mark];
         this.writeMarkDelim(mark, true, node, parent, index, codeDelims);
@@ -282,6 +301,42 @@ export class MarkdownSerializerState {
       this.activeMarks = this.activeMarks.filter((m) => !m.eq(mark));
       this.writeMarkDelim(mark, false, node, parent, index, codeDelims);
     }
+  }
+
+  /**
+   * 同一节点**同时开启**多个 mark 时，决定定界符的先后（谁在外层）。
+   *
+   * 为什么不能用 `node.marks` 的数组序：那是 schema 的 marks **定义序（rank）**，
+   * 与真实嵌套层次无关（关闭侧「后开先关」修的就是同一类误用，见 activeMarks 注释）。
+   * 开启侧此前一直按 rank 序写，于是「外层 mark 的 rank 更大」时，外层定界符被写到
+   * 内层**之前** ⇒ 定界符交叉 ⇒ 外层格式降级成字面字符，且**不报错**（数据损失级）：
+   *   `**[a](b) c**` → `[**a](b) c**`（bold 消失，且二次不收敛）
+   *   `*[a](b) c*` / `~~[a](b) c~~` / `==[a](b) c==` 同类
+   *   `==`x`==` → `` `==x==` ``（同范围，code 被写到外层，高亮变字面）
+   *
+   * 判据（两条，顺序固定）：
+   *  ① **延续终点更晚者先开**（＝范围更宽＝更外层）。终点按本块内该 mark 的
+   *     连续延续计算；只对「本节点新开启」的 mark 求值，扫描长度摊还到 O(n)。
+   *  ② 终点相同（同范围）时 **`code` 恒排最后**——code 的内容是**字面量**，被别的
+   *     定界符包住就会把对方的定界符写成字面字符。其余同范围 mark（如 link 与 bold
+   *     精确等长）先后不影响渲染，返回 0 交稳定排序保持原 rank 序，避免无谓漂移。
+   */
+  private sortOpeningMarks(fresh: Mark[], parent: PMNode, index: number) {
+    const endOf = new Map<Mark, number>();
+    for (const mark of fresh) {
+      let end = index;
+      while (end + 1 < parent.childCount && mark.isInSet(parent.child(end + 1).marks)) end++;
+      endOf.set(mark, end);
+    }
+    fresh.sort((a, b) => {
+      const ea = endOf.get(a)!;
+      const eb = endOf.get(b)!;
+      if (ea !== eb) return eb - ea;
+      const ca = a.type.name === 'code';
+      const cb = b.type.name === 'code';
+      if (ca !== cb) return ca ? 1 : -1;
+      return 0;
+    });
   }
 
   /** 预计算 code span 分隔符组，O(N) 一次扫描替代 _codeSpanDelims 的 O(N²) 扫描 */
@@ -380,7 +435,9 @@ export class MarkdownSerializerState {
       case 'dim': return _opening ? '<span class="mk-dim">' : '</span>';
       case 'link': {
         if (_opening) return '[';
-        const href = escapeLinkDestination(mark.attrs.href as string);
+        // stripZwnj：href 是属性通道（不经过 escapeInline）——解析期插的 ZWNJ 会落进
+        // attrs 并原样写进用户文件的地址里（`[标题](https://x.com/a，**b**.md)` 实测中招）
+        const href = escapeLinkDestination(stripZwnj(mark.attrs.href as string));
         // stripZwnj：link 的 title 同样走属性通道（不经过 escapeInline）
         const title = mark.attrs.title ? stripZwnj(mark.attrs.title as string) : '';
         return `](${href}${title ? ` "${escapeLinkTitle(title)}"` : ''})`;
@@ -665,16 +722,22 @@ const nodeSerializers: Record<string, NodeSerializer> = {
   image(state, node) {
     // stripZwnj：alt / title 是**属性通道**——解析期插的 ZWNJ 会落进 attrs，
     // 这里**不经过** escapeInline，不剥就写进用户文件（台账 §二 #32 / 敏感区 #23④）
-    const alt = stripZwnj(node.attrs.alt || '');
+    // escapeImageAlt：alt 里的 `[` `]` `` ` `` 不转义会打破 image 语法括号配对，
+    // 重开整张图退化成字面文本（台账 §二 #38）
+    const alt = escapeImageAlt(stripZwnj(node.attrs.alt || ''));
     const title = node.attrs.title ? stripZwnj(node.attrs.title as string) : undefined;
-    const src = escapeLinkDestination(node.attrs.src || '');
+    // stripZwnj：src 同走属性通道，漏剥则隐形字符落进用户文件的路径里
+    const src = escapeLinkDestination(stripZwnj(node.attrs.src || ''));
     const width = node.attrs.width;
     const height = node.attrs.height;
     // 有尺寸时输出 `![alt|WxH](src)`，无尺寸时输出 `![alt](src)`
-    const altWithDims =
+    let altWithDims =
       width != null && height != null
         ? `${alt}|${width}x${height}`
         : alt;
+    // 表格单元格内：`|`（含 `|WxH` 的分隔符本身）会切列，必须转义 —— 重开时
+    // markdown-it 的表格规则把 `\|` 还原成 `|`，alt 与尺寸后缀都能正确读回
+    if (state.isInTableCell) altWithDims = altWithDims.replace(/\|/g, '\\|');
     if (title) {
       state.write(`![${altWithDims}](${src} "${escapeLinkTitle(title as string)}")`);
     } else {

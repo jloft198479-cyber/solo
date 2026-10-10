@@ -37,8 +37,35 @@ export function extractDimsFromAlt(alt: string): {
   return { alt: match[1], width, height };
 }
 
+/**
+ * 图片 alt 的最小转义（alt 位于 `![…]` 的方括号内）。
+ *
+ * 为什么必须转：alt 里的 `[` `]` 会打破 image 语法的括号配对，**重开时整张图片
+ * 退化成字面文本**（`alt='甲[乙'` → 写出 `![甲[乙](x.png)` → 解析不出 image 节点）；
+ * `` ` `` 会开启 code span 吞掉后面的 `](`。只转这三个（最小化，避免字节噪音）。
+ *
+ * 表格单元格内的 `|` **不在此处转**：它同时是 `|WxH` 尺寸后缀的分隔符，
+ * 必须由序列化侧按上下文决定（见 `MarkdownSerializerState.isInTableCell`）。
+ */
+export function escapeImageAlt(alt: string): string {
+  return alt.replace(/[`\[\]]/g, (m) => '\\' + m);
+}
+
+/**
+ * `escapeImageAlt` 的**逆运算**，在解析侧把 markdown-it 交回的原文 alt 还原。
+ *
+ * 为什么必须有配对：image token 的 `content` 是方括号内的**原文**（转义未被处理），
+ * 而写出侧 `escapeImageAlt` 会补 `\[`。不还原就会「每存一次多一层反斜杠」——
+ * `甲[乙` → `甲\[乙` → `甲\\[乙` → …，**永不收敛**且 alt 里多出可见反斜杠。
+ * 只还原本模块会产出的三种（`` \[ `` `\]` `` \` ``），不引入通用指针集，
+ * 故 `C:\path`、`\alpha` 之类不受影响（它们本就不在还原集内）。
+ */
+export function unescapeImageAlt(raw: string): string {
+  return raw.replace(/\\([`\[\]])/g, '$1');
+}
+
 export function formatImageMarkdown(attrs: ImageMarkdownAttrs): string {
-  const alt = attrs.alt || '';
+  const alt = escapeImageAlt(attrs.alt || '');
   const src = attrs.src || '';
   const title = attrs.title?.replace(/"/g, '\\"') ?? '';
   // 有尺寸时输出 `![alt|WxH](src)`，无尺寸时输出 `![alt](src)`

@@ -21,7 +21,14 @@
  *     下降后应手动调低基线，棘轮只会收紧不会放松）。
  *
  * ⚠️ 已知局限：参照系未启用 solo 的 mark / footnote / sub / sup / texmath 插件，
- * 故极少数用例会因插件差异产生噪声（当前 20 份全是此类），逐个复核后再下结论。
+ * 故极少数用例会因插件差异产生噪声（当前 7 份全是此类），逐个复核后再下结论。
+ *
+ * 2026-10-10 批次 1（F1~F5）实跑：**21 → 7 份**。基线随之从 21 下调至 7
+ * （棘轮只收紧不放松）。剩余 7 份里：
+ *   - `KNOWN-ISSUES.md → code-318` **不是噪声**：全部来自该文件第 62 行那种
+ *     「行内代码内嵌转义反引号」的畸形写法（另案，未定位）；
+ *   - 其余 6 份为参照系插件差异（`strong/em` 计数因 solo 的 ZWNJ 让 CJK 边界
+ *     更认加粗而偏多）。
  */
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -39,7 +46,7 @@ import { createTestSchema } from './test-utils';
  * 审核复审材料 REVIEW-2026-10-10-属性通道补口-复审.md，code-1 形态与其余各份同源，
  * 已与基线版逐行 diff 确认无新增回归。降到更低时请手动下调）。
  */
-const RATCHET_BASELINE = 21;
+const RATCHET_BASELINE = 7;
 
 /**
  * 仓库根：从**本文件位置向上找 `package.json`**。

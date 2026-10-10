@@ -545,6 +545,117 @@ describe('Round-trip: parse → serialize', () => {
     });
   });
 
+  /**
+   * Phase F: mark **开启序** / 块邻接 / 上下文转义（2026-10-10 保真链路复核）
+   *
+   * 病灶：`renderMarks` 的**开启**分支此前按 `node.marks`（＝schema 的 marks 定义序
+   * rank）逐个写定界符，而 rank 序与「谁包着谁」无关 ⇒ 同一节点同时开启多个 mark 时，
+   * 外层定界符被写到内层**之前**，定界符交叉，外层格式降级成字面字符。
+   * 属**真静默**：编辑器里看着正常，存一次才坏（`**[a](b) c**` → `[**a](b) c**`，
+   * 加粗直接消失且二次不收敛）。
+   * Phase E 只锁了「关闭序（后开先关）」——本组锁「开启序」，两者互为镜像、缺一不可。
+   */
+  describe('Phase F: mark 开启序 / 块邻接 / 上下文转义（2026-10-10）', () => {
+    /** 两轮必须收敛（这些形态此前首轮就漂移） */
+    const stable = (md: string): string => {
+      const first = roundTrip(md);
+      expect(roundTrip(first), `两轮不收敛：${JSON.stringify(md)}`).toBe(first);
+      return first;
+    };
+
+    // ── F1 开启序：同一节点同时开启时，范围更宽者（外层）先开 ──
+    it('bold / italic / strike / highlight 同起点包链接且更长 —— 外层先开', () => {
+      for (const md of ['**[a](u) c**\n', '*[a](u) c*\n', '~~[a](u) c~~\n', '==[a](u) c==\n']) {
+        expect(roundTrip(md), md).toBe(normalize(md));
+      }
+    });
+
+    it('strike 同起点包行内代码 / 包 bold 且更长', () => {
+      expect(roundTrip('~~`a` c~~\n')).toBe(normalize('~~`a` c~~\n'));
+      expect(roundTrip('~~**a** c~~\n')).toBe(normalize('~~**a** c~~\n'));
+    });
+
+    it('同范围时 code 恒最内层（否则外层 mark 被写成字面字符）', () => {
+      expect(roundTrip('==`x`==\n')).toBe(normalize('==`x`==\n'));
+      expect(roundTrip('~~`x`~~\n')).toBe(normalize('~~`x`~~\n'));
+      expect(roundTrip('<span class="mk-dim">`x`</span>\n'))
+        .toBe(normalize('<span class="mk-dim">`x`</span>\n'));
+    });
+
+    it('列表项 / 引用块内同款不丢', () => {
+      expect(roundTrip('- **[a](u) c**\n')).toBe(normalize('- **[a](u) c**\n'));
+      expect(roundTrip('> **[a](u) c**\n')).toBe(normalize('> **[a](u) c**\n'));
+    });
+
+    // ── F2 块级节点落进还开着的段落：整块（含正文）曾静默消失 ──
+    it('正文紧接 $$：公式与正文都不丢（texmath 在此产出 math_inline_double）', () => {
+      expect(stable('正文\n$$\nE=mc^2\n$$\n')).toBe('正文\n\n$$\nE=mc^2\n$$\n');
+    });
+
+    it('引用块 / callout / 列表项内紧接 $$ 不丢（缩进收敛另行修复，见 F8）', () => {
+      // 同上：F2 治的是「整块消失」；容器内的**续行缩进逐轮加深**是 qoder 复核 #5
+      // 的独立缺陷（写出侧外层 write() 又补一次 lineIndent，而块内容自带前导空格），
+      // 归批次 2 的 F8。此处只锁「内容不丢」。
+      expect(roundTrip('> 正文\n> $$b$$\n')).toBe('> 正文\n> \n> $$\n> b\n> $$\n');
+      expect(roundTrip('> [!NOTE]\n> $$c$$\n')).toBe('> [!NOTE]\n>\n> $$\n> c\n> $$\n');
+      expect(roundTrip('- 项\n$$a$$\n')).toBe('- 项\n\n  $$\n  a\n  $$\n');
+    });
+
+    // ── F3 表格单元格内行内代码的 `|`（GFM：code span 内也必须转义）──
+    it('表格单元格内行内代码含 | 须转义，重开不切列、文字不丢', () => {
+      const md = '| a | b |\n| --- | --- |\n| `WM_MOVE\\|WM_MOVING` 调它 | z |\n';
+      const first = stable(md);
+      expect(first).toContain('`WM_MOVE\\|WM_MOVING`');
+      expect(first).toContain('调它');
+    });
+
+    // ── F4 href / src 属性通道不落 ZWNJ ──
+    it('href / src 通道不落 ZWNJ（属性不过 escapeInline，须各自剥）', () => {
+      for (const md of ['![图](assets/照片，**v2**.png)\n', '[标题](https://x.com/a，**b**.md)\n']) {
+        expect(roundTrip(md), md).not.toContain('\u200C');
+      }
+    });
+
+    // ── F5 图片 alt：写出转义 + 读取还原（成对，缺一就会层层加反斜杠）──
+    it('图片 alt 含 [ ] ` 时图片不丢，且 alt 精确往返', () => {
+      const schema = createTestSchema();
+      for (const alt of ['甲[乙', '甲]乙', '甲`乙']) {
+        const img = schema.nodes.image.create({ src: 'x.png', alt });
+        const doc = schema.nodes.doc.create(null, [schema.nodes.paragraph.create(null, [img])]);
+        const out = serializeMarkdown(doc);
+        const back = parseMarkdown(schema, out);
+        let got: string | null = null;
+        back.descendants((n: PMNode) => {
+          if (n.type.name === 'image') got = n.attrs.alt as string;
+        });
+        expect(got, `alt=${JSON.stringify(alt)} out=${JSON.stringify(out)}`).toBe(alt);
+      }
+    });
+
+    it('表格单元格内带尺寸的图片：`|` 也要转义（否则切列、整表塌）', () => {
+      const schema = createTestSchema();
+      const hc = (t: string) =>
+        schema.nodes.tableHeader.create(null, [schema.nodes.paragraph.create(null, [schema.text(t)])]);
+      const tc = (child: PMNode) =>
+        schema.nodes.tableCell.create(null, [schema.nodes.paragraph.create(null, [child])]);
+      const img = schema.nodes.image.create({ src: 'x.png', alt: 'a', width: 400, height: 300 });
+      const table = schema.nodes.table.create(null, [
+        schema.nodes.tableRow.create(null, [hc('图'), hc('备注')]),
+        schema.nodes.tableRow.create(null, [tc(schema.text('1')), tc(img)]),
+      ]);
+      const out = serializeMarkdown(schema.nodes.doc.create(null, [table]));
+      expect(out).toContain('![a\\|400x300](x.png)');
+      const back = parseMarkdown(schema, out);
+      let tables = 0;
+      let images = 0;
+      back.descendants((n: PMNode) => {
+        if (n.type.name === 'table') tables++;
+        if (n.type.name === 'image') images++;
+      });
+      expect([tables, images]).toEqual([1, 1]);
+    });
+  });
+
   describe('edge cases', () => {
     it('empty document', () => {
       const result = roundTrip('');

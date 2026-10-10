@@ -34,6 +34,14 @@ export function mathTokenHandlers(schema: Schema): Record<string, TokenHandler> 
       const latex = stripZwnj(token.content.replace(/^\n|\n$/g, ''));
       state.addNode(schema.nodes.mathBlock, {}, latex ? [schema.text(latex)] : undefined);
     };
+    // texmath 的 `$$…$$` 若**紧跟前一段正文**（中间无空行），不会成为块级 `math_block`，
+    // 而是被解析进段落 inline 层的 `math_inline_double`（实测 token 流：
+    // `正文\n$$\nE=mc^2\n$$\n` → inline[text"正文", softbreak, math_inline_double]）。
+    // 此前**没有这个 handler** ⇒ token 被静默跳过 ⇒ **整块公式连同内容消失**，
+    // 且不报错（台账 §二 #38）。语义上 `$$…$$` 就是行间公式，故与 math_block 同映射。
+    // 它出现在段落内，`addNode` 会因「块级节点落进 textblock」先收掉段落再落块
+    // （见 parser.ts `addNode`），最终得到「段落 + mathBlock」两块，内容不丢。
+    handlers.math_inline_double = handlers.math_block;
   }
 
   return handlers;

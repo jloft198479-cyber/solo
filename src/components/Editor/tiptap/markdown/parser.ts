@@ -23,7 +23,7 @@ import {
   getPluginTokenInterceptors,
 } from './plugins';
 import type { Preprocessor, TokenInterceptor } from './plugins';
-import { extractDimsFromAlt } from '../extensions/image';
+import { extractDimsFromAlt, unescapeImageAlt } from '../extensions/image';
 // ZWNJ 常量唯一来源（解析期插入 / 各读出点剥离，见 ../zwnj 与敏感区 #23）
 import { ZWNJ } from '../zwnj';
 
@@ -208,20 +208,49 @@ export class MarkdownParseState {
     this.stack.push({ type, attrs, content: [], marks: Mark.none });
   }
 
-  closeNode(): PMNode {
+  /**
+   * 关闭栈顶并挂到父节点。
+   *
+   * @param expected 期望关闭的容器类型（或类型集合）。传入时若栈顶**不是**该类型则
+   *   **不关**（返回 null）。为什么需要这个守卫：`addNode` 遇到「块级节点落进还开着的
+   *   段落」时会先把这个 textblock 收掉，随后到来的 `paragraph_close` / `heading_close`
+   *   token 若照常 pop，就会**误弹父容器**（列表项 / 引用块 / doc），把结构搅乱。
+   *   注意须传**集合**的两种情况：`bullet_list_close` 可能关 `bulletList` 或
+   *   `taskList`（容器类型由 `areAllTopLevelItemsTasks` 决定）；`list_item_close`
+   *   可能关 `listItem` 或 `taskItem`。
+   */
+  closeNode(expected?: NodeType | NodeType[]): PMNode | null {
+    if (expected) {
+      const allowed = Array.isArray(expected) ? expected : [expected];
+      if (!allowed.includes(this.top.type)) return null;
+    }
     const item = this.stack.pop()!;
     const node = item.type.createAndFill(item.attrs, item.content, this.marks);
-    if (!node) {
-      // 兜底：创建空段落
-      return this.schema.nodes.paragraph.create();
+    if (node) {
+      this.top.content.push(node);
+      return node;
     }
-    this.top.content.push(node);
-    return node;
+    // 内容装不进本容器（例如块节点混进了 `inline*`）——**绝不静默丢弃**。
+    // 旧实现此处 `return this.schema.nodes.paragraph.create()`：既没推回父节点、
+    // 又丢弃了已收集的全部内容 ⇒ 整段连同正文一起消失（`正文\n$$\nE=mc^2\n$$`
+    // 实测连「正文」都丢，且不报错）。现改为把内容原件交还父节点——父节点若也装不下，
+    // 会由它自己的兜底继续往上保；**「字不消失」优先于「结构好看」**。
+    this.top.content.push(...item.content);
+    return null;
   }
 
   addNode(type: NodeType, attrs: Record<string, unknown> = {}, content?: PMNode[]) {
     const node = type.createAndFill(attrs, content);
-    if (node) this.top.content.push(node);
+    if (!node) return null;
+    // ⚠️ `createAndFill` 只校验「新节点装不装得下自己的 content」，**不校验它能否
+    // 放进父节点**。而块级节点不能落进还开着的段落/标题（其 content 是 `inline*`）——
+    // 旧实现直接 push 进去，使段落内容非法，随后 `closeNode` 的 `createAndFill` 失败，
+    // 走兜底 ⇒ **整段（含已收集文本）静默丢弃**：`正文\n$$\nE=mc^2\n$$\n` 里 texmath
+    // 产出的 `math_inline_double` 落进段落 ⇒ 公式与「正文」一起消失（台账 §二 #38）。
+    // 这里先收掉这个 textblock 再放块（对齐「遇块级内容先收段落」的通用语义）；
+    // 迟到的 `paragraph_close` 由 `closeNode(expected)` 守卫安全落空。
+    if (this.top.type.isTextblock && !type.isInline) this.closeNode();
+    this.top.content.push(node);
     return node;
   }
 
@@ -311,7 +340,7 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.openNode(schema.nodes.paragraph);
   };
   handlers.paragraph_close = (state) => {
-    state.closeNode();
+    state.closeNode(schema.nodes.paragraph);
   };
 
   handlers.heading_open = (state, token) => {
@@ -319,14 +348,14 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.openNode(schema.nodes.heading, { level });
   };
   handlers.heading_close = (state) => {
-    state.closeNode();
+    state.closeNode(schema.nodes.heading);
   };
 
   handlers.blockquote_open = (state) => {
     state.openNode(schema.nodes.blockquote);
   };
   handlers.blockquote_close = (state) => {
-    state.closeNode();
+    state.closeNode(schema.nodes.blockquote);
   };
 
   handlers.bullet_list_open = (state, _token, tokens, index) => {
@@ -344,7 +373,8 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.openNode(schema.nodes.bulletList);
   };
   handlers.bullet_list_close = (state) => {
-    state.closeNode();
+    // 容器类型可能是 bulletList 或 taskList（由 areAllTopLevelItemsTasks 决定）
+    state.closeNode([schema.nodes.bulletList, schema.nodes.taskList]);
   };
 
   handlers.ordered_list_open = (state, token) => {
@@ -352,7 +382,7 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.openNode(schema.nodes.orderedList, { start: start ? parseInt(start) : 1 });
   };
   handlers.ordered_list_close = (state) => {
-    state.closeNode();
+    state.closeNode(schema.nodes.orderedList);
   };
 
   handlers.list_item_open = (state, token) => {
@@ -367,7 +397,8 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     }
   };
   handlers.list_item_close = (state) => {
-    state.closeNode();
+    // 项类型可能是 listItem 或 taskItem（由 isTaskListItem 决定）
+    state.closeNode([schema.nodes.listItem, schema.nodes.taskItem]);
   };
 
   handlers.code_block = (state, token) => {
@@ -403,7 +434,7 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.openNode(schema.nodes.table);
   };
   handlers.table_close = (state) => {
-    state.closeNode();
+    state.closeNode(schema.nodes.table);
   };
 
   handlers.thead_open = () => {
@@ -417,7 +448,7 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.openNode(schema.nodes.tableRow);
   };
   handlers.tr_close = (state) => {
-    state.closeNode();
+    state.closeNode(schema.nodes.tableRow);
   };
 
   handlers.th_open = (state, token) => {
@@ -426,8 +457,8 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.openNode(schema.nodes.paragraph);
   };
   handlers.th_close = (state) => {
-    state.closeNode(); // paragraph
-    state.closeNode(); // tableHeader
+    state.closeNode(schema.nodes.paragraph);
+    state.closeNode(schema.nodes.tableHeader);
   };
 
   handlers.td_open = (state, token) => {
@@ -436,15 +467,20 @@ export function getTokenHandlers(schema: Schema): Record<string, TokenHandler> {
     state.openNode(schema.nodes.paragraph);
   };
   handlers.td_close = (state) => {
-    state.closeNode(); // paragraph
-    state.closeNode(); // tableCell
+    state.closeNode(schema.nodes.paragraph);
+    state.closeNode(schema.nodes.tableCell);
   };
 
   // ── 图片 ──
 
   handlers.image = (state, token) => {
     const src = decodeLinkDestination(token.attrGet('src') || '');
-    const rawAlt = token.content || token.children?.map((t) => t.content).join('') || '';
+    // token.content 是方括号内的**原文**（转义未被处理）⇒ 必须先还原，与写出侧的
+    // `escapeImageAlt` 成对，否则 alt 里的 `[` 会每存一次多一层反斜杠（不收敛）。
+    // children 分支已 inline 解析（转义已处理），不可再还原，故只对 content 走还原。
+    const rawAlt = token.content
+      ? unescapeImageAlt(token.content)
+      : token.children?.map((t) => t.content).join('') || '';
     const title = token.attrGet('title') || null;
     const { alt, width, height } = extractDimsFromAlt(rawAlt);
     state.addNode(schema.nodes.image, { src, alt, title, width, height });

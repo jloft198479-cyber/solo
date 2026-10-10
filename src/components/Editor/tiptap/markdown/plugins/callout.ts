@@ -174,7 +174,7 @@ const calloutTokenInterceptor: (schema: Schema) => TokenInterceptor = (schema) =
       }
     }
 
-    state.closeNode(); // 关闭 callout
+    state.closeNode(schema.nodes.callout); // 关闭 callout（带期望类型：迟到/错位的 close 安全落空）
 
     // 标记跳过范围：从 blockquote_open 到 blockquote_close 的所有 token
     // 当前 blockquote_open 会被返回值 true 跳过

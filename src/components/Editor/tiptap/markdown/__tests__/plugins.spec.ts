@@ -38,6 +38,7 @@ describe('markdown syntax plugin registry', () => {
       'footnote_ref',
       'math_block',
       'math_inline',
+      'math_inline_double',
       'text',
     ]);
     expect(Object.keys(getPluginNodeSerializers()).sort()).toEqual([

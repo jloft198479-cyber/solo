@@ -20,7 +20,7 @@ export function footnoteTokenHandlers(schema: Schema): Record<string, TokenHandl
     state.openNode(schema.nodes.footnoteSection);
   };
   handlers.footnote_block_close = (state: MarkdownParseState) => {
-    state.closeNode();
+    state.closeNode(schema.nodes.footnoteSection);
   };
 
   handlers.footnote_open = (state: MarkdownParseState, token: Token) => {
@@ -28,7 +28,7 @@ export function footnoteTokenHandlers(schema: Schema): Record<string, TokenHandl
     state.openNode(schema.nodes.footnoteDef, { label });
   };
   handlers.footnote_close = (state: MarkdownParseState) => {
-    state.closeNode();
+    state.closeNode(schema.nodes.footnoteDef);
   };
 
   handlers.footnote_anchor = () => {};
