@@ -164,3 +164,54 @@ bun run test:full          # 全量 + 体检，跨平台安全（不再用 SOLO_
 | 一般 bug / 不知道改哪 | AGENTS 最高原则 + `sensitive-areas.md` 对应行 + **目标文件实际代码**（不以注释为准） |
 
 > ⚠️ 检索时**默认跳过隐藏目录**（`.archive-档案室/`、`.opencode/`、`.trae/`、`.dumate/` 已 gitignore 且 ripgrep 跳隐藏目录）——这些里的"第二份 AGENTS/CHANGELOG/ARCHITECTURE"是过期副本，**不是规则来源**，照 AGENTS 现行文件来。
+
+---
+
+## F. A 方案：CDP 自验真实 UI（debug-only，2026-10-11 立）
+
+> 痛点：Agent 改完 UI / 主题 / IME，「我看不到界面」就只能靠单测 + 文字推断，手感类回归漏在最后一公里。A 方案 = 给 debug 构建开一个**仅本机、仅 dev 开关触发**的 WebView2 CDP 端口，让 Agent 用 Playwright 连上真实 solo 窗口截图 / 读 DOM 自验。
+
+**机制**（事实在 `src-tauri/src/main.rs::setup_webview2_data_dir()`）：
+
+- debug 构建 **且** `SOLO_OPEN_DEVTOOLS=1` 时，注入 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`（端口可用 `SOLO_CDP_PORT` 覆盖，默认 9222）。
+- 注入时机在 `solo_lib::run()` **之前**，与既有 `WEBVIEW2_USER_DATA_FOLDER` 注入同生命周期 —— WebView2 环境在首个窗口 build 时创建，所以端口 env 必须在 run 之前设好（已验证生效）。
+- 整段包在 `#[cfg(debug_assertions)]` 里，**release 构建被完全剪除，永不暴露任何端口**；正常用户双击打开 release 版无任何端口、零副作用。
+- 与既有 devtools 面板（lib.rs 的 `open_devtools()`）共用同一个 `SOLO_OPEN_DEVTOOLS` 开关：开它既弹面板、又开端口。
+
+**自验流程**（动时序 / UI / 主题 / IME 后，单测是入场券、CDP 截图是通行证）：
+
+```bash
+# 1) 开 debug 构建 + dev 开关（Windows 用 set 前缀）
+SOLO_OPEN_DEVTOOLS=1 npx tauri dev
+# 2) 另开探针连 CDP 端口截图 / 读 DOM / 读 console
+python - <<'PY'
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    b = p.chromium.connect_over_cdp("http://localhost:9222")
+    page = b.contexts[0].pages[0]
+    page.screenshot(path="verify-ui.png")
+PY
+# 3) Read verify-ui.png（Agent 多模态）确认渲染 / 主题 / 布局对
+```
+
+⚠️ `tauri dev` 走完整构建（含 link），**必须在本机 MSVC 环境**跑（见下）；端口只在 `SOLO_OPEN_DEVTOOLS=1` 时存在，验证完关掉开关即恢复。
+
+### F1. 沙箱里跑 Rust 验证（cmd.exe 被拦的绕法）
+
+WorkBuddy 沙箱的 Bash / PowerShell **都禁止调用 `cmd.exe`**，而文档写的 `vcvars64.bat` 路线走 cmd。已验证可行的纯 PowerShell 原生注入（DevShell 模块本机解析异常 `M:\VS\BuildToolsX`，弃用）：
+
+```powershell
+$msvcVer = (Get-ChildItem "M:\VS\BuildTools\VC\Tools\MSVC").Name | Sort-Object -Descending | Select-Object -First 1
+$sdkVer  = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Lib").Name | Sort-Object -Descending | Select-Object -First 1
+$msvcRoot = "M:\VS\BuildTools\VC\Tools\MSVC\$msvcVer"; $msvcBin = "$msvcRoot\bin\Hostx64\x64"
+$sdkInc = "C:\Program Files (x86)\Windows Kits\10\Include\$sdkVer"; $sdkLib = "C:\Program Files (x86)\Windows Kits\10\Lib\$sdkVer"
+$env:VCINSTALLDIR = "M:\VS\BuildTools\VC"
+$env:PATH = "$msvcBin;M:\rust\.cargo\bin;" + $env:PATH
+$env:INCLUDE = "$msvcRoot\include;$sdkInc\ucrt;$sdkInc\um;$sdkInc\shared"
+$env:LIB = "$msvcRoot\lib\x64;$sdkLib\ucrt\x64;$sdkLib\um\x64"
+$env:CARGO_HOME = "M:\rust\.cargo"; $env:RUSTUP_HOME = "M:\rust\.rustup"
+Set-Location "F:\fzz-Project\md-editor\src-tauri"
+cargo check 2>&1   # 只类型检查、不调 link.exe，故无 Git Bash 下 link 抢占问题
+```
+
+> `cargo check` 不触发最终链接 ⇒ 不要 `link.exe`，纯 PowerShell 注入 MSVC 的 INCLUDE/LIB/PATH 即够（已实测 `Finished` exit 0）。真要 `tauri build`（含 link），仍建议在本机裸 `launch-dev.bat`（vcvars64）跑，别在沙箱硬刚。

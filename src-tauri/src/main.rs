@@ -43,6 +43,19 @@ fn setup_webview2_data_dir() -> PathBuf {
     let _ = std::fs::create_dir_all(&webview_dir);
     std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &webview_dir);
 
+    // A 方案 · 仅 debug 构建编译：当开启 dev 工具开关（SOLO_OPEN_DEVTOOLS）时，
+    // 额外暴露 WebView2 CDP 远程调试端口，便于自动化工具（如 Playwright
+    // connectOverCDP）截图 / 驱动真实 UI 做手感自验。该分支被 #[cfg(debug_assertions)]
+    // 完全剪除，release 构建永不暴露任何端口。端口可用 SOLO_CDP_PORT 覆盖，默认 9222。
+    #[cfg(debug_assertions)]
+    if std::env::var_os("SOLO_OPEN_DEVTOOLS").is_some() {
+        let port = std::env::var("SOLO_CDP_PORT").unwrap_or_else(|_| "9222".to_string());
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            format!("--remote-debugging-port={}", port),
+        );
+    }
+
     webview_dir
 }
 
