@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>solo Markdown 编辑器 · 代码评审与行业对标报告（2026-10-11）</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --brand: #2563eb;
+    --brand-soft: #eff6ff;
+    --good: #059669;
+    --good-soft: #ecfdf5;
+    --warn: #d97706;
+    --warn-soft: #fffbeb;
+    --bad: #dc2626;
+    --bad-soft: #fef2f2;
+    --crit: #7f1d1d;
+    --crit-soft: #fee2e2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    line-height: 1.65;
+    font-size: 15px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; }
+  header.hero {
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #3b82f6 100%);
+    color: #fff;
+    border-radius: 16px;
+    padding: 34px 36px;
+    margin-bottom: 24px;
+  }
+  header.hero h1 { margin: 0 0 8px; font-size: 26px; line-height: 1.3; }
+  header.hero .sub { opacity: .92; font-size: 15px; margin-bottom: 16px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+  .meta span {
+    background: rgba(255,255,255,.16);
+    border: 1px solid rgba(255,255,255,.28);
+    padding: 4px 12px; border-radius: 999px; font-size: 12.5px;
+  }
+  section { margin-bottom: 28px; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  h2 {
+    font-size: 20px; margin: 0 0 14px;
+    padding-left: 12px;
+    border-left: 4px solid var(--brand);
+  }
+  h3 { font-size: 16px; margin: 20px 0 10px; }
+  h4 { font-size: 14.5px; margin: 16px 0 8px; }
+  p { margin: 8px 0; }
+  .lead { font-size: 16px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; font-weight: 600; white-space: nowrap; }
+  .score-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .dim {
+    border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; background: #fff;
+  }
+  .dim .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .dim .name { font-weight: 700; font-size: 15px; }
+  .dim .score { font-size: 22px; font-weight: 800; }
+  .bar { height: 8px; border-radius: 999px; background: #eef0f3; margin: 10px 0 6px; overflow: hidden; }
+  .bar i { display: block; height: 100%; border-radius: 999px; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .tag.critical { background: var(--crit-soft); color: var(--crit); }
+  .tag.major { background: var(--bad-soft); color: var(--bad); }
+  .tag.minor { background: var(--warn-soft); color: var(--warn); }
+  .tag.nit { background: #f3f4f6; color: #4b5563; }
+  .tag.good { background: var(--good-soft); color: var(--good); }
+  .verdict { font-weight: 700; color: var(--good); }
+  ul.findings { margin: 8px 0; padding-left: 20px; }
+  ul.findings li { margin: 7px 0; }
+  ul.findings .sev { font-weight: 700; margin-right: 4px; }
+  .fine { color: var(--muted); font-size: 13px; }
+  .total {
+    display: flex; align-items: center; gap: 28px; flex-wrap: wrap;
+  }
+  .big-score { font-size: 54px; font-weight: 800; color: var(--brand); line-height: 1; }
+  .stars { font-size: 26px; letter-spacing: 2px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .kpi { background: var(--brand-soft); border-radius: 10px; padding: 12px 14px; }
+  .kpi b { display: block; font-size: 20px; }
+  .kpi span { font-size: 12.5px; color: #475569; }
+  .note { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 14px; font-size: 13.5px; margin: 10px 0; }
+  .ok { color: var(--good); font-weight: 600; }
+  .no { color: var(--bad); font-weight: 600; }
+  .half { color: var(--warn); font-weight: 600; }
+  .roadmap { counter-reset: step; }
+  .roadmap-item { border-left: 3px solid var(--line); padding: 4px 0 4px 16px; margin: 10px 0; }
+  .roadmap-item.p0 { border-left-color: var(--bad); }
+  .roadmap-item.p1 { border-left-color: var(--warn); }
+  .roadmap-item.p2 { border-left-color: var(--brand); }
+  footer { color: var(--muted); font-size: 13px; text-align: center; margin-top: 36px; }
+  code { background: #f3f4f6; border-radius: 5px; padding: 1px 6px; font-size: 13px; }
+  @media (max-width: 640px) {
+    .wrap { padding: 16px 10px 48px; }
+    header.hero { padding: 22px 18px; }
+    header.hero h1 { font-size: 21px; }
+    .card { padding: 16px; }
+    table { font-size: 12.5px; }
+    th, td { padding: 6px 7px; }
+  }
+  @media print {
+    body { background: #fff; }
+    .card, .dim { break-inside: avoid; }
+    header.hero { background: #1e3a8a !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>solo · 代码评审与行业对标报告</h1>
+  <div class="sub">对现有功能按 7 个质量维度审核，并与顶尖 Markdown 工具横向对照，给出评分与改进路线。</div>
+  <div class="meta">
+    <span>对象：solo（本地优先 Markdown 编辑器）</span>
+    <span>版本：v1.2.59 · master</span>
+    <span>技术栈：Tauri 2 + Vue 3 + TipTap/ProseMirror</span>
+    <span>评审日期：2026-10-11</span>
+    <span>范围：现有功能（不含进行中任务）</span>
+  </div>
+</header>
+
+<!-- 执行摘要 -->
+<section>
+  <div class="card">
+    <h2>执行摘要</h2>
+    <div class="total">
+      <div>
+        <div class="big-score">8.1<span style="font-size:20px;color:var(--muted);">/10</span></div>
+        <div class="stars">★★★★☆</div>
+        <div class="fine">七维度等权均分 · 评级 A-</div>
+      </div>
+      <div style="flex:1;min-width:260px;">
+        <p class="lead"><strong>结论：solo 是"WYSIWYG + 本地 Markdown + 中文"这条线上达到一线水平的成熟产品。</strong>
+        安全与保真是其最突出的工程强项（原子写、路径信任边界、四层保真测试网在同类中极为少见），
+        中文输入体验局部反超行业标杆 Typora / Obsidian。</p>
+        <p>真正的短板集中在两类：<strong>「阅读/会话层」缺失</strong>（崩溃恢复、跳转历史——行业标配，solo 缺席）与
+        <strong>「文档同步纪律未闭环」</strong>（修复已落地但 FAQ / 对标表 / 附录 B 残留旧说法，追踪表本身滞后）。
+        可访问性是最弱维度：键盘可达性强，但编辑器主体几乎没有 ARIA / 语义标注。</p>
+        <div class="kpis" style="margin-top:14px;">
+          <div class="kpi"><b>1813</b><span>实测测试通过（62 files，2026-10-11 快照）</span></div>
+          <div class="kpi"><b>0</b><span>vue-tsc 类型错误</span></div>
+          <div class="kpi"><b>14.8MB</b><span>安装包体积（轻量级，远超同业）</span></div>
+          <div class="kpi"><b>194</b><span>src 源码文件 / 37,352 行 TS+Vue</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 项目概览 -->
+<section>
+  <div class="card">
+    <h2>1 · 审核对象与事实基线</h2>
+    <table>
+      <tr><th style="width:140px;">项目定位</th><td>本地优先桌面 Markdown 编辑器（"scalpel for words"），WYSIWYG 所见即所得，工作对象是磁盘上的 .md 文件，非笔记平台 / 知识库。</td></tr>
+      <tr><th>技术栈</th><td>Tauri 2.11.2（Rust）+ Vue 3.5 + Pinia 3 + TipTap/ProseMirror 3.31 + markdown-it 14.2 + Tailwind CSS 4 + bun 1.3.14 + TS strict</td></tr>
+      <tr><th>代码规模</th><td>src 下 194 个文件、37,352 行 TS/Vue；src-tauri 16 个 .rs、4,691 行；62 个 spec 文件</td></tr>
+      <tr><th>架构</th><td>三层：Rust 核心命令（src-tauri/src，约 22+ 命令）→ IPC 服务层（src/services/tauri，invokeCommand 唯一入口 + command-names 集中表）→ Vue 前端（12 composables + 2 Pinia store）</td></tr>
+      <tr><th>质量闸门（实测）</th><td><span class="ok">vitest 1813 passed / 62 files</span> · <span class="ok">vue-tsc --noEmit 0 错</span> · Rust 侧本机无 cargo，以 CI 为编译闸门（项目文档口径）</td></tr>
+      <tr><th>对标方针（项目自定）</th><td>docs/BENCHMARK-editing-experience.md：以 Typora 为主基准、Obsidian 为副基准；VS Code / Notion / Mark Text 仅局部参考；"凡 Typora 也没有的，不列为本项目差距"。</td></tr>
+      <tr><th>审核方法</th><td>抽取 parser / serializer / Rust 命令 / 剪贴板 / 列表等代表性模块静态审核；结合本地实测（测试闸门）与项目自审文档（KNOWN-ISSUES / FEATURE-MATRIX / 存档审查）交叉取证；第三方工具只按公开资料定性对照。忽略 git 工作区未提交的进行中任务。</td></tr>
+    </table>
+    <div class="note">数据口径：测试数为 2026-10-11 本机实跑快照，项目自身纪律要求"以 bun run test 为准"，不硬编码。第三方工具（Typora/Obsidian/VS Code/Notion/Mark Text）对比信息来自公开资料检索与项目对标文档，个别细节以官方为准。</div>
+  </div>
+</section>
+
+<!-- 功能对照 -->
+<section>
+  <div class="ca
