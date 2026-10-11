@@ -1900,12 +1900,125 @@ describe('Round-trip: parse → serialize', () => {
       expect(out2, '必须一次收敛（修复前 R1=`| # 标题b |`、R2 多一层 `\\#`）').toBe(out1);
     });
 
-    it('旧文件里已存在的 `| # 标题b |` 读入后转义为字面量并收敛（不再每存一次加一层）', () => {
+    it('旧文件里已存在的 `| # 标题b |` 不再被平白加反斜杠（#61 后逐字原样）', () => {
+      // 修复前：`cellToText` 在子状态里渲染 ⇒ 格首被 `atBlockStart()` 判成块首 ⇒ 加一层 `\#`。
+      // 而 GFM 单元格只按行内解析，`#` 本就是字面量 ⇒ 那层转义纯属落盘漂移（用户看不见）。
       const src = '| # 标题b |\n| --- |\n';
       const out1 = roundTrip(src);
       expect(out1, '文字没丢').toContain('标题b');
-      expect(out1, '已按字面量转义（不再是标题语法）').toContain('\\#');
+      expect(out1, '不该再加反斜杠').not.toContain('\\');
+      // 只比**内容行**：分隔行宽度由 B5 列宽对齐决定（`| --- |` → `| ------- |`），属设计如此
+      expect(out1, '内容行与磁盘原文逐字相同（消除「打开→保存即改写」）').toContain('| # 标题b |');
       expect(roundTrip(out1), '必须一次收敛').toBe(out1);
+    });
+  });
+
+  describe('Phase N: 格首块标记不是「块起点」⇒ 不加反斜杠（2026-10-11，台账 §二 #61）', () => {
+    // 病灶：`cellToText` 在**子状态**里渲染格内内容，子状态输出为空 ⇒ `atBlockStart()` 的
+    // `prefix === ''` 分支判成「块首」⇒ 给格首的 `-` / `+` / `>` / `#` / `1.` 加反斜杠。
+    // 但 GFM 单元格只按**行内**解析（markdown-it 实测：`| - 项 |` 读回来是**字面文本**、
+    // 不是列表）⇒ 这层转义既无必要、又把「打开 → 保存」变成一次静默的文件改写。
+    // 反向校准：删掉 `atBlockStart()` 首行的 `if (this.inTableCell) return false;`
+    // ⇒ 前 5 条（格首五形态）全部转红。
+    const schema = createTestSchema();
+
+    // 格首块标记的五个形态（`escapeInline` 在块起点会转义的字符集：`^([#+\->])` 与 `^(\d+)([.)])`）
+    for (const cellText of ['- 甲', '+ 乙', '> 丙', '# 丁', '1. 戊']) {
+      it(`格首 \`${cellText}\`：原样保留、不加反斜杠、一次收敛`, () => {
+        const src = `| ${cellText} |\n| --- |\n`;
+        const out = roundTrip(src);
+        // 反向校准：撤掉 inTableCell 守卫后这一条会因输出里出现 `\-` / `\>` / `\#` / `1\.` 而红
+        expect(out, '格内不该出现任何反斜杠').not.toContain('\\');
+        expect(out, '文字原样').toContain(cellText);
+        expect(roundTrip(out), '一次收敛').toBe(out);
+      });
+    }
+
+    it('边界：`*` 起头仍要转义（行内恒需，不是「块起点」规则）', () => {
+      const out = roundTrip('| * 戊 |\n| --- |\n');
+      expect(out, '`*` 属行内**恒需**转义，必须保留').toContain('\\*');
+    });
+
+    it('边界：格内 `|` 仍转义，否则重开时表格会被切列', () => {
+      const out = roundTrip('| 甲 \\| 乙 |\n| --- |\n');
+      expect(out, '`|` 必须写成 `\\|`').toContain('\\|');
+      expect(roundTrip(out), '一次收敛').toBe(out);
+    });
+
+    it('边界：多行格子（行内 `<br>`）仍原样，不因换行触发块首转义', () => {
+      const src = '| 甲<br>- 乙 |\n| --- |\n';
+      const out = roundTrip(src);
+      expect(out, '`<br>` 之后的 `-` 也不该被转义').not.toContain('\\');
+      expect(roundTrip(out), '一次收敛').toBe(out);
+    });
+
+    it('对照：非格首的同一字符本就不转义（证明这条改动没有扩大或缩小范围）', () => {
+      const out = roundTrip('| 甲 - 乙 |\n| --- |\n');
+      expect(out).not.toContain('\\');
+    });
+
+    it('对照：普通段落里的行首 `-` 照旧转义（块语境丝毫未动）', () => {
+      // 段落首的 `- 甲` 会被读成列表 ⇒ 必须转义；这条锁住「守卫只作用于表格单元格」
+      const doc = schema.nodes.doc.create(null, [
+        schema.nodes.paragraph.create(null, [schema.text('- 甲')]),
+      ]);
+      expect(serializeMarkdown(doc), '块语境必须照旧转义').toContain('\\-');
+    });
+  });
+
+  describe('Phase O: 单元格里的块级结构一律拍平为行内文本（2026-10-11，台账 §二 #60）', () => {
+    // GFM 单元格只能表达**行内**内容 ⇒ 任何把块级语法写进去的写法都必然不收敛
+    // （修复前逐块型 R1≠R2，见 docs/PROPOSAL-cell-fidelity.md §1.3）。
+    // 处置＝拍平：保住**文字**、丢掉「它是块」（内容保真 > 排版保真）。
+    // 反向校准：把 `cellToText` 改回 `s.renderNode(child)` ⇒ 本组逐条转红。
+    const schema = createTestSchema();
+    const P = (t: string) => schema.nodes.paragraph.create(null, t ? [schema.text(t)] : []);
+    const cellDoc = (children: PMNode[]) =>
+      schema.nodes.doc.create(null, [
+        schema.nodes.table.create(null, [
+          schema.nodes.tableRow.create(null, [schema.nodes.tableCell.create(null, children)]),
+        ]),
+      ]);
+
+    const BLOCKS: Array<[string, PMNode, string, string]> = [
+      ['bulletList', schema.nodes.bulletList.create(null, [schema.nodes.listItem.create(null, [P('项甲')])]), '项甲', '- 项甲'],
+      ['orderedList', schema.nodes.orderedList.create(null, [schema.nodes.listItem.create(null, [P('项乙')])]), '项乙', '1. 项乙'],
+      ['taskList', schema.nodes.taskList.create(null, [schema.nodes.taskItem.create(null, [P('项丙')])]), '项丙', '[ ] 项丙'],
+      ['blockquote', schema.nodes.blockquote.create(null, [P('项丁')]), '项丁', '> 项丁'],
+      ['codeBlock', schema.nodes.codeBlock.create({ language: 'js' }, schema.text('x=1')), 'x=1', '```'],
+      ['mathBlock', schema.nodes.mathBlock.create(null, schema.text('a^2')), 'a^2', '$$'],
+      ['mermaidBlock', schema.nodes.mermaidBlock.create(null, schema.text('graph TD')), 'graph TD', '```mermaid'],
+    ];
+
+    for (const [label, block, text, syntax] of BLOCKS) {
+      it(`${label}：拍平成行内文本——文字不丢、块级语法不进单元格、一次收敛`, () => {
+        const out1 = serializeMarkdown(cellDoc([block]));
+        expect(out1, '文字一个字不少').toContain(text);
+        expect(out1, `不该出现块级语法 \`${syntax}\``).not.toContain(syntax);
+        const out2 = serializeMarkdown(parseMarkdown(schema, out1));
+        expect(out2, '必须一次收敛（修复前逐块型 R1≠R2）').toBe(out1);
+      });
+    }
+
+    it('codeBlock：语言名（`language` 属性）不进单元格正文', () => {
+      // 修复前：围栏降级成行内码，语言名 `js` 被并进正文（实测 `js<br>x=1<br>`）
+      const out = serializeMarkdown(cellDoc([schema.nodes.codeBlock.create({ language: 'js' }, schema.text('x=1'))]));
+      expect(out, '语言名不该混进正文').not.toContain('js');
+    });
+
+    it('callout：标题存在 attrs 里 ⇒ 拍平时必须补写，否则丢字', () => {
+      const callout = schema.nodes.callout.create({ calloutType: 'note', title: '标题T' }, [P('项戊')]);
+      const out = serializeMarkdown(cellDoc([callout]));
+      expect(out, '正文在').toContain('项戊');
+      expect(out, '⚠️ attrs 里的标题也不能丢').toContain('标题T');
+      expect(out, '`[!NOTE]` 标记不该进单元格').not.toContain('[!NOTE]');
+      expect(roundTrip(out), '一次收敛').toBe(out);
+    });
+
+    it('多块格子：块与块之间用 `<br>` 分隔，不首尾黏连', () => {
+      // 旧实现只对 paragraph 调 renderInline、块间不插分隔 ⇒ `- 甲` + `- 乙` 黏成 `- 甲- 乙`
+      const out = serializeMarkdown(cellDoc([P('甲'), P('乙')]));
+      expect(out, '两块之间必须有分隔').toContain('甲<br>乙');
     });
   });
 });

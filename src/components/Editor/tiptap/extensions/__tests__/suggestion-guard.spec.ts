@@ -221,3 +221,34 @@ describe('URL / 路径上下文守卫：路径里的斜杠不再误弹（2026-10
     expect(guardedFindSuggestionMatch(trigger('看这个 https://', '/', null))).toBeNull();
   });
 });
+
+/**
+ * URL 上下文守卫的**残留误报**：网址后面紧跟中文（2026-10-11，台账 §二 #57 残余）。
+ *
+ * **病**：判据是「最后一个空白之后的整段」，而 URL 余部的字符类原来是 `[^\s]*`——中文
+ * 没有词间空格，用户写完网址紧接着写中文时（`https://x.com然后/`），`然后` 被吞进「URL」
+ * ⇒ 这个斜杠被判成 URL 路径、菜单**该弹不弹**（用户敲 `/` 想插命令，毫无反应）。
+ *
+ * **药**：把 CJK / 全角标点从「URL 余部」字符类里排除（网址尾部不会出现它们）。
+ *
+ * ⚠️ **反向校准**：把 `URL_CONTEXT_RE` 的字符类改回 `[^\s]*` ⇒ 本组第 1 条 4 个断言转红。
+ */
+describe('URL 守卫残留误报：网址后紧跟中文仍要弹菜单（2026-10-11）', () => {
+  it('【禁止误报】网址后紧跟中文时，斜杠照常触发', () => {
+    expect(guardedFindSuggestionMatch(trigger('https://x.com然后/', '/', null))).not.toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('详见 www.a.com然后/', '/', null))).not.toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('参考https://x.com然后/', '/', null))).not.toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('，https://a.com的说明然后/', '/', null))).not.toBeNull();
+  });
+
+  it('【对照】网址后带空格再写中文，本来就该弹（既有语义不变）', () => {
+    expect(guardedFindSuggestionMatch(trigger('https://a.com 然后/', '/', null))).not.toBeNull();
+  });
+
+  it('【不许误伤】真 URL 路径里的斜杠仍被抑制（全 ASCII 形态不受影响）', () => {
+    expect(guardedFindSuggestionMatch(trigger('看这个 https://a.com/path', '/', null))).toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('https://a.com/path?q=1&r=2', '/', null))).toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('D:/work/a/b', '/', null))).toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('看这个 https://a.com:8080', ':', null))).toBeNull();
+  });
+});

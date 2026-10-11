@@ -136,9 +136,20 @@ export class MarkdownSerializerState {
    * 但位置等价于块内容起点——不转义就会被读成「列表项内含引用块」，文字丢失。
    * 旧版靠**无条件转义 `>`** 掩盖了这一点，按语境收敛后必须显式判定。
    *
+   * ⚠️ **表格单元格内一律不是块起点**（台账 §二 #61，P1）：GFM 单元格的内容只按**行内**
+   * 解析，格内根本不存在块语法（实测 markdown-it 把 `| - 项 |` 读回来是**字面文本**
+   * `- 项`、不是列表）。而 `cellToText` 是在**子状态**里渲染格内内容的，子状态输出为空
+   * ⇒ 不加这道守卫就会走到下面的 `prefix === ''` ⇒ `true` ⇒ 给格首的 `-` / `+` / `>` /
+   * `#` / `1.` 平白加一层反斜杠：**渲染一模一样、用户看不见，只有文件字节被改**。
+   * 触发面不需要用户误操作——**任何别的编辑器写的表格**只要某格以这些字符起头，打开→
+   * 保存即被改写（正是 B1「按语境转义」清过的那类漂移的残留口子）。
+   * 注：格内**必须**的 `\|` 转义走另一条规则（`markTableCell()` / 行内 code 分支），
+   * 行内**恒需**转义（`*` `` ` `` `[` `~`）也不受影响——它们与「块起点」无关。
+   *
    * 只看当前行前缀（回看 64 字符足够放下 marker + 引用前缀；超过则必是行中间）。
    */
   private atBlockStart(): boolean {
+    if (this.inTableCell) return false;
     if (this.closed !== null) return true; // 前一块已关闭、换行未写出 ≡ 行首
     const tail = this.tailOf(64);
     const nl = tail.lastIndexOf('\n');
@@ -247,6 +258,42 @@ export class MarkdownSerializerState {
         this.renderMarks(child, parent, index, false, codeDelims);
       }
     });
+  }
+
+  /**
+   * 把一棵**块级子树拍平成行内文本**——只保文字、丢掉一切块级语法与装饰。
+   *
+   * 用途只有一个：表格单元格（见 `cellToText`）。GFM 单元格只能表达行内内容，
+   * 把块级语法写进去必然不收敛（台账 §二 #60 实测）：`$$…$$` 重开变 `$…$` 且 latex
+   * 被塞进 `<br>`、围栏代码降级成行内码并把语言名并进正文、callout 退化成裸 `> [!NOTE]`。
+   *
+   * 递归规则（依据各节点的 `content` 表达式，2026-10-11 逐个核过）：
+   *  · **textblock 直接取行内内容** —— `paragraph`/`heading`（`inline*`）与
+   *    `codeBlock`/`mathBlock`/`mermaidBlock`（`text*`）的文字都在 content 里，
+   *    `renderInline` 一步拿到，围栏 / `$$` / ```mermaid 这些**外衣自然丢掉**；
+   *  · **其余容器继续下钻** —— `bulletList`/`orderedList`/`taskList`/`blockquote`/
+   *    `callout` 都是 `block+` 语义容器，标记（`- ` / `1. ` / `[ ] ` / `> `）由各自
+   *    的序列化器写出，不走它们就不会进输出；
+   *  · ⚠️ **`callout.title` 存在 attrs 里**（不在 content）⇒ 必须显式补写，否则丢字。
+   *
+   * 与「先渲染再剥前缀」路线的区别：那条要逐类处理块语法、漏一类就漏一类；这条按
+   * 「是 textblock 就拿文字、不是就下钻」两条规则一刀切，新增块类型**默认被拍平**，
+   * 不会因为忘了登记而把块语法漏进单元格（退化安全）。
+   */
+  renderFlattenedInline(node: PMNode) {
+    if (node.isTextblock) {
+      this.renderInline(node);
+      return;
+    }
+    if (node.type.name === 'callout') {
+      const title = typeof node.attrs.title === 'string' ? node.attrs.title.trim() : '';
+      if (title) {
+        this.write(this.escapeInline(stripZwnj(title)));
+        // 标题是「一行」⇒ 与正文之间补 `<br>`（格内换行的既有写法），别黏连成 `标题正文`
+        if (node.textContent) this.write('<br>');
+      }
+    }
+    node.forEach((child) => this.renderFlattenedInline(child));
   }
 
   /**
@@ -815,25 +862,25 @@ const nodeSerializers: Record<string, NodeSerializer> = {
 
 };
 
-/** 将表格单元格节点序列化为纯文本（含 inline 标记） */
+/**
+ * 将表格单元格节点序列化为纯文本（含 inline 标记）。
+ *
+ * **格内一切块级结构一律拍平为行内文本**（台账 §二 #60，决策二 B1）——理由见
+ * `renderFlattenedInline`。`heading` 的拍平（#56）是它的一个特例，现在走同一条路径。
+ * 多个子块之间用 `<br>` 分隔（与「格内换行 → `<br>`」的既有写法一致）；旧实现只对
+ * `paragraph` 子块调 `renderInline`、块间不插任何分隔，多个块会首尾黏连成
+ * `- 甲- 乙`（实测，见 PROPOSAL-cell-fidelity §5.2）。
+ */
 function cellToText(state: MarkdownSerializerState, cell: PMNode): string {
-  const s = state.createChild();
-  s.markTableCell();
+  const parts: string[] = [];
   cell.forEach((child) => {
-    if (child.type.name === 'paragraph') {
-      s.renderInline(child);
-    } else if (child.type.name === 'heading') {
-      // 单行容器里没有 ATX 标题的载体：走 `renderNode` 会写出 `# 标题` ⇒ 重开只得到
-      // 字面量、二次落盘还多一层转义（R1≠R2，台账 §二 #56）。⇒ 只取标题的**行内内容**，
-      // 单元格里保住文字、丢掉「它是标题」（内容保真 > 排版保真），换来一次收敛。
-      // 新文档已由 `markdown-input.ts::canConvertHeadingInPlace` 挡住不再产生该形态；
-      // 本分支服务**已存在的**文件（旧版本手打 / HTML 粘贴带 `<td><h1>`）。
-      s.renderInline(child);
-    } else {
-      s.renderNode(child);
-    }
+    const s = state.createChild();
+    s.markTableCell();
+    s.renderFlattenedInline(child);
+    const text = s.output.trim();
+    if (text) parts.push(text);
   });
-  return s.output.trim().replace(/ {2}\n/g, '<br>').replace(/\n/g, '<br>');
+  return parts.join('<br>').replace(/ {2}\n/g, '<br>').replace(/\n/g, '<br>');
 }
 
 const WORD_CHAR_RE = /[\p{L}\p{N}]/u;

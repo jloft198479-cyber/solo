@@ -39,8 +39,20 @@ const URL_SCHEME_WORDS = new Set(['http', 'https', 'ftp', 'file', 'mailto', 'tel
  *
  * 判据取「最后一个空白之后的整段」而非单个前字符：该段呈现 URL / 盘符路径形态即算。
  * 三个分支：`scheme://`、`www.`、`盘符[\/]`（Windows 路径与网址同病同治）。
+ *
+ * ⚠️ **URL 余部的字符类必须排除中日韩文字与全角标点**（2026-10-11 补，台账 §二 #57 残余）：
+ * 原来写作 `[^\s]*`，而中文没有词间空格 ⇒ 用户写完网址紧接着写中文时（`https://x.com然后/`），
+ * `然后` 会被吞进「URL」，于是这个斜杠被判成路径、菜单**该弹不弹**。网址尾部不会出现
+ * CJK / 全角标点，排除掉即可两全：中文紧随其后照常弹、真 URL 路径（全 ASCII）照旧抑制。
+ * 代价（已知、接受）：**国际化域名**（`https://例え.jp/`）里的斜杠会被放行 —— 极低频，
+ * 且那一段本来就是纯文字输入，弹菜单不造成损坏。
+ *
+ * 排除范围：CJK 部首与统一表意（`2E80-9FFF`，含假名）、谚文（`AC00-D7AF`）、
+ * CJK 标点（`3000-303F`）、全角/半角形式（`FF00-FFEF`）、通用标点里的引号与破折号
+ * （`2010-201F`）、省略号（`2026`）。
  */
-const URL_CONTEXT_RE = /(?:^|\s)(?:[a-z][a-z0-9+.-]*:\/\/|www\.|[a-z]:[\\/])[^\s]*$/i;
+const URL_CONTEXT_RE =
+  /(?:^|\s)(?:[a-z][a-z0-9+.-]*:\/\/|www\.|[a-z]:[\\/])[^\s\u2e80-\u9fff\uac00-\ud7af\u3000-\u303f\uff00-\uffef\u2010-\u201f\u2026]*$/i;
 
 function isUrlContext(textBeforeTrigger: string): boolean {
   return URL_CONTEXT_RE.test(textBeforeTrigger);

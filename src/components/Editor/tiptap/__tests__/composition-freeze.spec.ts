@@ -8,6 +8,9 @@
  * 契约；各插件「组字期装饰只 map」的行为由各自 spec 的场景锁覆盖
  * （paragraph-focus.spec.ts / code-block.spec.ts 的「组字冻结回归锁」节）。
  */
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { EditorState } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
@@ -97,5 +100,63 @@ describe('createCompositionTracker', () => {
     tracker.track(fakeView(true)); // 新实例接管
     untrackOld(); // 旧实例销毁
     expect(tracker.isFrozen()).toBe(true);
+  });
+});
+
+/**
+ * 组字态判定的**单一来源集合锁**（2026-10-11，台账 §二 #58）。
+ *
+ * 为什么用「扫全仓」而不是「维护一张登记表」：枚举式防线在「新增一处漏网」时**静默通过**
+ * ——登记表没有新成员、测试照样绿（台账 §一 #31 的 underline 事故正是这个坑）。这里反过来：
+ * **凡源码里直接读 `<某>view.composing` 的副本一律违规**，白名单只有中枢
+ * `composition-freeze.ts` 自己（它是真相源，必须能读原始信号）。
+ *
+ * 判据取 `view\.composing` 而非 `.composing`：`pluginState.composing` /
+ * `value.composing` 是插件 state 的**字段**（不是 view 读），合法，不能误伤。
+ *
+ * ⚠️ 反向校准：把任一处的 `isFrozen(view)` 改回 `view.composing` ⇒ 本条转红。
+ */
+describe('组字态判定单一来源（集合锁）', () => {
+  function findRepoRoot(from: string): string {
+    let dir = from;
+    for (let i = 0; i < 12; i++) {
+      if (existsSync(join(dir, 'package.json'))) return dir;
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+    throw new Error('[composition-freeze] 找不到仓库根');
+  }
+
+  function walk(dir: string, out: string[] = []): string[] {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+      const p = join(dir, entry.name);
+      if (entry.isDirectory()) walk(p, out);
+      else if (/\.(ts|vue)$/.test(entry.name)) out.push(p);
+    }
+    return out;
+  }
+
+  it('除中枢自身外，源码里不得出现 `view.composing` 直读', () => {
+    const root = findRepoRoot(dirname(fileURLToPath(import.meta.url)));
+    const offenders: string[] = [];
+    for (const file of walk(join(root, 'src'))) {
+      const rel = relative(root, file).split(/[\\/]/).join('/');
+      if (rel.endsWith('composition-freeze.ts')) continue; // 唯一真相源，必须能读原始信号
+      if (rel.includes('__tests__') || rel.endsWith('.spec.ts')) continue; // 测试里允许构造
+      readFileSync(file, 'utf8')
+        .split('\n')
+        .forEach((line, i) => {
+          const trimmed = line.trimStart();
+          if (trimmed.startsWith('*') || trimmed.startsWith('//')) return; // 注释不算
+          const code = line.replace(/\/\/.*$/, ''); // 行尾注释去掉再判
+          if (/view\.composing/i.test(code)) offenders.push(`${rel}:${i + 1}  ${line.trim()}`);
+        });
+    }
+    expect(
+      offenders,
+      `组字态判定必须统一走 composition-freeze 的 isFrozen()，不得再直读 view.composing：\n  ${offenders.join('\n  ')}`,
+    ).toEqual([]);
   });
 });
