@@ -79,10 +79,10 @@ updates: [AGENTS.md, ARCHITECTURE.md, docs/sensitive-areas.md, docs/KNOWN-ISSUES
 **全仓保真体检**（动 parser / serializer / schema 必跑，`bun run test` **默认不跑它**）：
 
 ```
-SOLO_FIDELITY_SCAN=1 bunx vitest run src/components/Editor/tiptap/markdown/__tests__/fidelity-scan.spec.ts
+bun run test:full          # 全量 + 体检，跨平台安全（不再用 SOLO_FIDELITY_SCAN=1 直跑，Windows cmd 不认 VAR=命令）
 ```
 
-拿真实文档当输入，对比「打开 → 保存」前后渲染是否缩水。单测是人工列举的，漏网 bug 长在没人想到的形态叠加处 —— **两者互补，缺一个就漏**。
+拿 `fixtures/` 里的**真实用户内容**当输入（docs/、wiki/、根级项目文档已移出扫描范围——它们含刻意不往返的语法，不是用户写作内容），对比「打开 → 保存」前后渲染是否缩水。单测是人工列举的，漏网 bug 长在没人想到的形态叠加处 —— **两者互补，缺一个就漏**。
 
 **三条硬规矩**
 
@@ -144,3 +144,22 @@ SOLO_FIDELITY_SCAN=1 bunx vitest run src/components/Editor/tiptap/markdown/__tes
 4. 不许手抄库函数重写 —— 先 profiling 证明热点，重写必附**等价性对照测试**；重构类改动要交「旧版 vs 新版」逐字节 diff。
 5. 动**时序 / UI / IME / 异步**不许只跑单测就交 —— 单测是入场券，**真机手感（人工或 CDP 探针）是通行证**。
 6. 不许重新提交已主动舍弃的 commit（`bb76c25` / `612ddb5` / `828b18c`）—— reflog 里的 dangling commit **不是待办**。
+
+---
+
+## E. 开工最小读取清单（治过度检索）
+
+> 动手前**只**读下表对应行，不要全库 grep 找上下文——真要查的，先看这里有没有，没有再点开 §A/§B。
+
+| 你要改什么 | 必读（最小集） |
+|---|---|
+| parser / serializer / schema | `serializer.ts` + 对应 parser 入口 + `fixtures/` + `sensitive-areas.md` §15/§16/§16b + 本文件 §C 锁分级 |
+| Rust 命令 | `command-names.ts` + `lib.rs` 的 `generate_handler!` + `commands/mod.rs` + `client.ts`（不许直 `invoke`） |
+| UI / 主题 | `themes/manager.ts` + `CSS_VAR_MAP` + `presets/*.json`（颜色/尺寸/动效走 token，禁硬编码） |
+| 快捷键 / 命令面板 | `registry.ts`（唯一键位真理源） |
+| 剪贴板出站 | `sensitive-areas.md` §11.8 + 剪贴板出站代码（`text/html` 与 `text/plain` 双管道） |
+| NodeView / 组字态 / 浮动菜单 | `composition-freeze.ts`（总闸，别造第 5 份） |
+| CJK 强调 / ZWNJ | `tiptap/zwnj.ts`（`stripZwnj` 唯一来源；代码区与 `$$…$$` 先清洗） |
+| 一般 bug / 不知道改哪 | AGENTS 最高原则 + `sensitive-areas.md` 对应行 + **目标文件实际代码**（不以注释为准） |
+
+> ⚠️ 检索时**默认跳过隐藏目录**（`.archive-档案室/`、`.opencode/`、`.trae/`、`.dumate/` 已 gitignore 且 ripgrep 跳隐藏目录）——这些里的"第二份 AGENTS/CHANGELOG/ARCHITECTURE"是过期副本，**不是规则来源**，照 AGENTS 现行文件来。

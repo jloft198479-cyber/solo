@@ -99,9 +99,17 @@ function findRepoRoot(from: string): string {
 const ROOT = findRepoRoot(dirname(fileURLToPath(import.meta.url)));
 // outputs/ = codeplan 等 agent 生成的规划产物（含刻意构造的对抗性 markdown 示例：
 // 脚注 `[^1]`、`[[互链]]`、嵌套表格），非用户文档、不参与保真棘轮，同 dist/target 一类生成物。
-// docs/archive/ = 历史快照 / 已结案文档（含本次归档的 21 份 REVIEW + 3 份 IME），
-// 不是用户内容、不当往返用例，与 outputs 同类生成/历史物，跳过。
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'src-tauri', 'target', 'website', 'design-samples', 'public', 'outputs', 'archive']);
+// 非用户内容，不当往返用例：
+// - archive：历史快照 / 已结案文档（含本次归档的 21 份 REVIEW + 3 份 IME）
+// - docs / wiki：项目文档（callout、嵌套代码围栏、asci 表等刻意不往返的语法），不是用户写作内容
+// - outputs：agent 生成物（含刻意构造的对抗性 markdown）
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'src-tauri', 'target', 'website', 'design-samples', 'public', 'outputs', 'archive', 'docs', 'wiki']);
+
+// 仓库根的项目文档（同样含刻意不往返的语法），不在根级扫，只扫 fixtures/ 等真实用户内容
+const ROOT_PROJECT_MD = new Set([
+  'AGENTS.md', 'ARCHITECTURE.md', 'CLAUDE.md', 'BUILD_GUIDE.md', 'CHANGELOG.md', 'LICENSE', 'SECURITY.md',
+  'README.md', 'README.zh-CN.md', 'README.ja-JP.md', 'README.ko-KR.md',
+]);
 
 /** 受监视标签（批次 4 G3 由 8 个扩到 17 个，治 B4） */
 const WATCHED = [
@@ -115,7 +123,7 @@ function walk(dir: string, out: string[] = []): string[] {
     if (SKIP_DIRS.has(entry.name) || entry.name.startsWith('.')) continue;
     const path = join(dir, entry.name);
     if (entry.isDirectory()) walk(path, out);
-    else if (entry.name.endsWith('.md')) out.push(path);
+    else if (entry.name.endsWith('.md') && !(dir === ROOT && ROOT_PROJECT_MD.has(entry.name))) out.push(path);
   }
   return out;
 }
