@@ -9,7 +9,7 @@ updates:
   [
     docs/KNOWN-ISSUES.md,
     docs/CHANGELOG.md,
-    docs/TODO-list-semantics-round2.md,
+    docs/archive/TODO-list-semantics-round2.md,
     src/components/Editor/tiptap/list-demote.ts,
     src/components/Editor/tiptap/editor-commands.ts,
     src/components/Editor/tiptap/editor-extensions.ts,

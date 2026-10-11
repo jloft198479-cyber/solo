@@ -12,7 +12,7 @@ updates: [src/components/Editor/tiptap/editor.css, src/components/Editor/tiptap/
 
 > 一句话：给列表的每一行配一个**抓得住的把手**，鼠标按住上下拖，就能把这一行挪到别的位置。
 > **本提案只做「同层换位」**（兄弟行之间上下换位置）；**跨层**（左右拖改变缩进层级）本次**不做**。
-> 相关前作见 [`PROPOSAL-list-outline-experience.md`](./PROPOSAL-list-outline-experience.md)（折叠 / 引导线已落地）。
+> 相关前作见 [`PROPOSAL-list-outline-experience.md`](./archive/PROPOSAL-list-outline-experience.md)（折叠 / 引导线已落地）。
 
 > ## ⚠️ 方案变更（2026-10-09）：先做键盘，鼠标拖拽暂缓
 >
@@ -269,7 +269,7 @@ view.dispatch(tr);
 | 撤销 | 单事务 ⇒ **一次 `Ctrl+Z`** 还原 |
 
 > **〔2026-10-10 复审补记，改本表前先看这里〕**
-> ① 「首项 / 末位：认领按键但**不动**」是**有意设计**（防按键穿透），不是静默失败——[`PROPOSAL-list-structure-fix.md`](./PROPOSAL-list-structure-fix.md) 的方案 C 一度把它当 bug 要"顺带修"，已在该文档 §四 / §十 F-5 订正：**要改这条须先经简乐重新拍板**，不许挂在别的方案里带走。
+> ① 「首项 / 末位：认领按键但**不动**」是**有意设计**（防按键穿透），不是静默失败——[`PROPOSAL-list-structure-fix.md`](./archive/PROPOSAL-list-structure-fix.md) 的方案 C 一度把它当 bug 要"顺带修"，已在该文档 §四 / §十 F-5 订正：**要改这条须先经简乐重新拍板**，不许挂在别的方案里带走。
 > ② 用户报的「母主题 `Alt+↑` 挪不动」真因是**列表被 Backspace 劈成两段**后，光标所在块已不是列表项 ⇒ `moveListItem` 在 `list-move.ts:56` 返回 **false（不认领）**、按键穿透，与本表「光标不在列表项内 → 不认领」同一语义。修好劈开即自然消失，**不需要在换位逻辑里加特判**。
 
 ### 落地文件

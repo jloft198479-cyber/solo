@@ -89,5 +89,8 @@ solo_1.2.22_x64-setup.sig
 # 一次性任务的探针/构建沙盒，统一以 .sandbox- 前缀命名
 .sandbox-*/
 
+# 一次性审查产物（agent 生成，不入库；需留档请移入 docs/archive/）
+outputs/
+
 # Windows 系统文件
 desktop.ini
