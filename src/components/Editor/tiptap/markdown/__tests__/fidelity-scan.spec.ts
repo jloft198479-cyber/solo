@@ -97,7 +97,9 @@ function findRepoRoot(from: string): string {
 }
 
 const ROOT = findRepoRoot(dirname(fileURLToPath(import.meta.url)));
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'src-tauri', 'target', 'website', 'design-samples', 'public']);
+// outputs/ = codeplan 等 agent 生成的规划产物（含刻意构造的对抗性 markdown 示例：
+// 脚注 `[^1]`、`[[互链]]`、嵌套表格），非用户文档、不参与保真棘轮，同 dist/target 一类生成物。
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'src-tauri', 'target', 'website', 'design-samples', 'public', 'outputs']);
 
 /** 受监视标签（批次 4 G3 由 8 个扩到 17 个，治 B4） */
 const WATCHED = [

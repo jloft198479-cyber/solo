@@ -11,12 +11,18 @@ export const FootnoteRef = Node.create({
 
   addAttributes() {
     return {
-      label: { default: '' },
+      // 显式 parseHTML 绕开 Tiptap fromString 对 `label="1"` 的数字强转（P1-1），保住字符串语义
+      label: {
+        default: '',
+        parseHTML: (el: HTMLElement) => el.getAttribute('label') ?? '',
+      },
     };
   },
 
   parseHTML() {
-    return [{ tag: 'sup[data-footnote-ref]' }];
+    // priority 100：让本规则排在 superscript mark 的 `{tag:'sup'}`（默认 50）之前命中，
+    // 否则 `<sup data-footnote-ref>` 被 superscript 抢走、footnoteRef atom 永不创建（P1-2）
+    return [{ tag: 'sup[data-footnote-ref]', priority: 100 }];
   },
 
   renderHTML({ HTMLAttributes }) {
@@ -53,7 +59,11 @@ export const FootnoteDef = Node.create({
 
   addAttributes() {
     return {
-      label: { default: '' },
+      // 同 FootnoteRef.label：显式 parseHTML 绕开 fromString 数字强转（P1-1）
+      label: {
+        default: '',
+        parseHTML: (el: HTMLElement) => el.getAttribute('label') ?? '',
+      },
     };
   },
 

@@ -1019,8 +1019,9 @@ export function serializeMarkdownForClipboard(doc: PMNode): string {
  * 剥层规则：
  * - textblock（paragraph 等）是内容语义层（提供换行），且 inline 不能作为
  *   doc content 顶层（renderContent 对顶层 inline 输出为空）——到此为止；
- * - table 系节点（`nodeSerializers` 注册为空 handler、渲染靠 table 整体处理）
- *   离开 table 上下文无法独立序列化，视为透明容器随时剥掉；
+ * - 表格**内部**节点（tableRow/tableHeader/tableCell：`nodeSerializers` 注册为空 handler、
+ *   渲染靠父级 table 整体处理）离开 table 无法独立序列化，视为透明容器随时剥掉；
+ *   **`table` 本体有完整序列化器（见 `nodeSerializers.table`），不在此列**——闭合整表选区原样保留、输出 GFM；
  * - 其余语义容器（blockquote/callout/listItem 等）只按开口计数剥——
  *   闭合选区（整篇、NodeSelection）原样保留，扩展语法标记不丢。
  */
@@ -1054,7 +1055,8 @@ function stripOpenLayers(frag: Fragment, openStart: number, openEnd: number): Fr
 /** 渲染逻辑挂在父级 table handler 里的节点（nodeSerializers 里是空实现），离开 table 无法独立渲染 */
 function isTableInternal(node: PMNode): boolean {
   const name = node.type.name;
-  return name === 'table' || name === 'tableRow' || name === 'tableHeader' || name === 'tableCell';
+  // 注意不含 'table'——table 本体有完整序列化器，闭合整表选区应保留（P1-3）
+  return name === 'tableRow' || name === 'tableHeader' || name === 'tableCell';
 }
 
 /**

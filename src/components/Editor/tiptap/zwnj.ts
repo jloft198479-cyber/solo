@@ -29,6 +29,9 @@ export const ZWNJ = '\u200C';
  * `includes` 本身仍是一次 O(len) 判断）——本函数在
  * `escapeInline` 里是**逐文本节点**调用的热点。
  */
-export function stripZwnj(text: string): string {
+export function stripZwnj(text: unknown): string {
+  // 属性通道可能非字符串（Tiptap fromString 把往返 HTML 里的 `attr="1"` 强转成数字 1），
+  // 直接 .includes 会抛 TypeError；这里统一收口：非字符串走 String()，既防崩又不静默丢值。
+  if (typeof text !== 'string') return text == null ? '' : String(text);
   return text.includes(ZWNJ) ? text.split(ZWNJ).join('') : text;
 }

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from 'vitest';
 import { NodeSelection, TextSelection } from '@tiptap/pm/state';
-import { Fragment, Slice } from '@tiptap/pm/model';
+import { Fragment, Slice, DOMSerializer, DOMParser as PMDOMParser } from '@tiptap/pm/model';
 
 import { parseMarkdown } from '../parser';
 import {
@@ -295,5 +295,75 @@ describe('serializeClipboardText（纯文本槽：干净文字 / 专有语法回
     });
     const slice = TextSelection.create(doc, from, from + 2).content();
     expect(serializeClipboardText(doc, slice)).toBe('剪映');
+  });
+});
+
+// ── P1-3：闭合整表选区保留 GFM（stripOpenLayers 不应误剥 table 本体）──
+describe('serializeClipboardSlice 闭合整表保留 GFM（P1-3）', () => {
+  const schema = createTestSchema();
+  const TABLE = ['| 应用 | 评分 |', '| --- | --- |', '| 剪映 | 5 |', '| 美图 | 4 |'].join('\n');
+
+  // 判据用「重新解析能读回表格」，不写死分隔行——列宽随内容变，`----` 长度不定。
+  const hasTable = (md: string) => {
+    let found = false;
+    parseMarkdown(schema, md).descendants((n) => {
+      if (n.type.name === 'table') found = true;
+      return !found;
+    });
+    return found;
+  };
+
+  it('整表闭合 slice → 源码槽是合法 GFM（能解析回表格）', () => {
+    const doc = parseMarkdown(schema, TABLE);
+    const out = serializeClipboardSlice(doc, new Slice(doc.content, 0, 0));
+    expect(out).toContain('|');
+    expect(out).toContain('剪映');
+    expect(hasTable(out)).toBe(true);
+  });
+
+  it('段落+表+段落 闭合 → 表格还原为 GFM、前后段不丢', () => {
+    const doc = parseMarkdown(schema, ['前言', '', '| A | B |', '| - | - |', '| 1 | 2 |', '', '后记'].join('\n'));
+    const out = serializeClipboardSlice(doc, new Slice(doc.content, 0, 0));
+    expect(out).toContain('前言');
+    expect(out).toContain('后记');
+    expect(hasTable(out)).toBe(true);
+  });
+
+  it('闭合整表 text/plain 槽逐字不变（护 #9 取舍：仍 \n\n 竖排、不带 |）', () => {
+    const doc = parseMarkdown(schema, TABLE);
+    const out = serializeClipboardText(doc, new Slice(doc.content, 0, 0));
+    expect(out).toBe('应用\n\n评分\n\n剪映\n\n5\n\n美图\n\n4');
+  });
+});
+
+// ── P1-1 / P1-2：脚注 solo→solo HTML 往返 ────────────────────────
+describe('脚注 solo→solo HTML 往返（P1-1/P1-2）', () => {
+  const schema = createTestSchema();
+  function roundTripHTML(md: string) {
+    const doc = parseMarkdown(schema, md);
+    const frag = DOMSerializer.fromSchema(schema).serializeFragment(doc.content, { document });
+    const wrap = document.createElement('div');
+    wrap.appendChild(frag);
+    return PMDOMParser.fromSchema(schema).parse(wrap);
+  }
+
+  it('往返后 footnoteRef 节点保留（不被 superscript 抢走）+ 再序列化不抛 + 还原 [^1]', () => {
+    const reparsed = roundTripHTML('正文[^1] 结尾\n\n[^1]: 脚注定义内容');
+    let refs = 0;
+    reparsed.descendants((n) => {
+      if (n.type.name === 'footnoteRef') refs++;
+    });
+    expect(refs).toBe(1); // P1-2：priority 生效
+    const md2 = serializeMarkdownForClipboard(reparsed); // P1-1：不抛
+    expect(md2).toContain('[^1]');
+    // 二轮收敛：md2 再往返仍等义
+    expect(serializeMarkdownForClipboard(roundTripHTML(md2))).toBe(md2);
+  });
+
+  it('belt：label 被强转成数字时序列化也不抛（stripZwnj 收口非字符串属性）', () => {
+    const para = schema.nodes.paragraph!.create(null, [schema.text('定义')]);
+    const def = schema.nodes.footnoteDef!.create({ label: 1 as unknown as string }, [para]);
+    const doc = schema.nodes.doc!.create(null, [def]);
+    expect(() => serializeMarkdown(doc)).not.toThrow();
   });
 });
