@@ -75,6 +75,7 @@ updates: [AGENTS.md, ARCHITECTURE.md, docs/sensitive-areas.md, docs/KNOWN-ISSUES
 
 > ⚠️ **`vite build` 不在日常门禁里**：只在**发版前、动构建配置、跨模块重构**时才跑。日常改动 `vue-tsc`（类型）+ 相关测试已够。
 > ⚠️ **`test:changed` 省的是"信号聚焦"，不是时间**：实测全量 13.6s vs 只跑相关 8.9s，**只差 4.7 秒**——因为本项目核心模块被依赖太广，依赖图一算还是一大片。它的真正价值是"红的那条就是你的锅"，不是提速。
+> ⚠️ **动文档（搬家 / 改名 / 删文件）后必须跑一次 `bun run test:full` 或单独 `bun run vitest run src/__tests__/docs-lint.spec.ts`** —— `test:changed` 只跑代码相关测试，**不查死链**，纯文档改动会漏。
 
 **全仓保真体检**（动 parser / serializer / schema 必跑，`bun run test` **默认不跑它**）：
 
