@@ -167,34 +167,37 @@ bun run test:full          # 全量 + 体检，跨平台安全（不再用 SOLO_
 
 ---
 
-## F. A 方案：CDP 自验真实 UI（debug-only，2026-10-11 立）
+## F. A 方案：CDP 自验真实 UI（debug-only，2026-10-12 端到端实测通过）
 
-> 痛点：Agent 改完 UI / 主题 / IME，「我看不到界面」就只能靠单测 + 文字推断，手感类回归漏在最后一公里。A 方案 = 给 debug 构建开一个**仅本机、仅 dev 开关触发**的 WebView2 CDP 端口，让 Agent 用 Playwright 连上真实 solo 窗口截图 / 读 DOM 自验。
+> 痛点：Agent 改完 UI / 主题 / IME，「我看不到界面」就只能靠单测 + 文字推断，手感类回归漏在最后一公里。A 方案 = debug 构建默认暴露一个仅本机的 WebView2 CDP 端口，Agent 用 Playwright 连上真实 solo 窗口截图 / 读 DOM 自验。**2026-10-12 已端到端实测：截图 + DOM 文本读取均成功。**
 
 **机制**（事实在 `src-tauri/src/main.rs::setup_webview2_data_dir()`）：
 
-- debug 构建 **且** `SOLO_OPEN_DEVTOOLS=1` 时，注入 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`（端口可用 `SOLO_CDP_PORT` 覆盖，默认 9222）。
+- debug 构建**默认**注入 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`（端口可用 `SOLO_CDP_PORT` 覆盖），**不需要任何额外环境变量**。
 - 注入时机在 `solo_lib::run()` **之前**，与既有 `WEBVIEW2_USER_DATA_FOLDER` 注入同生命周期 —— WebView2 环境在首个窗口 build 时创建，所以端口 env 必须在 run 之前设好（已验证生效）。
 - 整段包在 `#[cfg(debug_assertions)]` 里，**release 构建被完全剪除，永不暴露任何端口**；正常用户双击打开 release 版无任何端口、零副作用。
-- 与既有 devtools 面板（lib.rs 的 `open_devtools()`）共用同一个 `SOLO_OPEN_DEVTOOLS` 开关：开它既弹面板、又开端口。
+- 与 lib.rs 的嵌入式 devtools 面板解耦：面板仍由 `SOLO_OPEN_DEVTOOLS=1` 门控（人工按需开），CDP 端口 debug 常开（给 Agent 自验用）。
 
 **自验流程**（动时序 / UI / 主题 / IME 后，单测是入场券、CDP 截图是通行证）：
 
 ```bash
-# 1) 开 debug 构建 + dev 开关（Windows 用 set 前缀）
-SOLO_OPEN_DEVTOOLS=1 npx tauri dev
-# 2) 另开探针连 CDP 端口截图 / 读 DOM / 读 console
+# 1) 起 debug 构建（无需任何环境变量，CDP 端口 9222 自动开）
+npx tauri dev
+# 2) 另开探针连 CDP 端口截图 / 读 DOM（playwright 库已装在托管 venv）
 python - <<'PY'
 from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
     b = p.chromium.connect_over_cdp("http://localhost:9222")
-    page = b.contexts[0].pages[0]
-    page.screenshot(path="verify-ui.png")
+    page = b.contexts[0].pages[0]   # title 应为 "solo"
+    page.screenshot(path="outputs/verify-ui.png")
+    print(page.evaluate("() => document.body.innerText[:200]"))  # 读 DOM 文本
 PY
-# 3) Read verify-ui.png（Agent 多模态）确认渲染 / 主题 / 布局对
+# 3) Read outputs/verify-ui.png（Agent 多模态）确认渲染 / 主题 / 布局对
 ```
 
-⚠️ `tauri dev` 走完整构建（含 link），**必须在本机 MSVC 环境**跑（见下）；端口只在 `SOLO_OPEN_DEVTOOLS=1` 时存在，验证完关掉开关即恢复。
+**实测记录（2026-10-12）**：起 debug 版 → `curl http://localhost:9222/json/version` 返回 `Edg/154.0.4258.62` → Playwright `connect_over_cdp` 连上 → `page.title()="solo"`、`body.innerText` 含「未命名/大纲/0 字/已保存」→ 截图 `outputs/verify-ui.png` 确认完整 UI 渲染。**可用，已验证。**
+
+⚠️ `tauri dev` 走完整构建（含 link），**必须在本机 MSVC 环境**跑（见下）；release 构建**没有**这个端口（被剪除），要自验只能用 debug 版。若 9222 被占，起第二个实例前用 `SOLO_CDP_PORT` 换端口。
 
 ### F1. 沙箱里跑 Rust 验证（cmd.exe 被拦的绕法）
 
