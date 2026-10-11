@@ -166,6 +166,8 @@ md-editor/
 │   │   │       ├── editor-commands.ts    # 编辑器命令执行
 │   │   │       ├── editor-image-drop.ts  # 图片拖放
 │   │   │       ├── editor-metadata.ts    # 大纲/字数/光标提取
+│   │   │       ├── clipboard-html.ts      # 整篇 → 对外 HTML 的唯一出口（DOMSerializer + 归一）
+│   │   │       ├── externalize-html.ts    # 出站 HTML 归一层（剥私有保通用；禁换私有标签/属性）
 │   │   │       ├── composition-freeze.ts # 组字态（IME）真相源：isFrozen / mapFrozenDecorations
 │   │   │       ├── list-demote.ts      # 列表项托孤式降级（子列表上位）
 │   │   │       ├── editor-dom.ts         # 编辑器 DOM 工具
@@ -202,7 +204,7 @@ md-editor/
 │   │
 │   ├── utils/
 │   │   ├── fontStack.ts          #   buildFontStack：统一字体栈（编辑器+导出共享）
-│   │   ├── markdown-to-html.ts   #   复制为 HTML 渲染（StatusbarQuickActions 调用）
+│   │   ├── markdown-to-html.ts   #   复制为 HTML 的**回落**管道（编辑器不在时才用；正统出口见 tiptap/clipboard-html.ts）
 │   │   └── platform.ts           #   isMac 检测
 │   │
 │   ├── constants/fonts.ts        #   FONT_OPTIONS：7 种字体清单（见 §10.3）
@@ -524,7 +526,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 
 ### 10.2 状态栏复制按钮（v1.2.18 减法重构后）
 
-> 原导出系统（HTML/PDF/微信，独立 IR 层 `buildExportTree` + HTML/Wechat 渲染器 + `wechat-themes.ts`）已于 v1.2.18 删除（净删 ~2500 行）。现以状态栏 Copy 按钮（`StatusbarQuickActions.vue`）替代，写**双槽**剪贴板：`text/plain` = **全量** Markdown 源码（`editorRef.getContent()` → `serializeMarkdown()`，即**文件模式严格转义**），`text/html` = 富文本（`utils/markdown-to-html.ts::renderMarkdown`）。字体栈仍走 `buildFontStack` 与编辑器共享。
+> 原导出系统（HTML/PDF/微信，独立 IR 层 `buildExportTree` + HTML/Wechat 渲染器 + `wechat-themes.ts`）已于 v1.2.18 删除（净删 ~2500 行）。现以状态栏 Copy 按钮（`StatusbarQuickActions.vue`）替代，写**双槽**剪贴板：`text/plain` = **全量** Markdown 源码（`editorRef.getContent()` → `serializeMarkdown()`，即**文件模式严格转义**），`text/html` = 富文本（`tiptap/clipboard-html.ts` 直出 → `tiptap/externalize-html.ts` 归一；**编辑器不在时**（图片预览模式）回落到 `utils/markdown-to-html.ts::renderMarkdown`）。字体栈仍走 `buildFontStack` 与编辑器共享。
 >
 > **别混淆**：`serializeClipboardText()`（选区感知 / 轻量转义，见 docs/sensitive-areas.md §11.8）是**编辑器内 `Ctrl+C`** 的路径，**不是**状态栏按钮。
 
@@ -574,7 +576,7 @@ StarterKit 内置的 `codeBlock`/`link`/`heading` **被禁用**，改用自定�
 | 菜单/快捷键行为 | `registry.ts` + `useCommandDispatcher.ts` + Rust `menu.rs` |
 | 搜索/替换 | `useEditorSearch.ts` + `extensions/search-highlight.ts` + 搜索面板模板（`MarkdownEditor.vue`） |
 | 主题/外观 | `stores/settings.ts` + `themes/manager.ts` + `editor.css` |
-| 导出（HTML） | `utils/markdown-to-html.ts` + `StatusbarQuickActions.vue` |
+| 出站 HTML（复制全文） | `tiptap/clipboard-html.ts` + `tiptap/externalize-html.ts`（单一出口）+ `StatusbarQuickActions.vue`；`utils/markdown-to-html.ts` 仅为无编辑器时的回落 |
 | 图片拖入/处理 | `editor-image-drop.ts` + Rust `commands/document.rs` + `services/tauri/asset.ts` |
 | 字体 | `constants/fonts.ts` + `fontStack.ts` + `fontLoader.ts` + `useEditorAppearance.ts` |
 | 启动开打 | Rust `lib.rs`（§4.5）+ `useAppWindowSession.ts` |

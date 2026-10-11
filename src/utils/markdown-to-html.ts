@@ -9,6 +9,11 @@
  * 换行。粗体/标题/列表等通用格式不受影响，照常渲染成标准 HTML 带走。
  *
  * 注意：这里是「对外展示」降级，不影响编辑器内部的 mk-dim 显示与 markdown 源文本。
+ *
+ * ⚠️ 职责已降级为**回落出口**（CP-20261011-002）：整篇对外 HTML 的正统出口是
+ * `Editor/tiptap/clipboard-html.ts`（与 Ctrl+C 同一个 DOMSerializer 生产者）。本文件只在
+ * 「编辑器已卸载、拿不到 doc」时才被用到——届时产出仍带 callout / 互链 / 数学的裸标记失真，
+ * 因为 markdown-it 的装配清单里本来就没有这些私有语法。别再往这里加私有语法支持。
  */
 import { FRONTMATTER_RE } from '../components/Editor/tiptap/markdown/plugins/frontmatter';
 

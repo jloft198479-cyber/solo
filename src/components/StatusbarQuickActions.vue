@@ -33,10 +33,12 @@ function closePopover() {
  * 注意与命令面板的「复制为 Markdown」区分：那条复制的是**选区源码**，同名不同事（M-35）。
  */
 async function copyMarkdown() {
-  // 优先编辑器实时内容（绕过 store 500ms 防抖），编辑器不可用时回退到 store 内容
-  const content = props.editorRef?.getContent?.() ?? useFileStore().currentFile.content;
   try {
-    const html = await renderMarkdown(content);
+    // 取数必须在 try 内：getContent() 内部会调 serializeMarkdown，抛在 try 外就绕过了
+    // 下面的失败反馈（M-22 的原始抱怨正是「按钮不变样」）
+    // 优先编辑器实时内容（绕过 store 500ms 防抖），编辑器不可用时回退到 store 内容
+    const content = props.editorRef?.getContent?.() ?? useFileStore().currentFile.content;
+    const html = await buildExternalHtml(props.editorRef, content);
     await navigator.clipboard.write([
       new ClipboardItem({
         'text/plain': new Blob([content], { type: 'text/plain' }),
@@ -56,6 +58,31 @@ async function copyMarkdown() {
       copyFailed.value = false;
     }, 1500);
   }
+}
+
+/**
+ * 对外 HTML：正统出口是**编辑器自己的** DOMSerializer + 出站归一（与 Ctrl+C 同源，单一生产者）。
+ *
+ * 两种情况回落到旧的 markdown-it 管道，回落产出仍带 P1-4a~e 那些失真（已知降级，
+ * 见 CP-20261011-002「不改什么」）：① 拿不到 doc——编辑器被卸载（图片预览模式），只能吃
+ * store 里的 markdown；② 归一链抛错。AGENTS §4「任何优化必有 fallback」，这里不为新链路
+ * 制造「一抛就没得复制」的新失败面。
+ *
+ * `clipboard-html` 用 dynamic import：本组件是 App 的**静态**依赖（`App.vue:18`），静态引入它
+ * 会把 `@tiptap/*` 与全部扩展拖进入站 chunk（编辑器本体才是异步的，`App.vue:37`）。
+ */
+async function buildExternalHtml(
+  editor: AppEditorExpose | null,
+  markdown: string,
+): Promise<string> {
+  try {
+    const { serializeDocumentHtml } = await import('./Editor/tiptap/clipboard-html');
+    const html = serializeDocumentHtml(editor?.getDoc?.() ?? null);
+    if (html !== null) return html;
+  } catch {
+    // 落回旧管道，不额外报错过（外层 catch 只兜真正的写入失败）
+  }
+  return renderMarkdown(markdown);
 }
 
 onUnmounted(() => {
