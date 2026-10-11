@@ -178,3 +178,46 @@ describe('互链上下文守卫（[[ 补全专属）', () => {
     expect(guardedFindSuggestionMatch(trigger('foo/bar', '/', null))).not.toBeNull();
   });
 });
+
+/**
+ * URL / 路径上下文守卫（2026-10-11，台账 §二 #57）。
+ *
+ * **病**：本仓把 `allowedPrefixes` 设成 `null`（中文无词间空格，刚需）⇒ 上游「前一字符
+ * 必须是空格」那道**天然闸门没了**；只判「前一个字符」的旧规则挡不住 URL **路径**里的
+ * 斜杠 —— `看这个 https://a.com/path` 的第三个 `/` 前一字符是 `m` ⇒ 唤出 Slash 菜单，
+ * 此时按 Enter 会 `deleteRange` 吃掉那个斜杠并执行「正文」命令（真机实测）。
+ *
+ * **药**：新增 `URL_CONTEXT_RE` —— 取「最后一个空白之后的整段」判形态
+ * （`scheme://` / `www.` / 盘符路径），命中即对 `/` 与 `:` 一律不触发；
+ * 旧的单字符规则保留作兜底（网址刚敲到 `https:/` 还没写出 `//` 时靠它顶）。
+ *
+ * ⚠️ **反向校准**：删掉 `isUrlContext` 那一行 ⇒ 本组第 1 条必须转红。
+ */
+describe('URL / 路径上下文守卫：路径里的斜杠不再误弹（2026-10-11）', () => {
+  it('【禁止误弹】网址路径里的斜杠不触发（修复前会弹菜单、按 Enter 吃掉斜杠）', () => {
+    // 中文前缀 + 网址：真机复现的原始形态
+    expect(guardedFindSuggestionMatch(trigger('看这个 https://a.com/', '/', null))).toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('看这个 https://a.com/path', '/', null))).toBeNull();
+    // 行首就是网址
+    expect(guardedFindSuggestionMatch(trigger('https://a.com/', '/', null))).toBeNull();
+    // www 形态
+    expect(guardedFindSuggestionMatch(trigger('看 www.a.com/x', '/', null))).toBeNull();
+    // 盘符路径与网址同病同治
+    expect(guardedFindSuggestionMatch(trigger('打开 D:/work/a', '/', null))).toBeNull();
+    // 冒号同理：网址里的冒号（如端口）不唤表情菜单
+    expect(guardedFindSuggestionMatch(trigger('看这个 https://a.com:8080', ':', null))).toBeNull();
+  });
+
+  it('【不许误伤】中文前缀 / 普通文本 / 空格后的斜杠照常触发', () => {
+    expect(guardedFindSuggestionMatch(trigger('你好/', '/', null))).not.toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('你好:', ':', null))).not.toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('甲 /', '/', null))).not.toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('甲/乙', '/', null))).not.toBeNull();
+  });
+
+  it('【旧规则兜底】网址刚敲到 scheme 冒号 / 路径未成形态时不触发', () => {
+    expect(guardedFindSuggestionMatch(trigger('看这个 https:', ':', null))).toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('看这个 https:/', '/', null))).toBeNull();
+    expect(guardedFindSuggestionMatch(trigger('看这个 https://', '/', null))).toBeNull();
+  });
+});

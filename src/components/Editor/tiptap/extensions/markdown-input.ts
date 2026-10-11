@@ -37,7 +37,7 @@ import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import type { EditorState, Transaction } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
-import type { MarkType, Node as PMNode, NodeType } from '@tiptap/pm/model';
+import type { MarkType, Node as PMNode, NodeType, ResolvedPos } from '@tiptap/pm/model';
 import { createCompositionTracker, isFrozen } from '../composition-freeze';
 
 // 输入法上屏后等待 DOM/composition 稳定再扫描的延迟（毫秒）。
@@ -208,7 +208,7 @@ function markdownInputPlugin(): Plugin<MarkdownInputState> {
 
           // 组字进行中：既不排期也不保留检查。放在 doc.eq 早退之前，
           // 让 compositionstart 那个纯 meta 事务也能撤掉已排期的定时器。
-          if (pluginState?.composing || view.composing) {
+          if (pluginState?.composing || isFrozen(view)) {
             clearCheckTimer();
             return;
           }
@@ -644,13 +644,39 @@ function findPendingHeading(doc: PMNode): PendingHeading | null {
 }
 
 /**
+ * 单行容器 = 在 Markdown 里只能表达**行内文本**的容器。段落落在其中时不许转 heading：
+ * 转得出、显示得出，**写出去重开必然降级成字面量**（`| # 标题 |` ⇒ 重开是普通文字），
+ * 属「能渲染 ≠ 能存住」（台账 §二 #56；同族先例 §二 #46 已为 `$$` 修过同一问题）。
+ *
+ * 只列 `tableCell` / `tableHeader`：ATX 标题（heading）的 content 是 `inline*`，
+ * 里面**不可能**再有段落，故不必列（列了就是死代码）。
+ */
+const SINGLE_LINE_CONTAINERS = new Set(['tableCell', 'tableHeader']);
+
+/**
+ * 该位置的祖先链里是否出现单行容器。
+ *
+ * ⚠️ 与 [`parser.ts:203`](./markdown/parser.ts) 的 `inSingleLineContainer` **不是同一个东西**：
+ * 那个读的是 markdown-it parse state 的祖先栈（解析期），这里手里只有 PM `$pos` ——
+ * **判据相同、实现必须另写**，别去找那个 getter（它拿不到）。
+ */
+function isInSingleLineContainer($pos: ResolvedPos): boolean {
+  for (let d = $pos.depth; d > 0; d--) {
+    if (SINGLE_LINE_CONTAINERS.has($pos.node(d).type.name)) return true;
+  }
+  return false;
+}
+
+/**
  * 段落所在父块能否**原地**接纳 heading（该槽位直接换成 heading 节点）。
- * listItem / taskItem 首格放开为 `block+`（台账 §二 #30）后，所有能含段落的
- * 父块（doc / 引用块 / callout / 列表项首格与后续块 / 表格单元格…）都收得下；
+ * listItem / taskItem 首格放开为 `block+`（台账 §二 #30）后，绝大多数能含段落的
+ * 父块（doc / 引用块 / callout / 列表项首格与后续块…）都收得下；
  * 收不下返回 false，整步不做——绝不允许「先删前缀再改型失败」（§二 #25 教训）。
+ * 单行容器（表格单元格）同样返回 false，但理由不同：**收了也存不住**，见上。
  *
  * 判据必须**三处一致**：转换本身、段落装饰（初始全量 + 后续增量）——任一处漏掉，
  * 结果不是静默丢字符，就是「内容还是 `# 文字`、却按标题字号渲染」。
+ * （三处都调本函数 ⇒ 改这一处即三处一致。）
  */
 function canConvertHeadingInPlace(
   doc: PMNode,
@@ -661,6 +687,9 @@ function canConvertHeadingInPlace(
   if (paragraphPos < 0 || paragraphPos + 1 > doc.content.size) return false;
 
   const $pos = doc.resolve(paragraphPos + 1);
+  // 单行容器（表格单元格）里没有块级标题的载体 ⇒ 整步不做（连「假装是标题」的装饰
+  // 也不建，否则用户看到标题字号、存盘却丢了格式）。
+  if (isInSingleLineContainer($pos)) return false;
   const parentDepth = $pos.depth - 1;
   if (parentDepth < 0) return false;
 

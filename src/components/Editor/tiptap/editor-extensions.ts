@@ -54,6 +54,7 @@ import {
 import { ParagraphFocus } from './extensions/paragraph-focus';
 import { ListFold } from './extensions/list-fold';
 import { ListBackspaceGuard } from './extensions/list-backspace-guard';
+import { guardListInputRules } from './extensions/list-input-guard';
 import { SearchHighlight, type SearchHighlightOptions } from './extensions/search-highlight';
 
 type SlashCommandSuggestionProps = SuggestionProps<SlashCommandItem, SlashCommandItem>;
@@ -292,8 +293,26 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     // 普通项又有待办项」必然出现。若容器只肯装单一类型，混排时 createAndFill 失败，
     // closeNode 兜底成空段落并丢弃已收集内容 ⇒ 整段静默消失（数据丢失级缺陷）。
     // taskList 保持 `taskItem+`：容器判定已保证它只收任务项，语义更纯。
-    BulletList.extend({ content: '(listItem | taskItem)+' }),
-    OrderedList.extend({ content: '(listItem | taskItem)+' }),
+    // 三个列表**标记**的输入规则一律套上「项内不嵌套」早退守卫（台账 §二 #59）：在列表项
+    // 里敲 `- ` / `1. ` / `[ ] ` 只吃掉标记，不再把当前行塞进子列表——契约公理 2「只有层级
+    // 动词（Tab / Shift+Tab / 拖曳 / 转普通段落）能改缩进」，敲标记不是层级动词。
+    // ⚠️ 规则归属别搞错（实测）：`- ` 在 BulletList、`1. ` 在 OrderedList、**`[ ] ` 在
+    // TaskItem**（`@tiptap/extension-list:1339`），TaskList 自己**一条输入规则都没有**
+    // ⇒ 守卫要挂在 TaskItem 上，挂 TaskList 是死代码。
+    // 理由、判据与「引用块内放行」的边界见 extensions/list-input-guard.ts 头注释；
+    // 非列表项路径原样走上游规则（同一个 handler 对象 ⇒ 逐字节等价）。
+    BulletList.extend({
+      content: '(listItem | taskItem)+',
+      addInputRules() {
+        return guardListInputRules(this.parent?.() ?? []);
+      },
+    }),
+    OrderedList.extend({
+      content: '(listItem | taskItem)+',
+      addInputRules() {
+        return guardListInputRules(this.parent?.() ?? []);
+      },
+    }),
     TaskList,
     // 列表项首格放开为 `block+`（台账 §二 #30，Typora 同款）：TipTap 默认
     // `paragraph block*` 逼着「列表项里打标题」产出占位空段（`- # 标题` 读盘
@@ -301,7 +320,13 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     // 放开后对齐 CommonMark 语义（`- # 标题` ⇒ <li><h1>标题</h1></li>）：
     // 读盘直接装下 heading、手打原地转型，占位空段从读写两侧同时消失。
     ListItem.extend({ content: 'block+' }),
-    TaskItem.extend({ content: 'block+' }).configure({ nested: true }),
+    TaskItem.extend({
+      content: 'block+',
+      // `[ ] ` 的输入规则挂在 TaskItem 身上（TaskList 一条都没有）⇒ 守卫也挂这里
+      addInputRules() {
+        return guardListInputRules(this.parent?.() ?? []);
+      },
+    }).configure({ nested: true }),
     // 列表行首退格「永不劈开列表」守卫——必须在 ListKeymap（StarterKit 内，
     // priority 100）之前接管 Backspace / Mod-Backspace / Shift-Tab，
     // 方案与契约锁见 extensions/list-backspace-guard.ts 头注释

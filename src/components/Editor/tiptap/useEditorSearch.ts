@@ -3,6 +3,7 @@ import { debounce } from 'lodash-es';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 import { isHeavyDocument } from '../document-scale';
 import { smoothScrollBehavior } from './editor-dom';
+import { isFrozen } from './composition-freeze';
 
 interface SearchMatch {
   from: number;
@@ -70,7 +71,7 @@ export function useEditorSearch(editor: Ref<TiptapEditor | null>) {
     // 组字期间不 dispatch：空事务会触发 search-highlight 重建 inline 装饰，
     // 改动正在组字的 DOM → WebView2 下 IME 候选窗失锚变形（横条塌成小方块）。
     // 组字结束后最终上屏的 doc change 会再触发一次刷新，高亮不会漏。
-    if (editor.value.view.composing) return;
+    if (isFrozen(editor.value.view)) return;
     const matches = findMatches(searchQuery);
     // 匹配集合未变（数量与位置都相同）：无需 dispatch。已有装饰在用户编辑的
     // doc change 事务里被 search-highlight 的 map 平移到新位置，仍然正确；

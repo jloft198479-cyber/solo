@@ -4,6 +4,7 @@ import { TextSelection } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { ITEM_NODE_TYPES, LIST_NODE_TYPES } from './list-move';
+import { isFrozen } from './composition-freeze';
 
 /**
  * 「列表项降级为块」时的**子列表托孤** —— 幕布式大纲该行为的唯一实现。
@@ -277,7 +278,7 @@ function demoteItemStructure(tr: Transaction, itemPos: number): [number, number]
     dissolveShell(tr, outermost.itemPos);
 
     // 块落点（文档级）：seg1 列表之后
-    let start = LtopStart + (seg1List ? seg1List.nodeSize : 0);
+    const start = LtopStart + (seg1List ? seg1List.nodeSize : 0);
     let end = start;
     blocks.forEach((b) => {
       end += b.nodeSize;
@@ -307,7 +308,7 @@ function demoteItemStructure(tr: Transaction, itemPos: number): [number, number]
   tr.replaceWith(listStart, listStart + parentList.nodeSize, Fragment.from(parts));
 
   // 段落块的落点：前段之后（前段是列表节点时占它整段宽度）
-  let start = listStart + (beforeList ? beforeList.nodeSize : 0);
+  const start = listStart + (beforeList ? beforeList.nodeSize : 0);
   let end = start;
   blocks.forEach((b) => {
     end += b.nodeSize;
@@ -323,7 +324,7 @@ function demoteItemStructure(tr: Transaction, itemPos: number): [number, number]
  * toggle 路径不接管 ⇒ 畸形 `- [ ] - 乙` 原样复现。
  */
 export function isInsideListOf(view: EditorView, itemType: string): boolean {
-  if (view.composing) return false;
+  if (isFrozen(view)) return false;
   const { doc, selection } = view.state;
   const itemPos = innermostItemAt(doc, selection.from);
   if (itemPos == null) return false;
@@ -340,7 +341,7 @@ export function isInsideListOf(view: EditorView, itemType: string): boolean {
  * 有没有子列表只影响「要不要托孤」，不影响「该不该接管」。
  */
 export function hasListItemToDemote(view: EditorView): boolean {
-  if (view.composing) return false;
+  if (isFrozen(view)) return false;
   const { doc, selection } = view.state;
   return innermostItemAt(doc, selection.from) != null;
 }
@@ -355,7 +356,7 @@ export function hasListItemToDemote(view: EditorView): boolean {
  * @returns 是否**接管**了这次操作。false = 不该我管（调用方照旧走 TipTap 命令）。
  */
 export function demoteListItemToBlock(view: EditorView): boolean {
-  if (view.composing) return false;
+  if (isFrozen(view)) return false;
 
   const { state } = view;
   const { schema } = state;

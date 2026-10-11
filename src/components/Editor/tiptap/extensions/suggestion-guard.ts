@@ -28,6 +28,24 @@ const whitespaceRe = /\s/;
 const URL_SCHEME_RE = /([a-z][a-z0-9+.-]*)$/i;
 const URL_SCHEME_WORDS = new Set(['http', 'https', 'ftp', 'file', 'mailto', 'tel']);
 
+/**
+ * 「光标前的当前 token 是 URL/路径」判据 —— 给 `/` 与 `:` 共用。
+ *
+ * 为什么需要它（2026-10-11，台账 §二 #57）：本仓把 `allowedPrefixes` 设成 `null`
+ * （中文无词间空格，刚需，见 `editor-extensions.ts` 三处注释）⇒ 上游「前一字符必须是
+ * 空格」这道**天然闸门没了**。于是只判「前一个字符」的两条旧规则挡不住 URL 路径里的
+ * 斜杠：敲 `看这个 https://a.com/path`，第三个 `/` 的前一字符是 `m` ⇒ 唤出 Slash 菜单，
+ * 此时按 Enter 会 `deleteRange` 把那个斜杠吃掉并执行「正文」命令。
+ *
+ * 判据取「最后一个空白之后的整段」而非单个前字符：该段呈现 URL / 盘符路径形态即算。
+ * 三个分支：`scheme://`、`www.`、`盘符[\/]`（Windows 路径与网址同病同治）。
+ */
+const URL_CONTEXT_RE = /(?:^|\s)(?:[a-z][a-z0-9+.-]*:\/\/|www\.|[a-z]:[\\/])[^\s]*$/i;
+
+function isUrlContext(textBeforeTrigger: string): boolean {
+  return URL_CONTEXT_RE.test(textBeforeTrigger);
+}
+
 /** 从触发串末尾向后扫：到「char 中任一字符」或空白处停（等价于库的排除字符类）。 */
 function scanMatchEnd(text: string, char: string, start: number): number {
   let end = start + char.length;
@@ -96,6 +114,12 @@ export function guardedFindSuggestionMatch(config: Trigger): SuggestionMatch {
       // URL scheme 词表只覆盖 http/ftp 等，盘符不在其内，故单独判。
       if (wordBefore.length === 1) return null;
     }
+    // URL / 路径上下文守卫（比上面两条更宽）：只判「前一个字符」挡不住 URL 路径里的
+    // 斜杠（`https://a.com/path` 的第三个 `/` 前一字符是 `m`）⇒ 取「最后一个空白之后的
+    // 整段」判形态。来源是本仓为中文把 `allowedPrefixes` 设成 null，见 URL_CONTEXT_RE 注释。
+    if ((char === '/' || char === ':') && isUrlContext(text.slice(0, charIndex))) return null;
+    // 保留旧的两条单字符规则作兜底：网址刚敲到 `https:/`（还没写出 `//`）时，
+    // URL_CONTEXT_RE 尚未命中，靠 `prev === ':'` 顶上。
     // '![' 前缀守卫：Obsidian 嵌入语法 ![[x]] 与互链同前缀，但 solo 不支持
     // 嵌入——'![[foo' 不应唤出互链补全（否则插入的 wikilink 与 '!' 组合出
     // 语义错误的伪嵌入）

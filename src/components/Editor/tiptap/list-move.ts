@@ -1,5 +1,6 @@
 import { TextSelection } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
+import { isFrozen } from './composition-freeze';
 
 /**
  * 列表项「同层换位」—— 整项上移 / 下移的唯一实现。
@@ -39,7 +40,7 @@ export type ListMoveDirection = -1 | 1;
  * - `false`：光标不在列表项内 / 组字中 ⇒ 调用方应放行，交给别的处理者。
  */
 export function moveListItem(view: EditorView, direction: ListMoveDirection): boolean {
-  if (view.composing) return false;
+  if (isFrozen(view)) return false;
 
   const { state } = view;
   const $from = state.selection.$from;

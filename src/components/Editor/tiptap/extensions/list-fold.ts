@@ -5,7 +5,7 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 import { isHeavyDocument } from '../../document-scale';
-import { createCompositionTracker, mapFrozenDecorations } from '../composition-freeze';
+import { createCompositionTracker, isFrozen, mapFrozenDecorations } from '../composition-freeze';
 import { isWholeDocReplace } from '../transaction-shape';
 import { ITEM_NODE_TYPES, LIST_NODE_TYPES } from '../list-move';
 
@@ -306,7 +306,7 @@ export function createListFoldPlugin(getPath: () => string | null = () => null):
           rafId = null;
           if (editorView.isDestroyed) return;
           // 组字期不重建（会把正在组字的 DOM 换掉）——继续等，组字结束后重建
-          if (editorView.composing) {
+          if (isFrozen(editorView)) {
             scheduleRebuild();
             return;
           }

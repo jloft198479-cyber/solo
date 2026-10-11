@@ -1870,4 +1870,42 @@ describe('Round-trip: parse → serialize', () => {
       });
     });
   });
+
+  describe('Phase M: 单元格里的标题无 markdown 载体 ⇒ 降级为纯文本（2026-10-11，台账 §二 #56）', () => {
+    // 单元格在 Markdown 里只能表达**行内文本**：`| # 标题b |` 重开只会得到字面量
+    // `# 标题b`，且二次落盘还会多一层转义（R1≠R2）。新文档已由
+    // `markdown-input.ts::canConvertHeadingInPlace` 挡住不再产生该形态；本组锁的是
+    // **已存在的** doc —— 旧版本手打、或 HTML 粘贴 `<td><h1>`（实测可造，schema
+    // `tableCell.content = block+` 收得下）都会留下它。
+    // 反向校准：把 `cellToText` 的 heading 分支改回 `s.renderNode(child)` ⇒ 第 1 条转红。
+    const schema = createTestSchema();
+
+    function cellHeadingDoc(): PMNode {
+      return schema.nodes.doc.create(null, [
+        schema.nodes.table.create(null, [
+          schema.nodes.tableRow.create(null, [
+            schema.nodes.tableCell.create(null, [
+              schema.nodes.heading.create({ level: 1 }, schema.text('标题b')),
+            ]),
+          ]),
+        ]),
+      ]);
+    }
+
+    it('单元格内 heading 落盘为纯文本：丢「是标题」、保住文字，且一次收敛', () => {
+      const out1 = serializeMarkdown(cellHeadingDoc());
+      expect(out1, '不该再有 ATX 标题语法').not.toContain('#');
+      expect(out1, '文字一个字不少').toContain('标题b');
+      const out2 = serializeMarkdown(parseMarkdown(schema, out1));
+      expect(out2, '必须一次收敛（修复前 R1=`| # 标题b |`、R2 多一层 `\\#`）').toBe(out1);
+    });
+
+    it('旧文件里已存在的 `| # 标题b |` 读入后转义为字面量并收敛（不再每存一次加一层）', () => {
+      const src = '| # 标题b |\n| --- |\n';
+      const out1 = roundTrip(src);
+      expect(out1, '文字没丢').toContain('标题b');
+      expect(out1, '已按字面量转义（不再是标题语法）').toContain('\\#');
+      expect(roundTrip(out1), '必须一次收敛').toBe(out1);
+    });
+  });
 });

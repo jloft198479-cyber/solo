@@ -822,6 +822,13 @@ function cellToText(state: MarkdownSerializerState, cell: PMNode): string {
   cell.forEach((child) => {
     if (child.type.name === 'paragraph') {
       s.renderInline(child);
+    } else if (child.type.name === 'heading') {
+      // 单行容器里没有 ATX 标题的载体：走 `renderNode` 会写出 `# 标题` ⇒ 重开只得到
+      // 字面量、二次落盘还多一层转义（R1≠R2，台账 §二 #56）。⇒ 只取标题的**行内内容**，
+      // 单元格里保住文字、丢掉「它是标题」（内容保真 > 排版保真），换来一次收敛。
+      // 新文档已由 `markdown-input.ts::canConvertHeadingInPlace` 挡住不再产生该形态；
+      // 本分支服务**已存在的**文件（旧版本手打 / HTML 粘贴带 `<td><h1>`）。
+      s.renderInline(child);
     } else {
       s.renderNode(child);
     }

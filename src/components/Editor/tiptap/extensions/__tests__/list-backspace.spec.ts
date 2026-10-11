@@ -104,12 +104,23 @@ function posOfText(doc: PMNode, text: string): number {
   return found;
 }
 
-/** 把光标放到某段文本开头，然后打一次真实 keydown（走 PM/DOM 全链路） */
-function pressAt(editor: Editor, text: string, init: KeyboardEventInit): void {
-  editor.commands.setTextSelection(posOfText(editor.state.doc, text));
+/** 已自行摆好选区 / 光标时，只打一次真实 keydown（走 PM/DOM 全链路） */
+function pressKey(editor: Editor, init: KeyboardEventInit): void {
   editor.view.dom.dispatchEvent(
     new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }),
   );
+}
+
+/**
+ * 把光标放到某段文本的第 `offset` 个字符处，然后打一次真实 keydown。
+ *
+ * ⚠️ `offset` 默认为 0＝文本起点。**这一默认值正是「Shift-Tab 假绿灯」的来源**
+ * （台账 §二 #55）：守卫旧门槛要求 offset 0，而真实用户按 Shift-Tab 时光标
+ * 多半停在字中间 ⇒ 断言必须显式传 offset>0 才盖得住那条路径。
+ */
+function pressAt(editor: Editor, text: string, init: KeyboardEventInit, offset = 0): void {
+  editor.commands.setTextSelection(posOfText(editor.state.doc, text) + offset);
+  pressKey(editor, init);
 }
 
 const THREE = '- 甲\n- 乙\n- 丙\n';
@@ -209,5 +220,108 @@ describe('删光一项文字后退格 ⇒ 空项整行消失（2026-10-10 用户
     clearTextThenBackspace(editor, '乙');
     expect(treeSig(editor.state.doc)).toBe('bulletList(「甲」 / 「丙」)');
     expect(topLevelTypes(editor.state.doc)).toEqual(['bulletList']);
+  });
+});
+
+/**
+ * 列表内 Shift-Tab 的**新契约**（2026-10-11 方案 B；台账 §二 #55）。
+ *
+ * **病**：旧门槛要求「光标停在项首块 offset 0」⇒ 用户在字中间按 Shift-Tab（随手按的
+ * 常态位置）落到上游 `liftOutOfList` 拆容器 —— 中间项＝劈成两段 + 中间夹 doc 层孤立
+ * 段落、首/末项＝把该项甩成 doc 层段落、有选区时甚至整张列表解散；且原样落盘。
+ * **药**：门槛改成「在不在项内」，顶层项一律吞掉（no-op）——顶层缩进已是 0，
+ * 「−1」越界（契约 §2 把 Shift+Tab 定义为「缩进 ±1 的唯一微调动词」）。
+ *
+ * ⚠️ **反向校准（2026-10-11 实跑）**：把 `handleListShiftTab` 的门槛改回
+ * `resolveGuardContext` ⇒ 前 4 条 + 公理 3 那条共 **5 条转红**；恢复方案 B 后 21 条全绿
+ * ⇒ 锁真承重。
+ * ⚠️ **例外**：「组字门控」那条**在两种实现下都绿**——不是锁失效，而是 PM 的 keydown
+ * 层本来就在合成态忽略按键（`prosemirror-view/dist/index.js:3189` `editHandlers.keydown`
+ * → `:3192` `inOrNearComposition` → `:3548` `view.composing ⇒ true`）⇒ 它测不到本扩展的
+ * `isFrozen` 分支，只作**意图哨兵**（防未来上游行为变化），**不当承重锁**。
+ */
+describe('列表内 Shift-Tab：顶层项一律 no-op（2026-10-11 方案 B）', () => {
+  const TAB = { key: 'Tab', shiftKey: true };
+
+  it('【禁止拆容器】顶层中间项 项内 offset=1 ⇒ 结构原样不动', () => {
+    const editor = makeEditor(THREE);
+    pressAt(editor, '乙', TAB, 1);
+    expect(treeSig(editor.state.doc)).toBe('bulletList(「甲」 / 「乙」 / 「丙」)');
+    expect(topLevelTypes(editor.state.doc)).toEqual(['bulletList']);
+  });
+
+  it('【禁止拆容器】顶层首项 项内 offset=1 ⇒ 原样不动', () => {
+    const editor = makeEditor(THREE);
+    pressAt(editor, '甲', TAB, 1);
+    expect(treeSig(editor.state.doc)).toBe('bulletList(「甲」 / 「乙」 / 「丙」)');
+    expect(topLevelTypes(editor.state.doc)).toEqual(['bulletList']);
+  });
+
+  it('【禁止留孤立段落】顶层末项 项内 offset=1 ⇒ 原样不动', () => {
+    const editor = makeEditor(THREE);
+    pressAt(editor, '丙', TAB, 1);
+    expect(treeSig(editor.state.doc)).toBe('bulletList(「甲」 / 「乙」 / 「丙」)');
+    expect(topLevelTypes(editor.state.doc)).toEqual(['bulletList']);
+  });
+
+  it('【单项列表】项内 offset=1 ⇒ 原样不动（不再退出列表）', () => {
+    const editor = makeEditor('- 甲\n');
+    pressAt(editor, '甲', TAB, 1);
+    expect(treeSig(editor.state.doc)).toBe('bulletList(「甲」)');
+  });
+
+  it('【公理 3 不外溢】顶层中间项：逐格 offset 1..3 ⇒ 未选中项一字不动', () => {
+    for (const offset of [1, 2, 3]) {
+      const editor = makeEditor('- 甲\n- 乙bbb\n- 丙\n');
+      pressAt(editor, '乙bbb', TAB, offset);
+      expect(treeSig(editor.state.doc), `offset=${offset}`).toBe(
+        'bulletList(「甲」 / 「乙bbb」 / 「丙」)',
+      );
+    }
+  });
+
+  it('【回归】嵌套子项 项内 offset=1 ⇒ 仍只提升一级（上游语义不受影响）', () => {
+    const editor = makeEditor('- 甲\n  - 甲1\n- 乙\n');
+    pressAt(editor, '甲1', TAB, 1);
+    expect(treeSig(editor.state.doc)).toBe('bulletList(「甲」 / 「甲1」 / 「乙」)');
+    expect(topLevelTypes(editor.state.doc)).toEqual(['bulletList']);
+  });
+
+  it('【组字门控·意图哨兵】组字期间 Shift-Tab（嵌套项内）不得改动结构', () => {
+    // 用**嵌套项**而不是顶层项：顶层项在方案 B 下本来就吞掉，拿它测不出 isFrozen 门控；
+    // 嵌套项若在组字期放行上游，就会当场反缩进（内层列表被提到顶层）。
+    // ⚠️ 但实测（2026-10-11）：本用例在**撤掉 isFrozen 门控**时仍是绿的 —— 因为 PM 的
+    // keydown 层在合成态直接忽略按键（prosemirror-view:3189/3192/3548）⇒ 上游与本扩展
+    // 都收不到键。故它是**意图哨兵**（防上游行为变化），不是本改动的承重锁。
+    const editor = makeEditor('- 甲\n  - 甲1\n- 乙\n');
+    editor.commands.setTextSelection(posOfText(editor.state.doc, '甲1') + 1);
+    editor.view.dom.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+    expect(editor.view.composing, '前置条件：组字态没置上，后面的断言就是假的').toBe(true);
+    pressKey(editor, TAB);
+
+    const list = topNodes(editor.state.doc)[0];
+    expect(list.type.name).toBe('bulletList');
+    expect(list.childCount, '外层仍应是 2 项（甲、乙）——反缩进会变成 3 项平铺').toBe(2);
+    expect(list.child(0).childCount, '第一项内仍应是 [段落, 子列表]').toBe(2);
+    expect(list.child(0).child(1).type.name, '子列表必须还在项内').toBe('bulletList');
+  });
+
+  it('【现状登记 · D2 未收编】有选区（落在单项内）⇒ 仍放行上游（会拆容器）', () => {
+    const editor = makeEditor(THREE);
+    const from = posOfText(editor.state.doc, '乙');
+    editor.commands.setTextSelection({ from, to: from + 1 });
+    pressKey(editor, TAB);
+    // ⚠️ 断的是**现状**：D2「有选区是否一并收编」已拍板「暂不行动」（PROPOSAL-list-shifttab §6）。
+    // 将来若收编，本断言随契约改写；在那之前它承担「被静默改掉就会红」的哨兵职责。
+    expect(treeSig(editor.state.doc)).toBe('bulletList(「甲」) + paragraph「乙」 + bulletList(「丙」)');
+  });
+
+  it('【现状登记 · D2 未收编】有选区（跨两项）⇒ 仍放行上游（整张列表解散）', () => {
+    const editor = makeEditor(THREE);
+    const from = posOfText(editor.state.doc, '甲');
+    const to = posOfText(editor.state.doc, '丙') + 1;
+    editor.commands.setTextSelection({ from, to });
+    pressKey(editor, TAB);
+    expect(treeSig(editor.state.doc)).toBe('paragraph「甲」 + paragraph「乙」 + paragraph「丙」');
   });
 });

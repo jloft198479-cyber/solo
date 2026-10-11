@@ -321,8 +321,48 @@ describe('convertPendingHeading 的父块接纳方式', () => {
     expect(item?.child(0).textContent).toBe('标题');
   });
 
-  it('列表项内第二块可原地改型 ⇒ 不产生多余空段落', () => {
+  /**
+   * 单行容器（表格单元格）里**不许**把 `# 标题` 转 heading（2026-10-11，台账 §二 #56）。
+   *
+   * 理由不是「装不下」——schema 收得下（`tableCell.content = block+`，`canReplaceWith` 为真）——
+   * 而是 Markdown 里单元格只能表达行内文本：转了能显示，**写出去重开必然降级成字面量**
+   * （`| # 标题 |` ⇒ 重开是普通文字）+ 二次落盘多一层转义（R1≠R2），属「能渲染 ≠ 能存住」。
+   *
+   * ⚠️ 反向校准：删掉 `canConvertHeadingInPlace` 里的 `isInSingleLineContainer` 早退 ⇒
+   * 本组第一条必须转红。
+   */
+  it('【禁止】表格单元格内的 `# 标题` 不转 heading（存不住的形态不产出）', () => {
     const schema = createTestSchema();
+    const doc = schema.nodes.doc.create(null, [
+      schema.nodes.table.create(null, [
+        schema.nodes.tableRow.create(null, [
+          schema.nodes.tableCell.create(null, [schema.nodes.paragraph.create(null, [schema.text('# 标题')])]),
+        ]),
+      ]),
+    ]);
+
+    const { tr } = convertInDoc(doc);
+    expect(tr, '单元格内不该改型').toBeNull();
+    // 前缀一个字都不能被吞（§二 #25 的教训：改型 no-op 却已删前缀）
+    expect(doc.textContent).toBe('# 标题');
+  });
+
+  it('【不许误伤】同一判据下，引用块 / 顶层段落仍照常转（只有单行容器被挡）', () => {
+    const schema = createTestSchema();
+    const quoteDoc = schema.nodes.doc.create(null, [
+      schema.nodes.blockquote.create(null, [schema.nodes.paragraph.create(null, [schema.text('# 标题')])]),
+    ]);
+    const { tr: quoteTr } = convertInDoc(quoteDoc);
+    expect(quoteTr, '引用块应照常转（blockquote 不是单行容器）').not.toBeNull();
+
+    const topDoc = schema.nodes.doc.create(null, [
+      schema.nodes.paragraph.create(null, [schema.text('# 标题')]),
+    ]);
+    const { tr: topTr } = convertInDoc(topDoc);
+    expect(topTr, '顶层段落应照常转').not.toBeNull();
+  });
+
+  it('列表项内第二块可原地改型 ⇒ 不产生多余空段落', () => {    const schema = createTestSchema();
     const doc = schema.nodes.doc.create(null, [
       schema.nodes.bulletList.create(null, [
         schema.nodes.listItem.create(null, [

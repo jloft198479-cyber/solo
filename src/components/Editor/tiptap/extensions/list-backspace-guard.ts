@@ -10,6 +10,8 @@ import { isFrozen } from '../composition-freeze';
  * 走 `liftListItem → liftOutOfList`，该函数在内容两侧塞空 list 壳且**不做 join** ⇒
  * 列表被切成两个独立容器、中间夹一个 doc 层孤立段落，且原样落盘、重开结构不变。
  * 这正是用户报「列表里母主题 Alt+↑ 挪不动」的真因（`list-move.ts` 只挪同容器兄弟）。
+ * ⚠️ 注意别把这话推广：**同一个形状若由「转普通段落」主动产生，则是契约批准的正确产物**
+ * （`PROPOSAL-list-semantics.md` §8，2026-10-11 拍板 A）——缺陷只指「误操作产生的那一支」。
  *
  * 药（§七 九条决定 + §十复审 F-1/F-2/F-3/F-4 修订）：新增本扩展在 ListKeymap
  * **之前**接管相关按键（`priority: 101` > StarterKit 扩展默认 100，复审 F-2）：
@@ -27,8 +29,19 @@ import { isFrozen } from '../composition-freeze';
  * 本守卫判定不成立时一律 `return false` 放行，特殊块（mermaid/math 等）的
  * Mod-Backspace 整块删除语义不受影响。
  *
- * Shift-Tab 只锁「不许劈」（复审 F-3：上游 `:492` 绑的就是 liftListItem，顶层必劈）：
- * 顶层项吞掉不做事；嵌套项放行上游正常反缩进。契约锁 `__tests__/list-backspace.spec.ts`。
+ * Shift-Tab：**顶层项内一律吞掉、不改文档**（＝ no-op）。顶层项缩进已经是 0，
+ * 「−1」越界 ⇒ 按 `PROPOSAL-list-semantics.md` §2 动词表（`Shift+Tab` ＝ 缩进 ±1 的
+ * 唯一微调动词）此处没有合法动作可做；嵌套项放行上游正常反缩进（实测安全）。
+ * 要退出列表请走「转普通段落」那族动词（Ctrl+0 / 命令面板 / 斜杠「正文」）。
+ *
+ * ⚠️ **本分支的门槛必须只看「在不在项内」，不能要求光标停在项首块 offset 0**
+ * （2026-10-11，台账 §二 #55）：Shift-Tab 是随手按的，光标多半停在字中间；旧门槛
+ * 只覆盖行首那一格，其余位置一律落到上游 `liftOutOfList` 把容器拆掉 —— 中间项＝
+ * 劈成两段 + 中间夹 doc 层孤立段落、首/末项＝把该项甩成 doc 层段落、有选区时
+ * 甚至**整张列表解散**（`prosemirror-schema-list/dist/index.js:238-260`）。
+ * Backspace 正相反：它天生只在行首发生，故仍用 `resolveGuardContext` 的严格门槛。
+ *
+ * 契约锁 `__tests__/list-backspace.spec.ts`（offset>0 四格 + 公理 3 + 有选区两格现状）。
  *
  * ⚠️ 跑在 happy-dom，不是 WebView2 真机（AGENTS §4）：发版前必须真机复核
  * ——特别是「打完 `- ` / `# ` 立刻退格」的输入规则撤回出口（复审 F-2：
@@ -146,15 +159,24 @@ function handleListBackspace(editor: Editor): boolean {
   return editor.chain().liftListItem(name).run();
 }
 
+/**
+ * 顶层项内 Shift-Tab：一律吞掉、不改文档（顶层项「−1」越界 ⇒ no-op）。
+ *
+ * 与 Backspace 分支的关键差异：这里**不能**用 `resolveGuardContext` —— 它要求光标
+ * 停在项首块 offset 0，而 Shift-Tab 是随手按的，光标多半在字中间；旧门槛只覆盖
+ * 行首那一刻，其余位置会落到上游 `liftOutOfList` 拆掉容器（台账 §二 #55）。
+ */
 function handleListShiftTab(editor: Editor): boolean {
-  const context = resolveGuardContext(editor);
-  if (!context) return false;
-  // 组字门控：同 Backspace，只在接管范围吞
+  const { selection } = editor.state;
+  // 有选区：保持现状放行上游（是否收编是独立议题，见 PROPOSAL-list-shifttab.md §6 D2）
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+  const { $from } = selection;
+  const itemDepth = itemDepthAt($from);
+  if (itemDepth < 0) return false; // 不在任何列表项内：放行
+  // 组字门控（同 Backspace 分支）：组字期绝不做结构事务，直接吞掉
   if (isFrozen(editor.view)) return true;
-  const { itemDepth } = context;
-  // 嵌套子项放行上游（正常反缩进，安全）；顶层项吞掉——上游 Shift-Tab 绑
-  // liftListItem，顶层必劈（复审 F-3），「只锁不许劈、不锁具体行为」
-  if (isNestedItem(editor.state.selection.$from, itemDepth)) return false;
+  // 嵌套子项放行上游（正常反缩进，安全）；顶层项一律吞掉、不改文档
+  if (isNestedItem($from, itemDepth)) return false;
   return true;
 }
 
