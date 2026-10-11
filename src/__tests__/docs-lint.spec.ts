@@ -65,7 +65,7 @@ const isExternal = (t: string): boolean =>
 
 /** 像文件路径：含 / 或含 .(扩展名感) 或就是 ./ ../ . .. */
 const looksLikePath = (t: string): boolean =>
-  /[\/.]/.test(t) || /^\.\.?$/.test(t);
+  /[./]/.test(t) || /^\.\.?$/.test(t);
 
 describe('docs 死链检查', () => {
   it('所有相对链接应指向存在的文件', () => {
