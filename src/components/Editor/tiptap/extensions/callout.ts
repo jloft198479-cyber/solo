@@ -111,9 +111,12 @@ export const Callout = TiptapNode.create({
       };
       applyAttrs(node);
 
-      // —— 标题编辑逻辑（对齐代码块 language button 模式）——
+      // —— 标题编辑逻辑（就地编辑：点标题文字，原位变成输入框）——
 
       let isEditingTitle = false;
+      // 进入编辑时屏幕上显示的那行文字（标题；无标题时是类型名顶着）。
+      // 提交时若与此相同 ⇒ 可见结果零变化，不写库（见 commitTitle）
+      let displayedAtEntry = '';
 
       function syncTitleUI() {
         if (isEditingTitle) return;
@@ -125,9 +128,13 @@ export const Callout = TiptapNode.create({
       function enterTitleEdit() {
         if (isEditingTitle) return;
         isEditingTitle = true;
+        const title = typeof node.attrs.title === 'string' ? node.attrs.title.trim() : '';
+        // 预填屏幕上看到的文字：用户点的是这行字，就该在这行字上改——
+        // 无标题时头上是借来的类型名（NOTE），一并预填，而不是给个空框重打
+        displayedAtEntry = title || normalizeCalloutType(node.attrs.calloutType as string);
         titleButton.style.display = 'none';
         titleInput.style.display = 'block';
-        titleInput.value = typeof node.attrs.title === 'string' ? node.attrs.title : '';
+        titleInput.value = displayedAtEntry;
         titleInput.focus();
         titleInput.select();
       }
@@ -141,9 +148,11 @@ export const Callout = TiptapNode.create({
 
       function commitTitle() {
         const next = titleInput.value.trim();
-        const current = typeof node.attrs.title === 'string' ? node.attrs.title.trim() : '';
         exitTitleEdit();
-        if (next === current) return;
+        // 与进入编辑时显示的文字相同 ⇒ 不写库。覆盖两种情形：
+        // ① 改了又改回原标题；② 无标题时显示的是类型名（NOTE）——
+        // 写一个 title=类型名 是冗余数据，显示效果也完全一样
+        if (next === displayedAtEntry) return;
         if (typeof getPos !== 'function') return;
         const pos = getPos();
         if (typeof pos !== 'number') return;

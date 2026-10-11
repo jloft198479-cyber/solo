@@ -76,3 +76,77 @@ describe('callout NodeView attrs 同步', () => {
     expect(view.update?.(other)).toBe(false);
   });
 });
+
+/**
+ * 就地编辑锁（2026-10-12）：点标题文字应在原文字上改，不是弹空框重打。
+ * 反向校准：撤掉「预填 displayedAtEntry」→ 前两条红；
+ * 撤掉「next === displayedAtEntry 不写库」→ 第三条红。
+ */
+describe('callout 标题就地编辑', () => {
+  function renderInteractive(node: PMNode) {
+    const renderer = Callout.config.addNodeView?.() as
+      | ((props: { node: PMNode; getPos?: () => number; editor?: unknown }) => NodeViewLike)
+      | undefined;
+    if (typeof renderer !== 'function') throw new Error('Callout 未提供 NodeView 工厂');
+    const written: Array<Record<string, unknown>> = [];
+    const tr = {
+      setNodeMarkup: (_pos: number, _type: unknown, attrs: Record<string, unknown>) => {
+        written.push(attrs);
+        return tr;
+      },
+    };
+    const editor = {
+      view: { state: { tr }, dispatch: () => {} },
+      commands: { focus: () => {} },
+    };
+    const view = renderer({ node, getPos: () => 0, editor });
+    return {
+      view,
+      button: view.dom.querySelector('.mk-callout-title-button') as HTMLElement,
+      input: view.dom.querySelector('.mk-callout-title-input') as HTMLInputElement,
+      written,
+    };
+  }
+
+  it('无标题时点击标题钮：输入框预填类型名，不是空框', () => {
+    const node = schema.nodes.callout.create(
+      { calloutType: 'warning' },
+      schema.nodes.paragraph.create(null, schema.text('内容')),
+    );
+    const { button, input } = renderInteractive(node);
+    expect(input.style.display).toBe('none');
+    button.click();
+    expect(button.style.display).toBe('none');
+    expect(input.style.display).not.toBe('none');
+    expect(input.value).toBe('warning');
+  });
+
+  it('有标题时点击标题钮：预填原标题', () => {
+    const node = schema.nodes.callout.create(
+      { calloutType: 'note', title: '观点一' },
+      schema.nodes.paragraph.create(null, schema.text('内容')),
+    );
+    const { button, input } = renderInteractive(node);
+    button.click();
+    expect(input.value).toBe('观点一');
+  });
+
+  it('未改动失焦不写库；改动后失焦才写', () => {
+    const node = schema.nodes.callout.create(
+      { calloutType: 'note' },
+      schema.nodes.paragraph.create(null, schema.text('内容')),
+    );
+    const { button, input, written } = renderInteractive(node);
+    // 无标题：预填的是类型名 note，原样失焦 ⇒ 不写冗余 title=note
+    button.click();
+    expect(input.value).toBe('note');
+    input.dispatchEvent(new Event('blur'));
+    expect(written).toHaveLength(0);
+    // 改为真标题 ⇒ 落库
+    button.click();
+    input.value = '观点一';
+    input.dispatchEvent(new Event('blur'));
+    expect(written).toHaveLength(1);
+    expect(written[0].title).toBe('观点一');
+  });
+});
