@@ -198,3 +198,5 @@ SOLO_FIDELITY_SCAN=1 bunx vitest run src/components/Editor/tiptap/markdown/__tes
 - **交付给地址**：产出文件必须出示**具体路径**，不让简乐自己找。
 - **多步任务拆小步**：≥3 步先出计划 → 按阶段停 → 每阶段结束通报「本阶段结果 + 下阶段打算」；风险动作单独确认。
 - 被批评后的经验必须沉淀到 [docs/LESSONS.md](./docs/LESSONS.md) 或 [docs/KNOWN-ISSUES.md](./docs/KNOWN-ISSUES.md)。
+
+工作遵循：[[沟通原则]]

@@ -1,7 +1,7 @@
 ---
 title: IME 候选窗失锚 · 第三方问题简报与资料汇编
 type: archive
-audience: external
+audience: user
 status: archive
 tags: [ime, 输入法, 候选窗, webview2, tauri, 简报, 封存档, 资料汇编]
 summary: 给第三方（外部专家/接手者）看的统筹简报：用通俗语言讲清问题是什么、我们做过哪些尝试、当前结论与未知项、以及给第三方的起点建议；文末附上项目内已有的完整原始文档（PLAN/REPORT/SOLUTION/观点对照）。

@@ -1,6 +1,6 @@
 ---
 title: IME 候选窗失锚（封存档 · 主题唯一入口）
-type: record
+type: proposal
 audience: agent
 status: active
 tags: [ime, 输入法, 候选窗, webview2, tauri, 封存, 档案]

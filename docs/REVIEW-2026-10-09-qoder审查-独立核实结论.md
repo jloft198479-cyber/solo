@@ -1,6 +1,6 @@
 ---
 title: qoder 第三方审查 · 独立核实结论（只核不修）
-type: review
+type: proposal
 audience: agent
 status: active
 tags: [审查报告, 复查, 核实, 勘误, 落点映射]
