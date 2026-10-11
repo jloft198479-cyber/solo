@@ -5,7 +5,7 @@ audience: agent
 status: active
 tags: [benchmark, editing-experience, typora, obsidian, roadmap]
 summary: 编辑体验类问题的行业对标基线，先查此表再定优先级
-updates: [docs/KNOWN-ISSUES.md, docs/FEATURE-MATRIX.md, docs/REVIEW-2026-10-09-第三方全面审查-批1-宏观与对标.md, src/commands/registry.ts, src/components/Editor/tiptap/extensions/paragraph-focus.ts, src/components/Editor/tiptap/extensions/list-fold.ts]
+updates: [docs/KNOWN-ISSUES.md, docs/FEATURE-MATRIX.md, ./archive/REVIEW-2026-10-09-第三方全面审查-批1-宏观与对标.md, src/commands/registry.ts, src/components/Editor/tiptap/extensions/paragraph-focus.ts, src/components/Editor/tiptap/extensions/list-fold.ts]
 ---
 
 # 编辑体验 · 行业对标基线
@@ -72,5 +72,5 @@ updates: [docs/KNOWN-ISSUES.md, docs/FEATURE-MATRIX.md, docs/REVIEW-2026-10-09-�
 ## See also
 
 - [已知问题台账](./KNOWN-ISSUES.md) · [功能全表](./FEATURE-MATRIX.md) · [敏感区](./sensitive-areas.md)
-- [第三方全面审查 · 批1（宏观与对标）](./REVIEW-2026-10-09-第三方全面审查-批1-宏观与对标.md) · [问题总账](./REVIEW-2026-10-09-第三方全面审查-问题总账.md)
+- [第三方全面审查 · 批1（宏观与对标）](./archive/REVIEW-2026-10-09-第三方全面审查-批1-宏观与对标.md) · [问题总账](./archive/REVIEW-2026-10-09-第三方全面审查-问题总账.md)
 - [产品精神](./solo产品精神.md) · [上一轮全量审计](./archive/AUDIT-REPORT-2026-09-14.md)

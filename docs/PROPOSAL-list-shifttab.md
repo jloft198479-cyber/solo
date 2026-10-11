@@ -10,8 +10,8 @@ updates:
     src/components/Editor/tiptap/extensions/list-backspace-guard.ts,
     docs/PROPOSAL-list-semantics.md,
     docs/KNOWN-ISSUES.md,
-    docs/REVIEW-2026-10-11-编辑器交互内核线审核.md,
-    docs/REVIEW-2026-10-11-编辑器交互内核线审核-复审.md,
+    ./archive/REVIEW-2026-10-11-编辑器交互内核线审核.md,
+    ./archive/REVIEW-2026-10-11-编辑器交互内核线审核-复审.md,
     src/components/Editor/tiptap/extensions/__tests__/list-backspace.spec.ts,
   ]
 ---
@@ -27,7 +27,7 @@ updates:
 > **未收编（拍板「暂不行动」）**：D2 有选区两格（单项内有选区＝照旧劈、跨项选区＝整表解散），已用「现状登记」用例锁住；`#55` 里那条**结构性判据冲突**（契约 `:48` vs 台账 #26）仍待拍板。
 >
 > **⚠️ 本文已于 2026-10-11 按独立复审重写**：首版的 **A 案**（把 Shift-Tab 接到 `demoteListItemToBlock`）经实测**证伪**，保留在 §3 只为「挡住下一个执行者重提它」。
-> 证据来源：[`REVIEW-2026-10-11-编辑器交互内核线审核.md`](./REVIEW-2026-10-11-编辑器交互内核线审核.md) §1.1（四形态矩阵）；复审原件 [`REVIEW-2026-10-11-编辑器交互内核线审核-复审.md`](./REVIEW-2026-10-11-编辑器交互内核线审核-复审.md)。
+> 证据来源：[`REVIEW-2026-10-11-编辑器交互内核线审核.md`](./archive/REVIEW-2026-10-11-编辑器交互内核线审核.md) §1.1（四形态矩阵）；复审原件 [`REVIEW-2026-10-11-编辑器交互内核线审核-复审.md`](./archive/REVIEW-2026-10-11-编辑器交互内核线审核-复审.md)。
 > 规则来源：[`PROPOSAL-list-semantics.md`](./PROPOSAL-list-semantics.md)（列表语义契约 §1 公理 / §2 动词表）。
 
 ## 0. 一句话
