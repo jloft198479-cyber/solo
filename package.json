@@ -14,6 +14,8 @@
     "dev:tauri:inspect": "SOLO_OPEN_DEVTOOLS=1 tauri dev",
     "build:tauri": "tauri build",
     "test": "vitest run",
+    "test:changed": "vitest --changed --run",
+    "test:full": "vitest run --mode full",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.{ts,vue,css}\""

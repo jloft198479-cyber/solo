@@ -48,7 +48,7 @@ export function extractDimsFromAlt(alt: string): {
  * 必须由序列化侧按上下文决定（见 `MarkdownSerializerState.isInTableCell`）。
  */
 export function escapeImageAlt(alt: string): string {
-  return alt.replace(/[`\[\]]/g, (m) => '\\' + m);
+  return alt.replace(/[`[\]]/g, (m) => '\\' + m);
 }
 
 /**
@@ -61,7 +61,7 @@ export function escapeImageAlt(alt: string): string {
  * 故 `C:\path`、`\alpha` 之类不受影响（它们本就不在还原集内）。
  */
 export function unescapeImageAlt(raw: string): string {
-  return raw.replace(/\\([`\[\]])/g, '$1');
+  return raw.replace(/\\([`[\]])/g, '$1');
 }
 
 export function formatImageMarkdown(attrs: ImageMarkdownAttrs): string {

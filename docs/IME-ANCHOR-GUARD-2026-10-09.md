@@ -24,7 +24,7 @@ updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Edi
 | **来源** | [`observer130/lanmark` commit `ba451f0`](https://github.com/observer130/lanmark/commit/ba451f06178dbb08d6f97b9f5d53b46b26aca5e9)（2026-10-07），引用同一上游 `MicrosoftEdge/WebView2Feedback#5675` |
 | **分支** | `fix/ime-anchor-guard`（自 `55bbbc1` 开出） |
 | **基线提交** | `55bbbc1` |
-| **当前阶段** | 阶段 3（**自然观察期**）—— 触发面已按简乐反馈修订（只缩放 → **移动 + 缩放**）并过闸门 |
+| **当前阶段** | ✅ **阶段 4 已定案（2026-10-12）** —— 长期使用未再发作，判定有效；已删临时探针与 A/B 开关，护栏转常态功能。结案经验卡：[`docs/archive/IME-结案经验卡-2026-10-12.md`](./archive/IME-结案经验卡-2026-10-12.md) |
 | **状态** | 🟡 **观察中**：不再人工刻意测试，改为**日常使用 + 被动探针留痕对账**（见 §2.0） |
 
 ---

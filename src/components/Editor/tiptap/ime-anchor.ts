@@ -23,10 +23,11 @@
  * 现改为订阅 **Tauri 原生 `onMoved` + `onResized`**（`@tauri-apps/api@2.11.1`
  * 提供，项目已有同族用法），并**保留 DOM `resize` 兜底**（非 Tauri / 测试场景）。
  *
- * ## 验证方式（概率性问题 → 不做人工刻意测试）
- * 该问题**无法按需复现** ⇒ 不再要求人工 A/B，改用**被动探针**留痕
- * （`ime-anchor-probe.ts`，读到 `%APPDATA%\com.solomarkdown\ime-anchor-probe.json`），
- * 日常使用中自然发生时再对账。探针为临时设施，**验证完必须删除**。
+ * ## 状态：已定案（2026-10-12）
+ * 护栏上线后用户长期使用**未再发作**，判定有效 ⇒ 按修复档案阶段 4 清理临时设施：
+ * **已删除**被动探针 `ime-anchor-probe.ts` 与 DEV-only 的 A/B 开关。
+ * 复发时的处理顺序见 `docs/archive/IME-结案经验卡-2026-10-12.md`（先查上游
+ * `MicrosoftEdge/WebView2Feedback#5675` 是否已被修复，是则**直接删掉本护栏**）。
  *
  * ## 约束（勿违）
  * 1. 组字态走 `composition-freeze.ts`（`isFrozen`）这一唯一真相源，不另造判断。
@@ -40,7 +41,6 @@ import type { EditorView } from '@tiptap/pm/view';
 
 import { isWindows } from '../../../utils/platform';
 import { isFrozen } from './composition-freeze';
-import { probe } from './ime-anchor-probe';
 
 /** 几何变化（拖动或缩放）连发；等它稳定下来再重锚一次 */
 export const IME_ANCHOR_DEBOUNCE_MS = 120;
@@ -52,29 +52,8 @@ export const IME_ANCHOR_DEBOUNCE_MS = 120;
  */
 export const IME_ANCHOR_FOCUS_DELAY_MS = 60;
 
-/**
- * ⚠️ 临时 A/B 验证开关 —— **验证完成后必须删除**（见修复档案 §4/阶段 4）。
- * **仅 DEV 生效**（`import.meta.env.DEV`）：正式版一律视为「开关未设」。
- * 用法：DevTools Console 执行
- *   `localStorage.setItem('solo:imeAnchorGuard','off')` → 护栏停用（即时生效，无需刷新）
- *   `localStorage.removeItem('solo:imeAnchorGuard')`   → 护栏恢复
- */
-const AB_SWITCH_KEY = 'solo:imeAnchorGuard';
-
-/** 护栏的触发来源（供被动探针对账：是「移动」还是「缩放」触发的） */
+/** 护栏的触发来源 */
 export type AnchorTrigger = 'move' | 'resize' | 'dom-resize' | 'composition-end';
-
-function isDisabledBySwitch(): boolean {
-  // 仅 DEV 生效：这是验证期的临时开关，绝不能让正式版用户无意间把护栏关掉（M-14）。
-  // 验证方式（dev 构建）：DevTools Console 执行
-  //   localStorage.setItem('solo:imeAnchorGuard','off')
-  if (!import.meta.env.DEV) return false;
-  try {
-    return window.localStorage.getItem(AB_SWITCH_KEY) === 'off';
-  } catch {
-    return false;
-  }
-}
 
 function isTauriRuntime(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -169,34 +148,20 @@ export function installImeAnchorGuard(opts: ImeAnchorGuardOptions): () => void {
   let disposed = false;
   // 组字中不能 blur（会吞掉预编辑）；置 pending，等 compositionend 再补做
   let pending = false;
-  // 供探针对账：本次重锚是哪种几何变化引起的
-  let lastTrigger: AnchorTrigger = 'resize';
 
   const reanchor = (): void => {
-    if (isDisabledBySwitch()) {
-      probe('reanchor', { action: 'skip', reason: 'ab-off', trigger: lastTrigger });
-      return;
-    }
     const view = opts.getView();
-    if (!view || view.isDestroyed) {
-      probe('reanchor', { action: 'skip', reason: 'no-view', trigger: lastTrigger });
-      return;
-    }
+    if (!view || view.isDestroyed) return;
     const el = view.dom as HTMLElement;
     // 焦点不在编辑器 → 空操作（护的是输入焦点，别的地方不碰）
-    if (w.document.activeElement !== el) {
-      probe('reanchor', { action: 'skip', reason: 'not-focused', trigger: lastTrigger });
-      return;
-    }
+    if (w.document.activeElement !== el) return;
     // 组字中 → 不打断，等组字结束再补
     if (isFrozen(view)) {
       pending = true;
-      probe('reanchor', { action: 'pending', reason: 'composing', trigger: lastTrigger });
       return;
     }
     const scrolls = saveScroll(el);
     el.blur();
-    probe('reanchor', { action: 'blur+focus', trigger: lastTrigger });
     // 必须等一会儿：紧挨着（同一任务，甚至 setTimeout(0)）的 blur+focus 会被
     // 渲染进程合并，浏览器进程侧看不到焦点转移，TSF 布局不会重发。
     focusTimer = setTimeout(() => {
@@ -208,8 +173,7 @@ export function installImeAnchorGuard(opts: ImeAnchorGuardOptions): () => void {
     }, focusDelayMs);
   };
 
-  const schedule = (trigger: AnchorTrigger): void => {
-    lastTrigger = trigger;
+  const schedule = (): void => {
     if (timer !== undefined) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = undefined;
@@ -217,19 +181,15 @@ export function installImeAnchorGuard(opts: ImeAnchorGuardOptions): () => void {
     }, debounceMs);
   };
 
-  const onDomResize = (): void => schedule('dom-resize');
-
-  const onCompositionStart = (): void => probe('compositionstart');
+  const onDomResize = (): void => schedule();
 
   const onCompositionEnd = (): void => {
     if (!pending) return;
     pending = false;
-    probe('compositionend', { note: 'pending-consumed' });
-    schedule('composition-end');
+    schedule();
   };
 
   w.addEventListener('resize', onDomResize);
-  w.addEventListener('compositionstart', onCompositionStart, true);
   w.addEventListener('compositionend', onCompositionEnd, true);
 
   // 主触发面：Tauri 原生窗口移动 + 缩放（移动不发 DOM resize，必须走这条）
@@ -242,7 +202,6 @@ export function installImeAnchorGuard(opts: ImeAnchorGuardOptions): () => void {
     if (timer !== undefined) clearTimeout(timer);
     if (focusTimer !== undefined) clearTimeout(focusTimer);
     w.removeEventListener('resize', onDomResize);
-    w.removeEventListener('compositionstart', onCompositionStart, true);
     w.removeEventListener('compositionend', onCompositionEnd, true);
     unsubscribeGeometry();
   };

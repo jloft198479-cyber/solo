@@ -18,8 +18,6 @@ import {
   installImeAnchorGuard,
 } from '../ime-anchor';
 
-const AB_SWITCH_KEY = 'solo:imeAnchorGuard';
-
 /** 只需 composing / dom / isDestroyed / focus 的假 view —— 本模块不碰其它成员。
  *  dom 默认**不入 DOM**，由各用例自行 append / focus。 */
 function fakeView(composing = false): { view: EditorView; dom: HTMLElement } {
@@ -206,27 +204,6 @@ describe('installImeAnchorGuard', () => {
     window.dispatchEvent(new Event('resize'));
     vi.advanceTimersByTime(60);
     expect(scroller.scrollTop).toBe(120);
-
-    dispose();
-  });
-
-  it('临时 A/B 开关 off → 不动作（验证用，非产品功能）', () => {
-    const { view, dom } = fakeView();
-    document.body.appendChild(dom);
-    dom.focus();
-    const blur = vi.spyOn(dom, 'blur');
-    window.localStorage.setItem(AB_SWITCH_KEY, 'off');
-
-    const dispose = installImeAnchorGuard({
-      getView: () => view,
-      enabled: true,
-      debounceMs: 50,
-      focusDelayMs: 40,
-      target: window,
-    });
-    window.dispatchEvent(new Event('resize'));
-    vi.advanceTimersByTime(200);
-    expect(blur).not.toHaveBeenCalled();
 
     dispose();
   });
