@@ -162,6 +162,7 @@ bun run test:full          # 全量 + 体检，跨平台安全（不再用 SOLO_
 | NodeView / 组字态 / 浮动菜单 | `composition-freeze.ts`（总闸，别造第 5 份） |
 | CJK 强调 / ZWNJ | `tiptap/zwnj.ts`（`stripZwnj` 唯一来源；代码区与 `$$…$$` 先清洗） |
 | 一般 bug / 不知道改哪 | AGENTS 最高原则 + `sensitive-areas.md` 对应行 + **目标文件实际代码**（不以注释为准） |
+| UI / 主题 / IME 改完要**看真实渲染** | `§F` + 一键脚本 `scripts/cdp-verify-ui.py`（连真机 solo 截图 / 读 DOM 自验） |
 
 > ⚠️ 检索时**默认跳过隐藏目录**（`.archive-档案室/`、`.opencode/`、`.trae/`、`.dumate/` 已 gitignore 且 ripgrep 跳隐藏目录）——这些里的"第二份 AGENTS/CHANGELOG/ARCHITECTURE"是过期副本，**不是规则来源**，照 AGENTS 现行文件来。
 
@@ -178,7 +179,15 @@ bun run test:full          # 全量 + 体检，跨平台安全（不再用 SOLO_
 - 整段包在 `#[cfg(debug_assertions)]` 里，**release 构建被完全剪除，永不暴露任何端口**；正常用户双击打开 release 版无任何端口、零副作用。
 - 与 lib.rs 的嵌入式 devtools 面板解耦：面板仍由 `SOLO_OPEN_DEVTOOLS=1` 门控（人工按需开），CDP 端口 debug 常开（给 Agent 自验用）。
 
-**自验流程**（动时序 / UI / 主题 / IME 后，单测是入场券、CDP 截图是通行证）：
+**自验流程（一键脚本，推荐）**：`scripts/cdp-verify-ui.py` 已把 MSVC 环境 / cargo 上 PATH / playwright 缺失自动装 / 端口等待 / 连接截图 **全部封装**，下次一条命令一次成功：
+
+```bash
+python scripts/cdp-verify-ui.py              # 端口已开（debug 版在跑）→ 直接连 + 截图 + 读 DOM
+python scripts/cdp-verify-ui.py --launch     # 端口没开 → 自动起 debug 构建（注入 MSVC + cargo）再连
+python scripts/cdp-verify-ui.py --port 9223 # 换端口（自动起构建时用 SOLO_CDP_PORT）
+```
+
+动时序 / UI / 主题 / IME 后，单测是入场券、CDP 截图是通行证。脚本内部等价的手动写法（仅供理解，不必手敲）：
 
 ```bash
 # 1) 起 debug 构建（无需任何环境变量，CDP 端口 9222 自动开）
@@ -195,7 +204,7 @@ PY
 # 3) Read outputs/verify-ui.png（Agent 多模态）确认渲染 / 主题 / 布局对
 ```
 
-**实测记录（2026-10-12）**：起 debug 版 → `curl http://localhost:9222/json/version` 返回 `Edg/154.0.4258.62` → Playwright `connect_over_cdp` 连上 → `page.title()="solo"`、`body.innerText` 含「未命名/大纲/0 字/已保存」→ 截图 `outputs/verify-ui.png` 确认完整 UI 渲染。**可用，已验证。**
+**实测记录（2026-10-12）**：`python scripts/cdp-verify-ui.py`（连接模式）一次成功 → 连 CDP → `title=solo`、DOM 含「未命名/大纲/3 字/未保存」→ 截图确认完整 UI。**可用，已验证。** `cdp-verify-ui.py` 的 `--launch` 路径 = 手动 `tauri dev`（MSVC 环境 + cargo 上 PATH）的等价封装，机制同。
 
 ⚠️ `tauri dev` 走完整构建（含 link），**必须在本机 MSVC 环境**跑（见下）；release 构建**没有**这个端口（被剪除），要自验只能用 debug 版。若 9222 被占，起第二个实例前用 `SOLO_CDP_PORT` 换端口。
 
