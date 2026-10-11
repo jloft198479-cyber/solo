@@ -123,7 +123,7 @@ updates: [docs/KNOWN-ISSUES.md, ARCHITECTURE.md, AGENTS.md]
   2. 修完 parser / serializer / schema，**必须跑一次全仓体检**（`fidelity-scan.spec.ts`），把缩水的文档逐份列出来。
   3. 体检/排查里出现的**每一个新形态**，当场**回灌**成用例；不回灌 = 下次照漏。
   4. 判据用**渲染结果**（独立参照系：`markdown-it` commonmark）而非字节——否则会被表格补空格、实体解码这类**语义等价**改写淹没，噪声里淹掉真信号。
-- **索引**：[fidelity-scan.spec.ts](../src/components/Editor/tiptap/markdown/__tests__/fidelity-scan.spec.ts)、[KNOWN-ISSUES §一 #35](./KNOWN-ISSUES.md)、[AGENTS.md §4](../AGENTS.md)
+- **索引**：[fidelity-scan.spec.ts](../src/components/Editor/tiptap/markdown/__tests__/fidelity-scan.spec.ts)、[KNOWN-ISSUES §一 #35](./KNOWN-ISSUES.md)、[agent-playbook §C 工作流与验收](./agent-playbook.md)
 
 ### C6 · 「已修复」不能由改动者自己宣布
 
@@ -158,7 +158,7 @@ updates: [docs/KNOWN-ISSUES.md, ARCHITECTURE.md, AGENTS.md]
 ### D4 · 守卫必须收敛到单一中枢
 
 - **教训**：组字态（IME）判定统一走 [`composition-freeze.ts`](../src/components/Editor/tiptap/composition-freeze.ts)——新增 decoration / appendTransaction / NodeView / 浮动菜单**都走它**，别再造第 5 份 `let liveView`。同一判断的 N 份副本 = N 个未来会漂移的地方。
-- **索引**：[AGENTS.md §1 禁令 8](../AGENTS.md)
+- **索引**：[AGENTS.md §1 禁令 9（组字态）](../AGENTS.md)
 
 ---
 
@@ -203,7 +203,7 @@ updates: [docs/KNOWN-ISSUES.md, ARCHITECTURE.md, AGENTS.md]
 - **形态一 · 硬编码 IPC**：新增 Rust 命令时前端直接 `invoke('xxx')`，绕过 `command-names.ts`（v1.2.27、v1.2.30 **同类复发两次**）。→ 新增命令后立即全库 grep `invoke('`。
 - **形态二 · 硬编码计数**：文档里写死命令数 / 扩展数 / 测试数，随即漂移。→ 一律写「以 `generate_handler!` / `bun run test` 实际为准」。
 - **形态三 · 同一事实写三处**：`Ctrl+/` 的键位在 `useAppDomEvents.ts` 硬编码、在 `CustomTitlebar.vue` 写文案，而**官方总表 `registry.ts` 里根本没有**。→ 改这类事实**整条链路一起改**；更重要的是**能填的坑要填**——该例已于 2026-09-14 收编进 registry，从此「改一处即可」，不再依赖「记得改三处」。
-- **索引**：[AGENTS.md §2 真理源地图](../AGENTS.md)、[KNOWN-ISSUES §二 #3](./KNOWN-ISSUES.md)
+- **索引**：[agent-playbook §A 真理源地图](./agent-playbook.md)、[KNOWN-ISSUES §二 #3](./KNOWN-ISSUES.md)
 
 ### F4 · 测试的「假绿灯」：换真身才现形
 

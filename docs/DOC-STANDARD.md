@@ -16,7 +16,7 @@ updates: [docs/INDEX.md, AGENTS.md]
 ## 一、单一真实源（SSOT）
 
 - 每个事实只在一处写（真理源），别处只放「一句指向它的话 + 链接」，不抄内容。
-- **代码级 SSOT**：命令名 → `src/services/tauri/command-names.ts`；命令定义/快捷键 → `src/commands/registry.ts`；字体 → `src/constants/fonts.ts` + `src/utils/fontStack.ts`；主题色彩 → `src/themes/types.ts::CSS_VAR_MAP`。完整地图见 [AGENTS.md §2](../AGENTS.md) 与 [docs/sensitive-areas.md §11.6](../docs/sensitive-areas.md)。
+- **代码级 SSOT**：命令名 → `src/services/tauri/command-names.ts`；命令定义/快捷键 → `src/commands/registry.ts`；字体 → `src/constants/fonts.ts` + `src/utils/fontStack.ts`；主题色彩 → `src/themes/types.ts::CSS_VAR_MAP`。完整地图见 [docs/agent-playbook.md §A](./agent-playbook.md) 与 [docs/sensitive-areas.md §11.6](../docs/sensitive-areas.md)。
 - **代码真相优先**：文档与代码不符时，**以代码为准并更新文档**（不以注释、不以记忆）。
 
 ## 二、不要重复自己（DRY）
@@ -40,10 +40,11 @@ updates: [docs/INDEX.md, AGENTS.md]
 - 任何指向已删/已改名文件的链接都是 Bug，**发现即修**。
 - 删文件走 §三 顺序（先改引用再删）。
 
-## 五、改动即自查
+## 五、改动自查（触发式，见 AGENTS.md §3）
 
-- 每改一处，立刻复查语法、逻辑、交叉引用（死链）—— 不止改完才查。
-- 改代码前查目标文件相关文档 frontmatter 的 `updates` 字段，凡列了本文档的必须一起检查；改完跑 `grep -rn "<改动文件>" --include=*.md`。
+- **语法 / 逻辑**：每改一处立刻自查，不只改完才查。
+- **交叉引用（死链）**：**仅删除 / 重命名 / 移动文件时**查（`grep -rn "<文件名>" --include=*.md`）。纯内容改动不查。
+- **`updates` 字段**：仅在改**架构 / 公共接口 / schema / Rust 命令 / 敏感区 / 发版流程**时回查联动对象；其余改动不查。
 
 ## 六、frontmatter 标准（每份文档必带）
 

@@ -1,0 +1,326 @@
+# 方案
+
+---
+plan_id: CP-20261011-001
+revision: 3
+reviewers: [B1]
+---
+
+# 剪贴板出站链路优化方案
+
+> 来源：合并审核稿与复审稿，A 独立从磁盘 + 跑真实依赖实测逐条验证。**revision 3 据第 2 轮审核收敛范围**：把 P1-4（出站 HTML 失真）从「改法」移出、单列待拍板——因其字符串级预处理会误伤代码块、KaTeX 无逐式回落会拖垮整篇复制、判据复用来源未导出，做错了比现状更伤内容；本方案本轮只把 P1-1/P1-2/P1-3 钉成可直接执行。P1-1 的根因（`fromString` 数字强转）是**属性通道通用崩溃类**，故加一处 `stripZwnj` 总兜底。本文件是方案正文与执行依据，只由 A 写。
+
+## 问题
+
+四条出站路径（`Ctrl+C` 普通选区 / `Ctrl+C` 单元格选区 / Mod+Shift+M「复制为 Markdown」/「复制全文」按钮 / solo→solo 粘贴）的缺陷：
+
+**本方案本轮修（P1）**：
+1. **P1-1 脚注经 HTML 往返后崩序列化（属通用类）**：粘贴/往返后 `label` 由字符串变数字，`stripZwnj(数字)` 抛 `TypeError`。`serializeMarkdown` 在四处被裸调，连带失效：① 防抖脏检查静默罢工（脏标不更新、自动保存不再存）；② 卸载前 `flushPendingSerialize` 抛则跳过 `editor.destroy()` ⇒ NodeView/监听器泄漏；③ 手动存盘脏门禁在 try 外；④ 关窗链抛被 `useAppWindowSession` try 接住、表现为「窗口关不掉」（非静默丢）。同一 `fromString` 强转对**任何无 `parseHTML` 的字符串属性**成立（图片 alt/title/src 同形），不止脚注。
+2. **P1-2 脚注引用 solo→solo 丢失**：`footnoteRef`（`sup[data-footnote-ref]`）被 superscript mark（`sup`）抢先命中，atom 不创建，退化成上标字面 `[^1]`。依赖 P1-1（修好后其 label 同样强转，须一并锁）。
+3. **P1-3 整表选区丢 GFM 源码**：`isTableInternal` 误含 `'table'`，`stripOpenLayers` 对闭合整表也无条件剥 ⇒ Mod+Shift+M 拿到逐格散字而非 `| … |`。
+
+**登记但不并入本轮（P2）**：P2-1 text/plain 表格走 `textBetween('\n\n')` 逐格竖排、与 CellSelection 的 TSV 不一致（独立决策，不被 P1-3 顺带修掉）。
+
+**移出本方案、单列待拍板**：P1-4「复制全文」按钮 text/html 对 callout/wikilink/数学/mermaid 四种失真——见「不改什么」与末尾「P1-4 另案」。
+
+**不改（仅记录）**：P2-2 CellSelection 丢格内行内格式（#9 既定取舍）。
+
+> 双管道（C2）：text/html 有两个生产者——`Ctrl+C` 走 PM `DOMSerializer`（renderHTML）、按钮走 markdown-it。本方案 P1-1/P1-2 影响两路共用的 parse/序列化；P1-4（按钮的 markdown-it 路）另案。
+
+## 代码仓
+
+B 只从下列路径读代码、以磁盘当前内容为准：
+
+- 待改：`serializer.ts`、`markdown/plugins/footnote.ts`、`extensions/footnote.ts`、`extensions/sub-sup.ts`、`zwnj.ts`、`MarkdownEditor.vue`、`editor-commands.ts`、`composables/useEditorSync.ts`、`composables/useDocumentSession.ts`（均在 `src/components/Editor/tiptap/...` 或 `src/...` 对应目录）
+- P1-1 闸口/调用方（核 try/catch 与传播）：`App.vue`、`composables/useAppWindowSession.ts`
+- P1-4 另案相关（本轮不改，但执行/复核时可能引用）：`utils/markdown-to-html.ts`、`components/StatusbarQuickActions.vue`、`markdown/plugins/callout.ts`、`markdown/plugins/wikilink.ts`、`markdown/plugins/frontmatter.ts`、`extensions/math-block.ts`
+- 参照（只读、不改）：`markdown/__tests__/clipboard-serializer.spec.ts`
+- 依赖层取证（只读）：`node_modules/@tiptap/core/dist/index.js`（`fromString` 约 1437-1473、`injectExtensionAttributesToParseRule`）、`node_modules/prosemirror-model/dist/index.js`（`matchTag` 约 2600、`schemaRules` 约 2642-2672、`addElement` 约 2842、`Fragment.textBetween` 约 117-134、node `isLeaf` 约 2125/2439）
+
+## 现状
+
+- **P1-1**：抛点 `zwnj.ts:33`（`text.includes` 对非字符串抛）。通用根因：`@tiptap/core/dist/index.js:1460`「属性无 `parseHTML` 才走 `fromString`」+ `:1439` 纯数字串 `Number()` ⇒ 任何 `attr="5"` 往返后变 `5`。脚注取值点 `plugins/footnote.ts:43`（`node.attrs.label || ''`）与 `:57`（`stripZwnj(node.attrs.label as string)`）；`extensions/footnote.ts` 的 `label` 仅 `{ default: '' }`（FootnoteRef `:12-15`、FootnoteDef `:55-58`）无 parseHTML ⇒ 中招。**同形属性通道**：`serializer.ts:727/728/730/742`（image alt/title/src）与 `markDelimiter` 的 link href/title 也调 `stripZwnj(node.attrs...)`，数字往返即炸（与 `zwnj.ts:16-17` 自陈的属性通道清单一致）。四处裸调 `serializeMarkdown`：`useEditorSync.ts:120`（防抖脏检查，无 try/catch）、`:199 flushPendingSerialize`（无 try/catch，`:194` 注释「必须在 `editor.destroy()` 之前调用」⇒ 抛则跳过销毁=禁令 7 泄漏）、`useDocumentSession.ts:143 evaluateDirtyFromEditor`、`MarkdownEditor.vue:910 getContent`。关窗链调用方是否有 catch 由 B 复核 `useAppWindowSession.ts`；markdown 解析路 label 取字符串（`plugins/footnote.ts:14/:27` `token.meta.label`），A 探针复证「仅 HTML 往返变数字」。
+- **P1-2**：`extensions/footnote.ts:19` `{tag:'sup[data-footnote-ref]'}` vs `sub-sup.ts:19` `{tag:'sup'}`。`schemaRules`（prosemirror-model `:2653-2670`）先 marks 后 nodes、默认 priority 50；带 tag 的 mark 规则进**同一个按 priority 排序的一维 `this.tags`**（`:2557-2559`），`matchTag`（`:2600`）首个命中即 return ⇒ `sup` 恒先命中。`addElement`（`:2842`）一元素只消费一条 rule；footnoteRef 无 `content` ⇒ `isLeaf`（`:2125`）⇒ 修好后只出 atom、不塞子节点/多余 mark。
+- **P1-3**：`serializer.ts:1055-1058` `isTableInternal` 含 `'table'`；`:1033` 单子守卫对 table 恒失效、`:1044` 多子 `peel` 无条件剥 table。但 `:750` `nodeSerializers.table` 是完整序列化器（仅 `:808-810` row/header/cell 空 handler）⇒ 函数头注释 `:1016-1017`、`:1022-1024`、`:1041-1043` 与序列化器文档注释 `:1061`（"边界容器只到 textblock 为止"）四处均误把 table 当不可独立序列化。入口 `editor-commands.ts:152-160`（NodeSelection/AllSelection 得闭合 slice）。`Fragment.textBetween`（`:117-134`）⇒ P1-3 修复前后 text/plain 逐字不变（分隔符来自格内 paragraph）。
+- **P2-1**：`serializer.ts:1087-1105` 白名单含 table/row/header/cell ⇒ `:1139 textBetween('\n\n')`；对照 `MarkdownEditor.vue:692-695` TSV。
+- **P2-2**：`MarkdownEditor.vue:688 cell.textContent`，动机注释 `:660-668`。
+
+## 改法
+
+> 按 P1 排序，可独立提交。动 parser/serializer/schema ⇒ 验收见 §4 全量保真体检 + 死链扫描。敏感区：P1-1 #23/#16、P1-2 #15/#16、P1-3 #15——改前先读对应行。
+
+- **P1-1（脚注强转崩溃 + 通用属性通道类，敏感区 #23/#16）**——三层，前两层都做、第三层为通用兜底：
+  1. 总兜底（一处收口整个类，对齐 `zwnj.ts:16-17` 清单，避免在 11 个属性点各加守卫=禁令 11 的减法门控）：`zwnj.ts:32` `stripZwnj` 开头加非字符串短路 `if (typeof text !== 'string') return text == null ? '' : String(text);`。热路径只多一次 `typeof`，非字符串才走 `String()`。这同时护住 image/link 等同形属性通道。
+  2. 治本（脚注语义锁回字符串）：`extensions/footnote.ts` 给 `FootnoteRef.label` 与 `FootnoteDef.label` 加 `parseHTML: (el) => el.getAttribute('label') ?? ''`（绕开 `fromString`）。
+  3. 口径统一：`plugins/footnote.ts:43/:57` 与 `extensions/footnote.ts:23` renderHTML 的取值统一为 `?? ''`；显式声明 `label === 0` 由旧 `|| ''`（洗成空串）变为 `'0'`（更正确），回归锁钉死该期望。
+  - 说明：第 1 层使四处裸调点都不再因脚注抛 ⇒ 连带解除脏检查罢工/销毁跳过/存盘失败/关窗异常；故本轮**不**再单独给 `useEditorSync`/`useDocumentSession`/按钮补 try/catch（根修后无此抛；按钮 `getContent` 在 try 外属既有健壮性瑕疵，留 P1-4 另案一并评估）。
+  - 回归锁：① 脚注 HTML 往返（`DOMSerializer.serializeFragment`→`PMDOMParser.parse`→`serializeMarkdown`）不抛 + 两轮收敛；② **不经 HTML、直接构造 `label` 为数字的 footnoteDef/Ref → `serializeMarkdown` 不抛**（验第 1 层兜底独立生效）；③ 断言 label 为字符串、含 `label===0` 期望。
+- **P1-2（脚注引用退化，敏感区 #15/#16）**——首选唯一：
+  - `extensions/footnote.ts:19` footnoteRef 解析规则加 `priority: 100`（`schemaRules.insert` 按降序插到 superscript 之前 ⇒ `matchTag` 先命中 atom）。不改 renderHTML/CSS/superscript。注释标「>50 即够，勿盲目加大（别处也写 100 会退化成注册序竞争）」。
+  - 备选（**仅当** `vue-tsc` 判 `priority` 类型不过、或实测 footnoteRef 仍丢时才用）：`sub-sup.ts:19` 改 `{ tag: 'sup:not([data-footnote-ref])' }`。
+  - 依赖 P1-1。回归锁：脚注引用 HTML 往返后 `footnoteRef` 在、序列化还原 `[^1]`（非上标字面）。
+- **P1-3（整表丢 GFM，敏感区 #15）**：
+  - `serializer.ts:1055-1058` `isTableInternal` 去掉 `'table'`（只留 row/header/cell）；同步改口径注释 `:1016-1017`、`:1022-1024`、`:1041-1043`、`:1061` 四处。
+  - 回归锁（三条一起）：① 闭合整表 `serializeClipboardSlice` → 含 `|` 合法 GFM；② **同一闭合整表 `serializeClipboardText` 输出逐字不变**（仍 `\n\n` 竖排，护住 #9 取舍与 P2-1 登记）；③ **多 child 闭合形态（段落+表+段落，走 `:1044` 剥循环）→ 表格还原为 GFM、非格内散字**。现有 `clipboard-serializer.spec.ts:111-130`（开口 1,1）应保持绿。
+- **P2-1（text/plain 表格 TSV）**——**默认不并入**，登记。要做则 `serializeClipboardText` 非回落分支对 table 特判 TSV（格内 `\t`、行间 `\n`，对齐 onEditorCopy）。
+- **P2-2**：**不改**。
+
+## 不改什么
+
+- **P1-4（复制全文按钮 text/html 四种失真）本轮不改、单列另案**（详见末尾）。理由：① 字符串级预处理（`sanitizeForExternal`）改写 `[[`/`[!`/`$` 会误伤 ``` 代码块与 `` ` `` 行内码——比现状更伤内容；② KaTeX 无逐公式回落，一条坏 latex 让整篇复制失败（违退化安全）；③ callout/wikilink 判据复用来源未导出（`plugins/callout.ts`/`plugins/wikilink.ts`）、且吃 Token，字符串预处理与 token 级判据互斥。**需 简乐先定方向**（A 编辑器自身 `DOMSerializer` 统一两路 / B markdown-it 规则化 + fence-aware 预处理 + 逐式回落），再出 P1-4 子方案。
+- **mermaid 出站**随 P1-4 一并另案（现状保留 `<pre><code>` 源码块，非本轮改动项，勿挂为待修缺陷）。
+- **文件落盘序列化（`serializeMarkdown` 文件模式）零改动**——保真红线；P1-3 只动 `stripOpenLayers`/`isTableInternal`。
+- **两套转义（clipboard 轻量 vs 文件严格）不合并**；`createChild` 继承 clipboard 模式正确。
+- **CellSelection 双槽压平（#9）不改**（含 P2-2）。
+- **已实测对称的 solo→solo 往返不动**：frontmatter、图片 width/height/title、callout(type/title/fold)、wikilink(target/alias)、数学 latex、mermaid、表格。
+
+## 验收
+
+1. **程序化探针**（临时 spec，跑完删；真实 schema；输入用**文件模式 `serializeMarkdown` 产物**或真实 DOMSerializer 输出，勿手工拼 HTML）：① 脚注 HTML 往返 → 不抛、`footnoteRef` 在、label 为字符串（含 `label===0`）、两轮收敛；② 直造数字 label 的 footnoteDef/Ref → `serializeMarkdown` 不抛（验 `stripZwnj` 兜底）；③ 整表闭合 → `serializeClipboardSlice` 含 `|`、`serializeClipboardText` 逐字不变、多 child 形态走 `:1044` 也还原 GFM。
+2. **回归锁入库**：上述补进 `clipboard-serializer.spec.ts` 及脚注相关 spec；不退化「格内选字/引用块内选字/链接不回落/ZWNJ 不出站」。
+3. **必跑命令**（AGENTS §4/§5）：`bun run test`（fixtures + roundtrip Phase E/F + schema-contract + mark-matrix + mark-delimiter-coverage）+ `vue-tsc --noEmit`（含 `priority` 透传的类型校验）+ `bun run build` + `SOLO_FIDELITY_SCAN=1 bunx vitest run …/fidelity-scan.spec.ts` + **死链扫描** `grep -rn "<改动文件名>" --include=*.md`（serializer/footnote/zwnj 被文档高频引用，改注释须同步台账）。
+4. **真机 WebView2 冒烟**（粘贴=时序+异步，§4 真机是通行证）：① 脚注 solo→solo 复制粘贴；② 粘带脚注内容后立刻「打开另一文件」「关窗」，确认脏态/关窗/销毁不再因抛异常失效（P1-1 四处闸口）；③ 整表 Mod+Shift+M 粘记事本/Excel。
+5. **未验证/范围外显式保留**：P1-4 全部、远程/data-uri 图片出站、大选区（1MB）同步序列化性能、`Ctrl+C` 路数学/mermaid。
+
+## P1-4 另案（待 简乐拍板方向，不在本轮执行）
+
+出站 HTML 失真是**双管道不统一**的老问题：`Ctrl+C`（PM `DOMSerializer`，callout/wikilink 已较干净、数学/mermaid 原始 source）与「复制全文」按钮（markdown-it，四种漏原始标记）产出不同。两个候选方向：
+- **A：按钮改复用编辑器自身的 HTML 序列化（PM `DOMSerializer`）**——一次统一两路（根治 C2），callout/wikilink 不再漏原始标记、无代码块误伤风险；但数学/mermaid 仍是原始 source、且需验标准元素（表格/任务列表）不被换生产者搞坏、改 `sanitizeForExternal` 私有标签剥离逻辑。改动面较大、属重构。
+- **B：保留 markdown-it，但 fence-aware 预处理 + 逐式 KaTeX 回落**——只补按钮路；须跳过代码区（复用解析侧 `protectCodeRegions` 等价能力，禁新抄正则）、每条公式 `try/catch` 回落原始 latex、`katex` 走现有 `Promise.all` 动态 import。判据复用来源（`plugins/callout.ts`/`plugins/wikilink.ts`）需先导出或指明唯一出处。
+
+建议 A/B 择一后另立 `CP-…-002`，含各自真机粘 Word/公众号 的可读性验收。**本方案 CP-…-001 不含 P1-4 执行。**
+
+
+# Agent B1
+
+## 第1轮
+
+> 本轮独立从磁盘重读了「代码仓」全部可读路径（含 `@tiptap/core/dist/index.js`、`prosemirror-model/dist/index.js` 的相关段落）。只审核，未改方案、未改代码、未跑测试；plan 里所有「实测输出」我都没有复跑，只对**机制描述与行号**逐条比对磁盘代码。
+
+### A. 核对通过（A 不必再验，可直接据此收掉备选方案）
+
+1. **P1-2 首选 `priority` 成立，备选可以删。**
+   - `@tiptap/core/dist/index.js:1452-1473`：`injectExtensionAttributesToParseRule` 返回 `{ ...parseRule, getAttrs }`（1454-1455）⇒ 自定义键 **`priority` 原样透传**进 schema 的 `parseDOM`（1536 / 1570 两处 node/mark 都走这个 map）。
+   - `prosemirror-model/dist/index.js:2642-2671`：`schemaRules` 先遍历 `schema.marks`（2653-2661）后遍历 `schema.nodes`（2662-2670）；`insert` 的插入位置是「第一个 `nextPriority < priority` 的下标」（2645-2651）⇒ **降序排列、同优先级保持插入序** ⇒ 默认 50 的 `{tag:'sup'}` mark 恒在 node 之前，与 plan 的根因判断一致；`priority: 100` 会把 footnoteRef 插到 superscript 之前。
+   - 2557-2559 + 2600-2615：`this.tags` 是**按优先级排序的一维数组**（不是按 tag 分桶），`matchTag` 从下标 0 起、首个 `matches` 命中即 `return`。plan 说的「返回首个命中」结论对，但「进的是同一个 `this.tags`」这句建议改成「同一个按 priority 排序的一维数组」，否则读者会以为按标签分桶、优先级只在桶内生效。
+   - 2842-2885 `addElement`：一个元素只消费**一条** rule（除非 `rule.consuming === false`），命中 node rule 后不会再叠加同元素的 mark ⇒ 修好后 `<sup data-footnote-ref>` 只出 atom 节点、不会附带 superscript mark，**无需**再动 superscript。
+   - 结论：`sub-sup.ts:19` 的 `sup:not([data-footnote-ref])` 备选**不必做**。superscript 是全局 mark、影响面比 footnoteRef 大，plan 现在把两案并列，执行者很容易顺手改错那一边；建议改成「首选唯一方案 + 仅当 vue-tsc/实测不过时才退」。
+   - 唯一没核对的：`priority` 是否被 Tiptap 的 TS 类型接受（`.d.ts` 不在本轮可读集）。plan 的 `vue-tsc --noEmit` 会兜住，写进验收即可。
+
+2. **P1-1 根因链与两处改法在代码上成立。** `extensions/footnote.ts:13-15`（FootnoteRef）与 `:55-57`（FootnoteDef）确实只有 `{ default: '' }`、无 `parseHTML`；`@tiptap/core:1439` 的数字正则、`:1460`「有 `attribute.parseHTML` 就不调 `fromString`」与 plan 描述逐字一致。另外确认：显式 `parseHTML: (el) => el.getAttribute('label') ?? ''` **不会**引入「属性缺失时把已有 attrs 覆盖成空串」的新问题——`injectExtensionAttributesToParseRule` 里 `null/undefined` 会跳过（1461），而 `{...oldAttributes, ...newAttributes}`（1467-1470）写死 `''` 的结果与走 default 一致。
+
+3. **P1-3 机制全部对得上磁盘**：`serializer.ts:1055-1058` 含 `'table'`；`:1033` 单子守卫、`:1044` 多子 `peel`；`:750` `table` 是完整序列化器、`:808-810` row/header/cell 是空 handler；`:1022-1024` 注释前提确实不成立。受影响入口也确认：`editor-commands.ts:152-160` 的 `edit.copyAsMarkdown` 用的就是 `serializeClipboardSlice(state.doc, state.selection.content())`，而 NodeSelection / AllSelection 的 `content()` 得到的是闭合 slice ⇒ 「整表选区丢 GFM」成立。
+
+4. **P2-1「不被 P1-3 顺带修掉」成立，且比 plan 说得更硬。** `PLAIN_TEXT_SAFE_NODES`（`serializer.ts:1087-1105`）含 table/row/header/cell ⇒ 闭合整表仍走 `:1139` 的 `textBetween`。我另外核了 `prosemirror-model/dist/index.js:117-134`：本版 `Fragment.textBetween` 签名是 `(from, to, blockSeparator, leafText)`——serializer 把 `'\n\n'` 放 blockSeparator、函数放 leafText **位置是对的**（`:248-252` 用例的 `---` 就是从 leafText 位出来的）；而 table/tableRow/tableCell 都不是 `isTextblock`，分隔符仍由格内 paragraph 产生 ⇒ **修复前后 text/plain 输出逐字相同**。
+
+5. **P2-2 / P1-4 现状与代码一致**：`MarkdownEditor.vue:670-698`（`:688 cell.textContent`、`:692-696` TSV + 逐行 `<p>` 双槽、`:660-669` 动机注释）；`markdown-to-html.ts:58-68` 装配确无 callout/wikilink/mermaid，`:64-67` 是 identity 引擎，`:15-24` 的 `sanitizeForExternal` 负责 mk-dim/frontmatter，`:73-76` 是唯一渲染出口。
+
+---
+
+### B. 发现（要 A 处理；按严重度排序）
+
+**F1｜重要｜P1-4 数学项按现在的写法验收必然不通过——`<eq>/<eqn>` 不是 identity 引擎造成的。**
+plan 自己的实测就是证据：引擎 `renderToString:(latex)=>latex` 只返回 `E=mc^2`（`markdown-to-html.ts:65`），而输出是 `<eq>E=mc^2</eq>` ⇒ **包裹层是 markdown-it-texmath 渲染器加的**。所以「引擎换成 `katex.renderToString`」得到的只会是 `<eq><span class="katex">…</span></eq>`，验收 #1-③「非标准 `<eq>/<eqn>` 至少不出现」达不到。要么覆盖该插件的 template/`customTemplate` 类选项（有就走它），要么直接改 `renderer.rules` 的 math inline/block；要么把判据改成「出站数学可读且不漏原始标记」，别承诺 `<eq>` 消失。
+
+**F2｜重要｜P1-4 数学项缺一个必须拍板的取舍：KaTeX 的 HTML 出站是「更难看」而不是「更好看」。**
+KaTeX 输出依赖自己的 CSS（`.katex` 类、字体、负 kerning），而剪贴板 `text/html` 是不带 `<link>/<style>` 的孤立片段 ⇒ 粘到 Word/公众号 大概率挤成一团乱字，比现在的 `<eq>\int…</eqn>`（干净源码）更难读。plan 只写「先验输出在剪贴板 HTML 下可读」没给方向。建议明确用 `katex.renderToString(latex, { output: 'mathml' })`（Word 认 MathML）或 `htmlAndMathml`，并把「粘 Word 真机可读」放进验收 #4，不能只靠程序化探针。
+
+**F2b｜重要｜同一处的工程约束：别把懒加载破了；且有一处断言本轮无法核对。**
+本文件整个设计就是懒加载（`:26-37` 注释「不打入首屏入口 chunk」，所有依赖都是 `await import()`，`:46-54` 一个 `Promise.all`）。plan 没写 katex 怎么进——**必须**加进那个 `Promise.all` 做动态 import，写成顶层 `import 'katex'`（或 `import 'katex/dist/katex.min.css'`）会把 KaTeX 及其 CSS 拉进入站 chunk。另外 plan 断言「`katex` 已在 `package.json` 依赖」——`package.json` 不在「代码仓」清单内，**这条我没核对**；要么 A 自查，要么把它补进代码仓一节让后续轮次可核。
+
+**F3｜重要｜P1-1 的影响面被低估：磁盘上还有 3 个裸调抛出点，其中 2 个直接砸「关窗/切文档」闸口。**
+plan 的传播链只列了 `useEditorSync.ts:120` 和 `getContent`。补：
+- `useEditorSync.ts:196-203 flushPendingSerialize`：同样裸调 `serializeMarkdown`、无 try/catch，而注释写明「必须在 `editor.destroy()` 之前调用」（切图片查看模式/卸载路径）⇒ 一抛就**跳过销毁**，正是 AGENTS 禁令 7 的监听器/NodeView 泄漏场景。
+- `useDocumentSession.ts:153`（`confirmDiscardUnsavedChanges` 调 `evaluateDirtyFromEditor`）**不在任何 try 内** ⇒ 抛异常 ⇒ 「打开文件 / 切文档 / 关窗确认」闸口整条 reject：轻则「点打开没反应」，重则关窗闸口被跳过后**静默丢编辑**。这比「脏标不更新」严重一档，属数据安全，建议在问题清单里把 P1-1 的后果改写成「出站/存盘/闸口三处连环失效」。
+- `useDocumentSession.ts:234`：`!force && !isDirty && !evaluateDirtyFromEditor()`。这个 bug 会让 store 永远停在「干净」（`:121 syncEditedContent` 再也没被执行），所以 `:234` 这条分支**必然**被走到，而 `getContent` 在 `:242` 的 try **之外** ⇒ 手动 Ctrl+S 在最常见时序下是**确定不弹 modal 的静默失败**（plan 现在写「不保证」偏软）；只有 store 恰好已是脏态时才落到 `:243 persistDocument` → 进 try → 才弹。请把这写成确定结论并把行号补齐。
+- 顺带：`MarkdownEditor.vue:373 / :509 / :526` 也裸调 `serializeMarkdown`（载入基线、同路径重载、切文档）。这些走的是 markdown 解析路，按 plan 的观察不会炸——但**「markdown 解析路的 label 一定是字符串」这句前提在 plan 里没有证据**（判据应在 `plugins/footnote.ts:14/:27` 的 `token.meta`，本轮不在可读集）。要么 A 补出处，要么把它列为「未验证项」，否则「只有 HTML 往返才变数字」是半截结论。
+
+**F4｜重要｜「复制全文」按钮也是 P1-1 的受害者，而且它的失败反馈会被绕过（违反自家 M-22）。**
+`StatusbarQuickActions.vue:37` 的 `props.editorRef?.getContent?.()` 在 `:38` 的 `try` **之外**；`getContent`（`MarkdownEditor.vue:902-913`）走文件模式 `serializeMarkdown` ⇒ P1-1 命中时这里直接抛，既进不到 `:51-58` 的 `copyFailed` 反馈分支（`:52` 注释「失败必须给反馈：此前静默吞掉」正是防这个），也复制不了，用户看不到任何异常。plan 把这个按钮只算成 P1-4 的主体，没算进 P1-1 的爆炸半径。改法要么把取数挪进 try（一行），要么明确「P1-1 修好后此项自然消失」并在真机冒烟里加一条。
+
+**F5｜重要｜P1-3 的验收缺了「text/plain 必须不变」这条锁，容易顺手把 #9 的既定取舍改掉。**
+现有用例 `clipboard-serializer.spec.ts:122-130`「CellSelection 覆盖整表（开口 1,1）：逐格平铺」喂的是 `Slice(Fragment.from(table), 1, 1)`——闭合/开口的判据在 `openStart/openEnd`，不在 `isTableInternal`，所以去掉 `'table'` 后 `:1033` 的守卫仍不成立 ⇒ 这条**应继续绿**（`:111-120` 的 row 1,1 同理）。这是好消息，但 plan 的验收 #2「不退化现有剥层用例」不够，请显式加两条断言：① `serializeClipboardSlice(doc, Slice(doc.content,0,0))` 含 `|` 且合法 GFM；② **同一闭合整表下 `serializeClipboardText`（`:1134-1139`）输出仍是逐格 `\n\n` 竖排、不变**——否则 text/plain 悄悄换形态，等于把「#9 既定取舍」在没拍板的情况下改了（P2-1 的登记也就废了）。
+
+**F6｜建议｜P1-4 callout 预处理的判据不完整。**
+plan 自己在「不改什么」里写了 solo 的 callout 有 `type/title/fold` 三个属性，但改法只说「把 `> [!TYPE]` 首行的标记剥离」。至少还要覆盖：① 自定义标题（`> [!NOTE] 我的标题` 剥完得留下「我的标题」，否则是把信息当标记丢了）；② 折叠记号 `[!NOTE]-` / `[!NOTE]+`（漏判会在正文里留一个孤零零的 `-`/`+`）。判据请写成 `[!TYPE]` + 可选 `+/-` + 可选标题。
+
+**F7｜建议｜P1-4 没说落在哪个扩展点，容易写出第 5 份平行实现。**
+`markdown-to-html.ts:17-24` 的 `sanitizeForExternal` 已经是「对外降级」的**唯一预处理出口**（mk-dim 在这儿剥、frontmatter 复用解析侧的 `FRONTMATTER_RE`，:13 那条注释明确写着「避免两处各写一套而漂移」）。plan 给的两个候选里，「渲染前预处理」应明确写成**扩 `sanitizeForExternal`**；「加 markdown-it inline/block 规则」等于在出站侧再手抄一遍 wikilink/callout 语法识别，撞 AGENTS 禁令 12（不许手抄重写）+ 真理源单一。callout/wikilink 的语法判据是否已有可直接复用的正则/插件（`markdown/plugins/*`）——该路径不在本轮可读集，**我没核对**，请 A 指明复用来源，别新写。
+
+**F8｜建议｜P1-3 要改的注释不止 `:1022-1024`，另有两处会一起变假话。**
+同一个 `stripOpenLayers` 函数头里：`:1016-1017`（举「格内选两个字 → `| 剪映 |`」的例子，说的正是 table 被剥）和 `:1041-1043`（「可剥的边界 child：透明容器（无论开口与否，离开 table 无法独立渲染）」）都把 table 算进「透明容器」。去掉 `'table'` 后这两处必须同步改口径，否则注释与代码不符（AGENTS §5「死链即 Bug」的同类）。`isTableInternal`（`:1054`）改名后反而更贴切，不用动。
+
+**F9｜建议｜验收 #3 少一条 AGENTS 硬性项，#4 少一条真机项。**
+- 必跑清单没列 §5 联动矩阵的**死链扫描** `grep -rn "<改动文件>" --include=*.md`；本轮动的是 serializer / footnote / markdown-to-html 三个被文档高频引用的文件，属明确要求。
+- 真机冒烟覆盖了脚注 solo→solo、整表 Mod+Shift+M、复制全文粘 Word，但没有覆盖 F3 的**关窗 / 切文档闸口**——那恰是 P1-1 最伤的入口。建议加一条：粘贴带脚注的内容后立刻「打开另一个文件」和「关窗」，确认弹不弹「未保存的更改」、有没有静默失败。
+- P1-1/P1-2 属「剪贴板 + 时序 + 异步」，AGENTS §4 要「敏感区对应行」先读：本方案涉及 #13（双管道，plan 的 C2 提醒 ✓）、#15/#16（parser/serializer）、#23（ZWNJ 属性通道，`plugins/footnote.ts:41-43/55-57` 的注释就点了它）。建议在「改法」每条后面把要读的敏感区行号写死，省得执行时漏。
+
+**F10｜小｜几处措辞与实现口径**
+- 「代码仓」把 `zwnj.ts` 当抛点引用（`:33`）却没列入可读路径 ⇒ B 无法核对「`.includes` 抛 TypeError」这一句（不影响改法成立，`String()` 兜底和根因修复都不依赖它）。要么补进清单，要么删掉具体行号。
+- 改法 P1-1-2 把 `node.attrs.label || ''` 换成 `String(node.attrs.label ?? '')`：顺带让 `label === 0` 从「被当假值洗成空串」变成 `'0'`——这是**行为变化**（更正确），但 plan 没提；若某条用例钉过旧行为会红，请在回归锁里显式写出 0 的期望。
+- `extensions/footnote.ts:23` 的 renderHTML 用 `HTMLAttributes.label || ''` 写文本，与改法 1 的 `?? ''` 口径不一致（一个拒假值、一个只拒 null/undefined）。建议两处统一，别留「空 label 在 HTML 里显示成 `[^]`」这类二次分歧。
+- P1-2 的 `priority` 数值：100 只保证压过默认 50，不是越大越好（若将来别的扩展也写 100 就退化成注册序竞争）。注释里写一句「> 50 即够，勿盲目加大」。
+
+### C. 本轮无法核对项（请 A 标注或补进代码仓）
+
+1. `zwnj.ts:33` 抛点、`package.json` 是否含 `katex`、`markdown/plugins/*` 里 wikilink/callout 判据能否复用、`parser.ts` 脚注 `token.meta.label` 的类型来源、以及 `saveCurrentDocument` 各调用方（Ctrl+S / 关窗 handler）是否有 catch——都不在「代码仓」列出的路径内，我没读。
+2. plan 的所有「实测」结论（脚注往返 label 变数字、`footnoteRef` 数量=0、整表输出无 `|`、四项 HTML 输出）本轮**未复跑**，我只验证了「按磁盘代码推导，这些结果是否自洽」。目前 P1-1/P1-2/P1-3/P2-1 的机制推导都自洽，P1-4 见 F1。
+
+### D. 一句总评
+
+问题清单和根因分析基本站得住（P1-2/P1-3 我按 `node_modules` 逐行核过，机制无误，`priority` 方案可直接定稿、备选可删）。主要问题在**后果算小了、验收判据写高了**：P1-1 的真实爆炸半径包括「关窗/切文档闸口静默失效」和「复制全文按钮无反馈」（F3/F4），而 P1-4 的数学项按其现有写法验收必红（F1）、且可能把出站数学改得更难读（F2）。P1-3 需要补一条「text/plain 不许变」的锁，否则会不小心动到 #9 的既定取舍（F5）。
+
+## 第2轮
+
+对照修订: 2
+
+### 本轮实读
+
+> 全部本轮重新从磁盘读取，未使用上一轮的工具输出。
+
+- `src/components/Editor/tiptap/markdown/plugins/footnote.ts`（全文 1-102）
+- `src/components/Editor/tiptap/extensions/footnote.ts`（全文 1-67）
+- `src/components/Editor/tiptap/extensions/sub-sup.ts`（全文 1-116）
+- `src/components/Editor/tiptap/zwnj.ts`（全文 1-34）
+- `src/components/Editor/tiptap/markdown/serializer.ts`（718-746、946-982、990-1141）
+- `src/utils/markdown-to-html.ts`（全文 1-76）
+- `src/components/StatusbarQuickActions.vue`（全文 1-158）
+- `src/components/Editor/MarkdownEditor.vue`（330-344、360-387、495-539、655-698、790-849、890-929）
+- `src/components/Editor/tiptap/editor-commands.ts`（120-170）
+- `src/composables/useEditorSync.ts`（全文 1-229）
+- `src/composables/useDocumentSession.ts`（全文 1-525）
+- `src/App.vue`（60-200、219-228、260-315、367-371、421-429）
+- `src/composables/useAppWindowSession.ts`（全文 1-309）
+- `src/components/Editor/tiptap/markdown/plugins/callout.ts`（全文 1-256）
+- `src/components/Editor/tiptap/markdown/__tests__/clipboard-serializer.spec.ts`（80-159）
+- `package.json`（全文）
+- `node_modules/@tiptap/core/dist/index.js`（1425-1494）
+- `node_modules/prosemirror-model/dist/index.js`（100-134、2080-2130、2434-2453、2540-2575、2590-2672、2760-2887、2910-2989）
+- 跨文件行号索引（grep，只取命中行号，未读入清单外文件正文）：`serializeMarkdown|getContent|flushPendingSerialize|evaluateDirtyFromEditor|confirmDiscardUnsavedChanges`、`clipboardTextSerializer`、`attrs.label|footnoteRef|footnoteDef`
+- **清单外自读声明**：为定位 P1-4 的「复用来源」，我额外列了 `markdown/plugins/` 目录并读了 `plugins/wikilink.ts`、`plugins/frontmatter.ts`、`extensions/math-block.ts`（三者不在「代码仓」清单）。G4 的结论建立在这次阅读上；请 A 要么把它们补进代码仓（后续轮次才可核），要么按 G4 直接指名可复用的导出。
+
+### 发现
+
+**先说收掉的**：上一轮 F1/F2/F2b/F5/F6/F7/F8/F9/F10 都已正确吸收（`<eq>` 归因、MathML 路线、katex 动态 import、text/plain 不变锁、callout 折叠/标题、`sanitizeForExternal` 落点、三处注释、死链扫描 + 真机闸口冒烟、`zwnj.ts` 入清单、`label===0` 显式期望、`priority` 首选唯一 + 备选退让、`package.json` 入清单）。`package.json:45` 确含 `katex ^0.17.0` ⇒ F2b 那条待核可结。P1-1/P1-2/P1-3 的机制我本轮逐条重核磁盘，**无误**：`zwnj.ts:33`（`text.includes`）、`plugins/footnote.ts:43/57`（`|| ''` 不挡数字、Def 侧连 `||` 都没有）、`extensions/footnote.ts:13-15/55-57`（无 `parseHTML`）、`@tiptap/core:1439`（数字正则）/`:1460`（有 `attribute.parseHTML` 才不走 `fromString`）/`:1467-1470`（注入的属性覆盖 `getAttrs` 结果）、`prosemirror-model:2645-2651`（insert 按 priority 降序、同值保插入序）/`:2653-2670`（marks 先于 nodes）/`:2557-2559`（一维 `this.tags`）/`:2600-2615`（首命中即 return）/`:2842-2885 + 2934-2978`（一个元素只消费一条 rule；mark 命中后不再叠 node，node 命中后不带 superscript）；P1-3 的 `:750/:808-810/:1033/:1044/:1055-1058` 与三处注释、P2-1 的 `:1087-1105/:1136/:1139` 全部对得上。另外新核到两条更硬的证据：`FootnoteRef` 无 `content` ⇒ `prosemirror-model:2439`（`spec.content || ""`）⇒ `isLeaf===true`（:2125）⇒ `addElementByRule:2945/2954` 走 leaf 分支、`<sup>` 里的字面 `[^1]` 被丢弃，**不会**给修好的 footnoteRef 塞进多余子节点；`Fragment.textBetween:117-134` 的 blockSeparator 只在 `node.isBlock && (isLeaf&&nodeText || isTextblock)` 时插 ⇒ table/row/cell 都不是 textblock ⇒ **P1-3 修复前后 text/plain 逐字相同是可证的，不是碰运气**。
+
+**阻塞项：G1 / G2 / G4（全在 P1-4）。其余 G3、G5-G12 是范围、归因与验收口径，改法本身不推翻。**
+
+**G1｜重要（阻塞）｜P1-4 的落点与「禁在出站侧新写判据」互斥，并且会引入新的内容破坏。**
+`sanitizeForExternal`（`markdown-to-html.ts:17-24`）拿到的是**整篇原始 markdown 字符串**，而解析侧的所有判据都是 **token 级、带作用域**的：wikilink 只注册在 `text` token 上（`plugins/wikilink.ts:33-42`），callout 是 `blockquote_open` 拦截器 + `stripCalloutMarker` 对 Token 对象动手（`plugins/callout.ts:129-158`、:53-83）。在原始字符串上全局跑 `[[…]]→alias||target`、`> [!TYPE]` 剥离、`$…$` 换 KaTeX，会命中**围栏代码块 / 行内代码**里的这些字面量：今天 ```mermaid``` / `` `[x]` `` / 代码示例里的 `[[a]]`、`> [!NOTE]` 原样进 `<pre><code>`（`_md` 用默认 preset，fence 规则默认开，:58），改后**被静默改写**。写一篇讲 Obsidian callout 或讲 wiki 链接的文章，「复制全文」就把用户的代码示例改坏了 —— 这是新引入的缺陷，比 P1-4 要修的四个失真更伤。
+⇒ 需要 A 拍板落点形态，两条都可执行但都必须写进方案：① **token 层降级**（先 `_md.parse()` 成 token，只在 `text`/`inline` children 上改写，`code_block`/`code_inline`/math 一律跳过，再 `renderer.render(tokens)`）——这才是真「复用解析侧的作用域语义」，wikilink 那条文本级正则可原样复用；② 若坚持字符串预处理，必须**先抠代码区（围栏 + 行内 code）再替换再回填**，这是新增机制，要写进改法并配回归锁。无论哪条，验收都要加一条：**代码块 / 行内代码内的 `[[…]]`、`[!TYPE]`、`$…$` 不被改写**。
+（顺带更正我上一轮 F7：我说「应明确写成扩 `sanitizeForExternal`」不完整 —— 那个出口适合剥**私有 HTML 标签**（mk-dim 这种无语法作用域的替换），不适合 `[[…]]`/`[!TYPE]`/`$…$` 这类**语法级**降级。是 G1 把它逼出来的。）
+
+**G2｜重要（阻塞）｜P1-4 数学项没有失败回落，一处坏 latex 会掀翻整篇复制。**
+现在的 `engine.renderToString:(latex)=>latex`（`markdown-to-html.ts:65`）是恒等函数、永不抛。换成 `katex.renderToString` 后，KaTeX 对非法 latex 会**抛 ParseError**，而 `renderMarkdown`（:73-76）没有逐公式的 try/catch ⇒ 抛出到按钮的 `catch`（`StatusbarQuickActions.vue:51-58`）⇒ 整篇「复制全文」变成「复制失败」，用户连正文都拿不到。这正是 AGENTS「退化安全：任何加载/优化必有 fallback」的反例，也是 M-22 那条反馈被触发的最差形态。
+⇒ 改法必须写死：**每个公式独立 try/catch，失败回落为原始源码**（`<code>` 或直接留 latex），绝不让单条公式决定整篇成败；验收加一条「故意放一条坏 latex `$\frac{-$` → 整篇仍复制成功、该处降级」。
+
+**G3｜重要｜P1-1 的兜底范围只覆盖脚注两处，但崩溃类是「属性通道」通用的。**
+`@tiptap/core:1459-1470` 的机制对**任何没有 attribute 级 `parseHTML` 的属性**都成立，且 `newAttributes` 覆盖 `getAttrs` 的结果 ⇒ 凡是 HTML 属性往返、值长得像数字（`/^[+-]?(?:\d*\.)?\d+$/`，:1439）的 attr 都会变 number。同形落点就在本轮可读的 `serializer.ts` 里：`:727` `stripZwnj(node.attrs.alt || '')`、`:728` `stripZwnj(node.attrs.title as string)`、`:730`（src）、`:742` `escapeLinkTitle(title)`（`:946-948` 直接 `.replace`）—— 粘一张标题写成 `2024` / `3.1` 的图（GFM `![说明](a.png "2024")` 往返）就落进 `zwnj.ts:33` 同一个 `TypeError` ⇒ **同一套四处连环失效**（`useEditorSync:120/:199`、`useDocumentSession:143/:234`、`getContent`）。而 `zwnj.ts:16-17` 自己列的清单是「alt / title / label / target / alias / latex」，plan 的兜底只钉了 label 两处，范围与自陈清单不匹配。
+⇒ 三选一，必须写明：① 本轮把属性通道一起治本（逐个补 attribute 级 `parseHTML`；注意 `image` 来自 `@tiptap/extension-image`，要 `extend()` 覆写，成本比脚注高一档）；② 收在**唯一出口**（`stripZwnj` 入口或新增一个 `attrText()` 助手）而不是每处 `String(...)` —— 现在 plan 的写法是「每个取值点各塞一个判断」，正踩 AGENTS 禁令 11 的味道；③ 明确「本轮只修脚注触发器，其余属性通道列为已知风险」并登记进 KNOWN-ISSUES + 「未验证项」。
+（另：plan 若采纳 ②，`escapeLinkTitle(:946)` / `escapeLinkDestination(:970)` 也是同类未收口的入口，一并看一眼。）
+
+**G4｜重要（阻塞）｜P1-4 的「复用来源」指针错，且磁盘上没有可被出站复用的导出。**
+plan 写「wikilink：判据复用 `parser.ts` 内 wikilink 处理来源」——`parser.ts` 里没有 wikilink 判据（只有 `md.use(...)` 与通用 handler 分发；grep 全文只命中 footnote 三行 :18/:118/:130）。真正来源在 `plugins/wikilink.ts:8`（`/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g`），而它和 `parseWikilinkText` **都是 module-private、未导出**；callout 的 `matchCalloutMarker`/`stripCalloutMarker`（`plugins/callout.ts:26/53`）同样未导出且吃 Token 对象。全仓目前唯一「解析侧导出给出站复用」的先例是 `FRONTMATTER_RE`（`plugins/frontmatter.ts:12`，被 `markdown-to-html.ts:13/22` 复用），而它成立恰恰因为 frontmatter 判据本来就是**字符串级**的。
+⇒ 「禁在出站侧新写」这条纪律现在没有落点。请 A 指名：要从 `plugins/wikilink.ts` / `plugins/callout.ts` **导出什么**（正则还是函数、签名如何）、由谁调用；否则执行者只能抄一份正则，正好撞禁令 12，且抄的那份还不管 token 作用域（回到 G1）。
+
+**G5｜中｜P1-4 的 mermaid 项是零改动，却在清单里挂着当缺陷。**
+`_md` 用 markdown-it 默认 preset（`markdown-to-html.ts:58`，只 `enable(['table','strikethrough'])`），围栏代码块**今天**就渲染成 `<pre><code class="language-mermaid">源码</code></pre>`。plan 选的「低成本档保留 `<pre><code>` 源码块（可读降级）」正是现状，验收 #1-③「mermaid 源码块」在零改动下即通过 ⇒ 问题清单第 4 项的「四种失真」实际只有三种可修。建议把 mermaid 从 P1-4 挪到「不改什么/现状说明」，写明「现状已可读降级，SVG 属更大改动不做」，别让它算作一条已修缺陷。
+
+**G6｜中｜P1-1 后果②的归因要按磁盘拆成两条路，现在挂错了位置。**
+关窗链路的抛**是被接住的**：`useAppWindowSession.ts:162-171` 把 `runCloseChain()` 包在 try 里 ⇒ 抛 → `abortCloseHandshake()` + `return false`，`App.vue:264-271` 外面还有一层 catch。`isDirty()`（`App.vue:189` → `useDocumentSession:139-147`）在 `runCloseChain:191` 抛出即走这条 catch ⇒ 症状是**「点 X 永远没反应、窗口关不掉」**（粘贴后 `:120` 每次都抛、`syncedGeneration` 追不上 ⇒ `isSyncedWithStore()` 恒假 ⇒ 每关必走 `getContent` 每关必抛），且「另存为」也救不了（`useDocumentSession:312` → `persistDocument:195` 同样抛，落 `:317` catch 弹「保存失败」）⇒ 最终退路只剩杀进程/强关，**那才是真丢编辑**。这不是「跳过销毁→泄漏」：泄漏的真实来源是 `MarkdownEditor.vue:819-826`（`onBeforeUnmount` 里 `:820 flushPendingSerialize` 先抛 ⇒ `:825 editor.destroy()` 与 `:829-842` 的 DOM 监听清理一起跳过，正是禁令 7），触发场景是**切图片查看模式 / 组件卸载**（App.vue 的 v-if 链），和关窗是两条路。⇒ 把 plan 的 ② 拆成「关窗/切文档：整条 reject、点 X/点打开都没反应，最后只能杀进程」与「卸载/切视图：跳过 destroy ⇒ NodeView/监听器泄漏」两条，否则执行者会去关窗链路里找泄漏。裸调用方也请写实：`useDocumentSession:153` → `openDocumentWithPrompt:166-177` 不 catch ⇒ `App.vue:79-81 / :84-86 / :313 / :371(@navigate-wikilink)` 与 `useAppWindowSession.ts:241`（拖入）全是 unhandled rejection；唯一有兜底的是启动路径 `useAppWindowSession.ts:128-143`。
+
+**G7｜中｜手动 Ctrl+S 会不会弹 modal 可以钉死，不必留「取决于」（并修正我上轮 F3）。**
+`:234` 的 `!isDirty` 与自动保存 `:488` 的 `isDirty` 门互斥 ⇒ 两种真实时序：**粘贴前已有一次成功同步**（store 已脏）⇒ `:234` 短路、不进 evaluate ⇒ 落到 `:241-242` 的 try 内 `getContent`（`:195`）⇒ **弹**「保存失败」modal；**打开即粘贴**（store 仍干净）⇒ `:234` 执行 evaluate ⇒ 在 try 外抛 ⇒ 静默（`App.vue:223` 只 `return`，命令派发层是否在别处 catch 不在可读集，plan 应把这句标为未核或把该层列入代码仓）。我上轮写「`:234` 必然被走到」不准确，按此更正；plan 现在的措辞方向对但可写成确定结论。另：自动保存循环**不会**因此死掉（门为假时根本不调 `saveCurrentDocument`），plan ① 的「自动保存不再存」表述正确，不用加码。
+
+**G8｜中｜验收 #1-③ 的输入口径要钉成「文件模式产物」。**
+「复制全文」按钮喂给 `renderMarkdown` 的是 `getContent()`（`StatusbarQuickActions.vue:37` → `MarkdownEditor.vue:902-913` → `serializeMarkdown` 文件模式，`serializer.ts:993-1000`），与剪贴板轻量转义（`:1003-1009`）是两套（现成证据：`clipboard-serializer.spec.ts:194-202` 同一内容两模式输出不同）。P1-4 的四项降级判据是在**转义后的字符串**上做的（`\|`、`\[` 等会改变形态），探针输入必须是 `serializeMarkdown(doc)` 的真实产物、而不是手写 markdown；否则「漏出 `[[…]]`/`[!NOTE]`」这类断言可能测的是另一条路，G1 的正则也会在转义形态上漏匹配。
+
+**G9｜小｜P1-3 要同步的注释还有第四处：`serializer.ts:1061`。**
+它写着 `serializeClipboardSlice`「供 `editorProps.clipboardTextSerializer` 使用」，而磁盘上 clipboardTextSerializer 接的是 `serializeClipboardText`（`MarkdownEditor.vue:341-342`），`serializeClipboardSlice` 只被 `edit.copyAsMarkdown`（`editor-commands.ts:152-160`）使用。plan 列了 `:1016-1017/:1022-1024/:1041-1043` 三处，漏了这条；执行者照 `:1061` 理解会跑去剪贴板管道里「顺手修」P2-1，正好破坏 #9 的既定取舍（与 F5 同一风险的另一半）。
+
+**G10｜小｜P1-3 的回归锁缺一条真正干活在 `:1044` 的形态。**
+`isTableInternal` 被 `:1033`（单子守卫）和 `:1044`（多子 `peel`）两处消费，plan 验收的「闭合整表」只走 `:1033`。请补 **frag=[table, 段落] 且 openStart=0 / openEnd=1**（首 child 是闭合 table，多 child 分支）——这一支过去同样被剥平丢 GFM，只改 `:1033` 也能让现有验收全绿。同时这条形态在 `serializeClipboardText` 里同样必须逐字不变（`table` 仍在 `PLAIN_TEXT_SAFE_NODES:1101-1104`，`hasProprietaryNode:1114-1121` 递归下钻），一并钉住。
+
+**G11｜小｜P1-1 的「解析路 label 一定是字符串」现在有磁盘可用证据，另外第二把锁该补。**
+`plugins/footnote.ts:14/:27` 只做 `(token.meta?.label as string) || ''`——**并不强制转字符串**（真类型来源是 markdown-it-footnote，不在可读集）。但 `MarkdownEditor.vue:373` 每次载入都跑 `serializeMarkdown(initialDoc)`：若解析路会产出数字 label，打开任何带脚注的文件都会当场炸 ⇒ 可当反证写进现状。验收再补一把独立锁：**不经 HTML，直接构造 `{label: 1}` 的 footnoteRef/footnoteDef 跑 `serializeMarkdown`** ⇒ 不抛且输出 `[^1]`；否则 P1-1 的两个改法里只有治本那一半被测到（改法 2 的 `String(...)` 兜底测不到）。现有 `roundtrip.spec.ts:242/254` 只用字符串 label 构造 ⇒ 解释了这 bug 为什么躲过了全套单测，值得在新锁注释里留一句。
+
+**G12｜口径｜P1-4 数学的两处依赖层未核 + 一处版本风险。**
+① `template`/`customTemplate`、`renderer.rules` 的 math inline/block 这些**选项名**属 `markdown-it-texmath` 依赖层，该包不在「代码仓」可读集 ⇒ 本轮无法核对，plan 现在写「有则用它」是无据可依；请把它列入代码仓或附实测输出。② `package.json:45` 是 `katex ^0.17.0`，而 `:63` 的 `@types/katex` 是 `^0.16.8`（主版本落后）⇒ `{output:'mathml'}` 能否过 `vue-tsc` 需实测，若因此要升 types 包属「装/改依赖」，按 AGENTS §0 / 禁令 15 要先获同意，plan 应预先声明。③ 加载出口：plan 的「并入 `:46-54` 的 `Promise.all`」可行（同一模块 id，不会二次打包）；若要改成本仓现成的 `getKatex()`（`extensions/math-block.ts:14-24`，已导出）必须知道它会连带 `import('katex/dist/katex.min.css')`（:19）—— 出站 MathML 不需要 CSS，而运行时注入样式正是 plan 自己引用的敏感区 #17 那条红线。二者选一，写清理由。
+
+### 结论
+
+不可执行
+
+## 第3轮
+
+对照修订: 3
+
+### 本轮实读
+
+> 全部本轮重新从磁盘读取，未使用上一轮的工具输出，也未采用方案正文粘贴的行号。
+
+- `src/components/Editor/tiptap/zwnj.ts`（全文 1-34）
+- `src/components/Editor/tiptap/markdown/plugins/footnote.ts`（全文 1-102）
+- `src/components/Editor/tiptap/extensions/footnote.ts`（全文 1-67）
+- `src/components/Editor/tiptap/extensions/sub-sup.ts`（全文 1-116）
+- `src/components/Editor/tiptap/markdown/serializer.ts`（700-819、930-1141）
+- `src/components/Editor/tiptap/editor-commands.ts`（120-170）
+- `src/composables/useEditorSync.ts`（全文 1-229）
+- `src/composables/useDocumentSession.ts`（110-330）
+- `src/components/Editor/MarkdownEditor.vue`（280-339、330-387、495-539、655-698、720-745、776-783、795-849、890-931）
+- `src/App.vue`（60-209、255-374）
+- `src/composables/useAppWindowSession.ts`（全文 1-309）
+- `src/utils/markdown-to-html.ts`（全文 1-76）
+- `src/components/StatusbarQuickActions.vue`（全文 1-158）
+- `src/components/Editor/tiptap/markdown/plugins/callout.ts`（全文 1-256）
+- `src/components/Editor/tiptap/markdown/plugins/wikilink.ts`（全文 1-63）
+- `src/components/Editor/tiptap/markdown/plugins/frontmatter.ts`（全文 1-58）
+- `src/components/Editor/tiptap/extensions/math-block.ts`（全文 1-252）
+- `src/components/Editor/tiptap/markdown/__tests__/clipboard-serializer.spec.ts`（全文 1-299）
+- `node_modules/@tiptap/core/dist/index.js`（1425-1493、1500-1583）
+- `node_modules/prosemirror-model/dist/index.js`（100-134、2118-2130、2432-2457、2540-2615、2639-2681、2830-2887、2930-2989）
+- **清单外仅取 grep 命中行、未读正文**（为判断可核性，按上一轮同样方式声明）：`serializeMarkdown` 在 `MarkdownEditor.vue` 的命中行（373/509/526/910）、`isTableInternal|stripOpenLayers|serializeClipboard*` 在 `serializer.ts` 的命中行、`serializeClipboardSlice|serializeClipboardText` 全仓命中行（含 `tiptap/__tests__/editor-commands.spec.ts:10`）、`protectCodeRegions` 全仓命中行（`markdown/parser.ts:40`）
+
+### 发现
+
+**先说收掉的**：P1-4 移出执行后，第 2 轮的三个阻塞项（G1 落点互斥 / G2 无逐式回落 / G4 判据未导出）不再作用于本轮执行范围；第 1 轮 F3/F4 与第 2 轮 G6 的后果归因也已按磁盘写对——①②③④ 四条我逐条核到底：`useEditorSync.ts:120`（空闲回调裸调，抛后 `:121 syncEditedContent`、`:123 syncedGeneration` 一起不执行 ⇒ 脏标恒不更新、自动保存门永假）、`:199` + `MarkdownEditor.vue:819-826`（flush 先抛 ⇒ `destroy()` 与 `:829-842` 的 DOM 监听清理一起跳过，正是禁令 7）、`useDocumentSession.ts:234` 在 `:242` 的 try **之外**（store 已脏时短路、落到 `:195` 才进 try ⇒ 弹 modal；store 干净时 evaluate 抛 ⇒ 静默，与 G7 的两时序判断一致）、`useAppWindowSession.ts:162-171` 接住 `runCloseChain()` ⇒ `App.vue:264-271` 那个「强制 destroy」的逃生分支**不可达**，症状就是「窗口关不掉」而非丢编辑。P1-1/P1-2/P1-3 的**机制层**本轮逐行重核磁盘，全部成立，A 不必再验：`@tiptap/core:1439`（数字正则）/`:1440-1441`（`true`/`false`）/`:1454-1455`（`{...parseRule, getAttrs}` ⇒ `priority` 原样透传）/`:1459-1470`（无 attribute 级 `parseHTML` 才走 `fromString`；null/undefined 跳过；`newAttributes` 覆盖 `getAttrs` 结果）/`:1506`+`:1533-1536`（按 `attribute.type === extension.name` 注入 node 与 mark 两条）/`:1429-1433`（`getRenderedAttributes` 把 `label` 原样写进 HTML ⇒ 往返闭环成立）；`prosemirror-model:2645-2651`（insert 按 priority 降序、同值保插入序）/`:2653-2670`（marks 先于 nodes）/`:2557-2559`（一维 `this.tags`）/`:2601-2614`（首命中即 return）/`:2849-2884`（一元素只消费一条 rule，仅 `consuming === false` 才继续）/`:2439+2125`（footnoteRef 无 `content` ⇒ `isLeaf`）/`:2938-2956`（leaf 分支只 `insertNode` + `findInside`，`<sup>` 里的字面 `[^1]` **不会**被塞成子节点，也不叠 superscript mark）；`Fragment.textBetween:117-134` 的分隔符条件是 `node.isBlock && (node.isLeaf && nodeText || node.isTextblock)` ⇒ table/row/cell 都不是 textblock ⇒ **P1-3 修复前后 text/plain 逐字不变是可证的**（锁 ② 与 `hasProprietaryNode:1114-1121` 的白名单递归我按 `[table]` 与 `[p,table,p]` 两种 frag 各推了一遍，分隔符与 `first` 记账完全一致）。P1-3 的三条锁都可满足、现有 `clipboard-serializer.spec.ts:111-120 / :122-130` 确实继续绿（`:111-120` 的 row 与 `:122-130` 的 table 都靠 `openStart>0` 走进 `:1034` 递归、与 `isTableInternal` 无关；`:97-109` 走 `:1031` 的 textblock 早返）；`isTableInternal` 只有 `:1033`/`:1044` 两个消费者、`serializeClipboardSlice` 只被 `editor-commands.ts:155` 用，四处注释的**内容**确实都要改口径。
+
+**以下是本轮新见（不推翻三条改法本身，但涉及范围声称、残留风险与锁的完整性；H2/H4 建议按「必须处理」对待）**
+
+**H2｜重要｜P1-1 第 1 层「一处收口整个类」的范围比磁盘大：属性通道上**不经 `stripZwnj`** 的字符串操作不受它保护。**
+可见崩溃点：`serializer.ts:700` `const lang = node.attrs.language || ''` ⇒ `:704 lang.includes('`')`（属性值一旦是 number 就同一个 `TypeError`）；`:768-769`（`cell.attrs.align`）、`:627`（`'#'.repeat(node.attrs.level)`）因值域不是数字串暂无风险，`language` 的属性配置在 `extensions/` 内、本轮不在可读集，是否会被强转我**核不了**。
+另有**口径冲突**：`plugins/callout.ts:238` 已经存在一份本地守卫 `typeof node.attrs.title === 'string' ? stripZwnj(...) : ''` —— 数字 title 在这里被**洗成空串**，与第 1 层「`String()` 保内容」相反。方案声称「避免在 11 个属性点各加守卫=禁令 11」，但磁盘上第 12 处守卫已经在，且行为不一致。
+⇒ 要么把声称改成「护住**经 `stripZwnj` 的**属性通道，其余登记为已知风险」（并把 `:704` 这类点写进 KNOWN-ISSUES / 未验证项），要么真收口：加一个 `attrText()` 唯一入口、让 `:700`/`:704` 也走它，并**删掉** `plugins/callout.ts:238` 的本地 typeof。
+另外 `问题`/`现状` 通篇把这一类叫「数字强转」，`@tiptap/core:1440-1441` 对 `"true"`/`"false"` 同样强转成布尔，而布尔走 `String()` 得 `"true"`、走 `.replace/.includes` 直接炸 ⇒ 回归锁请补一个 `"true"` 形态，别只测数字。
+
+**H3｜中｜守卫之后仍有「静默丢值」：`|| ''` 与假值三元不吃 number，只吃 0。**
+`serializer.ts:727` `stripZwnj(node.attrs.alt || '')`、`:730`（src）、`:728` `node.attrs.title ? stripZwnj(...) : undefined`、`:700`（language）—— `![0](a.png "0")` 这类值经 HTML 往返变 number `0`，在**进入 `stripZwnj` 之前**就被 `|| ''`／三元吃掉 ⇒ 属性丢失（不崩、也不报错）。方案的第 3 层「口径统一 `?? ''`」只做了脚注三处（`plugins/footnote.ts:43/:57`、`extensions/footnote.ts:23`），没做 image 这几处。⇒ 要么把 `:727/:728/:730` 一起纳入同一口径，要么在方案里明写「`0` 形态属性值仍会丢，属已知残留」，别说「护住 image/link 等同形属性通道」。
+
+**H1｜中｜「`serializeMarkdown` 在四处被裸调」少算三处，漏的恰是最靠前的路径。**
+磁盘命中 7 处：`useEditorSync.ts:120/:199`、`useDocumentSession.ts:143`（经 getContent）、`MarkdownEditor.vue:910`（getContent）——这四条方案写了；**另有 `MarkdownEditor.vue:373`（建编辑器的基线序列化）、`:509`（同路径重载比对）、`:526`（切文档重置基线）**。这三处的抛后果比列出的四条更重：`:373` 在 `createEditor` 里，调用方 `lazyInitEditor`（`:726-731`）被模板 `@click`（`:4`）和 `requestAnimationFrame`（`:780-783`）触发，**两处都无 catch**（只有 `:736` 那条在 try 内）⇒ 编辑器建成半初始化壳：store 基线不写、`:378 markSynced` 跳过、`:386 solo:editor-ready` 不派发（大纲 scroll-spy 等消费方拿不到 view）、每次点击编辑区再抛一次；`:526` 抛 ⇒ 文档已在 `:523` 换成新内容而 `:527-530` 全跳过 ⇒ 基线仍是上一篇的序列化产物，正是 `:369-371` 注释警告的「关窗误提示保存」回潮。⇒ 现状那句请改成「7 处裸调（列出）」并补这两条后果；本轮不补 try/catch 的**决定我同意**（根修后不抛），但爆炸半径不能写小——尤其 H2 说的非 `stripZwnj` 同类崩溃点还活着。
+
+**H4｜中｜P1-3 缺两条「新语义」的锁：修复后 table 剥不剥改由 `:1044` 的 `open > 0` 决定。**
+现有三条锁（闭合整表 / text/plain 逐字不变 / 段落+表+段落）都只测「table **不被剥**」这一侧。`:1044` 的 `peel = isTableInternal(child) || (!child.isTextblock && !child.isInline && open > 0)` 里首 child 取 `openStart`、尾 child 取 `openEnd`、中间恒 0 ⇒ 请补：
+① **边界开口的表仍须剥平**（`[表, 段落]` openStart>0、`[段落, 表]` openEnd>0）——磁盘现有 spec 里**没有任何一条**覆盖这个形态（`:111-130` 走的是单子分支 `:1033→:1034`，不是 `:1044` 的首/尾 child）；不钉住它，后来人很容易把「table 移出 `isTableInternal`」误读成「表永远不剥」，把「跨入表格选字」退化成整张 GFM。
+② **表在首位、`openStart=0 / openEnd>0`** 的多 child 形态（锁 ③ 只钉了中间 child）。
+另：真机项 #4-③「整表 Mod+Shift+M」请注明入口——`NodeSelection`（单子闭合）与 `AllSelection`（多 child 中间）走的是不同分支，两条都要各粘一次记事本/Excel。
+
+**H5｜小｜第 1 层的写法在类型系统里是「看不见」的守卫，且可能撞 lint。**
+签名保持 `stripZwnj(text: string)`（`zwnj.ts:32`）时，`typeof text !== 'string'` 分支里 `text` 被窄化成 `never`——`vue-tsc` 能过，但若本仓启用了 `@typescript-eslint` 的 `no-unnecessary-condition`（strict 集）会报「条件恒假」；`markdown-to-html.ts:26` 的存在说明确有 @typescript-eslint 配置。验收 #3 只列了 `vue-tsc`/`build`/`test`，**没列 lint**。
+更实质的问题：签名不收窄，磁盘上 9 处 `as string` 的假 cast 就原地留着（`serializer.ts:440/:442/:728/:730`、`plugins/footnote.ts:57`、`plugins/wikilink.ts:49/:50`、`plugins/callout.ts:231/:238`），「声明 string 实传 number」这类假话今后仍然测不出来。建议把签名放宽为 `stripZwnj(text: unknown): string`（窄化后 `text.includes` 仍合法），顺带删掉这些 cast——这才是「减」，也与禁令 11 的取向一致。
+
+**H6｜小｜第 4 处注释的行号与缺陷内容对不上，两条应分列。**
+`serializer.ts:1061` 实际写的是「出站复制：…（供 `editorProps.clipboardTextSerializer` 使用）」——这条的缺陷是**消费者归属错**（磁盘：`MarkdownEditor.vue:341-342` 的 `clipboardTextSerializer` 接 `serializeClipboardText`，`serializeClipboardSlice` 只被 `editor-commands.ts:155` 的 `edit.copyAsMarkdown` 用）；方案引的「边界容器只到 textblock 为止」在**同一段注释的 `:1070`**。写成「改 `:1061` 的引文」执行者会在 :1061 找不到那句话而漏改；更要紧的是：这条错归属若不点破，执行者很可能以为 P1-3 也影响 `Ctrl+C`，顺手去改 text/plain 那条管道——正是锁 ② 要防的 #9 既定取舍被偷偷改掉。
+
+**H7｜小｜P1-3 可能改口的另一份既有测试不在「代码仓」清单。**
+`src/components/Editor/tiptap/__tests__/editor-commands.spec.ts`（grep 命中行 `:10` 就写着「…serializeClipboardText；这里只管源码这条显式通道」）测的正是 `serializeClipboardSlice`。该文件不在清单 ⇒ 里面有没有「整表选区输出不含 `|`」这类期望我核不了。若有，P1-3 落地后要同步改**期望**（属期望变更，不是回归）。请把它补进代码仓，或在验收 #2 显式写明这一条。
+
+**H8｜小｜现状「markdown 解析路 label 取字符串」的证据仍是 cast，换成磁盘上更硬的反证。**
+`plugins/footnote.ts:14/:27` 是 `(token.meta?.label ?? token.meta?.id) as string`——类型断言没有任何运行时保证（真类型来源 markdown-it-footnote 不在可读集）。可写的证据是：`MarkdownEditor.vue:373` 每次载入都跑 `serializeMarkdown(initialDoc)`，打开带脚注的文件不炸 ⇒ 解析路交出的 label 不是 number。建议换成这条，并把「meta 的实际类型」列为未核项；否则「仅 HTML 往返变数字」在文档里仍是半截结论。
+
+**H9｜小（仅另案口径）｜P1-4 方向 B 指的 `protectCodeRegions` 同样是「未导出 + 不在清单」。**
+磁盘 `markdown/parser.ts:40` 有 `function protectCodeRegions(...)`（`:737` 内部使用），但**未 `export`**，且 `parser.ts` 不在本方案代码仓。本轮不阻塞（P1-4 已移出），但第 2 轮 G4 那个错正是「禁在出站侧新写判据」却没有可复用出口——建议那句补半行「需先导出（含 `restore` 配对契约）」，否则 CP-002 照抄这条指针会再犯一次。
+
+### 结论
+
+可以执行

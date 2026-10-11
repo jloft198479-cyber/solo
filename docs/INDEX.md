@@ -12,7 +12,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 
 > 接手者第一站（`HANDOVER.md`）之外的「地图」。所有文档按受众/状态列清，废弃项显式标出。
 > **frontmatter 标准定义见 [`DOC-STANDARD.md`](./DOC-STANDARD.md)**；本文是每份文档 tag/摘要的落地清单。
-> **修改联动规则见 [`AGENTS.md`](../AGENTS.md) §5**（改 X 必查 Y 矩阵）。
+> **事实在哪改：见 [`docs/agent-playbook.md`](./agent-playbook.md) §A 真理源地图。什么时候才动文档：见 [`AGENTS.md`](../AGENTS.md) §3**（默认不动，三类触发才动）。
 
 ## 文档地图（全量，含 tag/摘要）
 
@@ -23,7 +23,8 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | 路径                                                   | type    | 受众      | 状态   | tag / 摘要                                                        |
 | ------------------------------------------------------ | ------- | --------- | ------ | ----------------------------------------------------------------- |
 | [`README.md`](../README.md)（+ zh-CN / ja-JP / ko-KR） | product | user      | active | 产品导览：介绍、安装、dev 起步。4 语言本地化，DOC-STANDARD §二 确认保留 |
-| [`AGENTS.md`](../AGENTS.md)                            | core    | agent     | active | Agent 契约：禁令清单 + 真理源地图 + 敏感区索引 + 工作流 + 协作方式 |
+| [`AGENTS.md`](../AGENTS.md)                            | core    | agent     | active | Agent 契约**最小集合**：角色权限 + 硬禁令 + 按需加载指针 + 文档纪律。**必读** |
+| [`docs/agent-playbook.md`](./agent-playbook.md)        | core    | agent     | active | AGENTS.md 的**展开层**（按需加载）：真理源地图 / 敏感区速查 / 工作流与验收 / 禁令理由 |
 | [`ARCHITECTURE.md`](../ARCHITECTURE.md)                | core    | dev       | active | 架构真相：技术栈版本/命令清单/目录树（敏感区速查见 ./sensitive-areas.md）             |
 | [`docs/sensitive-areas.md`](./sensitive-areas.md) | core | dev | active | 敏感区安全网：易错区速查表 + §11.1–§11.8 详解（改码前必读） |
 | [`BUILD_GUIDE.md`](../BUILD_GUIDE.md)                  | core    | dev       | active | 构建手册真理源：工具链/环境变量/编译命令/故障排查                 |
@@ -141,7 +142,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 
 ## 文档联动表（快速查询）
 
-> 完整矩阵与纪律见 `AGENTS.md` §5。此处为「想了解 X → 读哪份」的入口级速查。
+> 事实真理源地图见 `docs/agent-playbook.md` §A；文档纪律见 `AGENTS.md` §3。此处为「想了解 X → 读哪份」的入口级速查。
 
 | 想了解                       | 先读                                                                                                              |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
