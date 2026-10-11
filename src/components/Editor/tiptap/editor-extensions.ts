@@ -55,6 +55,7 @@ import { ParagraphFocus } from './extensions/paragraph-focus';
 import { ListFold } from './extensions/list-fold';
 import { ListBackspaceGuard } from './extensions/list-backspace-guard';
 import { guardListInputRules } from './extensions/list-input-guard';
+import { CellContentGuard } from './extensions/cell-content-guard';
 import { SearchHighlight, type SearchHighlightOptions } from './extensions/search-highlight';
 
 type SlashCommandSuggestionProps = SuggestionProps<SlashCommandItem, SlashCommandItem>;
@@ -331,6 +332,10 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     // priority 100）之前接管 Backspace / Mod-Backspace / Shift-Tab，
     // 方案与契约锁见 extensions/list-backspace-guard.ts 头注释
     ListBackspaceGuard,
+    // 单元格内容守卫——schema 已把格内内容收紧为 `paragraph`（见 extensions/table.ts），
+    // 但入站路径（粘贴 / insertContent / 拖拽）会绕过 schema 并**破坏表格结构**，
+    // 本守卫是那道中枢拦截（详见 extensions/cell-content-guard.ts 头注释）
+    CellContentGuard,
     Placeholder.configure({
       placeholder: '开始写作… 输入 / 唤起命令',
     }),

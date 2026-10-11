@@ -276,24 +276,37 @@ export class MarkdownSerializerState {
    *    的序列化器写出，不走它们就不会进输出；
    *  · ⚠️ **`callout.title` 存在 attrs 里**（不在 content）⇒ 必须显式补写，否则丢字。
    *
+   * ⚠️ **分隔符补在每一层兄弟块之间**（2026-10-11 第二次订正，台账 §二 #60）：
+   * 只在格的直接子块之间补，容器**内部**的兄弟块仍会首尾黏连（实测
+   * `taskList[买奶✓, 写码]` ⇒ `买奶写码`、`bulletList[第一项, 第二项]` ⇒ `第一项第二项`）
+   * —— 字符没少但**词与词的边界丢了**，属内容变形。⇒ 递归里同样补。
+   *
+   * 分隔符统一用 `<br>`：它是 **GFM 单元格里唯一被各家渲染器认可的换行写法**
+   * （尾随空格与反斜杠在格内普遍失效；Typora / GitHub / VS Code 预览一致支持），
+   * 且**读侧已由 parser 的 `inSingleLineContainer` 分支认回**（`<br>` → `hardBreak`）
+   * ⇒ 写出去的东西自己读得回来（此前是单向约定，重开屏幕上是字面标签，台账 §二 #63）。
+   *
    * 与「先渲染再剥前缀」路线的区别：那条要逐类处理块语法、漏一类就漏一类；这条按
    * 「是 textblock 就拿文字、不是就下钻」两条规则一刀切，新增块类型**默认被拍平**，
    * 不会因为忘了登记而把块语法漏进单元格（退化安全）。
+   *
+   * @returns 该子树拍平后的行内文本（不含首尾空白）
    */
-  renderFlattenedInline(node: PMNode) {
+  renderFlattenedInline(node: PMNode): string {
     if (node.isTextblock) {
-      this.renderInline(node);
-      return;
+      const s = this.createChild();
+      s.markTableCell();
+      s.renderInline(node);
+      return s.output.trim();
     }
+    const parts: string[] = [];
     if (node.type.name === 'callout') {
       const title = typeof node.attrs.title === 'string' ? node.attrs.title.trim() : '';
-      if (title) {
-        this.write(this.escapeInline(stripZwnj(title)));
-        // 标题是「一行」⇒ 与正文之间补 `<br>`（格内换行的既有写法），别黏连成 `标题正文`
-        if (node.textContent) this.write('<br>');
-      }
+      // ⚠️ 标题在 **attrs** 里（不在 content），不显式补写就会丢字
+      if (title) parts.push(this.escapeInline(stripZwnj(title)));
     }
-    node.forEach((child) => this.renderFlattenedInline(child));
+    node.forEach((child) => parts.push(this.renderFlattenedInline(child)));
+    return parts.filter(Boolean).join('<br>');
   }
 
   /**
@@ -567,13 +580,22 @@ export class MarkdownSerializerState {
         result = result.replace(/^([#+\->])/, '\\$1');
         result = result.replace(/^(\d{1,9})([.)])(?=\s|$)/, '$1\\$2');
       }
-      result = result.replace(/\n([#+\->])/g, '\n\\$1');
-      result = result.replace(/\n(\d{1,9})([.)])(?=\s|$)/g, '\n$1\\$2');
-      // 整行 `=` 是 setext 标题下划线（H1）：`bar\n===` 会被读成「bar」是一级标题。
-      // 必须与行内 `==高亮==` 的成对判定分开——`===` 只有**一个** `==` run，
-      // pairNeeded.equals 判为「不成对」而放行，但它在行首是块级语法。
-      // 判据收紧到「整行只有 `=` 与尾随空白」，避免 `= foo` 这类普通文本被误伤。
-      result = result.replace(/(^|\n)(=+)(?=[ \t]*(?:\n|$))/g, '$1\\$2');
+      // ⚠️ **格内一律不做「按 `\n` 判行首」的转义**（2026-10-11 第二次订正，台账 §二 #61）：
+      // 下面三条都以 `\n` 为行界，而**格内的 `\n` 不是行** —— `cellToText` 会在最后把它们
+      // 统一换成 `<br>`（合规的格内换行写法）。上面 `atBlockStart()` 那道守卫只管得住
+      // `^` 锚定的两条，管不住这三条 ⇒ 于是多行内容（`text*` 容器的文字天然含 `\n`）的
+      // **第二行起仍被平白加反斜杠**：实测格内多行 `codeBlock` R1=`…<br>\- 行二…`、
+      // R2=`…<br>- 行二…` ⇒ **R1≠R2，首存即改文件**（正是 #61 要清的那类漂移）。
+      // 门控安全性与 `atBlockStart()` 同源：格内那点转义**永远不会被需要**。
+      if (!this.inTableCell) {
+        result = result.replace(/\n([#+\->])/g, '\n\\$1');
+        result = result.replace(/\n(\d{1,9})([.)])(?=\s|$)/g, '\n$1\\$2');
+        // 整行 `=` 是 setext 标题下划线（H1）：`bar\n===` 会被读成「bar」是一级标题。
+        // 必须与行内 `==高亮==` 的成对判定分开——`===` 只有**一个** `==` run，
+        // pairNeeded.equals 判为「不成对」而放行，但它在行首是块级语法。
+        // 判据收紧到「整行只有 `=` 与尾随空白」，避免 `= foo` 这类普通文本被误伤。
+        result = result.replace(/(^|\n)(=+)(?=[ \t]*(?:\n|$))/g, '$1\\$2');
+      }
     }
 
     // ZWNJ 仅供解析阶段使用，序列化时移除以避免污染输出
@@ -866,21 +888,18 @@ const nodeSerializers: Record<string, NodeSerializer> = {
  * 将表格单元格节点序列化为纯文本（含 inline 标记）。
  *
  * **格内一切块级结构一律拍平为行内文本**（台账 §二 #60，决策二 B1）——理由见
- * `renderFlattenedInline`。`heading` 的拍平（#56）是它的一个特例，现在走同一条路径。
- * 多个子块之间用 `<br>` 分隔（与「格内换行 → `<br>`」的既有写法一致）；旧实现只对
- * `paragraph` 子块调 `renderInline`、块间不插任何分隔，多个块会首尾黏连成
- * `- 甲- 乙`（实测，见 PROPOSAL-cell-fidelity §5.2）。
+ * `renderFlattenedInline`。schema 侧已把单元格内容收紧为 `paragraph`（GFM 格内没有块级
+ * 语法），这里保留拍平分支是**退化安全**：不假设 schema 永远完美（旧 JSON 快照 / 未来回归
+ * 都不会把块级语法写进格子）。
+ * 多个子块之间以 `<br>` 分隔；`hardBreak` 写出的 `'  \n'` 也一并归一成 `<br>`
+ * ⇒ 与读侧（parser 把格内 `<br>` 认成 `hardBreak`）对称，写出去的东西自己读得回来。
  */
 function cellToText(state: MarkdownSerializerState, cell: PMNode): string {
+  const s = state.createChild();
+  s.markTableCell();
   const parts: string[] = [];
-  cell.forEach((child) => {
-    const s = state.createChild();
-    s.markTableCell();
-    s.renderFlattenedInline(child);
-    const text = s.output.trim();
-    if (text) parts.push(text);
-  });
-  return parts.join('<br>').replace(/ {2}\n/g, '<br>').replace(/\n/g, '<br>');
+  cell.forEach((child) => parts.push(s.renderFlattenedInline(child)));
+  return parts.filter(Boolean).join('<br>').replace(/ {2}\n/g, '<br>').replace(/\n/g, '<br>');
 }
 
 const WORD_CHAR_RE = /[\p{L}\p{N}]/u;

@@ -171,6 +171,13 @@ interface StackItem {
   marks: readonly Mark[];
 }
 
+/**
+ * 格内 / 标题内的换行标签（GFM 单元格里**唯一**被各家渲染器认可的换行写法：
+ * 尾随空格与反斜杠在单元格内普遍失效，Typora / GitHub / VS Code 预览一致支持 `<br>`）。
+ * 只作用于**单行容器**（表格单元格 / ATX 标题），正文里的 `<br>` 保持字面。
+ */
+const BR_TAG_RE = /<br\s*\/?>/gi;
+
 export class MarkdownParseState {
   schema: Schema;
   stack: StackItem[];
@@ -208,8 +215,49 @@ export class MarkdownParseState {
     return false;
   }
 
+  /**
+   * 当前是否处在**表格单元格**里（比 `inSingleLineContainer` 更窄——不含标题）。
+   *
+   * 为什么单独要一个：单元格的换行有**唯一的可靠载体** `<br>`（Typora / GitHub /
+   * VS Code 一致），读写可以做成对称；而标题并没有这个约定（标题里出现 `<br>` 是
+   * 从别的编辑器粘来的边角情形）。实测（2026-10-12）：把读侧那条 `<br>` 规则开到
+   * 「含标题」会让「标题行尾带两个空格（硬换行）」的既有文档**二轮不收敛**（全仓
+   * 保真体检基线 2 → 3）⇒ 范围必须按需要收紧到格子。
+   */
+  get inTableColumn(): boolean {
+    for (const item of this.stack) {
+      const name = item.type.name;
+      if (name === 'tableCell' || name === 'tableHeader') return true;
+    }
+    return false;
+  }
+
   addText(text: string) {
     if (!text) return;
+    // **表格单元格**是行内语境：其中的 `<br>` 就是换行（见 `BR_TAG_RE` 注释）。
+    // 序列化侧把格内换行一律写成 `<br>`，此处补上**读侧** ⇒ 双向对称。
+    // 修的是：此前 `html:false` 下 `<br>` 是字面文本 ⇒ 含换行的格子（Shift+Enter，
+    // 或序列化器自己写出的多块分隔）重开后屏幕上是 `<br>` 标签字符（台账 §二 #63）。
+    // 分段里已不含 `<br>` ⇒ 递归一层即止。
+    //
+    // ⚠️ **只认单元格，不含标题**（实测订正）：标题也是「单行容器」，但把标题里的 `<br>`
+    // 一起认成 hardBreak 会让「标题行尾带两个空格（硬换行）」这类既有文档**二轮不收敛**
+    // （全仓保真体检基线 2 → 3）。⇒ 范围按需要收紧到格子。
+    //
+    // ⚠️ **行内代码里的 `<br>` 不是标签**（实测订正）：`` `<br>` `` 这种写法在文档里极常见
+    // （本仓库的审核报告就满是它），而 code span 是**字面容器**。若照拆，会把
+    // `` `<br>` `` 变成「空代码 + 换行 + 空代码」⇒ 行内代码静默丢失（全仓保真体检抓到：
+    // 审核报告少 1 个 `<code>`）。⇒ 带 `code` mark 的文本一律不拆。
+    if (this.inTableColumn && !this.marks.some((m) => m.type.name === 'code')) {
+      const parts = text.split(BR_TAG_RE);
+      if (parts.length > 1) {
+        for (let i = 0; i < parts.length; i++) {
+          if (i > 0) this.addNode(this.schema.nodes.hardBreak);
+          if (parts[i]) this.addText(parts[i]);
+        }
+        return;
+      }
+    }
     // 文本只能进 textblock（`inline*`）。栈顶若**不是** textblock——例如块级节点
     // 把所在段落提前收掉了，而同一 inline 里还有后续文本子节点——直接 push 会把裸
     // 文本塞进 block 容器（doc / 列表项 / 单元格）⇒ 容器内容非法 ⇒ 逐层 `createAndFill`

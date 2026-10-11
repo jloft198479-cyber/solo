@@ -2021,4 +2021,99 @@ describe('Round-trip: parse → serialize', () => {
       expect(out, '两块之间必须有分隔').toContain('甲<br>乙');
     });
   });
+
+  describe('Phase P: 格内换行双向对称 + 深一层不黏连（2026-10-12，台账 §二 #60/#61/#63）', () => {
+    // 依据：`<br>` 是 **GFM 单元格里唯一被各家渲染器认可的换行写法**（尾随空格与反斜杠在
+    // 格内普遍失效；Typora / GitHub / VS Code 预览一致）。写侧早就写 `<br>`，读侧此前是
+    // **字面标签**（`html:false`）⇒ 单向约定、重开屏幕上就是一串 `<br>` 字符。
+    // 本组锁三件事：读侧认回来、往返对称、深层兄弟块也补分隔。
+    const schema = createTestSchema();
+    const P = (t: string) => schema.nodes.paragraph.create(null, t ? [schema.text(t)] : []);
+    const LI = (t: string) => schema.nodes.listItem.create(null, [P(t)]);
+    const cellDoc = (children: PMNode[]) =>
+      schema.nodes.doc.create(null, [
+        schema.nodes.table.create(null, [
+          schema.nodes.tableRow.create(null, [schema.nodes.tableCell.create(null, children)]),
+        ]),
+      ]);
+    /** 格内文本块的节点链（用于断言「换行确实是一个 hardBreak」而不是字面标签） */
+    const cellChain = (doc: PMNode): string[] => {
+      const chains: string[] = [];
+      doc.descendants((n) => {
+        if (n.type.name === 'tableCell' || n.type.name === 'tableHeader') {
+          n.forEach((c) => {
+            const inner: string[] = [];
+            c.forEach((x) => inner.push(x.isText ? `text(${x.text})` : x.type.name));
+            chains.push(inner.join('+'));
+          });
+        }
+        return true;
+      });
+      return chains;
+    };
+
+    it('读侧认 `<br>`：重开后是 hardBreak，不是字面标签', () => {
+      // 反向校准：删掉 `parser.ts::addText` 里的 `inSingleLineContainer` 分支 ⇒ 本条转红
+      const doc = parseMarkdown(schema, '| 甲<br>乙 |\n| --- |\n');
+      expect(doc.textContent, '不该再有字面标签').not.toContain('<br>');
+      expect(cellChain(doc), '格内应当是一个 hardBreak').toEqual(['text(甲)+hardBreak+text(乙)']);
+    });
+
+    it('Shift+Enter 的换行终于读得回来（doc → 文件 → doc 闭合）', () => {
+      // 反向校准：同上，撤读侧分支 ⇒ 重开后变字面文本，本条转红
+      const doc = cellDoc([
+        schema.nodes.paragraph.create(null, [
+          schema.text('第一行'),
+          schema.nodes.hardBreak.create(null),
+          schema.text('第二行'),
+        ]),
+      ]);
+      const out1 = serializeMarkdown(doc);
+      expect(out1, '落盘用 `<br>`（GFM 通用写法）').toContain('第一行<br>第二行');
+      expect(cellChain(parseMarkdown(schema, out1)), '重开仍是换行').toEqual([
+        'text(第一行)+hardBreak+text(第二行)',
+      ]);
+    });
+
+    it('格内多行文本不再被加反斜杠（#61 的第二行）', () => {
+      // 反向校准：把 `serializer.ts::escapeInline` 里 `if (!this.inTableCell)` 那道门控
+      // 去掉 ⇒ 本条转红（`\n` 之后的行首块标记会被转义）
+      const doc = cellDoc([schema.nodes.paragraph.create(null, [schema.text('a\n- 行二\n# 行三')])]);
+      const out1 = serializeMarkdown(doc);
+      expect(out1, '格内不该出现反斜杠').not.toContain('\\');
+      expect(serializeMarkdown(parseMarkdown(schema, out1)), '一次收敛').toBe(out1);
+    });
+
+    it('深一层的兄弟块也补分隔（#60 的第二层）', () => {
+      // 反向校准：把 `renderFlattenedInline` 递归里的 `join('<br>')` 去掉 ⇒ 本条转红
+      const doc = cellDoc([
+        schema.nodes.taskList.create(null, [
+          schema.nodes.taskItem.create({ checked: true }, [P('买奶')]),
+          schema.nodes.taskItem.create({ checked: false }, [P('写码')]),
+        ]),
+      ]);
+      const out1 = serializeMarkdown(doc);
+      expect(out1, '两项之间必须有分隔，不能黏成「买奶写码」').toContain('买奶<br>写码');
+    });
+
+    it('列表项内部的兄弟段落同样补分隔（第二层的另一种形状）', () => {
+      const doc = cellDoc([
+        schema.nodes.bulletList.create(null, [schema.nodes.listItem.create(null, [P('丙'), P('丁')])]),
+      ]);
+      expect(serializeMarkdown(doc), '不能在项内黏成「丙丁」').toContain('丙<br>丁');
+    });
+
+    it('对照：正文里的 `<br>` 保持字面（读侧改动只作用于单行容器）', () => {
+      // 反向校准：把读侧分支的条件从 `inSingleLineContainer` 放宽成「无条件」⇒ 本条转红
+      expect(roundTrip('正文<br>第二行\n')).toContain('<br>');
+      expect(parseMarkdown(schema, '正文<br>第二行\n').textContent).toContain('<br>');
+    });
+
+    it('对照：非格子的普通段落里的行首块标记照旧转义（块语境丝毫未动）', () => {
+      const doc = schema.nodes.doc.create(null, [
+        schema.nodes.paragraph.create(null, [schema.text('- 甲\n- 乙')]),
+      ]);
+      expect(serializeMarkdown(doc), '段落里的换行行首仍要转义').toContain('\\-');
+    });
+  });
 });
