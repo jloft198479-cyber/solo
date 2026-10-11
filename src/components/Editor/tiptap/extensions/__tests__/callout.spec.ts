@@ -142,11 +142,29 @@ describe('callout 标题就地编辑', () => {
     expect(input.value).toBe('note');
     input.dispatchEvent(new Event('blur'));
     expect(written).toHaveLength(0);
+    // 无标题时把预填的类型名清空再失焦 ⇒ title 本就是 ''，不发空事务（双守卫第二道）
+    button.click();
+    input.value = '';
+    input.dispatchEvent(new Event('blur'));
+    expect(written).toHaveLength(0);
     // 改为真标题 ⇒ 落库
     button.click();
     input.value = '观点一';
     input.dispatchEvent(new Event('blur'));
     expect(written).toHaveLength(1);
     expect(written[0].title).toBe('观点一');
+  });
+
+  it('有标题时清空失焦：删除标题照常落库，守卫不拦正常删除', () => {
+    const node = schema.nodes.callout.create(
+      { calloutType: 'note', title: '观点一' },
+      schema.nodes.paragraph.create(null, schema.text('内容')),
+    );
+    const { button, input, written } = renderInteractive(node);
+    button.click();
+    input.value = '';
+    input.dispatchEvent(new Event('blur'));
+    expect(written).toHaveLength(1);
+    expect(written[0].title).toBe('');
   });
 });

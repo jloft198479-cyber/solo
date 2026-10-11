@@ -148,11 +148,14 @@ export const Callout = TiptapNode.create({
 
       function commitTitle() {
         const next = titleInput.value.trim();
+        const current = typeof node.attrs.title === 'string' ? node.attrs.title.trim() : '';
         exitTitleEdit();
-        // 与进入编辑时显示的文字相同 ⇒ 不写库。覆盖两种情形：
-        // ① 改了又改回原标题；② 无标题时显示的是类型名（NOTE）——
-        // 写一个 title=类型名 是冗余数据，显示效果也完全一样
-        if (next === displayedAtEntry) return;
+        // 双守卫（对齐代码块 commitLanguage）：
+        // ① 与点开时显示的文字相同 ⇒ 不写库（改了又改回；无标题时显示的是借来的
+        // 类型名 NOTE——一旦写成 title=note，data-title 一挂大写徽章规矩就失效，
+        // NOTE 会变小写，反而是可见的脏数据）
+        // ② 与存值相同 ⇒ 不发空事务（无标题时清空预填文字失焦：title 本就是 ''）
+        if (next === displayedAtEntry || next === current) return;
         if (typeof getPos !== 'function') return;
         const pos = getPos();
         if (typeof pos !== 'number') return;
