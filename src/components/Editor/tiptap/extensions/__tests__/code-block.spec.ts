@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import type { Node as PMNode } from '@tiptap/pm/model';
 import { EditorState } from '@tiptap/pm/state';
 import { EditorView, type DecorationSet } from '@tiptap/pm/view';
 import javascript from 'highlight.js/lib/languages/javascript';
@@ -9,6 +10,7 @@ import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import { setDocumentTier } from '../../../document-scale';
 import { clearIdleRenderQueue } from '../idle-render-scheduler';
 import {
+  CustomCodeBlock,
   createIncrementalLowlightPlugin,
   getCodeBlockLanguageLabel,
   normalizeCodeBlockLanguage,
@@ -393,5 +395,82 @@ describe('createIncrementalLowlightPlugin 打开时分批高亮', () => {
     browserComposing = false;
     await drainIdle();
     expect(coveredBlocks(view.state.doc, plugin.getState(view.state))).toBe(BLOCKS);
+  });
+});
+
+/**
+ * 就地编辑锁（2026-10-12）：点语言标签应在原文字上改，不是弹空框重打。
+ * 与 callout 标题同款病灶（白底框/空框/大小写翻转），同款修法。
+ * 反向校准：撤掉「预填 displayedAtEntry」→ 前两条红；
+ * 撤掉「raw === displayedAtEntry 不写库」→ 第三条红。
+ */
+describe('CustomCodeBlock 语言标签就地编辑', () => {
+  interface NodeViewLike {
+    dom: HTMLElement;
+  }
+
+  function renderInteractive(node: PMNode) {
+    const renderer = CustomCodeBlock.config.addNodeView?.() as
+      | ((props: { node: PMNode; getPos?: () => number; editor?: unknown }) => NodeViewLike)
+      | undefined;
+    if (typeof renderer !== 'function') throw new Error('CustomCodeBlock 未提供 NodeView 工厂');
+    const written: Array<Record<string, unknown>> = [];
+    const tr = {
+      setNodeMarkup: (_pos: number, _type: unknown, attrs: Record<string, unknown>) => {
+        written.push(attrs);
+        return tr;
+      },
+    };
+    const editor = {
+      view: { state: { tr }, dispatch: () => {} },
+      commands: { focus: () => {} },
+    };
+    const view = renderer({ node, getPos: () => 0, editor });
+    return {
+      button: view.dom.querySelector('.mk-code-block-language-button') as HTMLElement,
+      input: view.dom.querySelector('.mk-code-block-language-input') as HTMLInputElement,
+      written,
+    };
+  }
+
+  const specSchema = createTestSchema();
+  const makeNode = (language: string | null) =>
+    specSchema.nodes.codeBlock.create({ language }, specSchema.text('const x = 1;'));
+
+  it('无语言时点击语言钮：预填 plain text，不是空框', () => {
+    const { button, input } = renderInteractive(makeNode(null));
+    expect(input.style.display).toBe('none');
+    button.click();
+    expect(input.style.display).not.toBe('none');
+    expect(input.value).toBe('plain text');
+  });
+
+  it('有语言时点击语言钮：预填语言名', () => {
+    const { button, input } = renderInteractive(makeNode('js'));
+    button.click();
+    expect(input.value).toBe('js');
+  });
+
+  it('未改动失焦不写库——含无语言时原样失焦不写假语言 plain text', () => {
+    const { button, input, written } = renderInteractive(makeNode(null));
+    button.click();
+    expect(input.value).toBe('plain text');
+    input.dispatchEvent(new Event('blur'));
+    // 原样失焦若写库，会存出 highlight.js 不认识的假语言，高亮行为随之改变
+    expect(written).toHaveLength(0);
+    // 改为真语言 ⇒ 落库
+    button.click();
+    input.value = 'js';
+    input.dispatchEvent(new Event('blur'));
+    expect(written).toHaveLength(1);
+    expect(written[0].language).toBe('js');
+  });
+
+  it('归一化守卫：只改大小写不失焦写入（javascript → JavaScript 不写库）', () => {
+    const { button, input, written } = renderInteractive(makeNode('javascript'));
+    button.click();
+    input.value = 'JavaScript';
+    input.dispatchEvent(new Event('blur'));
+    expect(written).toHaveLength(0);
   });
 });

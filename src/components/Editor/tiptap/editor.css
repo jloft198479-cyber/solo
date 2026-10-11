@@ -683,17 +683,22 @@ html.doc-heavy .tiptap-editor > hr {
   color: var(--text-color);
 }
 
+/* 就地编辑态：看起来像「语言标签本身变成可编辑」，不是弹出来的输入框 */
 .tiptap-editor .mk-code-block-language-input {
-  width: 140px;
-  height: 22px;
-  padding: 0 6px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background-color: var(--bg-color);
-  color: var(--text-color);
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted-color);
   font-family: var(--font-mono);
   font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  /* 与按钮同源：语言名当"徽章"显示大写，存值恒小写（normalizeCodeBlockLanguage） */
+  text-transform: uppercase;
   outline: none;
+  field-sizing: content; /* 宽度跟随文字；不支持的浏览器退化为默认宽度，功能不受影响 */
+  min-width: 2ch; /* 清空后仍留可点宽度，避免 caret 不可见 */
 }
 
 .tiptap-editor .mk-code-block-copy-button {

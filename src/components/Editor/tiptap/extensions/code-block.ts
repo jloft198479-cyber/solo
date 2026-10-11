@@ -481,6 +481,9 @@ export const CustomCodeBlock = CodeBlock.extend({
       pre.appendChild(code);
 
       let isEditingLanguage = false;
+      // 进入编辑时屏幕上显示的那行文字（语言名；无语言时是空态标签 plain text）。
+      // 提交时若与此相同 ⇒ 可见结果零变化，不写库（见 commitLanguage）
+      let displayedAtEntry = '';
 
       function syncLanguageUI() {
         if (isEditingLanguage) return;
@@ -494,9 +497,14 @@ export const CustomCodeBlock = CodeBlock.extend({
       function enterLanguageEdit() {
         if (isEditingLanguage) return;
         isEditingLanguage = true;
+        // 预填屏幕上看到的文字：有语言填语言名，无语言填空态标签 plain text——
+        // 用户点的是这行字，就该在这行字上改，而不是给个空框重打
+        displayedAtEntry = getCodeBlockLanguageLabel(
+          typeof node.attrs.language === 'string' ? node.attrs.language : null,
+        );
         languageButton.style.display = 'none';
         languageInput.style.display = 'block';
-        languageInput.value = typeof node.attrs.language === 'string' ? node.attrs.language : '';
+        languageInput.value = displayedAtEntry;
         languageInput.focus();
         languageInput.select();
       }
@@ -509,14 +517,19 @@ export const CustomCodeBlock = CodeBlock.extend({
       }
 
       function commitLanguage() {
-        const nextLanguage = normalizeCodeBlockLanguage(languageInput.value);
+        const raw = languageInput.value.trim();
+        const nextLanguage = normalizeCodeBlockLanguage(raw);
         const currentLanguage = normalizeCodeBlockLanguage(
           typeof node.attrs.language === 'string' ? node.attrs.language : null,
         );
 
         exitLanguageEdit();
 
-        if (nextLanguage === currentLanguage) return;
+        // ① 与点开时显示的文字相同 ⇒ 不写库。重点覆盖「无语言时按钮显示
+        // plain text」：那是"无语言"的人话标签而非真语言，原样失焦写库会存出
+        // 一个 highlight.js 不认识的假语言，高亮行为随之改变
+        // ② 归一化后相同（如把 javascript 改成 JavaScript）⇒ 同样无需写库
+        if (raw === displayedAtEntry || nextLanguage === currentLanguage) return;
         updateCodeBlockLanguage(editor, node, getPos, nextLanguage);
       }
 
