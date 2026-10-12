@@ -98,9 +98,14 @@ export function normalizeSettings(storedSettings?: Partial<Settings> | null): Se
   };
 }
 
+/** 设置中心分组键（SettingsModal 侧边导航与之一一对应） */
+export type SettingsTabKey = 'appearance' | 'editor' | 'shortcuts' | 'save' | 'about';
+
 interface SettingsStoreState {
   settings: Settings;
   isModalOpen: boolean;
+  /** 每次 openModal 时要落到的分组（菜单「关于」等外部入口直达用） */
+  modalInitialTab: SettingsTabKey;
   isFocusMode: boolean;
   isLoaded: boolean;
   presetThemes: AppTheme[];
@@ -112,6 +117,7 @@ export const useSettingsStore = defineStore('settings', {
   state: (): SettingsStoreState => ({
     settings: normalizeSettings(),
     isModalOpen: false,
+    modalInitialTab: 'appearance',
     isFocusMode: false,
     isLoaded: false,
     presetThemes: getAllPresetThemes(),
@@ -394,9 +400,10 @@ export const useSettingsStore = defineStore('settings', {
       this.settings = normalizeSettings();
     },
 
-  openModal() {
-    this.isModalOpen = true;
-  },
+    openModal(tab: SettingsTabKey = 'appearance') {
+      this.modalInitialTab = tab;
+      this.isModalOpen = true;
+    },
 
     closeModal() {
       this.isModalOpen = false;

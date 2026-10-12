@@ -32,7 +32,6 @@ import {
 import { listenEditorFocus } from './services/tauri/events';
 import { findCommandByShortcut, shortcutHint } from './commands/registry';
 import { HEAVY_DOC_CHARS, isHeavyDocument } from './components/Editor/document-scale';
-import pkg from '../package.json';
 
 const MarkdownEditor = defineAsyncComponent(() => import('./components/Editor/MarkdownEditor.vue'));
 
@@ -50,7 +49,6 @@ const settingsButtonHint = computed(() => {
   return hint ? `设置 (${hint})` : '设置';
 });
 const { settings, isLoaded } = storeToRefs(settingsStore);
-const appVersion = pkg.version;
 const { editorRef, stats, handleEditorUpdate } = useAppEditorState();
 const { isOpen: outlineOpen, toggle: toggleOutline, close: closeOutline } = useOutline();
 
@@ -58,8 +56,6 @@ const paletteOpen = ref(false);
 function togglePalette() {
   paletteOpen.value = !paletteOpen.value;
 }
-
-const showAboutModal = ref(false);
 
 const {
   activeViewMode,
@@ -200,10 +196,6 @@ function switchToImageView() {
   isFullscreenPreview.value = false;
 }
 
-function showAbout() {
-  showAboutModal.value = true;
-}
-
 // 大文档降级档：实时字数不再跟随编辑更新，状态栏显示的是打开时的基线，
 // 用约号 + 悬停说明如实交代，不静默降低可信度。
 const isDegradedDoc = computed(() => isHeavyDocument());
@@ -224,7 +216,8 @@ const { executeCommand } = useCommandDispatcher({
   handleSaveAs: documentSession.saveCurrentDocumentAs,
   openSettings: () => settingsStore.openModal(),
   toggleFocusMode: () => settingsStore.toggleFocusMode(),
-  showAbout,
+  // 「关于」统一走设置中心 about 分组（旧独立 About 弹窗已移除）
+  showAbout: () => settingsStore.openModal('about'),
   toggleFullscreen: windowSession.toggleFullscreen,
   toggleOutline: toggleOutline,
   toggleCommandPalette: togglePalette,
@@ -472,23 +465,6 @@ onUnmounted(() => {
       @open-in-viewer="switchToImageView"
     />
 
-    <!-- About 弹窗 -->
-    <Teleport to="body">
-      <Transition name="about">
-        <div v-if="showAboutModal" class="about-overlay" @click.self="showAboutModal = false">
-          <div class="about-dialog">
-            <div class="about-header">
-              <h2 class="about-title">solo</h2>
-              <span class="about-version">v{{ appVersion }}</span>
-            </div>
-            <p class="about-desc">极简 Markdown 编辑器</p>
-            <p class="about-sub">基于 Tauri 2 · Rust · Vue 3 · TipTap</p>
-            <button class="about-close" @click="showAboutModal = false">关闭</button>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
     <!-- 命令面板：Ctrl+K 唤起 -->
     <CommandPalette
       :open="paletteOpen"
@@ -663,103 +639,5 @@ onUnmounted(() => {
   background-color: var(--hover-bg);
   color: var(--text-color);
   opacity: 1;
-}
-
-/* ── About 弹窗 ────────────────────────────────────── */
-.about-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--modal-overlay);
-  backdrop-filter: blur(4px);
-}
-
-.about-dialog {
-  background: var(--bg-color);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--modal-shadow);
-  padding: 36px 40px 32px;
-  text-align: center;
-  max-width: 320px;
-}
-
-.about-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.about-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-color);
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-
-.about-version {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--muted-color);
-  font-variant-numeric: tabular-nums;
-}
-
-.about-desc {
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-  margin: 0 0 4px;
-}
-
-.about-sub {
-  font-size: 12px;
-  color: var(--muted-color);
-  margin: 0 0 20px;
-}
-
-.about-close {
-  padding: 8px 28px;
-  border-radius: var(--radius-md);
-  border: none;
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color var(--motion-fast);
-}
-
-.about-close:hover {
-  background: var(--btn-primary-hover);
-}
-
-/* ── About 弹窗过渡动画 ──────────────────────────── */
-.about-enter-active,
-.about-leave-active {
-  transition: opacity var(--motion-base) var(--ease-out);
-}
-
-.about-enter-active .about-dialog,
-.about-leave-active .about-dialog {
-  transition:
-    transform var(--motion-base) var(--ease-out),
-    opacity var(--motion-base) var(--ease-out);
-}
-
-.about-enter-from,
-.about-leave-to {
-  opacity: 0;
-}
-
-.about-enter-from .about-dialog,
-.about-leave-to .about-dialog {
-  transform: scale(0.95);
-  opacity: 0;
 }
 </style>

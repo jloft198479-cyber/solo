@@ -1,19 +1,26 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { useSettingsStore } from '../../stores/settings';
+import { ref, computed, watch } from 'vue';
+import { useSettingsStore, type SettingsTabKey } from '../../stores/settings';
 import { confirm } from '../../services/tauri/dialog';
 import AppearanceSettingsPanel from './AppearanceSettingsPanel.vue';
 import CloseIcon from '../icons/CloseIcon.vue';
 import EditorSettingsPanel from './EditorSettingsPanel.vue';
 import SaveSettingsPanel from './SaveSettingsPanel.vue';
-import SettingsSidebarNav, { type SettingsTabKey } from './SettingsSidebarNav.vue';
+import SettingsSidebarNav from './SettingsSidebarNav.vue';
 import ShortcutSettingsPanel from './ShortcutSettingsPanel.vue';
 import AboutSettingsPanel from './AboutSettingsPanel.vue';
 
 const settingsStore = useSettingsStore();
 
-// 当前选中的设置分组
-const activeTab = ref<SettingsTabKey>('appearance');
+// 当前选中的设置分组；每次弹窗打开时按入口指定分组落地（如菜单「关于」直达 about）
+const activeTab = ref<SettingsTabKey>(settingsStore.modalInitialTab);
+
+watch(
+  () => settingsStore.isModalOpen,
+  (open) => {
+    if (open) activeTab.value = settingsStore.modalInitialTab;
+  },
+);
 
 const tabMeta = {
   appearance: {

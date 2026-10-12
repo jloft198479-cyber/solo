@@ -1,5 +1,5 @@
 <script setup lang="ts">
-export type SettingsTabKey = 'appearance' | 'editor' | 'shortcuts' | 'save' | 'about';
+import type { SettingsTabKey } from '../../stores/settings';
 
 const activeTab = defineModel<SettingsTabKey>({ required: true });
 
