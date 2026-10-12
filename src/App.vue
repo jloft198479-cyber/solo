@@ -327,7 +327,9 @@ onUnmounted(() => {
     class="app-root h-screen flex flex-col overflow-hidden select-none"
     :class="{ 'focus-mode': settingsStore.isFocusMode }"
   >
-    <WindowResizeHandles />
+    <!-- Windows 边缘缩放由 Rust 原生覆盖层接管（src-tauri/src/native_resize.rs），
+         前端 IPC 手柄仅保留给 macOS / 其他平台 -->
+    <WindowResizeHandles v-if="!isWindows" />
 
     <CustomTitlebar
       :title="windowTitle"

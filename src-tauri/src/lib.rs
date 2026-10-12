@@ -3,6 +3,8 @@ mod error;
 mod events;
 mod menu;
 mod models;
+#[cfg(target_os = "windows")]
+mod native_resize;
 mod state;
 mod updater;
 
@@ -84,6 +86,11 @@ fn create_editor_window(
     let window = builder
         .build()
         .map_err(|e| error::AppError::Native(e.to_string()))?;
+
+    // 原生边缘缩放覆盖层（铺满客户区的边框子窗，须在 tauri-runtime-wry
+    // 创建其 resize 子窗之后挂，WM_SIZE 时再把本层顶到最前）
+    #[cfg(target_os = "windows")]
+    native_resize::attach(&window);
 
     // 有关联文件：存入 PendingWindowPaths，等前端 ready 后取走
     if let Some(file_path) = path {
@@ -330,6 +337,11 @@ pub fn run() {
                 main_window
                     .set_decorations(false)
                     .map_err(error::AppError::from)?;
+
+                // 原生边缘缩放覆盖层（SetDecorations 是异步消息，会触发
+                // tauri-runtime-wry 重建其 resize 子窗，本层排队在其后挂载）
+                #[cfg(target_os = "windows")]
+                native_resize::attach(&main_window);
 
                 #[cfg(target_os = "macos")]
                 apply_macos_window_background(&main_window, "#ffffff")?;
