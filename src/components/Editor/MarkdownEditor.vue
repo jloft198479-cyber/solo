@@ -94,6 +94,7 @@ import { listenEditorFocus } from '../../services/tauri/events';
 import { refreshParagraphFocus } from './tiptap/extensions/paragraph-focus';
 import { isFrozen } from './tiptap/composition-freeze';
 import { installImeAnchorGuard } from './tiptap/ime-anchor';
+import { installBlankClickFocus } from './tiptap/extensions/blank-click-focus';
 import BubbleMenuComponent from './views/BubbleMenu.vue';
 import ContextMenuComponent, { type ContextMenuItem } from './views/ContextMenu.vue';
 import SlashMenu from './views/SlashMenu.vue';
@@ -749,6 +750,9 @@ async function setupWindowFocusHandlers() {
 // IME 候选窗失锚护栏（仅 Windows）：窗口缩放后重锚编辑焦点，卸载时清理
 let disposeImeAnchor: (() => void) | null = null;
 
+// 点编辑区留白落光标兜底（挂在滚动容器上，见 extensions/blank-click-focus.ts）
+let disposeBlankClickFocus: (() => void) | null = null;
+
 onMounted(async () => {
   setupDragDrop();
   await setupWindowFocusHandlers();
@@ -791,6 +795,13 @@ onMounted(async () => {
   // IME 候选窗失锚护栏（仅 Windows/WebView2）：窗口缩放后把编辑焦点重锚一次。
   // 详见 docs/IME-ANCHOR-GUARD-2026-10-09.md
   disposeImeAnchor = installImeAnchorGuard({ getView: () => editor.value?.view ?? null });
+
+  // 点编辑区留白（表格/代码块等大块节点下方空白）落光标兜底：PM 的 mousedown
+  // 取不到位置就直接 return，且留白不在 view.dom 内——监听必须挂滚动容器
+  disposeBlankClickFocus = installBlankClickFocus({
+    getView: () => editor.value?.view ?? null,
+    getPaperEl: () => editorWrapRef.value,
+  });
 });
 
 onBeforeUnmount(() => {
@@ -832,6 +843,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', repositionBubbleMenu);
   disposeImeAnchor?.();
   disposeImeAnchor = null;
+  disposeBlankClickFocus?.();
+  disposeBlankClickFocus = null;
   if (_bubbleMenuRafId != null) {
     cancelAnimationFrame(_bubbleMenuRafId);
     _bubbleMenuRafId = null;
