@@ -120,7 +120,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | ⭐ [`REVIEW-2026-10-11-单元格保真收口复查.md`](./archive/REVIEW-2026-10-11-单元格保真收口复查.md) | report | maintainer | active | 对 `536fd07`（#61 一行守卫 + #60 决策二 B1 拍平）的复查（**未改任何代码**、被审文档一字未动）：**方向与落点证实**（块语法一个不进格子、格首不再平白加反斜杠），但按第一性原理**证伪三条口径**——① 拍平的分分隔只加在**格的直接子块**层（`serializer.ts:883`），`:296` 递归下钻**不插分隔** ⇒ 列表两项黏成 `买奶写码`（键入 / HTML 粘贴两条通道实测都黏，且 R1===R2 全绿：**收敛≠保真**）；② `checked`/`start` 这类 attrs 里的**用户数据**整体消失；③ 分隔符 `<br>` 在打开路径**读不回来**（`parser.ts:113` `html:false` ⇒ `:683-684` 是死代码、既有锁 `roundtrip:413-417` 就断言它是字面文本）⇒ 重开是一串 `<br>` 字符。**#61 只修了第一行**：`:570-571` 两条按 `\n` 的规则不受守卫管辖 ⇒ 格内多行代码块仍 R1≠R2（台账「合成形态、产不出」的判定**证伪**：`codeBlock`/`mermaidBlock`/`mathBlock` 的多行文字本就是含 `\n` 的文本节点）。**§7 五条挑战逐条回话**（§7.3 我实测代答：粘贴不丢字、丢边界；B2 确未做，`table.ts` 不在改动清单 ⇒ 格内四个命令照旧接管=true）。附「锁为什么看不见自己的洞」体检表 + 换尺子的判据建议 + 另三条尾巴核实（#57 修法**优于**我上轮补丁） |
 | [`IME-ANCHOR-GUARD-2026-10-09.md`](./archive/IME-ANCHOR-GUARD-2026-10-09.md) | guide | agent | active | IME 重锚护栏的**修复档案**（可追溯）：分支/回滚点/验收判据（问题概率性 ⇒ 改为被动探针对账）/阶段记录/退出条件；触发面按真机反馈修订为「窗口移动 + 缩放」 |
 | [`IME-问题简报与资料汇编.md`](./archive/IME-问题简报与资料汇编.md) | archive | user | archive | IME 候选窗失锚的**第三方统筹简报**（2026-09-30 已归档）：问题是什么 / 试过什么 / 卡在哪 / 给第三方的起点建议 + 4 份原始文档全文附录；现况以 [IME-结案经验卡](./archive/IME-结案经验卡-2026-10-12.md) 为准 |
-| [`solo-tour.html`](./solo-tour.html)                                         | product   | user             | active   | 产品功能导览 HTML 页（非 md，无 frontmatter）                            |
+| `solo-tour.html`（本地生成的功能导览页，未入库，见 KNOWN-ISSUES §二 #16） | product   | user             | active   | 产品功能导览 HTML 页（非 md，无 frontmatter；由 `scripts/gen-tour.mjs` 生成，不进仓库） |
 
 ### wiki/（用户知识库）
 
