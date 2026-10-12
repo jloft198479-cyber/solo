@@ -423,7 +423,7 @@ onUnmounted(() => {
           <button
             v-else
             class="statusbar-save-btn"
-            :class="fileStore.currentFile.isDirty ? 'is-dirty' : 'is-clean'"
+            :class="{ 'is-dirty': fileStore.currentFile.isDirty }"
             :title="saveButtonHint"
             @click="
               fileStore.currentFile.isDirty && documentSession.saveCurrentDocument(false, true)
@@ -586,7 +586,10 @@ onUnmounted(() => {
   color: var(--primary-color);
 }
 
-/* ── 保存状态按钮：圆点 + 文字，状态色克制 ──────────────── */
+/* ── 保存状态按钮 ────────────────────────────────────────
+   颜色统一走主题主色：历史上用过独立状态色（琥珀系，v1.2.15 起叫 dirtyColor），
+   但它在任何主题下都是黄褐色、与主题整体不协调，2026-10-13 移除。
+   两个状态改由圆点形状区分：未保存＝空心圈（圈还没填满）、已保存＝实心点。 */
 .statusbar-save-btn {
   display: inline-flex;
   align-items: center;
@@ -598,7 +601,7 @@ onUnmounted(() => {
   font-weight: 500;
   padding: 4px 8px;
   border-radius: 6px;
-  color: var(--text-secondary);
+  color: var(--primary-color);
   transition:
     background-color var(--motion-fast),
     color var(--motion-fast);
@@ -606,18 +609,17 @@ onUnmounted(() => {
 
 .statusbar-save-btn:hover {
   background-color: var(--hover-bg);
-  color: var(--text-color);
+  color: var(--primary-hover);
 }
 
-.statusbar-save-btn.is-dirty {
-  color: var(--dirty-color);
-}
-
-.statusbar-save-btn.is-clean {
-  color: var(--primary-color);
+/* 未保存：空心圈；已保存走基础样式 = 实心点 */
+.statusbar-save-btn.is-dirty .statusbar-save-dot {
+  background-color: transparent;
+  border: 1px solid currentColor;
 }
 
 .statusbar-save-dot {
+  box-sizing: border-box;
   width: 6px;
   height: 6px;
   border-radius: 50%;

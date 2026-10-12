@@ -105,7 +105,6 @@ button:focus-visible,
   --error-bg: rgba(185, 28, 28, 0.1);
   --info-color: #1d4ed8;
   --info-bg: rgba(29, 78, 216, 0.1);
-  --dirty-color: #a85f2e;
 
   /* 阴影 */
   --shadow-sm: 0 1px 2px rgba(42, 34, 24, 0.04);
@@ -229,7 +228,6 @@ html.dark {
   --error-bg: rgba(248, 113, 113, 0.15);
   --info-color: #93c5fd;
   --info-bg: rgba(147, 197, 253, 0.15);
-  --dirty-color: #b98a4e;
 
   /* 阴影 */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.30);

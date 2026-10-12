@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyTheme, getPresetTheme, importTheme } from '../manager';
-import type { Theme } from '../types';
 
 const mocks = vi.hoisted(() => ({
   toggleMock: vi.fn(),
@@ -88,30 +87,6 @@ describe('theme manager', () => {
     });
   });
 
-  it('injects --dirty-color from a preset that defines it', () => {
-    const theme = getPresetTheme('default-light');
-    expect(theme?.colors.dirtyColor).toBeTruthy();
-
-    applyTheme(theme!);
-
-    expect(mocks.setPropertyMock).toHaveBeenCalledWith('--dirty-color', theme!.colors.dirtyColor);
-  });
-
-  it('does not inject --dirty-color when the theme omits it (CSS fallback applies)', () => {
-    const theme: Theme = {
-      id: 'no-dirty',
-      name: 'No Dirty',
-      type: 'custom',
-      appearance: 'light',
-      colors: { ...getPresetTheme('default-light')!.colors, dirtyColor: undefined },
-    };
-
-    applyTheme(theme);
-
-    const dirtyCalls = mocks.setPropertyMock.mock.calls.filter((c) => c[0] === '--dirty-color');
-    expect(dirtyCalls).toHaveLength(0);
-  });
-
   it('--success-color 随主题注入且跨主题不同（已保存态跟随主题）', () => {
     const light = getPresetTheme('default-light')!;
     const dark = getPresetTheme('scholar-dark')!;
@@ -131,18 +106,6 @@ describe('theme manager', () => {
     expect(lightSuccess).not.toEqual(darkSuccess);
   });
 
-  it('--dirty-color 随主题注入且跨主题不同（未保存态跟随主题）', () => {
-    const light = getPresetTheme('default-light')!;
-    const dark = getPresetTheme('scholar-dark')!;
-
-    applyTheme(light);
-    const lightDirty = mocks.setPropertyMock.mock.calls.find((c) => c[0] === '--dirty-color')?.[1];
-    mocks.setPropertyMock.mockClear();
-    applyTheme(dark);
-    const darkDirty = mocks.setPropertyMock.mock.calls.find((c) => c[0] === '--dirty-color')?.[1];
-
-    expect(lightDirty).toBeTruthy();
-    expect(darkDirty).toBeTruthy();
-    expect(lightDirty).not.toEqual(darkDirty);
-  });
+  // 注：原先三条 `--dirty-color` 用例已随该 token 一并移除（2026-10-13）——
+  // 状态栏「未保存」色改为跟随主题主色（--primary-color），主题不再注入该变量。
 });
