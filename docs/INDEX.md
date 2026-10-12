@@ -63,6 +63,8 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`ui-typography-eval.md`](./archive/ui-typography-eval.md)                                     | guide | agent            | archive | 排版微调 + 文字变浅评估（设计决策留痕，§一 为改动前快照） |
 | [`BENCHMARK-editing-experience.md`](./BENCHMARK-editing-experience.md)                 | guide | agent            | active | 编辑体验行业对标基线：三种编辑形态 + 逐项基准 × solo 差距 + 下一优先建议（「所有问题先对标」方针的常驻挂靠点） |
 | [`00-今日修改总览-2026-10-10.md`](./archive/00-今日修改总览-2026-10-10.md)                     | archive | maintainer      | archive | 2026-10-10 当日 39 个提交的系统梳理（时间线 / 解决与未解决 / 可控性评估）；**一次性快照**，未结项一律以 [`KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) 为准 |
+| [`agent-delivery-method.md`](./agent-delivery-method.md) | guide | agent | active | 任务交付 SOP：计划/改码/提交卫生（白名单+部分暂存）/静态三层/真机 CDP 验收/沟通，设计审核两轮实战固化 |
+| [`handoff-design-p3-2026-10-13.md`](./handoff-design-p3-2026-10-13.md) | guide | agent | active | 设计审核 P3 交接：P1/P2 已交付（含 commit），P3 三项待办+真机验收环境+工作区在制品保护；销项后归档 |
 
 ### docs/ 原则、提案、归档
 
