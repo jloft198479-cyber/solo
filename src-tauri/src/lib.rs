@@ -17,7 +17,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_window_state::StateFlags;
 
@@ -57,6 +57,32 @@ fn startup_ready(
     } else {
         Ok(None)
     }
+}
+
+/// 启动显窗兜底等待：正常链路远快于这个值（健康启动亚秒级）。
+/// 超时只说明前端真的出事了（JS 崩溃 / IPC 异常 / 加载卡死）。
+const STARTUP_SHOW_FALLBACK_DELAY: Duration = Duration::from_secs(10);
+
+/// 启动显窗看门狗：窗口以 `visible(false)` 创建，正常由前端 `startup_ready`
+/// IPC 在挂载完成后显窗（避免黑闪）。若前端因任何原因始终没发 ready，
+/// 窗口会永久不可见且无任何提示——用户看到的就是「双击图标毫无反应」，
+/// 只能杀进程。超时后窗口仍不可见就强制显示：宁可露出未渲染完的窗口，
+/// 也不要装死。正常启动时本看门狗醒来只查一次 `is_visible`，空转无害。
+fn spawn_startup_show_fallback(window: &tauri::WebviewWindow) {
+    let window = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(STARTUP_SHOW_FALLBACK_DELAY);
+        let still_hidden = window.is_visible().map(|visible| !visible).unwrap_or(true);
+        if still_hidden {
+            eprintln!(
+                "[startup] {} {:?} 内未收到 startup_ready，兜底强制显窗",
+                window.label(),
+                STARTUP_SHOW_FALLBACK_DELAY
+            );
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    });
 }
 
 /// 创建一个新的编辑器窗口。
@@ -104,6 +130,7 @@ fn create_editor_window(
     }
 
     attach_window_events(&window, app);
+    spawn_startup_show_fallback(&window);
 
     #[cfg(target_os = "macos")]
     window::apply_macos_window_background(&window, "#ffffff")?;
@@ -352,6 +379,7 @@ pub fn run() {
                 }
 
                 attach_window_events(&main_window, app.handle());
+                spawn_startup_show_fallback(&main_window);
             }
 
             flush_startup_log(app.handle());

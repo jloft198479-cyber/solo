@@ -24,6 +24,7 @@ import { useFileStore } from './stores/file';
 import { useSettingsStore } from './stores/settings';
 import { message } from './services/tauri/dialog';
 import {
+  closeCurrentWindow,
   destroyCurrentWindow,
   minimizeCurrentWindow,
   newEditorWindow,
@@ -255,11 +256,19 @@ async function handleMaximize() {
 }
 
 async function handleClose() {
+  // 标题栏 X 必须走原生关闭通道（与 Alt+F4 同一条路）：
+  // Rust 看门狗统一登记去重后再 emit 给前端弹确认框，
+  // 否则 X 直接跑前端关闭链、不经看门狗，与 Alt+F4 叠加会叠两个确认框。
   try {
-    await windowSession.handleCloseRequest();
+    await closeCurrentWindow();
   } catch (e) {
-    console.error('[handleClose] close failed, forcing destroy:', e);
-    await destroyCurrentWindow();
+    console.warn('[handleClose] 原生 close 不可用，回退前端关闭链:', e);
+    try {
+      await windowSession.handleCloseRequest();
+    } catch (e2) {
+      console.error('[handleClose] close failed, forcing destroy:', e2);
+      await destroyCurrentWindow();
+    }
   }
 }
 

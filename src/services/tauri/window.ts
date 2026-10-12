@@ -21,6 +21,16 @@ export async function destroyCurrentWindow() {
   await getCurrentWindow().destroy();
 }
 
+/**
+ * 请求原生关闭：发出与 Alt+F4 / 系统 X 完全相同的 CloseRequested，
+ * 由 Rust 关窗看门狗（CloseGuard）统一登记、去重、逃生舱裁决，
+ * 前端随后经 window-close-requested 事件进入「脏态确认 → 保存 → destroy」链路。
+ * 不要在前端直接跑关闭链——那会绕开看门狗，与原生关闭叠加时叠出两个确认框。
+ */
+export async function closeCurrentWindow() {
+  await getCurrentWindow().close();
+}
+
 export async function minimizeCurrentWindow() {
   await getCurrentWindow().minimize();
 }

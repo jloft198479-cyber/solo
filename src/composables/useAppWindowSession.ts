@@ -256,9 +256,16 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
       { immediate: true },
     );
 
-    unlistenCloseRequest = await listenWindowCloseRequested(async () => {
-      await handleCloseRequest();
-    });
+    // 监听注册失败绝不能阻塞后面的 startupReady——窗口显示只认那一个 IPC，
+    // 这里一旦抛出，窗口永远不可见也无报错（双击图标「装死」）。
+    // 降级最坏后果：关窗事件无人应答，3 秒宽限期后第二次关闭被 Rust 逃生舱强放。
+    try {
+      unlistenCloseRequest = await listenWindowCloseRequested(async () => {
+        await handleCloseRequest();
+      });
+    } catch (error) {
+      console.error('[startup] 关窗监听注册失败，关闭确认链降级（逃生舱仍可用）:', error);
+    }
 
     await handleOpenPayload(await startupReady());
     await setupDragDrop();

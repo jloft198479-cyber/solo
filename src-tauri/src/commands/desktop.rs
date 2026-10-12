@@ -212,13 +212,17 @@ pub fn unregister_shell_new() -> Result<(), AppError> {
         // 时才清掉这一个值，绝不递归删整棵键（旧实现曾把用户系统里所有 .md 打开方式一并抹掉）。
         let prog_id = "solo.markdown";
         let mut failures: Vec<String> = Vec::new();
+        // 是否真的删掉过东西：没有任何实质变更时不广播 SHChangeNotify。
+        // 开关本就没开 / 已注销过时再点一次关闭，注册表毫无变化，
+        // 却仍广播 SHCNE_ASSOCCHANGED 会逼 Explorer 全盘重算图标 ⇒ 桌面文件夹重绘闪动。
+        let mut changed = false;
 
         for ext in &[".md", ".markdown"] {
             // ShellNew 是 solo 独占创建的，可整键删除
-            if let Err(e) = hkcu.delete_subkey_all(format!("{}\\{}\\ShellNew", classes_path, ext)) {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    failures.push(format!("{}\\ShellNew: {}", ext, e));
-                }
+            match hkcu.delete_subkey_all(format!("{}\\{}\\ShellNew", classes_path, ext)) {
+                Ok(()) => changed = true,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => failures.push(format!("{}\\ShellNew: {}", ext, e)),
             }
             // 只清「属于 solo 的」默认值：先读，确认指向我们的 ProgID 才删值（不删键）
             if let Ok(key) = hkcu
@@ -226,10 +230,10 @@ pub fn unregister_shell_new() -> Result<(), AppError> {
             {
                 let owned = key.get_value::<String, _>("").ok().as_deref() == Some(prog_id);
                 if owned {
-                    if let Err(e) = key.delete_value("") {
-                        if e.kind() != std::io::ErrorKind::NotFound {
-                            failures.push(format!("{} 默认值: {}", ext, e));
-                        }
+                    match key.delete_value("") {
+                        Ok(()) => changed = true,
+                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(e) => failures.push(format!("{} 默认值: {}", ext, e)),
                     }
                 }
             }
@@ -242,15 +246,18 @@ pub fn unregister_shell_new() -> Result<(), AppError> {
             } else {
                 format!("{}\\{}\\{}", classes_path, prog_id, sub)
             };
-            if let Err(e) = hkcu.delete_subkey_all(&path) {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    failures.push(format!("{}: {}", path, e));
-                }
+            match hkcu.delete_subkey_all(&path) {
+                Ok(()) => changed = true,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => failures.push(format!("{}: {}", path, e)),
             }
         }
 
-        // 注销侧同样要通知 Explorer 刷新缓存（旧实现只挂了注册侧，M-02）
-        notify_shell_change();
+        // 注销侧同样要通知 Explorer 刷新缓存（旧实现只挂了注册侧，M-02）；
+        // 但只在确实删掉过关联时通知——空注销不打扰 Explorer（见 changed 注释）。
+        if changed {
+            notify_shell_change();
+        }
 
         if failures.is_empty() {
             Ok(())
