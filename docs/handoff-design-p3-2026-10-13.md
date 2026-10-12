@@ -2,14 +2,15 @@
 title: 设计审核 P3 交接（2026-10-13）
 type: guide
 audience: agent
-status: active
-tags: [交接, 设置层, 设计审核, p3, 真机验收]
-summary: P1/P2 已交付，P3 三项待办、真机验收环境与工作区注意事项
+status: archive
+tags: [交接, 设置层, 设计审核, p3, 真机验收, 归档]
+summary: P1/P2 已交付；P3 三项 2026-10-13 全部销项（含 commit 与决策记录），已归档
 updates: [src/components/popover-shared.css, src/themes/presets/scholar-dark.json, src/themes/presets/cinnabar-dark.json, docs/agent-delivery-method.md]
 ---
 
 # 设计审核 P3 交接（2026-10-13）
 
+> **已归档（2026-10-13）**：P3 三项全部销项——P3-1 透明度 `ea4418c`、P3-2 混搭修复 `d978140`、P3-3 复核证伪。结果见下；未结项归口 [KNOWN-ISSUES.md](./KNOWN-ISSUES.md)。
 > **给豆包的第一句话**：2026-10-12 做了一次 UI 设计审核，问题分 P1/P2/P3 三档。
 > P1（2 项）P2（4 项）已全部完成、真机验收、本地提交；剩下 **P3 三项**由你接手。
 > 动手前必读 [AGENTS.md](../AGENTS.md)；执行手法照搬 [Agent 交付方法](./agent-delivery-method.md)（上一个执行者的 SOP，也是用户指定你要学的工作方法）。
@@ -28,6 +29,9 @@ updates: [src/components/popover-shared.css, src/themes/presets/scholar-dark.jso
 | P2-3 | hero 卡右上径向渐变（全库唯一装饰渐变）删除 | `3ab77b5` |
 | P2-4 | 快捷键行 flex 防压碎 + ≤960px 顶对齐；编辑器两开关合卡；保存间隔去复读 | `3ab77b5` |
 | 收尾 | 旧独立 About 弹窗移除，「关于」菜单直达设置中心关于页 | `90fd7b2` |
+| P3-1 | 状态栏图标透明度 0.6→0.85（默认可辨、hover 提亮保留） | `ea4418c` |
+| P3-2 | 用户拍板方案3：两套暗色都留；夜读墨色 dirtyColor 暖橙→中性金灰（`#b98a4e`→`#b0a080`） | `d978140` |
+| P3-3 | 大纲打开态真机复核证伪（弹层完整、8 主题可见、无裁切无遮挡） | — |
 
 验收基线（你做完 P3 后也要对齐这个口径）：**1842 passed / 1 skipped，vue-tsc 0 错，lint 0 error（132 warnings 为存量基线，不得增加）**。
 
@@ -88,3 +92,5 @@ updates: [src/components/popover-shared.css, src/themes/presets/scholar-dark.jso
 ## 验收记录
 
 - 2026-10-13：P3-3 大纲关闭态真机证伪（弹层完整）；大纲打开态待补测。
+- 2026-10-13：P3-2 决策 = **方案 3**（两套暗色均保留，仅修夜读墨色混搭）；dirtyColor `#b98a4e`→`#b0a080`，真机 dirty 态状态点 `rgb(176,160,128)`、clean 态冷蓝主色 `rgb(111,159,191)`，混搭消除。
+- 2026-10-13：P3-3 大纲打开态真机复核（1280×860）：弹层完整——8 主题全部可见、容器圆角 8px、选中勾正常；与大纲面板约 100px 视觉重叠但 z-index 300 生效无遮挡，hit-test 命中弹层自身 → **证伪销项**。
