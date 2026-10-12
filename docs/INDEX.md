@@ -44,6 +44,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`FEATURE-MATRIX.md`](./FEATURE-MATRIX.md)             | core  | agent      | active | 功能全表：逐项功能 × 实现锚点 × 状态 × 缺口（供 Agent 核查完善程度） |
 | [`DOC-STANDARD.md`](./DOC-STANDARD.md)                 | core  | agent      | active | 文档规范真理源：SSOT/DRY/减文件/死链即 Bug/frontmatter 字段标准      |
 | [`LESSONS.md`](./LESSONS.md)                           | guide | agent      | active | 踩坑方法论库：从历史事故提炼的可复用思维模式（按模式聚类，索引台账） |
+| [`DOC-LIFECYCLE.md`](./DOC-LIFECYCLE.md)               | core  | agent      | active | **文档治理真理源**：四区（契约/决策/档案/阁楼）+ 三标记 + 五动作；回答「该不该传、该不该删」 |
 
 ### docs/ 指南与决策
 
@@ -64,7 +65,9 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`BENCHMARK-editing-experience.md`](./BENCHMARK-editing-experience.md)                 | guide | agent            | active | 编辑体验行业对标基线：三种编辑形态 + 逐项基准 × solo 差距 + 下一优先建议（「所有问题先对标」方针的常驻挂靠点） |
 | [`00-今日修改总览-2026-10-10.md`](./archive/00-今日修改总览-2026-10-10.md)                     | archive | maintainer      | archive | 2026-10-10 当日 39 个提交的系统梳理（时间线 / 解决与未解决 / 可控性评估）；**一次性快照**，未结项一律以 [`KNOWN-ISSUES.md`](./KNOWN-ISSUES.md) 为准 |
 | [`agent-delivery-method.md`](./agent-delivery-method.md) | guide | agent | active | 任务交付 SOP：计划/改码/提交卫生（白名单+部分暂存）/静态三层/真机 CDP 验收/沟通，设计审核两轮实战固化 |
-| [`handoff-design-p3-2026-10-13.md`](./handoff-design-p3-2026-10-13.md) | guide | agent | archive | 设计审核 P3 交接（已归档）：P1/P2 已交付；P3 三项 2026-10-13 全部销项（P3-1 `ea4418c`、P3-2 方案3混搭修复 `d978140`、P3-3 复核证伪） |
+| [`handoff-design-p3-2026-10-13.md`](./archive/handoff-design-p3-2026-10-13.md) | guide | agent | archive | 设计审核 P3 交接（已归档）：P1/P2 已交付；P3 三项 2026-10-13 全部销项（P3-1 `ea4418c`、P3-2 方案3混搭修复 `d978140`、P3-3 复核证伪） |
+| [`adr/ADR-0001-列表转段落夹心形状.md`](./adr/ADR-0001-列表转段落夹心形状.md) | adr | agent | accepted | 决策：顶层项「转普通段落」把列表切成「两张夹一行段落」是**批准产物**（不修）；误操作产生的才是缺陷 |
+| [`adr/ADR-0002-表格单元格拍平.md`](./adr/ADR-0002-表格单元格拍平.md) | adr | agent | accepted | 决策：GFM 单元格只能表达行内文本 ⇒ `cellToText` 一律拍平；`atBlockStart()` 在格内恒 false |
 
 ### docs/ 原则、提案、归档
 
@@ -81,7 +84,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`PROPOSAL-list-semantics.md`](./PROPOSAL-list-semantics.md) | proposal | maintainer | active | **列表语义契约（规则来源）**：Markdown 里没有树、只有缩进 ⇒「清除格式」不得重排树，「转普通段落 / toggle 第二次」才处理层级且直属下级减一级；含动词表、业界依据（Word / Notion / Obsidian / Typora）与已知边界。改列表相关命令前先读它 |
 | [`TODO-list-semantics-round2.md`](./archive/TODO-list-semantics-round2.md) | proposal | maintainer | archive | **#50 第二轮修复执行清单**：🔴A（待办 toggle 出 `- [ ] - 乙`）与 🔴B（段落缩进残留）已修完并经真机验收；🔴C（嵌套项转段落 relocate 顺序代价）已拍板「接受」；含验收闸门与「断言必须能红」的三查判据 |
 | [`REVIEW-PLAN-第三方全面审查-2026-10-09.md`](./archive/REVIEW-PLAN-第三方全面审查-2026-10-09.md) | proposal | maintainer | proposal | 第三方全面审查**作业书**（宏观→微观，对标 Typora/Obsidian）：目标口径/差分定位（不重复既有 4 轮审查）/交底材料包/三层审查法/交付物与红线；**仅方案，未执行** |
-| [`architecture/refactoring-report.md`](./architecture/refactoring-report.md) | archive   | agent            | archive  | 减法重构历史报告（22→17 命令等，**历史快照**，现状以 ARCHITECTURE 为准） |
+| [`archive/refactoring-report.md`](./archive/refactoring-report.md) | archive   | agent            | archive  | 减法重构历史报告（22→17 命令等，**历史快照**，现状以 ARCHITECTURE 为准） |
 | [`archive/settings-audit-report.md`](./archive/settings-audit-report.md)     | archive   | agent            | archive  | 设置面板排查历史报告（P0 死代码已清理，**历史快照**）                    |
 | [`catpaw审核/丝滑体验优化复盘.md`](./archive/catpaw-2026-08-21/丝滑体验优化复盘.md) | archive | dev/agent | archive | 丝滑优化（P0-P3）全流程复盘（整批 13 份已归档至 archive/catpaw-2026-08-21/） |
 | [`large-document-performance.md`](./archive/large-document-performance.md)            | archive   | dev              | archive  | 大文档卡顿根因清单与分阶段方案（**P0/P1 已实施、P2 已砍、P3 简化**，已归档） |

@@ -5,7 +5,7 @@ audience: agent
 status: active
 tags: [agent, 工作方法, sop, 真机验收, 提交卫生]
 summary: 本次设计审核修复验证有效的任务执行法：计划/改码/验证/提交/沟通全链路
-updates: [AGENTS.md, docs/agent-playbook.md, docs/handoff-design-p3-2026-10-13.md]
+updates: [AGENTS.md, docs/agent-playbook.md, docs/archive/handoff-design-p3-2026-10-13.md]
 ---
 
 # Agent 交付方法——从接单到收工的 7 段 SOP
@@ -13,7 +13,7 @@ updates: [AGENTS.md, docs/agent-playbook.md, docs/handoff-design-p3-2026-10-13.m
 > 本文是 2026-10-12/13 设计审核 P1/P2 + About 清理两轮任务**实际跑通并被用户认可**的执行方法的固化。
 > 不是新规矩——项目规矩的真理源仍是 [AGENTS.md](../AGENTS.md) 与 [agent-playbook.md](./agent-playbook.md)；
 > 本文只回答一个问题：**一次多步任务，具体怎么一步一步做完、不出事。**
-> 配套实例见 [P3 交接文件](./handoff-design-p3-2026-10-13.md)。
+> 配套实例见 [P3 交接文件](./archive/handoff-design-p3-2026-10-13.md)（已归档）。
 
 ## 〇、心法三句
 
