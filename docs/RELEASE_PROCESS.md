@@ -34,6 +34,8 @@ updates: [docs/PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从
 
 ## 1. 快速卡片——一站式核对表
 
+> 🔌 **⚠️ 联网前提（2026-10-13 简乐立）**：本机访问 GitHub 必须用户**手动开通 VPN/代理**。Agent 自动发版时，**动手做任何联网操作前先问用户「开了 VPN/代理没」**；没开就停手等他开，连不上时不要诊断/重试/改配置（几乎都是没开代理），直接问人。详见 **§11.10** 与 PLAYBOOK 顶部「发版前置互动」。
+
 ```text
 [ ] 1. 确认所有功能开发完成、测试通过
 [ ] 2. 确认版本号四源一致并升高（package.json / Cargo.toml / tauri.conf.json / Cargo.lock）
@@ -603,6 +605,20 @@ node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
 2. 大小不符就**重下一次**（多为偶发，不需要改代理配置）。
 3. 网络差时的轻量交叉校验（不必下全大文件）：`.sig` 文件内容 与 `latest.json.platforms["<target>"].signature` **逐字一致**；签名 base64 解码后内嵌 `timestamp:<unix>` 与 `file:<名字>`，时间戳换算后应**等于 `latest.json.pub_date`**。三者自洽 ⇒ 上传链路与签名配对无误。
 4. 下载落沙盒（`.sandbox-relcheck/`），验完 `git clean -fdx -- .sandbox-*`。
+
+### 11.10 🔴 连不上 GitHub 一律先问用户 VPN/代理，禁止诊断/重试（2026-10-13 简乐立）
+
+**现象**：`git push` / `git fetch` / `gh` 任何命令报连接失败、超时、`Failed to connect to github.com:443`、`Could not resolve host` 等。
+
+**根因（几乎总是）**：本机访问 GitHub 依赖用户**手动开通的网络代理/VPN**，用户没开就根本连不上——**不是配置问题、不是 token 问题、不是工具问题**。
+
+**对策（唯一正解）**：
+1. **不要**查代理配置、`git config http.proxy`、改网络设置、或重试——重试一百次也是同样结果。
+2. **直接问用户一句：「你开 VPN/代理了没？」**
+3. 用户说没开 / 不确定 → **停手**，等他手动开通后**再确认一次**，然后才继续。
+4. 用户确认已开仍连不上 → 才轮到排查（先让用户确认代理确实生效、代理本身没挂）。
+
+**这是硬约束，不是偶发故障。** 记住：不开 VPN 你动不了，试也没用。
 
 ---
 
