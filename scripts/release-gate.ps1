@@ -13,19 +13,23 @@
 # 设计：只做「判断结果的执行 + 机械校验」，不做任何产品决策。
 #       -Publish 默认关闭，避免误发。
 
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-$ErrorActionPreference = "Stop"
-
 param(
     [Parameter(Mandatory = $true)]
     [ValidateSet("PreTag", "PostCI")]
     [string]$Stage,
 
-    [switch]$Fast,     # PreTag 仅做版本一致 + replaceAll 扫描，跳过 bun test/build
-    [switch]$Publish,  # PostCI 翻转 draft -> published
+    # PreTag 仅做版本一致 + replaceAll 扫描，跳过 bun test/build
+    [switch]$Fast,
+    # PostCI 翻转 draft -> published
+    [switch]$Publish,
     [int]$CiTimeoutMin = 25
 )
+
+# 编码与错误偏好：必须放在 param() 之后 —— PowerShell 要求 param 为第一条语句，
+# 这三行若前移会让整个 param 块解析失败（MetadataError），勿挪回 param 之前。
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$ErrorActionPreference = "Stop"
 
 # --- 仓库根：由脚本位置推导，绝不硬编码 ---
 $repo = Split-Path $PSScriptRoot -Parent
@@ -82,13 +86,17 @@ if ($Stage -eq "PreTag") {
     $version = $first
     Write-Ok "三处版本一致：$version"
 
+    # 只匹配「方法调用形态」.replaceAll( / .replaceAllAsync( —— 与 eslint.config.js 的
+    # no-restricted-syntax（CallExpression[callee.property.name='replaceAll']）对齐。
+    # 不能用裸子串 replaceAll：会误报 onSearchReplaceAll / @replace-all / emit('replaceAll')
+    # 以及注释里提到 replaceAll（曾误报 9 处，全部非真实调用）。
     Write-Step "2/3 replaceAll 扫描（TS target ES2020 禁用）"
     $hits = Get-ChildItem -Path (Join-Path $repo "src") -Recurse -File |
-        Select-String -Pattern 'replaceAll|replaceAllAsync' -ErrorAction SilentlyContinue
+        Select-String -Pattern '\.replaceAll\s*\(|\.replaceAllAsync\s*\(' -ErrorAction SilentlyContinue
     if ($hits) {
         Write-Fail "发现 replaceAll 用法（ES2021 API，ES2020 运行时会炸）："
         $hits | ForEach-Object { Write-Host "    $($_.Path):$($_.LineNumber)" -ForegroundColor Red }
-        Write-Host "    改用 .split(X).join(Y) 替代。" -ForegroundColor Yellow
+        Write-Host "    改用 .split(X).join(Y) 替代。" -ForegroundColor Red
         exit 1
     }
     Write-Ok "无 replaceAll / replaceAllAsync 用法"
