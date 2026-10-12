@@ -80,6 +80,7 @@ def set_windows_msvc_env(env: dict) -> None:
         sdk_bin,
         r"M:\rust\.cargo\bin",
         r"D:\nodejs",
+        r"D:\nodejs\npm-global",  # bun 在 npm 全局 prefix（tauri.conf.json beforeDevCommand=bun run dev）
         os.path.join(ROOT, "node_modules", ".bin"),
         env.get("PATH", ""),
     ])
@@ -104,12 +105,17 @@ def launch_debug(port: int, timeout: int = 300) -> subprocess.Popen:
     env["SOLO_CDP_PORT"] = str(port)  # 端口被占就换一个，避免单实例/端口冲突
     print(f"[*] 自动起 debug 构建 (SOLO_CDP_PORT={port})，最多等 {timeout}s ...")
     flags = subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0
+    # 输出落日志文件（勿 DEVNULL）：beforeDevCommand 失败时 tauri dev 秒退，
+    # 没日志就等于盲猜；路径与下方超时提示一致。
+    log_path = os.path.join(ROOT, "outputs", "tauri-dev-run.log")
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    log_file = open(log_path, "w", encoding="utf-8", errors="replace")
     proc = subprocess.Popen(
         ["npx", "tauri", "dev"],
         cwd=ROOT,
         env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
         creationflags=flags,
     )
     deadline = time.time() + timeout

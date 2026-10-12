@@ -22,7 +22,7 @@ updates: [package.json, docs/sensitive-areas.md §11.4]
 | **恶意文档诱导越权读写文件** | 文档里可出现任意路径（图片引用、链接、导入源、保存目标），Rust 侧若直接采信前端传入路径，就能读/写本职功能之外的文件 | 读、写命令各加扩展名白名单（读限 md / markdown / txt，写另加 json）；图片引用与导入源统一走 `validate_image_asset_path` |
 | **远程图片 / 字体 URL 滥用（SSRF）** | 恶意文档可诱导应用向任意地址发起请求，包括内网与云元数据端点 | `validate_remote_image_url` 限 http/https 并拦截字面量内网 / 回环 / 链路本地主机与云元数据地址；`validate_font_url` 限 https。**残留风险见 §4** |
 | **自动更新供应链** | 自动更新会拉取 `latest.json` + 签名安装包，若签名校验被绕过可投毒 | 使用 Tauri updater + `TAURI_SIGNING_PRIVATE_KEY` 签名校验 |
-| **HTML / Markdown 粘贴** | 粘贴富文本 / HTML 时可能带入脚本、危险协议 | 前端 `turndown` 转换 + 内容经 TipTap/ProseMirror 净化；mermaid 用 `loose` 模式（本地单文件编辑器，风险可接受） |
+| **HTML / Markdown 粘贴** | 粘贴富文本 / HTML 时可能带入脚本、危险协议 | HTML 经 ProseMirror `DOMParser` 按编辑器 schema 白名单解析（schema 不认识的 `<script>` 等标签与内联事件、div/span/CSS 样式一律不进文档），Word 的 `mso-*` 垃圾标记先由 `stripMsoMarkup` 字符串级清理；Markdown 文本经 markdown-it 解析。mermaid 用 `loose` 模式（本地单文件编辑器，风险可接受） |
 | **文件关联 / 右键新建** | 注册表项、`.md` 文件图标与 ShellNew | 安装时写入，卸载时清理 |
 | **WebView2 远程内容** | solo 本身不加载远程网页；CSP 已收紧（font-src 含 `blob:` 仅用于字体下载） | 仅加载本地 `asset://` 与 `http://asset.localhost` |
 
