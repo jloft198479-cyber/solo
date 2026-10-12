@@ -23,7 +23,7 @@ const {
 
 <template>
   <div class="shortcut-settings-panel">
-    <section class="settings-section-card settings-section-card--hero">
+    <div class="shortcut-settings-panel__toolbar">
       <div class="shortcut-settings-panel__hint">
         {{ isMac ? 'Mac 使用 ⌘ 键' : 'Windows/Linux 使用 Ctrl 键' }} · 点击行可修改快捷键
       </div>
@@ -33,7 +33,7 @@ const {
       >
         重置全部
       </button>
-    </section>
+    </div>
 
     <section v-if="conflictWarning" class="settings-section-card settings-warning-card">
       <div class="settings-warning-text">⚠️ {{ conflictWarning }}</div>
@@ -107,14 +107,27 @@ const {
   font-weight: 600;
 }
 
+.shortcut-settings-panel__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .shortcut-settings-panel__hint {
   color: var(--muted-color);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .shortcut-settings-panel__reset {
-  font-size: 12px;
+  flex-shrink: 0;
+  font-size: 13px;
   color: var(--primary-color);
+}
+
+.shortcut-settings-panel__reset:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .shortcut-settings-panel__list {
@@ -142,6 +155,9 @@ const {
 }
 
 .shortcut-settings-panel__description {
+  /* min-width:0 允许在窄空间收缩换行，避免把右侧快捷键框挤断 */
+  flex: 1;
+  min-width: 0;
   font-size: 14px;
   color: var(--text-color);
 }
@@ -150,6 +166,18 @@ const {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 960px) {
+  /* 窄窗描述换行时，快捷键框与首行文字顶对齐，不再悬在多行中部 */
+  .shortcut-settings-panel__item {
+    align-items: flex-start;
+  }
+
+  .shortcut-settings-panel__description {
+    padding-top: 5px;
+  }
 }
 
 .shortcut-settings-panel__item-reset {

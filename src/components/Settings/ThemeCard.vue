@@ -83,7 +83,8 @@ const emit = defineEmits<{
 .theme-badge {
   font-size: 10px;
   padding: 2px 6px;
-  border-radius: 999px;
+  /* 文字标签走直角语言（非拟物控件） */
+  border-radius: var(--radius-sm);
   background: var(--primary-light);
   color: var(--primary-color);
 }

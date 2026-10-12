@@ -38,7 +38,8 @@
   right: 0;
   min-width: 200px;
   padding: 8px;
-  border-radius: var(--radius-xl);
+  /* 弹层容器与卡片统一 8px 直角语言 */
+  border-radius: var(--radius-lg);
   background: var(--popover-bg);
   border: 1px solid var(--popover-border);
   box-shadow: var(--popover-shadow);

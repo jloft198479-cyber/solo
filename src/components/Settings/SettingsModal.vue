@@ -39,7 +39,6 @@ const tabMeta = {
 } as const;
 
 const activeTabMeta = computed(() => tabMeta[activeTab.value]);
-const currentThemeName = computed(() => settingsStore.currentTheme?.name ?? '未选择主题');
 
 // 关闭弹窗
 function close() {
@@ -112,19 +111,12 @@ function onKeyDown(e: KeyboardEvent) {
                     <h3 class="settings-page-title">{{ activeTabMeta.title }}</h3>
                     <p class="settings-page-desc">{{ activeTabMeta.description }}</p>
                   </div>
-                  <div
-                    v-if="activeTab === 'appearance'"
-                    class="settings-page-badge"
-                  >
-                    {{ `当前主题：${currentThemeName}` }}
-                  </div>
                 </div>
 
                 <!-- 外观设置 -->
                 <AppearanceSettingsPanel
                   v-if="activeTab === 'appearance'"
                   v-model:font-family="settingsStore.settings.fontFamily"
-                  :current-theme-name="currentThemeName"
                 />
 
                 <!-- 编辑器设置 -->
@@ -271,17 +263,6 @@ function onKeyDown(e: KeyboardEvent) {
   color: var(--muted-color);
   font-size: 14px;
   line-height: 1.7;
-}
-
-.settings-page-badge {
-  flex-shrink: 0;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  background: var(--bg-color);
-  color: var(--primary-color);
-  font-size: 12px;
-  font-weight: 600;
 }
 
 /* ── 弹窗底部 ──────────────────────────────────── */

@@ -101,7 +101,8 @@ defineProps<{
   flex-direction: column;
   min-height: 122px;
   border: 1px solid;
-  border-radius: var(--radius-xl);
+  /* 微缩窗口外框与卡片语言一致（8px） */
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
@@ -210,7 +211,8 @@ defineProps<{
   align-items: stretch;
   min-height: 18px;
   padding: 4px 5px;
-  border-radius: 7px;
+  /* 微缩比例下的 callout 内框，对应真实 radius-sm */
+  border-radius: var(--radius-sm);
 }
 
 .theme-preview-callout-bar {
@@ -238,7 +240,7 @@ defineProps<{
 .theme-preview-code {
   padding: 5px 6px;
   border: 1px solid;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
 }
 
 .theme-preview-code-line {

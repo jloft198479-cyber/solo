@@ -8,16 +8,6 @@ const titlebarAutoHide = defineModel<boolean>('titlebarAutoHide', { required: tr
 
 <template>
   <div class="editor-settings-panel">
-    <section class="settings-section-card settings-section-card--hero">
-      <div>
-        <div class="settings-section-title">编辑器行为</div>
-        <p class="settings-section-desc">控制拼写检查、标题栏等核心编辑体验。</p>
-      </div>
-      <div class="settings-hero-metrics">
-        <div class="settings-hero-chip">拼写检查：{{ spellCheck ? '开启' : '关闭' }}</div>
-      </div>
-    </section>
-
     <section class="settings-section-card">
       <div class="settings-row">
         <div>
@@ -26,9 +16,7 @@ const titlebarAutoHide = defineModel<boolean>('titlebarAutoHide', { required: tr
         </div>
         <SettingsSwitch v-model="spellCheck" label="切换拼写检查" />
       </div>
-    </section>
 
-    <section class="settings-section-card">
       <div class="settings-row">
         <div>
           <label class="settings-row-title">标题栏自动隐藏</label>

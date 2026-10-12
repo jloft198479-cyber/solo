@@ -6,10 +6,6 @@ import SettingsRangeField from './SettingsRangeField.vue';
 import ThemeSelector from './ThemeSelector.vue';
 import './settings-shared.css';
 
-defineProps<{
-  currentThemeName: string;
-}>();
-
 const settingsStore = useSettingsStore();
 
 const fontFamily = defineModel<string>('fontFamily', { required: true });
@@ -51,25 +47,11 @@ function resetLineHeight() {
 
 <template>
   <div class="appearance-settings-panel">
-    <section class="settings-section-card settings-section-card--hero">
-      <div>
-        <div class="settings-section-title">当前主题</div>
-        <p class="settings-section-desc">
-          主题选择会立即生效。默认先从主题库里挑选风格，只有在需要个性化时再进入高级编辑。
-        </p>
-      </div>
-      <div class="settings-hero-metrics">
-        <div class="settings-hero-chip">应用主题：{{ currentThemeName }}</div>
-        <div class="settings-hero-chip">字体：{{ fontFamily }}</div>
-        <div class="settings-hero-chip">字号：{{ effectiveFontSize }}px</div>
-      </div>
-    </section>
-
     <section class="settings-section-card">
       <div class="settings-section-heading">
         <div>
           <div class="settings-section-title">主题库</div>
-          <p class="settings-section-desc">所有主题默认直接展示，方便快速横向比较。</p>
+          <p class="settings-section-desc">主题选择会立即生效；所有主题默认直接展示，方便快速横向比较。</p>
         </div>
       </div>
       <ThemeSelector />

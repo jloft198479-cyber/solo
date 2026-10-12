@@ -5,23 +5,10 @@
 .settings-section-card {
   padding: 18px;
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
+  /* 直角语言：容器统一 radius-lg（8px），不使用更圆的 xl 档 */
+  border-radius: var(--radius-lg);
   background: var(--bg-color);
   box-shadow: var(--shadow-sm);
-}
-
-.settings-section-card--hero {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  background:
-    radial-gradient(
-      circle at top right,
-      color-mix(in srgb, var(--primary-light) 85%, transparent 15%),
-      transparent 45%
-    ),
-    var(--bg-color);
 }
 
 .settings-section-heading {
@@ -43,22 +30,6 @@
   color: var(--muted-color);
   font-size: 13px;
   line-height: 1.7;
-}
-
-.settings-hero-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.settings-hero-chip {
-  padding: 7px 11px;
-  border-radius: 999px;
-  background: var(--primary-light);
-  color: var(--primary-color);
-  font-size: 12px;
-  font-weight: 600;
 }
 
 .settings-row {
@@ -93,13 +64,8 @@
 }
 
 @media (max-width: 960px) {
-  .settings-section-card--hero,
   .settings-row {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .settings-hero-metrics {
-    justify-content: flex-start;
   }
 }

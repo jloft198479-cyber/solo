@@ -56,18 +56,6 @@ async function checkForUpdate() {
 
 <template>
   <div class="about-settings-panel">
-    <section class="settings-section-card settings-section-card--hero">
-      <div>
-        <div class="settings-section-title">solo</div>
-        <p class="settings-section-desc">
-          极简 Markdown 编辑器 · 基于 Tauri · Rust · Vue 3 · TipTap
-        </p>
-      </div>
-      <div class="settings-hero-metrics">
-        <div class="settings-hero-chip">v{{ appVersion }}</div>
-      </div>
-    </section>
-
     <section class="settings-section-card">
       <div class="settings-row">
         <div>
