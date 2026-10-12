@@ -5,7 +5,7 @@
   position: relative;
 }
 
-/* ── 图标按钮：32×32 命中区，克制透明度 ── */
+/* ── 图标按钮：32×32 命中区，0.85 保 16px 小描边图标可辨，hover 提亮留反馈层级 ── */
 .icon-btn {
   display: flex;
   align-items: center;
@@ -16,7 +16,7 @@
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  opacity: 0.6;
+  opacity: 0.85;
   border-radius: var(--radius-lg);
   transition: opacity var(--motion-fast) ease, background-color var(--motion-fast) ease, color var(--motion-fast) ease;
 }
