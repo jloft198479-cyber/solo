@@ -34,8 +34,8 @@ updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src, docs/RELEASE_PROCESS.
 | 2 | 拖入 `.md` 不打开新窗口 | [`src/services/tauri/events.ts`](../src/services/tauri/events.ts) 的 `activeDragDropHandler` 单值变量，后注册覆盖前者 | 改为 `Set<DragDropHandler>` 广播分发 | [`src/services/tauri/events.ts`](../src/services/tauri/events.ts) |
 | 3 | 图片拖入调用点 5 行 if/else | 路径模式判别 + authorize 分散 | 新增 `resolve_image_display` 单命令合并 | [`src-tauri/src/commands/document.rs`](../src-tauri/src/commands/document.rs) |
 | 4 | IME 候选栏变箭头 | `editor.css` 的 `ime-mode: active`（IE 遗留，WebView2 上致候选窗变形） | 删除该属性 | [`src/components/Editor/tiptap/editor.css`](../src/components/Editor/tiptap/editor.css) |
-| 5 | 文档干净度矛盾（导出功能/测试数） | 多份文档与代码脱节 | 2026-07-20 文档对账，导出功能按代码为准对齐 | [`README.md`](../README.md)×4 / [`ARCHITECTURE.md`](../ARCHITECTURE.md) / [`.opencode/PROFILE.md`](../.opencode/PROFILE.md) / [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md) |
-| 6 | 字体缓存文档脱节（IndexedDB vs 文件系统） | [`ARCHITECTURE.md`](../ARCHITECTURE.md) 原写 IndexedDB，[`.opencode/PROFILE.md`](../.opencode/PROFILE.md) 说 v1.2.10 后改文件系统，两说打架 | 2026-07-21 文档规范化：以 `fontLoader.ts` 实际机制（文件系统缓存）为准，ARCHITECTURE 改文件系统、PROFILE 删除重复段改指针 | [`ARCHITECTURE.md`](../ARCHITECTURE.md):489/574 / [`.opencode/PROFILE.md`](../.opencode/PROFILE.md) |
+| 5 | 文档干净度矛盾（导出功能/测试数） | 多份文档与代码脱节 | 2026-07-20 文档对账，导出功能按代码为准对齐 | [`README.md`](../README.md)×4 / [`ARCHITECTURE.md`](../ARCHITECTURE.md) / `.opencode/PROFILE.md`（仓库外的本地工作目录，未入库） / [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md) |
+| 6 | 字体缓存文档脱节（IndexedDB vs 文件系统） | [`ARCHITECTURE.md`](../ARCHITECTURE.md) 原写 IndexedDB，`.opencode/PROFILE.md`（仓库外的本地工作目录，未入库） 说 v1.2.10 后改文件系统，两说打架 | 2026-07-21 文档规范化：以 `fontLoader.ts` 实际机制（文件系统缓存）为准，ARCHITECTURE 改文件系统、PROFILE 删除重复段改指针 | [`ARCHITECTURE.md`](../ARCHITECTURE.md):489/574 / `.opencode/PROFILE.md`（仓库外的本地工作目录，未入库） |
 | 7 | 字体不显示（下载完成却显示不出来） | 渲染层用 `asset://` 的 `@font-face` 被 CORS **静默拦截**（不报错）；叠加「霞鹜文楷」文件名标 Regular 但内部是 Lite 轻便版、与代码 `value` 不符的资源错配 | 渲染改走字节通道（`readFontBytes` IPC 取字节 → `new FontFace(family, bytes)` 同源加载）；霞鹜对齐为 Lite 真名（`value='LXGW WenKai Lite'`） | [`src/services/fontLoader.ts`](../src/services/fontLoader.ts) + [字体手册](./font-handling.md) |
 | 8 | 打开含 Mermaid 的文档，未作修改却显示「未保存」 | 旧 `onUpdate` 无条件调 `markUserEdit()`；含 Mermaid 文档因异步 NodeView 渲染时机叠加，产生非 `preventUpdate` transaction → 误标脏 | A1 重构：脏态改由 `useEditorSync` → `syncEditedContent()` 按「内容是否变化」判定（2026-08-14），不再依赖交互门控 / `markUserEdit` | [`src/components/Editor/MarkdownEditor.vue`](../src/components/Editor/MarkdownEditor.vue):189 / [`ARCHITECTURE.md`](../ARCHITECTURE.md) §7.1 |
 | 9 | 恶意文档可诱导越权读写文件 / 向内网发请求（代码审查发现，未见用户报障） | `open_document` / `save_document` / `import_document_image` / `fetch_remote_image` 直接采信前端传入的路径与 URL，无扩展名约束、无协议与主机限制 | 读/写各加扩展名白名单；import 的 source 改走 `validate_image_asset_path`（canonicalize + is_file + 图片扩展名）；新增 `validate_remote_image_url`（限 http/https + 拦截字面量内网主机）与 `validate_font_url`（限 https）。**残留风险见 §二 #5** | [`src-tauri/src/commands/document.rs`](../src-tauri/src/commands/document.rs) / [`image.rs`](../src-tauri/src/commands/image.rs) / [`font.rs`](../src-tauri/src/commands/font.rs) |
@@ -167,7 +167,7 @@ updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src, docs/RELEASE_PROCESS.
 ## 四、文档类已知坑（[文档坑]，agent 必读）
 
 - **`.trae/documents/`**：旧架构文档（文件树/workspace watcher/fs.rs 等），**已失效，忽略**（不要链接、不要读取）。
-- **[`.opencode/PROFILE.md`](../.opencode/PROFILE.md)**：技术档案，含历史快照，可能与当前代码有延迟；以 [`ARCHITECTURE.md`](../ARCHITECTURE.md) + 代码为准。
+- **`.opencode/PROFILE.md`（仓库外的本地工作目录，未入库）**：技术档案，含历史快照，可能与当前代码有延迟；以 [`ARCHITECTURE.md`](../ARCHITECTURE.md) + 代码为准。
 - **[`ARCHITECTURE.md`](../ARCHITECTURE.md) 附录 C**：已固化「文档-代码差异」清单，遇到矛盾先查此表。
 - 任何文档若与代码不符，**以代码为准并更新文档**。
 - **Suggestion 扩展的"扩展级 option"接线坑**：`WikilinkSuggest` 等的 `allow` 门控读的是扩展级 `this.options.xxx`（如 `getDocumentPath`），只在 `configure({ suggestion })` 里把值喂给 `suggestion` 闭包**不算接上**——必须在 configure 顶层也显式传。这类"漏递"纯函数单测测不到（见 §一 #21），要靠 `editor-extensions.spec` 那种"组装后断言 option"的集成锁兜底。

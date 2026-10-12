@@ -58,7 +58,11 @@ const KNOWN_FIDELITY_GAPS: Record<string, { kind: 'LOSS' | 'FORMAT'; note: strin
 describe('Fixture 保真', () => {
   for (const file of fixtureFiles) {
     it(file, () => {
-      const md = readFileSync(resolve(FIXTURES_DIR, file), 'utf-8');
+      // 换行符归一：CI（windows-latest）检出是 CRLF、本机可能是 LF —— 这是**环境差异**
+      // 不是内容差异（solo 落盘统一写 LF）。不归一的话 ② 字节保真在 CI 上恒红
+      // （v1.2.59 / v1.2.60 的 Test 工作流都是这么红的），而它红的理由与保真无关。
+      // 只归一**输入**，输出与判据一律不动 ⇒ 不会掩盖序列化器回归。
+      const md = readFileSync(resolve(FIXTURES_DIR, file), 'utf-8').replace(/\r\n/g, '\n');
 
       // 序列化（不应抛异常）
       const out = roundTrip(md);
