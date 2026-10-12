@@ -141,7 +141,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 全格式色走主题 token | ✅ | [`types.ts`](../src/themes/types.ts) `CSS_VAR_MAP`（68 字段） | 敏感区 §11.6 硬规矩：hljs / mermaid / KaTeX 颜色也须走 token，禁止硬编码 |
 | 主题切换过渡动效 | ✅ | `.theme-transitioning` 200ms + 编辑区 220ms 淡入 | `prefers-reduced-motion` 需自行核对 |
 
-> **核查要点**：新建自定义主题只许写「性格差异」字段，共享值必须走 `SHARED_LIGHT/DARK_COLORS`；切换主题后状态栏「未保存」指示色也要跟着变（历史 bug：`--dirty-color` 漏登记）。
+> **核查要点**：新建自定义主题只许写「性格差异」字段，共享值必须走 `SHARED_LIGHT/DARK_COLORS`；切换主题后状态栏「未保存」指示色也要跟着变（现走 `--primary-color`，2026-10-13 起；历史 bug：曾被漏登记的 `--dirty-color` 已随该次改动移除）。
 
 ## 6. 图片
 
