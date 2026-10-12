@@ -1,0 +1,10 @@
+# 强制仓库内所有文本文件以 LF 行尾存储与检出。
+# 根因修复：此前 Windows CI 上 fixtures.spec.ts 因 CRLF 字节精确比对失败（红灯）。
+# 加此文件后，任何文本文件（含将来新增的 .md 测试夹具）都不会再被提交成 CRLF，
+# 从根上杜绝此类红灯复发。
+* text=auto eol=lf
+
+# 显式声明二进制资源，确保它们永远不被行尾归一化（PNG/ICO/ICNS 内含 0x0D 字节，避免误判）。
+*.png binary
+*.ico binary
+*.icns binary
