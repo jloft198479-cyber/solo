@@ -71,7 +71,7 @@ updates: [AGENTS.md, ARCHITECTURE.md, docs/sensitive-areas.md, docs/KNOWN-ISSUES
 | **动 parser / serializer / schema**（共享内核） | `vue-tsc` + `bun run test`（**全量**）+ **全仓保真体检**（命令见下） | ~14s + 体检 |
 | 时序 / UI / IME / 异步 | 上述 + **真机手感**（人工或 CDP 探针） | — |
 | **发版前 / 大规模重构 / 跨模块改动** | `bun run test:full`（全量 + 体检）+ `bun run build` | — |
-| 新增 / 改名 / 删除 Rust 命令 | `command-names.ts` → `commands/mod.rs` → `lib.rs` 三处同步 | — |
+| 新增 / 改名 / 删除 Rust 命令 | `command-names.ts` → `commands/mod.rs` → `lib.rs` → **`ARCHITECTURE.md` §4.2 命令表**（四处同步） | — |
 
 > ⚠️ **`vite build` 不在日常门禁里**：只在**发版前、动构建配置、跨模块重构**时才跑。日常改动 `vue-tsc`（类型）+ 相关测试已够。
 > ⚠️ **`test:changed` 省的是"信号聚焦"，不是时间**：实测全量 13.6s vs 只跑相关 8.9s，**只差 4.7 秒**——因为本项目核心模块被依赖太广，依赖图一算还是一大片。它的真正价值是"红的那条就是你的锅"，不是提速。
@@ -98,7 +98,7 @@ bun run test:full          # 全量 + 体检，跨平台安全（不再用 SOLO_
 | 级 | 验的是什么 | 典型 | 地位 |
 |---|---|---|---|
 | **A · 行为锁** | 模拟用户操作后的**产品行为**（打开→保存加粗还在不在；刚敲一个字马上 `Ctrl+S` 落不落盘） | `roundtrip` / `fixtures` | ✅ **唯一可当交活依据** |
-| **B · 守恒锁** | 集合比对 / 名单覆盖（有没有这个分支） | `mark-delimiter-coverage` / `schema-contract` | ⚠️ 只当**警报器**，不证明行为对 |
+| **B · 守恒锁** | 集合比对 / 名单覆盖（有没有这个分支、有没有这行登记） | `mark-delimiter-coverage` / `schema-contract` / **`arch-drift`**（文档 ⇄ 命令注册 / 扩展清单） | ⚠️ 只当**警报器**，不证明行为对 |
 | **C · 棘轮锁** | 只许变好不许变坏（签名 / 计数不上升） | `fidelity-scan` G3 | ⚠️ 只防回归，不证明功能对 |
 
 **新建锁的准入（缺一不加）**：① 能一句话说清「**我防的是哪个已发生的事故**」—— 答不上来的不是护栏，是税；② 做过**反向校准**（下条）；③ 能归到上表某一级。

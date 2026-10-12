@@ -39,7 +39,7 @@ solo = 本地优先的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + TipTap + Ru
 > **准入标准**（缺一不进本节）：① **高频** —— 日常改动就会碰到；② 违反造成**静默损坏或不可逆后果**；③ **没有机器能拦**。
 > 低频的、已结案的、机器能拦的一律降级到 [playbook §D](./docs/agent-playbook.md)：**经验留着，不占必读**。已解决的个案（如 IME 候选窗漂移，2026-10-12 已定案）同理，只在经验文档里留档。
 
-1. **Rust 命令**：前端不许直接 `invoke`（走 [`client.ts`](./src/services/tauri/client.ts)，命令名登记 [`command-names.ts`](./src/services/tauri/command-names.ts)）；新增命令**三处同步** `commands/xxx.rs` → `commands/mod.rs` → `lib.rs` 的 `generate_handler!`
+1. **Rust 命令**：前端不许直接 `invoke`（走 [`client.ts`](./src/services/tauri/client.ts)，命令名登记 [`command-names.ts`](./src/services/tauri/command-names.ts)）；新增命令**四处同步** `commands/xxx.rs` → `commands/mod.rs` → `lib.rs` 的 `generate_handler!` → **`ARCHITECTURE.md` §4.2 命令表**（文档这一项有机器锁 [`src/__tests__/arch-drift.spec.ts`](./src/__tests__/arch-drift.spec.ts)，漏改即红）
 2. **不许硬编码** —— 颜色走 `--*` 主题 token（含 highlight.js / mermaid / KaTeX）；尺寸 / 间距 / 动效走设计 token；超时、阈值、重试次数、路径、端口等一律走常量或配置，**不撒魔法数字**。确需就地写死的，必须在旁边写明理由。
 3. **NodeView** 监听器挂 `AbortController`；`destroy()` 里 `abort()`，异步回写查 `signal.aborted`
 4. 改 **parser / serializer / schema** 前**必跑 5 套契约锁**（见 playbook §C）—— 这里静默丢内容是本项目最贵的事故类型
