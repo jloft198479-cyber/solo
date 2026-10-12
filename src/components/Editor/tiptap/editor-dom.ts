@@ -7,6 +7,34 @@ import type { EditorView } from '@tiptap/pm/view';
  */
 export const OUTLINE_SCROLL_RATIO = 0.25;
 
+/** 文档首位置（doc 起点之后第一个可写位置） */
+export const DOC_START = 1;
+
+/**
+ * 纵向坐标落在**内容之外**（首块上方 / 末块下方）时 → 贴靠文档首 / 末；
+ * 落在内容高度范围内 → null（交调用方按自己的语义处理）。
+ *
+ * 为什么按**首末块 DOM 的真实边界**判定、而不是 `view.dom` 的盒子：
+ * `.tiptap-editor` 的 `min-height:100%` 相对 `height:auto` 的父级（`.mk-editor-inner`）
+ * 解析 ⇒ 按 CSS 规则退化为 0 ⇒ 今天它的盒子**恰好**等于内容盒（软巧而非保证）。
+ * 一旦有人把编辑器撑满可视区，`view.dom` 盒子底边就成了视口底 ⇒ 留白一律被
+ * 判成「在内容内」。用首末块边界与 「撑不撑满」解耦，两边都稳。
+ *
+ * 调用方分工（同一份判据，两种语义）：
+ * - 拖拽落点 `posFromDropPoint`：`posAtCoords` 取不到位置时贴首/末，取到 null 则
+ *   回落「打开文件」（纵向在内容内但横向偏出内容列的落点，插到文档首是错的）。
+ * - 空白点击 `blankClickFallbackPos`：只接管内容外的留白，故要求结果为非 null。
+ */
+export function posOutsideContent(view: EditorView, clientY: number): number | null {
+  const firstRect = view.dom.firstElementChild?.getBoundingClientRect();
+  if (firstRect && clientY < firstRect.top) return DOC_START;
+
+  const lastRect = view.dom.lastElementChild?.getBoundingClientRect();
+  if (lastRect && clientY > lastRect.bottom) return view.state.doc.content.size;
+
+  return null;
+}
+
 /**
  * JS 滚动调用的行为选择：CSS 的 `scroll-behavior` 与 `prefers-reduced-motion`
  * 媒体查询管不到 scrollTo / scrollIntoView 的 `behavior` 参数，必须在这里

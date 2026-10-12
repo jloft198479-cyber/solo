@@ -85,7 +85,7 @@ import { resolveWikilinkTarget } from './tiptap/extensions/wikilink';
 import { decideDocumentDrop } from './tiptap/extensions/wikilink-drop';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch, pulseJumpTarget } from './tiptap/useEditorSearch';
-import { getBlockElFromPos, scrollElementIntoView } from './tiptap/editor-dom';
+import { getBlockElFromPos, scrollElementIntoView, posOutsideContent } from './tiptap/editor-dom';
 import { resolveImageDisplay, getFileMtime, saveDocument } from '../../services/tauri/document';
 import { recordDocumentSession, readDocumentSession } from '../../services/tauri/session';
 import { normalizeTauriError } from '../../services/tauri/client';
@@ -249,6 +249,10 @@ async function handleWikilinkNavigate(target: string) {
  * 正文留白（内容下方、段落之间）视觉上就是纸面，压不到文字节点也不该判成纸外——空文档内容区
  * 仅一行高，按内容根判定会让「拖到正文里」几乎必然落空。标题栏 / 状态栏 / 大纲栏都在该容器
  * 之外，命中它们仍然回落「打开」。
+ * ⚠️ 判据与「空白点击落光标」（`tiptap/extensions/blank-click-focus.ts`）**共用**
+ * `editor-dom.ts::posOutsideContent`：内容纵向范围外 → 贴文档末 / 首；纵向在内容内
+ * 却取不到位置（点在左右页边空白）→ 返回 null 交回「打开」。不再用 `view.dom`
+ * 盒子底边判留白 —— 那个写法只在 `min-height` 失效时才碰巧正确。
  * ⚠️ 仍需真机确认跟手性（多屏混合 DPI、显示缩放等场景）。
  */
 function posFromDropPoint(position: { x: number; y: number }): number | null {
@@ -263,9 +267,8 @@ function posFromDropPoint(position: { x: number; y: number }): number | null {
 
   const coords = ed.view.posAtCoords({ left, top });
   if (coords) return coords.pos;
-  // 落在纸面留白：内容覆盖不到的纵向区域取不到精确位置 → 贴到文档末 / 首（丢在哪就落在哪）
-  const content = ed.view.dom.getBoundingClientRect();
-  return top > content.bottom ? ed.state.doc.content.size : 1;
+  // 取不到精确位置（纸面留白）→ 内容外的纵向区域贴文档末 / 首（丢在哪就落在哪）
+  return posOutsideContent(ed.view, top);
 }
 
 /**

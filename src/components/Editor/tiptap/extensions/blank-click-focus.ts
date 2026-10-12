@@ -2,6 +2,7 @@ import type { EditorView } from '@tiptap/pm/view';
 import { TextSelection } from '@tiptap/pm/state';
 
 import { isFrozen } from '../composition-freeze';
+import { DOC_START, posOutsideContent } from '../editor-dom';
 
 /**
  * 空白点击落光标兜底 —— 点编辑区留白 → 光标落到最近内容（Typora 手感）。
@@ -25,8 +26,8 @@ import { isFrozen } from '../composition-freeze';
  * 留白视觉上就是纸面。监听挂在容器上（模板 `@mousedown`），于是成因 1 被绕开，
  * 成因 2 由本兜底接管：内容实际底边下方 → 落文档末尾；实际顶边上方 → 落开头。
  *
- * ⚠️ 首 / 末判定用**首末块 DOM 的真实边界**，不能用 `view.dom` 的盒子 —— 它被
- * `min-height` 撑得比内容高，内容短时其底边不是内容底边。
+ * ⚠️ 首 / 末判定与拖拽落点共用 `editor-dom.ts::posOutsideContent`（为什么用首末块
+ * 真实边界、不用 `view.dom` 盒子，理由写在那里，一处定义）。
  * ⚠️ 只在 `posAtCoords` 取不到位置时接管：表格内点击、列宽拖拽、链接点击、
  * 双击选词、普通段落定位全部走 ProseMirror 原路径，本兜底零接管。
  * ⚠️ 落点沿用 PM 原生点击路径的**逐字等价**行为（`updateSelection`，view 3259-3270：
@@ -37,14 +38,11 @@ import { isFrozen } from '../composition-freeze';
  * 坐标几何靠真机复核）。
  */
 
-/** 文档首位置（doc 起点之后第一个可写位置） */
-const DOC_START = 1;
-
 /**
  * 空白点击的兜底落点；返回 null 表示不接管（交回浏览器 / ProseMirror 默认处理）。
  *
  * 判据顺序（任何一条不满足即放行）：左键无 Shift / 非组字中 / `posAtCoords` 为空 /
- * 坐标在纸面内 / 且在首块上方或末块下方。
+ * 坐标在纸面内 / 且在首块上方或末块下方（后两条判据见 `editor-dom.ts`）。
  */
 export function blankClickFallbackPos(
   view: EditorView,
@@ -65,13 +63,7 @@ export function blankClickFallbackPos(
     return null;
   }
 
-  const firstRect = view.dom.firstElementChild?.getBoundingClientRect();
-  if (firstRect && event.clientY < firstRect.top) return DOC_START;
-
-  const lastRect = view.dom.lastElementChild?.getBoundingClientRect();
-  if (lastRect && event.clientY > lastRect.bottom) return view.state.doc.content.size;
-
-  return null;
+  return posOutsideContent(view, event.clientY);
 }
 
 /**
