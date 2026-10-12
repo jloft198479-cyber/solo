@@ -574,13 +574,9 @@ function updateBubbleMenu(ed: TiptapEditor) {
   // 获取选区坐标
   const coords = ed.view.coordsAtPos(from);
   const endCoords = ed.view.coordsAtPos(to);
-  // 定位到选区右端，格式栏显示在右侧，避免行首时溢出左边界
-  // 视口边界钳位：防止 BubbleMenu 溢出右边界
-  const BUBBLE_MENU_ESTIMATED_WIDTH = 360;
-  const BUBBLE_MENU_OFFSET_X = 8;
-  const viewportWidth = window.innerWidth;
-  const maxLeft = viewportWidth - BUBBLE_MENU_ESTIMATED_WIDTH - BUBBLE_MENU_OFFSET_X - 8;
-  const left = Math.max(8, Math.min(endCoords.right, maxLeft));
+  // 锚点定在选区右端（避免行首时菜单溢出左边界）；左右缘视口钳制由
+  // BubbleMenu 按自身实测宽度完成——宽度估算与实际不符曾导致右缘裁切
+  const left = endCoords.right;
   const top = coords.top;
 
   // 检测当前 marks

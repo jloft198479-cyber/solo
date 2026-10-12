@@ -94,14 +94,38 @@ const emit = defineEmits<{
 }>();
 
 const visible = ref(false);
+const menuRef = ref<HTMLElement | null>(null);
 const pos = reactive({ left: 0, top: 0 });
 
 // 顶部菜单栏高度（CustomTitlebar 48px）+ 菜单自身高度约 44px + 缓冲，低于此阈值时向下翻转
 const TOP_FLIP_THRESHOLD = 100;
+// 视觉左缘 = pos.left + translateX；与 menuTransform 中的 X 偏移必须同源
+const MENU_OFFSET_X = 8;
+// 菜单与视口左右缘的最小间距
+const VIEWPORT_EDGE_MARGIN = 8;
 
 const menuTransform = computed(() =>
-  pos.top < TOP_FLIP_THRESHOLD ? 'translate(8px, 16px)' : 'translate(8px, -130%)',
+  pos.top < TOP_FLIP_THRESHOLD
+    ? `translate(${MENU_OFFSET_X}px, 16px)`
+    : `translate(${MENU_OFFSET_X}px, -130%)`,
 );
+
+/**
+ * 横向视口钳制：按菜单实测宽度（工具栏宽度随按钮数量/字体变化，估算会漏钳）
+ * 把视觉左缘（pos.left + translateX）限制在 [margin, vw - margin] 内。
+ * 必须在 nextTick 后调用：v-show 刚切到显示时才能量到真实宽度。
+ */
+function clampToViewport(anchorLeft: number) {
+  const el = menuRef.value;
+  if (!el || !visible.value) return;
+  const width = el.offsetWidth;
+  const minLeft = VIEWPORT_EDGE_MARGIN - MENU_OFFSET_X;
+  const maxLeft = window.innerWidth - VIEWPORT_EDGE_MARGIN - width - MENU_OFFSET_X;
+  const next = Math.min(Math.max(anchorLeft, minLeft), maxLeft);
+  // 值不变不回写，选区拖动的每帧更新零额外渲染
+  if (pos.left !== next) pos.left = next;
+}
+
 const activeMarks = reactive({
   bold: false,
   italic: false,
@@ -163,6 +187,7 @@ defineExpose({
     visible.value = show;
     pos.left = left;
     pos.top = top;
+    if (show) nextTick(() => clampToViewport(left));
     Object.assign(activeMarks, marks);
 
     // 如果已有链接，填充 URL
