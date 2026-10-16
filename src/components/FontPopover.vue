@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onUnmounted } from 'vue';
 import { useSettingsStore } from '../stores/settings';
 import { FONT_OPTIONS } from '../constants/fonts';
-import { isFontAvailable, isFontFailed, onProgress } from '../services/fontLoader';
+import { useFontStatus } from '../composables/useFontStatus';
 import CheckIcon from './icons/CheckIcon.vue';
 import './popover-shared.css';
 
@@ -14,57 +14,31 @@ const emit = defineEmits<{ (e: 'toggle'): void; (e: 'select'): void }>();
 const fontOptions = FONT_OPTIONS;
 const currentFont = computed(() => settingsStore.settings.fontFamily);
 
-const fontStatus = ref<Record<string, boolean>>({});
-const fontFailed = ref<Record<string, boolean>>({});
+const { available, failed, downloadPct, clearDownload, onSettled } = useFontStatus();
 
-async function refreshStatus() {
-  const results = await Promise.all(fontOptions.map(opt => isFontAvailable(opt.value)));
-  for (let i = 0; i < fontOptions.length; i++) {
-    fontStatus.value[fontOptions[i].value] = results[i];
-    fontFailed.value[fontOptions[i].value] = isFontFailed(fontOptions[i].value);
-  }
-}
-
-onMounted(refreshStatus);
-
-const progressing = ref<Record<string, number>>({});
-
-// 竞态防护：卸载后丢弃迟到回调（onProgress / promise.then），并清掉待触发的 600ms 定时器
+/** 当前字体下载落定后，弹窗的收尾停留（ms）：让满格进度条留一瞬再关 */
+const SETTLE_HOLD_MS = 600;
 let selectTimer: ReturnType<typeof setTimeout> | null = null;
-let disposed = false;
 
-const unsub = onProgress((family, pct) => {
-  if (disposed) return;
-  if (pct >= 0) {
-    progressing.value[family] = pct;
+onSettled((family) => {
+  if (currentFont.value === family) {
+    selectTimer = setTimeout(() => {
+      clearDownload(family);
+      emit('select');
+    }, SETTLE_HOLD_MS);
   } else {
-    progressing.value[family] = 100;
-    isFontAvailable(family).then((ok) => {
-      if (disposed) return;
-      fontStatus.value[family] = ok;
-      fontFailed.value[family] = !ok && isFontFailed(family);
-      if (currentFont.value === family) {
-        selectTimer = setTimeout(() => {
-          delete progressing.value[family];
-          emit('select');
-        }, 600);
-      } else {
-        delete progressing.value[family];
-      }
-    });
+    clearDownload(family);
   }
 });
 
 onUnmounted(() => {
-  disposed = true;
-  unsub();
   if (selectTimer) clearTimeout(selectTimer);
 });
 
 function selectFont(value: string) {
   settingsStore.updateSetting('fontFamily', value);
   // 已可用的字体：立即关闭弹窗；需下载的：弹窗保持打开，看进度条
-  if (fontStatus.value[value] !== false) {
+  if (available.value[value] !== false) {
     emit('select');
   }
 }
@@ -72,7 +46,7 @@ function selectFont(value: string) {
 
 <template>
   <div class="quick-action-item">
-    <button class="icon-btn" title="字体" @click.stop="emit('toggle')">
+    <button class="icon-btn" title="正文字体" @click.stop="emit('toggle')">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M8 2.7v10.6" />
         <path d="M2.7 4.7V3.3a.7.7 0 0 1 .7-.7h9.2a.7.7 0 0 1 .7.7v1.4" />
@@ -81,7 +55,7 @@ function selectFont(value: string) {
     </button>
     <Transition name="quick-popover">
       <div v-if="isActive" class="quick-popover">
-        <div class="quick-popover-header">字体</div>
+        <div class="quick-popover-header">正文字体</div>
         <div class="quick-popover-list">
           <button
             v-for="opt in fontOptions"
@@ -92,13 +66,13 @@ function selectFont(value: string) {
           >
             <span class="quick-popover-label">
               {{ opt.label }}
-              <template v-if="progressing[opt.value] !== undefined">
+              <template v-if="downloadPct[opt.value] !== undefined">
                 <span class="font-dl-badge font-dl-badge--active">下载中</span>
               </template>
-              <template v-else-if="fontFailed[opt.value]">
+              <template v-else-if="failed[opt.value]">
                 <span class="font-dl-badge font-dl-badge--fail">下载失败</span>
               </template>
-              <template v-else-if="opt.fileName && !fontStatus[opt.value]">
+              <template v-else-if="opt.fileName && !available[opt.value]">
                 <span class="font-dl-badge">需下载</span>
               </template>
             </span>
@@ -107,15 +81,15 @@ function selectFont(value: string) {
           <!-- 进度条 -->
           <div
             v-for="opt in fontOptions"
-            v-show="progressing[opt.value] !== undefined && progressing[opt.value] >= 0"
+            v-show="downloadPct[opt.value] !== undefined"
             :key="'bar-' + opt.value"
             class="font-progress-track"
-            :class="{ 'is-indeterminate': progressing[opt.value] === 0 }"
+            :class="{ 'is-indeterminate': downloadPct[opt.value] === 0 }"
           >
             <div
-              v-if="progressing[opt.value] > 0"
+              v-if="downloadPct[opt.value]"
               class="font-progress-bar"
-              :style="{ width: progressing[opt.value] + '%' }"
+              :style="{ width: downloadPct[opt.value] + '%' }"
             />
           </div>
         </div>

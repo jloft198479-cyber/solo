@@ -61,7 +61,7 @@ function resetLineHeight() {
       <div class="settings-section-heading">
         <div>
           <div class="settings-section-title">排版与阅读</div>
-          <p class="settings-section-desc">统一控制字体、字号和行高，保持写作与阅读体验协调。</p>
+          <p class="settings-section-desc">控制文章正文的字体、字号与行高，保持写作与阅读体验协调（界面字体跟随系统，不随正文变化）。</p>
         </div>
       </div>
       <div class="settings-form-grid">

@@ -3,8 +3,20 @@
 /* ── 字体变量 ──────────────────────────────────────────────── */
 :root {
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* ── 界面字体（UI chrome）：与正文字体解耦 ──────────────────
+     正文字体是「表达偏好」（可个性、可文艺），界面字体是「操作效率」
+     （菜单 / 侧栏 / 大纲要在小字号下瞬间读清）⇒ 两者不该绑定。
+     业界共识：Obsidian 分 Interface / Text / Monospace 三项；Notion 的
+     字体只作用于页面内容。切换正文字体时界面保持不变。
+     中文仍落微软雅黑 UI，保证与改动前中文观感一致。 */
+  --font-ui:
+    system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Microsoft YaHei UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+
+  /* ── 正文字体：只作用于编辑区文档内容（.tiptap-editor） ──── */
   --font-text:
-    'Inter', -apple-system, BlinkMacSystemFont,
+    -apple-system, BlinkMacSystemFont,
     'Segoe UI', Roboto, Helvetica, Arial,
     'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC',
     'Hiragino Sans GB', 'STHeiti', system-ui, sans-serif;
@@ -301,7 +313,7 @@ body,
 }
 
 body {
-  font-family: var(--font-text);
+  font-family: var(--font-ui);
   background-color: transparent;
   color: var(--text-color);
   transition:

@@ -14,13 +14,17 @@ const REMOTE_FONTS: Readonly<Record<string, string>> = Object.fromEntries(
   FONT_OPTIONS.filter((opt) => opt.fileName).map((opt) => [opt.value, opt.fileName!]),
 );
 
-const SYSTEM_FONTS = new Set(['system-ui', 'Microsoft YaHei UI']);
-
 const loadedFonts = new Set<string>();
 const downloadFailures = new Set<string>();
 const loadingPromises = new Map<string, Promise<boolean>>();
 
-/** 进度监听器 */
+/**
+ * 进度哨兵：通知「本轮已落定」（成功或失败都会发一次），区别于 0–100 的下载百分比。
+ * 监听方判据：`progress >= 0` 为下载中，其余为落定。
+ */
+export const PROGRESS_DONE = -1;
+
+/** 进度监听器：`progress` 为 0–100 的下载百分比，或落定哨兵 {@link PROGRESS_DONE} */
 type ProgressListener = (family: string, progress: number) => void;
 const progressListeners = new Set<ProgressListener>();
 
@@ -120,13 +124,13 @@ async function downloadAndCache(family: string, fileName: string): Promise<boole
       // 下载落盘后，走 readCache 加载（优先 CSS @font-face，失败回退字节通道）
       const ok = await readCache(family);
       if (ok) {
-        notifyProgress(family, -1);
+        notifyProgress(family, PROGRESS_DONE);
         return true;
       }
       // 文件已落盘，换源无益，直接判失败
       console.warn(`[fontLoader] downloaded from ${base} but register failed: ${family}`);
       downloadFailures.add(family);
-      notifyProgress(family, -1);
+      notifyProgress(family, PROGRESS_DONE);
       return false;
     } catch (e) {
       console.warn(`[fontLoader] download failed from ${base}: ${family}`, e);
@@ -136,12 +140,11 @@ async function downloadAndCache(family: string, fileName: string): Promise<boole
 
   console.warn(`[fontLoader] all font sources failed: ${family}`, lastErr);
   downloadFailures.add(family);
-  notifyProgress(family, -1);
+  notifyProgress(family, PROGRESS_DONE);
   return false;
 }
 
 export async function ensureFontLoaded(family: string): Promise<boolean> {
-  if (SYSTEM_FONTS.has(family)) return true;
   if (loadedFonts.has(family)) return true;
 
   const existing = loadingPromises.get(family);
@@ -151,6 +154,7 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
     try {
       downloadFailures.delete(family);
       const fileName = REMOTE_FONTS[family];
+      // 无 fileName = 系统字体（或不在清单内）：无需下载，直接判可用
       if (!fileName) {
         loadedFonts.add(family);
         return true;
@@ -162,7 +166,7 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
     } catch (e) {
       console.warn(`[fontLoader] Failed to load font: ${family}`, e);
       downloadFailures.add(family);
-      notifyProgress(family, -1);
+      notifyProgress(family, PROGRESS_DONE);
       return false;
     } finally {
       loadingPromises.delete(family);
@@ -174,10 +178,9 @@ export async function ensureFontLoaded(family: string): Promise<boolean> {
 }
 
 export async function isFontAvailable(family: string): Promise<boolean> {
-  if (SYSTEM_FONTS.has(family)) return true;
   if (loadedFonts.has(family)) return true;
   const fileName = REMOTE_FONTS[family];
-  if (!fileName) return true; // 非下载型字体，视为可用
+  if (!fileName) return true; // 系统字体（或不在清单内），无需下载即视为可用
   // 兜底：缓存 / 下载链路
   const cachedPath = await getCachedFontPath(family, fileName);
   return cachedPath !== null;

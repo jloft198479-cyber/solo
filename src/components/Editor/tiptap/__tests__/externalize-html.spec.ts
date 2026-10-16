@@ -19,6 +19,7 @@ import { serializeMarkdown } from '../markdown/serializer';
 import { createTestSchema } from '../markdown/__tests__/test-utils';
 import { externalizeHtml } from '../externalize-html';
 import { serializeDocumentHtml } from '../clipboard-html';
+import { resolveMonoFontStack } from '../../../../utils/fontStack';
 
 /**
  * 对照文档 —— **必须逐字这样写**，不许改写成空格分隔的摘要。
@@ -214,6 +215,16 @@ describe('出站 HTML 归一（CP-20261011-002）', () => {
     expect(out).not.toMatch(/<eq|<code class="language-mermaid"/);
     // 脚注引用：文本换成 [1]，标签与属性不动
     expect(out).toMatch(/<sup[^>]*data-footnote-ref[^>]*>\[1\]<\/sup>/);
+  });
+
+  it('1-C+ 图表 / 数学源码块的等宽字体与编辑器同源（--font-mono，台账 §二 #67）', () => {
+    // 曾硬编码 'ui-monospace, SFMono-Regular, Menlo, monospace'，与 --font-mono 漂移；
+    // 现统一走 resolveMonoFontStack()（运行时读 CSS 变量，读不到回落常量）。
+    // 比对前归一引号形态：happy-dom 序列化会把 ' 写成 &quot;
+    const unquote = (s: string) => s.replace(/&quot;/g, "'").replace(/"/g, "'");
+    expect(unquote(out)).toContain(unquote(resolveMonoFontStack()));
+    // math / mermaid 两类块都要带上（缺一类即半截修复）
+    expect((out.match(/font-family:/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
 
   // ── #2：唯一出口的边界 ──

@@ -20,6 +20,7 @@
  * 清洗组（本文件最后一步）与改写组分开的意义：清洗组不改语义，将来可单独挂到 Ctrl+C 的
  * `editorProps.clipboardSerializer` 上；改写组不行——那条 HTML 正是 solo→solo 的语义载体。
  */
+import { resolveMonoFontStack } from '../../../utils/fontStack';
 import { stripZwnj } from './zwnj';
 
 /** 幂等标记。只打在承载根节点自身，`innerHTML` 不含它 ⇒ 不会随 HTML 出站 */
@@ -84,16 +85,18 @@ function rewriteFootnoteRefs(root: HTMLElement): void {
  * 处理空白，本来就不塌；**会塌的是浏览器 / Word 这些按 HTML 规则折叠空白的外部消费者**。
  */
 function stylePlainSourceBlocks(root: HTMLElement): void {
+  // 等宽字体与编辑器同源：运行时读 `--font-mono`（真理源在 main.css），不在此硬编码
+  const monoStack = resolveMonoFontStack();
   root.querySelectorAll('div[data-type="mermaid-block"]').forEach((el) => {
     (el as HTMLElement).classList.add('language-mermaid');
-    applyPreStyle(el as HTMLElement);
+    applyPreStyle(el as HTMLElement, monoStack);
   });
-  root.querySelectorAll('div[data-type="math-block"]').forEach((el) => applyPreStyle(el as HTMLElement));
+  root.querySelectorAll('div[data-type="math-block"]').forEach((el) => applyPreStyle(el as HTMLElement, monoStack));
 }
 
-function applyPreStyle(el: HTMLElement): void {
+function applyPreStyle(el: HTMLElement, monoStack: string): void {
   el.style.setProperty('white-space', 'pre-wrap');
-  el.style.setProperty('font-family', 'ui-monospace, SFMono-Regular, Menlo, monospace');
+  el.style.setProperty('font-family', monoStack);
 }
 
 /**

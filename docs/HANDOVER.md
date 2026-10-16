@@ -73,7 +73,8 @@ bun run build:tauri              # 打安装包
 | Tauri 命令**名字** | [src/services/tauri/command-names.ts](../src/services/tauri/command-names.ts)（`TAURI_COMMANDS`） |
 | 命令**定义/快捷键/菜单** | [src/commands/registry.ts](../src/commands/registry.ts) |
 | 字体**清单** | [src/constants/fonts.ts](../src/constants/fonts.ts) |
-| 字体**栈** | [src/utils/fontStack.ts](../src/utils/fontStack.ts) |
+| 字体**栈**（正文 + 代码出站） | [src/utils/fontStack.ts](../src/utils/fontStack.ts) |
+| 字体**作用域**（正文 / 界面 / 代码 三分） | [src/assets/styles/main.css](../src/assets/styles/main.css)（`--font-text` 只给编辑区、`--font-ui` 给界面、`--font-mono` 给代码）；边界定义见 [docs/PROPOSAL-font-scope.md](./PROPOSAL-font-scope.md) |
 | 主题**色彩映射** | [src/themes/types.ts](../src/themes/types.ts)（`CSS_VAR_MAP`） |
 | Rust **命令总数/注册** | [src-tauri/src/lib.rs](../src-tauri/src/lib.rs) 的 `generate_handler!`（**数量以其为准，勿在文档硬编码**） |
 | Markdown **保真安全网** | [src/components/Editor/tiptap/markdown/__tests__/roundtrip.spec.ts](../src/components/Editor/tiptap/markdown/__tests__/roundtrip.spec.ts) + [commonmark.spec.ts](../src/components/Editor/tiptap/markdown/__tests__/commonmark.spec.ts) |

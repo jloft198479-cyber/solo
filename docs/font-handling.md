@@ -43,7 +43,8 @@ updates: [src/services/fontLoader.ts, src-tauri/src/commands/font.rs, ARCHITECTU
 
 辅助层（不是加载链路，但必须对齐）：
 - **字体清单** [`constants/fonts.ts`](../src/constants/fonts.ts)：`FONT_OPTIONS` 每项含 `value`(CSS/FontFace 注册名) 与 `fileName`(下载文件名)。
-- **字体栈生成** [`utils/fontStack.ts`](../src/utils/fontStack.ts)：`buildFontStack(primary, ...)` 把选中字体拼成 CSS `font-family` 回退串。
+- **字体栈生成** [`utils/fontStack.ts`](../src/utils/fontStack.ts)：`buildFontStack(primary)` 把选中字体拼成 CSS `font-family` 回退串；`resolveMonoFontStack()` 取代码字体栈（真理源 = `main.css` 的 `--font-mono`，读不到回落 `MONO_FALLBACK_STACK`）——出站 HTML（剪贴板）内联等宽字体用它。
+- **状态面板** [`composables/useFontStatus.ts`](../src/composables/useFontStatus.ts)：弹窗与设置页共用的「可用 / 下载中 / 下载失败」状态；进度哨兵 `PROGRESS_DONE`（定义在 `fontLoader.ts`）表示本轮落定。
 
 ### 1.2 关键不变量（改字体代码前先背熟）
 
