@@ -24,7 +24,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | ------------------------------------------------------ | ------- | --------- | ------ | ----------------------------------------------------------------- |
 | [`README.md`](../README.md)（+ zh-CN / ja-JP / ko-KR） | product | user      | active | 产品导览：介绍、安装、dev 起步。4 语言本地化，DOC-STANDARD §二 确认保留 |
 | [`AGENTS.md`](../AGENTS.md)                            | core    | agent     | active | Agent 契约**最小集合**：角色权限 + 硬禁令 + 按需加载指针 + 文档纪律。**必读** |
-| [`docs/agent-playbook.md`](./agent-playbook.md)        | core    | agent     | active | AGENTS.md 的**展开层**（按需加载）：真理源地图 / 敏感区速查 / 工作流与验收 / 禁令理由 |
+| [`docs/agent-playbook.md`](./agent-playbook.md)        | core    | agent     | active | AGENTS.md 的**展开层**（按需加载）：真理源地图 / 敏感区速查 / 工作流与验收 / **变更前安全网（§G，改前第一条）** / 禁令理由 |
 | [`ARCHITECTURE.md`](../ARCHITECTURE.md)                | core    | dev       | active | 架构真相：技术栈版本/命令清单/目录树/**§12 三条横切机制**（会话记忆 / 大文档分档 / Windows 原生缩放）；敏感区速查见 ./sensitive-areas.md |
 | [`docs/sensitive-areas.md`](./sensitive-areas.md) | core | dev | active | 敏感区安全网：易错区速查表（26 条）+ §11.1–§11.8 详解（改码前必读） |
 | [`BUILD_GUIDE.md`](../BUILD_GUIDE.md)                  | core    | dev       | active | 构建手册真理源：工具链/环境变量/编译命令/故障排查                 |
