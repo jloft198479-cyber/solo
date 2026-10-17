@@ -45,10 +45,7 @@
         :title="props.focusMode ? '退出焦点模式' : '焦点模式'"
         @click="emit('toggleFocusMode')"
       >
-        <svg class="focus-eye-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <path class="eye-outline" d="M1 7.5s3-5 6.5-5 6.5 5 6.5 5-3 5-6.5 5S1 7.5 1 7.5z" />
-          <circle class="eye-pupil" cx="7.5" cy="7.5" r="2" />
-        </svg>
+        <Icon name="eye" :size="14" class="focus-eye-icon" />
       </button>
       <button
         class="titlebar-btn titlebar-outline-btn"
@@ -56,10 +53,7 @@
         :title="outlineTitle"
         @click="emit('toggleOutline')"
       >
-        <svg class="outline-list-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M2.5 4h10M2.5 7.5h10M2.5 11h10" />
-          <path d="M5 4v0M5 7.5v0M5 11v0" stroke-width="2.4" />
-        </svg>
+        <Icon name="listTree" :size="14" class="outline-list-icon" />
       </button>
       <button
         class="titlebar-btn titlebar-pin-btn"
@@ -67,9 +61,7 @@
         :title="props.alwaysOnTop ? '取消置顶' : '置顶'"
         @click="emit('toggleAlwaysOnTop')"
       >
-        <svg class="titlebar-pin-icon" width="14" height="14" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-          <path class="pin-shape" d="M7.5 11v3M5.7 7a1.2 1.2 0 0 1-.67 1.08l-1.07.54A1.2 1.2 0 0 0 3.3 9.6v.4a.5.5 0 0 0 .5.5h7.4a.5.5 0 0 0 .5-.5v-.4a1.2 1.2 0 0 0-.67-1.08l-1.07-.54A1.2 1.2 0 0 1 9.3 7V4.5a.5.5 0 0 1 .5-.5 1.2 1.2 0 0 0 0-2.4H5.2a1.2 1.2 0 0 0 0 2.4.5.5 0 0 1 .5.5z" />
-        </svg>
+        <Icon name="pin" :size="14" class="titlebar-pin-icon" />
       </button>
       <button class="titlebar-btn" title="最小化" @click="emit('minimize')">
         <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor" /></svg>
@@ -87,6 +79,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref } from 'vue';
 import { formatShortcutDisplay, getCommand, getShortcut } from '../../commands/registry';
+import Icon from '../icons/Icon';
 
 const props = defineProps<{
   title: string;
@@ -303,25 +296,19 @@ onUnmounted(() => {
   color: var(--text-color);
 }
 
-.pin-shape {
-  transform-origin: center;
-  transition: fill var(--motion-fast) ease;
-}
-
 .titlebar-pin-icon {
-  transform-origin: 7.5px 7.5px;
-  transition: transform var(--motion-base) cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-origin: 12px 12px;
+  transition:
+    transform var(--motion-base) cubic-bezier(0.34, 1.56, 0.64, 1),
+    fill var(--motion-fast) ease;
 }
 
 .titlebar-pin-btn--active {
   color: var(--primary-color);
 }
 
-.titlebar-pin-btn--active .pin-shape {
-  fill: currentColor;
-}
-
 .titlebar-pin-btn--active .titlebar-pin-icon {
+  fill: currentColor;
   transform: rotate(35deg);
 }
 
@@ -341,7 +328,8 @@ onUnmounted(() => {
   transition: transform var(--motion-base) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.eye-pupil {
+/* 瞳孔 = 图源里唯一的 <circle>（eye 的结构：外轮廓 path + 瞳孔 circle） */
+.focus-eye-icon circle {
   fill: transparent;
   transition: fill var(--motion-base) ease;
 }
@@ -350,7 +338,7 @@ onUnmounted(() => {
   color: var(--primary-color);
 }
 
-.titlebar-focus-btn--active .eye-pupil {
+.titlebar-focus-btn--active .focus-eye-icon circle {
   fill: currentColor;
 }
 

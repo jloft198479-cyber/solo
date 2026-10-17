@@ -132,7 +132,24 @@ updates: [docs/PROPOSAL-design-standards.md, docs/INDEX.md]
 - 反向校准三组（**各自单独撤**）：改线宽为 1.5 → 3 条红；往图标塞 `<script>` → 3 条红；改默认尺寸 → 1 条红。还原即复绿。
 - 回滚：删掉 `svg.ts` / `Icon.ts` / `icon-spec.spec.ts` 三个文件即可（未接调用点，零影响）。
 
-### 第 2 步 · 换 `.vue`（待执行）
+### 第 2 步 · 换 `.vue`（2026-10-17 ✅ 已完成）
+
+- **替换 22 处**内联 svg，涉 13 个 `.vue` 文件（标题栏 / 搜索面板 / 气泡菜单 / 状态栏 / 大纲 / 命令面板 / 字体弹窗 / 主题弹窗 / 主题卡 / 主题选择 / 设置弹窗 / 图片全屏 / 根组件）。窗口控制按钮 3 处按 §附 保留。
+- **新增 8 个图标**（总数 28 → 36）：`eye` / `pin` / `chevronLeft` / `arrowDownUp` / `plus` / `grid` / `listTree` / `eraser`。
+- **删掉两个「影子图标组件」**：`CloseIcon.vue` 与 `CheckIcon.vue`（各写死 24 画布 / 线宽 1.5），6 处引用改用 `<Icon name="close|check">` —— 否则「一份定义」永远不成立。
+- **三处形态调整**（都是为了让 24 画布 / 线宽 2 在小尺寸下不失真）：
+  - 搜索面板上/下三角（实心 10px）→ `chevronUp/Down` **14px**：24 画布配 10px 显示，实际线条只有 0.83px，会发虚。
+  - 大纲收起箭头 12px → `chevronLeft` **14px**；搜索关闭 10px → `close` **14px**。
+  - 导入主题的加号 28px → `plus` **24px**：28px 显示时线宽会到 2.33px，比别处粗一档。
+- **两处状态样式跟着改选择器**（原来挂在内部子元素上，换图源后子元素变了）：
+  - 置顶按钮激活态填充：`.pin-shape` → `.titlebar-pin-icon`（整枚填充，视觉同前）；旋转原点 7.5px → 12px（画布 15 → 24）。
+  - 焦点模式眼睛的瞳孔：`.eye-pupil` → `.focus-eye-icon circle`（图源里瞳孔是唯一 `<circle>`）。
+- **顺手消灭的老毛病**：状态栏「复制全文」点完变勾时，线条从 1.33px 突变到 1.80px（粗 35%）—— 现在两个状态同尺寸同线宽，永久不再发生。
+- **新增使用锁** [`icon-usage.spec.ts`](../src/components/icons/__tests__/icon-usage.spec.ts) **2 条**：① 白名单之外任何文件内联 `<svg>` 即红；② 白名单内（窗口按钮 + 第 3 步待迁移的 7 处 `.ts`）**处数只许减不许增**。这是本方案真正的防复发机制 —— 没有它，过半年又会散。
+- 契约锁 [`icon-spec.spec.ts`](../src/components/icons/__tests__/icon-spec.spec.ts) 增至 **8 条**（新增「外部 class 透传到根 `<svg>`」—— 使用处的尺寸样式全靠它）。
+- 验证：全量 **1904 passed / 0 failed**（1901 + 新锁 3）；`vue-tsc` 0；`npm run lint` **119 warnings / 0 errors**（改动前 132，减少 13 —— 内联 svg 的多行换行警告随替换消失）。
+- 反向校准两组：白名单外塞一处 svg → 第 1 条红；标题栏加到 4 处 → 第 2 条红。还原即复绿。
+- 回滚：`git revert` 本提交即可（新图标共存，不依赖第 1 步之外的东西）。
 
 ### 第 3 步 · 换 `.ts` 与字符图标（待执行）
 

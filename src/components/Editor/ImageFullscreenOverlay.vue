@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import CloseIcon from '../icons/CloseIcon.vue';
+import Icon from '../icons/Icon';
 
 defineProps<{
   visible: boolean;
@@ -25,7 +25,7 @@ const emit = defineEmits<{
           class="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
           @click="emit('close')"
         >
-          <CloseIcon class="w-6 h-6" />
+          <Icon name="close" :size="24" class="w-6 h-6" />
         </button>
         <button
           class="overlay-action-btn absolute bottom-6 right-6 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 hover:text-white text-xs transition-colors backdrop-blur-sm"

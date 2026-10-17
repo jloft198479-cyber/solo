@@ -23,31 +23,18 @@
         <span class="dim-icon">A</span>
       </button>
       <button :class="btnClass(activeMarks.link)" title="链接" @click="toggleLinkInput">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M6.5 9.5a2.5 2.5 0 0 0 3.54 0l2.12-2.12a2.5 2.5 0 0 0-3.54-3.54l-1.06 1.06" />
-          <path d="M9.5 6.5a2.5 2.5 0 0 0-3.54 0L3.84 8.62a2.5 2.5 0 0 0 3.54 3.54l1.06-1.06" />
-        </svg>
+        <Icon name="link" :size="16" />
       </button>
       <div class="bubble-menu-divider"></div>
       <button :class="btnClass(activeMarks.bulletList)" title="无序列表" @click="exec('bulletList')">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-          <circle cx="3" cy="4" r="1.2" fill="currentColor" stroke="none" />
-          <circle cx="3" cy="8" r="1.2" fill="currentColor" stroke="none" />
-          <circle cx="3" cy="12" r="1.2" fill="currentColor" stroke="none" />
-          <line x1="6" y1="4" x2="14" y2="4" />
-          <line x1="6" y1="8" x2="14" y2="8" />
-          <line x1="6" y1="12" x2="14" y2="12" />
-        </svg>
+        <Icon name="bulletList" :size="16" />
       </button>
       <div class="bubble-menu-divider"></div>
       <button class="bubble-menu-heading-btn" @click="exec('h1')">H1</button>
       <button class="bubble-menu-heading-btn" @click="exec('h2')">H2</button>
       <div class="bubble-menu-divider"></div>
       <button class="bubble-menu-clear-btn" title="清除格式" @click="exec('clearFormat')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M20 20H7L3 16C2.5 15.5 2.5 14.5 3 14L13 4C13.5 3.5 14.5 3.5 15 4L21 10C21.5 10.5 21.5 11.5 21 12L11 22" />
-          <line x1="18" y1="13" x2="9" y2="4" />
-        </svg>
+        <Icon name="eraser" :size="16" />
       </button>
     </div>
 
@@ -75,6 +62,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, nextTick, computed } from 'vue';
+import Icon from '../../icons/Icon';
 
 type BubbleMenuActionData = {
   href?: string;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import Icon from '../icons/Icon';
 import type { EditorOutlineItem } from '../Editor/tiptap/editor-metadata';
 import type { AppEditorExpose } from '../../composables/useAppEditorState';
 import { getBlockElFromPos, OUTLINE_SCROLL_RATIO } from '../Editor/tiptap/editor-dom';
@@ -164,17 +165,7 @@ const hasItems = computed(() => props.items.length > 0);
       <div class="outline-header">
         <span class="outline-title">大纲</span>
         <button class="outline-close" :title="closeHint" @click="emit('close')">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.4"
-            stroke-linecap="round"
-          >
-            <path d="M8 2L4 6l4 4" />
-          </svg>
+          <Icon name="chevronLeft" :size="14" />
         </button>
       </div>
 

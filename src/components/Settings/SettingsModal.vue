@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { useSettingsStore, type SettingsTabKey } from '../../stores/settings';
 import { confirm } from '../../services/tauri/dialog';
 import AppearanceSettingsPanel from './AppearanceSettingsPanel.vue';
-import CloseIcon from '../icons/CloseIcon.vue';
+import Icon from '../icons/Icon';
 import EditorSettingsPanel from './EditorSettingsPanel.vue';
 import SaveSettingsPanel from './SaveSettingsPanel.vue';
 import SettingsSidebarNav from './SettingsSidebarNav.vue';
@@ -183,7 +183,7 @@ async function handleReset() {
           <div class="settings-modal-header">
             <h2 id="settings-modal-title" class="settings-modal-title">设置</h2>
             <button class="settings-close-btn" @click="close">
-              <CloseIcon class="settings-close-icon" />
+              <Icon name="close" :size="16" class="settings-close-icon" />
             </button>
           </div>
 

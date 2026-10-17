@@ -3,20 +3,7 @@
   <Transition name="search-panel" :appear="true">
     <div v-show="visible" class="search-panel" @keydown.escape.stop="handleEscape">
       <div class="search-row">
-        <svg
-          class="search-icon"
-          width="14"
-          height="14"
-          viewBox="0 0 15 15"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle cx="6" cy="6" r="4.5" />
-          <line x1="9.5" y1="9.5" x2="14" y2="14" />
-        </svg>
+        <Icon name="search" :size="14" class="search-icon" />
         <input
           ref="searchInputRef"
           v-model="searchQuery"
@@ -42,45 +29,18 @@
           <span v-else-if="searchQuery.trim()" class="search-count">无结果</span>
         </div>
         <button class="search-btn-nav" title="上一个 (Shift+Enter)" @click="emitPrev()">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-            <path d="M5 2l4 6H1z" />
-          </svg>
+          <Icon name="chevronUp" :size="14" />
         </button>
         <button class="search-btn-nav" title="下一个 (Enter)" @click="emitNext()">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-            <path d="M1 2h8l-4 6z" />
-          </svg>
+          <Icon name="chevronDown" :size="14" />
         </button>
         <button class="search-btn-close" title="关闭 (Esc)" @click="emitClose()">
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 10 10"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.2"
-            stroke-linecap="round"
-          >
-            <line x1="1" y1="1" x2="9" y2="9" />
-            <line x1="9" y1="1" x2="1" y2="9" />
-          </svg>
+          <Icon name="close" :size="14" />
         </button>
       </div>
 
       <div v-if="showReplace" class="search-row search-replace-row">
-        <svg
-          class="search-icon"
-          width="14"
-          height="14"
-          viewBox="0 0 15 15"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M4.5 2v10M2.5 9.5l2 2 2-2M10.5 13V3M8.5 5.5l2-2 2 2" />
-        </svg>
+        <Icon name="arrowDownUp" :size="14" class="search-icon" />
         <input
           v-model="replaceText"
           type="text"
@@ -104,6 +64,7 @@
 
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
+import Icon from '../../icons/Icon';
 
 const props = defineProps<{
   visible: boolean;

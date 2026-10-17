@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useSettingsStore } from '../stores/settings';
-import CheckIcon from './icons/CheckIcon.vue';
+import Icon from './icons/Icon';
 import './popover-shared.css';
 
 const settingsStore = useSettingsStore();
@@ -21,21 +21,7 @@ function selectTheme(id: string) {
 <template>
   <div class="quick-action-item">
     <button class="icon-btn" title="主题" @click.stop="emit('toggle')">
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <rect x="2" y="2" width="5" height="5" rx="1.2" />
-        <rect x="9" y="2" width="5" height="5" rx="1.2" />
-        <rect x="2" y="9" width="5" height="5" rx="1.2" />
-        <rect x="9" y="9" width="5" height="5" rx="1.2" />
-      </svg>
+      <Icon name="grid" :size="16" />
     </button>
     <Transition name="quick-popover">
       <div v-if="isActive" class="quick-popover">
@@ -59,7 +45,7 @@ function selectTheme(id: string) {
               }"
             />
             <span class="quick-popover-label">{{ t.name }}</span>
-            <CheckIcon v-if="t.id === currentThemeId" class="check-icon" />
+            <Icon v-if="t.id === currentThemeId" name="check" :size="14" class="check-icon" />
           </button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onUnmounted, ref } from 'vue';
+import Icon from './icons/Icon';
 import ThemePopover from './ThemePopover.vue';
 import FontPopover from './FontPopover.vue';
 import { useClickOutside } from '../composables/useClickOutside';
@@ -110,33 +111,8 @@ useClickOutside(wrapRef, closePopover);
       :title="copied ? '已复制全文' : copyFailed ? '复制失败' : '复制全文为 Markdown'"
       @click="copyMarkdown"
     >
-      <svg
-        v-if="!copied"
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-      </svg>
-      <svg
-        v-else
-        width="16"
-        height="16"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M3 8.5l3 3 7-7" />
-      </svg>
+      <Icon v-if="!copied" name="copy" :size="16" />
+      <Icon v-else name="check" :size="16" />
     </button>
   </div>
 </template>

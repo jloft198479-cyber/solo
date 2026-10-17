@@ -3,7 +3,7 @@ import { computed, onUnmounted } from 'vue';
 import { useSettingsStore } from '../stores/settings';
 import { FONT_OPTIONS } from '../constants/fonts';
 import { useFontStatus } from '../composables/useFontStatus';
-import CheckIcon from './icons/CheckIcon.vue';
+import Icon from './icons/Icon';
 import './popover-shared.css';
 
 const settingsStore = useSettingsStore();
@@ -47,11 +47,7 @@ function selectFont(value: string) {
 <template>
   <div class="quick-action-item">
     <button class="icon-btn" title="正文字体" @click.stop="emit('toggle')">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M8 2.7v10.6" />
-        <path d="M2.7 4.7V3.3a.7.7 0 0 1 .7-.7h9.2a.7.7 0 0 1 .7.7v1.4" />
-        <path d="M6 13.3h4" />
-      </svg>
+      <Icon name="type" :size="16" />
     </button>
     <Transition name="quick-popover">
       <div v-if="isActive" class="quick-popover">
@@ -76,7 +72,7 @@ function selectFont(value: string) {
                 <span class="font-dl-badge">需下载</span>
               </template>
             </span>
-            <CheckIcon v-if="opt.value === currentFont" class="check-icon" />
+            <Icon v-if="opt.value === currentFont" name="check" :size="14" class="check-icon" />
           </button>
           <!-- 进度条 -->
           <div

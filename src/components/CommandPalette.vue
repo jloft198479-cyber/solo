@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
+import Icon from './icons/Icon';
 import {
   COMMANDS,
   GROUP_LABELS,
@@ -173,10 +174,7 @@ function onKeydown(event: KeyboardEvent) {
       <div v-if="open" class="palette-overlay" @click.self="emit('close')">
         <div class="palette-dialog" @keydown="onKeydown">
           <div class="palette-search">
-            <svg class="palette-search-icon" width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="6" cy="6" r="4.5" />
-              <line x1="9.5" y1="9.5" x2="14" y2="14" />
-            </svg>
+            <Icon name="search" :size="15" class="palette-search-icon" />
             <input
               ref="inputRef"
               v-model="query"

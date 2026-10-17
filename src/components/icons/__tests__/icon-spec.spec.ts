@@ -10,7 +10,8 @@ const ALLOWED_TAGS = ['path', 'circle', 'rect', 'line', 'polyline', 'polygon', '
 describe('图标图源（svg.ts）', () => {
   it('图标清单齐全且键名稳定', () => {
     const names = Object.keys(ICONS) as IconName[];
-    expect(names.length).toBe(28);
+    // 加图标时同步改这个数 —— 这行故意不写成「≥」，就是为了让误删也红一次
+    expect(names.length).toBe(36);
     for (const required of [
       'settings',
       'search',
@@ -29,6 +30,17 @@ describe('图标图源（svg.ts）', () => {
       'table',
       'math',
       'diagram',
+      // 批 3 第 2 步替换 .vue 时新增
+      'eye',
+      'pin',
+      'chevronLeft',
+      'chevronDown',
+      'chevronUp',
+      'plus',
+      'grid',
+      'arrowDownUp',
+      'eraser',
+      'listTree',
     ] as const) {
       expect(names).toContain(required);
     }
@@ -121,5 +133,19 @@ describe('图标组件（Icon.ts）', () => {
     expect(svg.querySelectorAll('path').length).toBe(1);
     expect(svg.querySelector('path')?.getAttribute('d')).toBe('M20 6 9 17l-5-5');
     done();
+  });
+
+  it('外部 class 透传到根 <svg>（使用处的既有样式全靠它）', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const app = createApp({
+      render: () => h(Icon, { name: 'close', size: 14, class: 'theme-delete-icon' }),
+    });
+    app.mount(host);
+    const svg = host.querySelector('svg');
+    // 类名必须落在 svg 上 —— 落到包装元素就等于使用处的 .xxx-icon { width: 14px } 全部失效
+    expect(svg?.getAttribute('class')).toBe('theme-delete-icon');
+    app.unmount();
+    host.remove();
   });
 });

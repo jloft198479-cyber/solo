@@ -11,6 +11,7 @@ import { useImagePreview } from './composables/useImagePreview';
 import { useMenuEvents } from './composables/useMenuEvents';
 import { useMenuShortcutsSync } from './composables/useMenuShortcutsSync';
 import CustomTitlebar from './components/Layout/CustomTitlebar.vue';
+import Icon from './components/icons/Icon';
 import ErrorBoundary from './components/Layout/ErrorBoundary.vue';
 import ImageFullscreenOverlay from './components/Editor/ImageFullscreenOverlay.vue';
 import ImagePreviewView from './components/Editor/ImagePreviewView.vue';
@@ -441,21 +442,7 @@ onUnmounted(() => {
             :title="settingsButtonHint"
             @click="settingsStore.openModal()"
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle cx="8" cy="8" r="2.2" />
-              <path
-                d="M13.1 10a1.2 1.2 0 0 0 .24 1.32l.04.04a1.45 1.45 0 1 1-2.06 2.06l-.04-.04a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.73 1.1v.11a1.45 1.45 0 1 1-2.9 0v-.06a1.2 1.2 0 0 0-.79-1.1 1.2 1.2 0 0 0-1.32.24l-.04.04a1.45 1.45 0 1 1-2.06-2.06l.04-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.73h-.11a1.45 1.45 0 1 1 0-2.9h.06a1.2 1.2 0 0 0 1.1-.79 1.2 1.2 0 0 0-.24-1.32l-.04-.04a1.45 1.45 0 1 1 2.06-2.06l.04.04a1.2 1.2 0 0 0 1.32.24h.06a1.2 1.2 0 0 0 .73-1.1v-.11a1.45 1.45 0 1 1 2.9 0v.06a1.2 1.2 0 0 0 .73 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.04a1.45 1.45 0 1 1 2.06 2.06l-.04.04a1.2 1.2 0 0 0-.24 1.32v.06a1.2 1.2 0 0 0 1.1.73h.11a1.45 1.45 0 1 1 0 2.9h-.06a1.2 1.2 0 0 0-1.1.73z"
-              />
-            </svg>
+            <Icon name="settings" :size="16" />
           </button>
         </div>
       </div>
