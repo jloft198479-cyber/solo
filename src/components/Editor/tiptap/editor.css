@@ -853,7 +853,7 @@ html.doc-heavy .tiptap-editor > hr {
   top: 0;
   bottom: 0;
   width: 4px;
-  z-index: 20;
+  z-index: var(--z-raised);
   background-color: transparent;
   pointer-events: none;
 }
@@ -867,7 +867,7 @@ html.doc-heavy .tiptap-editor > hr {
 }
 
 .tiptap-editor .selectedCell::after {
-  z-index: 2;
+  z-index: var(--z-content);
   position: absolute;
   content: '';
   left: 0;
@@ -1379,7 +1379,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
 .mk-mermaid-lightbox {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-lightbox);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1496,7 +1496,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
 /* ── 斜杠命令菜单 ────────────────────────────────────────────── */
 .mk-slash-menu {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--z-editor-popup);
   background-color: var(--popover-bg);
   border: 1px solid var(--popover-border);
   border-radius: var(--radius-md);

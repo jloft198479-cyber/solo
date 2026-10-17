@@ -121,8 +121,8 @@ defineExpose({ open, close });
 <style scoped>
 .context-menu {
   position: fixed;
-  /* 高于 BubbleMenu(z-index:300)，右键菜单应盖住选区浮层 */
-  z-index: 400;
+  /* 右键菜单档：必须高于编辑区浮层(--z-editor-popup)，盖住气泡菜单 */
+  z-index: var(--z-context-menu);
   display: flex;
   flex-direction: column;
   min-width: 160px;

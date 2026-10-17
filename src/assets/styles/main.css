@@ -137,12 +137,37 @@ button:not(:disabled) {
   --radius-lg: 8px;
   --radius-xl: 10px;
 
-  /* ── z-index 刻度（语义分层，层间留足间隙；2026-10-17 · B2）──────
-     内容 1 · 微凸 10 · 常规浮层 100 · 标题栏 200 · 编辑区浮层 300
-     模态 500 · 命令面板 600 · 全屏遮罩 1000 · 全屏 2000 · 调试 10000
-     批 2 实装「标题栏 / 模态」两档；其余档位由批 4 逐处归位，届时全部改 var() */
-  --z-titlebar: 200;
+  /* ── z-index 刻度（语义分层，层间留足间隙；2026-10-17 · B2 全面归位）──────
+     改前 13 个离散值、19 处、5 组撞值（50×2 / 100×2 / 300×3 / 400×2 / 9999×2），
+     谁高谁低只能靠读实现猜。现在每一档都只有一种含义：**同一含义复用同一档，
+     不同含义绝不同号**。新增浮层先找语义，找不到再在这张表里加一档并说明理由。
+
+       1  内容标记      表格选区高亮
+      10  微凸          内容之上的小部件（列宽把手）
+     100  常规浮层      加载条一类不压 chrome 的东西
+     200  窗口 chrome   标题栏 / 状态栏（含焦点模式下浮现的它们）
+     210  chrome 热区   标题栏唤起条（fixed 于窗口顶边，必须高于 chrome 本体）
+     300  编辑区浮层    气泡菜单 / 搜索面板 / 斜杠菜单 / 状态栏浮层
+     350  轻提示        焦点模式引导（pointer-events: none）
+     400  右键菜单      必须盖住气泡菜单
+     500  模态          设置弹窗
+     600  命令面板      搜索式浮层，模态之上
+    2000  全屏灯箱      图片全屏 / 图表全屏
+    9999  窗口边缘      窗口拖拽把手（任何界面下都要能抓住窗口）
+   10000  未保存提示    压住一切（含把手），关闭前的最后一问  */
+  --z-content: 1;
+  --z-raised: 10;
+  --z-floating: 100;
+  --z-chrome: 200;
+  --z-chrome-hot: 210;
+  --z-editor-popup: 300;
+  --z-hint: 350;
+  --z-context-menu: 400;
   --z-modal: 500;
+  --z-command: 600;
+  --z-lightbox: 2000;
+  --z-window-edge: 9999;
+  --z-unsaved: 10000;
 
   /* 弹窗/模态框 */
   --modal-bg: #f6f1e8;
@@ -376,7 +401,7 @@ html.focus-mode .custom-titlebar {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: var(--z-chrome);
 }
 
 html.focus-mode .custom-titlebar--visible {
@@ -389,7 +414,7 @@ html.focus-mode .statusbar-container {
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: var(--z-chrome);
 }
 
 html.focus-mode .statusbar-container:hover {
@@ -514,7 +539,7 @@ html.theme-transitioning .sidebar {
 .window-resize-sw,
 .window-resize-se {
   position: fixed;
-  z-index: 9999;
+  z-index: var(--z-window-edge);
 }
 
 /* 四边：6px 热区（对齐 Windows 原生边框可抓范围，原 4px 过窄） */
@@ -587,7 +612,7 @@ html.theme-transitioning .sidebar {
 .unsaved-overlay {
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: var(--z-unsaved);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -684,7 +709,7 @@ html.theme-transitioning .sidebar {
   left: 0;
   right: 0;
   height: 2px;
-  z-index: 50;
+  z-index: var(--z-floating);
   overflow: hidden;
   background: color-mix(in srgb, var(--primary-color) 15%, transparent);
   pointer-events: none;

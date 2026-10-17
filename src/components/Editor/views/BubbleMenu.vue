@@ -199,8 +199,8 @@ defineExpose({
 <style scoped>
 .bubble-menu {
   position: fixed;
-  /* 高于 CustomTitlebar(z-index:200)，避免第一行编辑时被顶部菜单栏遮挡 */
-  z-index: 300;
+  /* 编辑区浮层档：高于窗口 chrome(--z-chrome)，避免第一行编辑时被标题栏遮挡 */
+  z-index: var(--z-editor-popup);
   display: flex;
   flex-direction: column;
   padding: 4px;

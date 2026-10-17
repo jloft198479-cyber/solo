@@ -9,7 +9,8 @@
  *
  * 本锁只保证「机制没被改回去」，不证明观感正确 —— 观感靠真机目视。
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -23,6 +24,20 @@ function ruleBody(css: string, selector: string): string {
   const open = css.indexOf('{', idx);
   const close = css.indexOf('}', open);
   return css.slice(open + 1, close);
+}
+
+/** 递归收集 src 下的所有文件（跳过 __tests__ 与 node_modules） */
+function walkAll(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === '__tests__' || entry.name === 'node_modules') continue;
+      walkAll(full, out);
+    } else {
+      out.push(full);
+    }
+  }
+  return out;
 }
 
 describe('排版跟随：内容类字号必须用相对单位（A2）', () => {
@@ -88,5 +103,36 @@ describe('光标与键盘可见性（B4 / B5）', () => {
     const body = ruleBody(themeCard, '.theme-delete-btn:focus-visible {');
     expect(body, '找不到 .theme-delete-btn:focus-visible 规则').not.toBe('');
     expect(body).toMatch(/opacity:\s*1/);
+  });
+});
+
+describe('层级：所有 z-index 一律走语义 token（B2）', () => {
+  // 改前 13 个离散值、19 处、5 组撞值（50×2 / 100×2 / 300×3 / 400×2 / 9999×2），
+  // 谁高谁低只能靠读实现猜。这张锁保证：想加浮层必须先在 main.css 的刻度表里
+  // 找到语义；写死数字当场红，避免半年后又长出第十四档。
+  const files = walkAll(fileURLToPath(new URL('..', import.meta.url))).filter(
+    (f) => f.endsWith('.vue') || f.endsWith('.css'),
+  );
+
+  it('没有任何字面量 z-index 数字', () => {
+    const bad: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(file, 'utf8');
+      for (const m of text.matchAll(/z-index:\s*(\d+)/g)) {
+        bad.push(`${relative(fileURLToPath(new URL('..', import.meta.url)), file)}: ${m[0]}`);
+      }
+    }
+    expect(bad, '请改用 var(--z-*)：语义档位见 main.css 的刻度表').toEqual([]);
+  });
+
+  it('没有 Tailwind 数字层级类（z-50 / z-[2000] 一类）', () => {
+    const bad: string[] = [];
+    for (const file of files) {
+      const text = readFileSync(file, 'utf8');
+      for (const m of text.matchAll(/\bz-\[?\d+/g)) {
+        bad.push(`${relative(fileURLToPath(new URL('..', import.meta.url)), file)}: ${m[0]}`);
+      }
+    }
+    expect(bad, '请改用 z-[var(--z-*)] 或样式块里的 var(--z-*)').toEqual([]);
   });
 });

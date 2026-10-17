@@ -46,7 +46,7 @@
   background: var(--popover-bg);
   border: 1px solid var(--popover-border);
   box-shadow: var(--popover-shadow);
-  z-index: 300;
+  z-index: var(--z-editor-popup);
 }
 
 .quick-popover-header {

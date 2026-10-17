@@ -363,7 +363,7 @@ onUnmounted(() => {
   left: 0;
   right: 0;
   height: 12px;
-  z-index: 201;
+  z-index: var(--z-chrome-hot);
   -webkit-app-region: no-drag;
   cursor: default;
 }

@@ -17,7 +17,7 @@ const emit = defineEmits<{
     <Transition name="fade">
       <div
         v-if="visible"
-        class="fixed inset-0 z-[2000] bg-black/90 backdrop-blur-md flex items-center justify-center p-8 cursor-zoom-out"
+        class="fixed inset-0 z-[var(--z-lightbox)] bg-black/90 backdrop-blur-md flex items-center justify-center p-8 cursor-zoom-out"
         @click="emit('close')"
       >
         <img :src="imageUrl" class="max-w-full max-h-full object-contain" @click.stop />

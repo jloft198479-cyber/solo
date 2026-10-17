@@ -68,11 +68,33 @@ afterEach(() => {
 });
 
 describe('设置弹窗 · 静态契约（A1 / B2）', () => {
-  it('模态层高于标题栏：--z-modal > --z-titlebar，遮罩用 var(--z-modal)', () => {
+  it('层级刻度单调递增，模态高于 chrome，遮罩用 var(--z-modal)', () => {
     const css = read('../../../assets/styles/main.css');
     const token = (name: string) => Number(css.match(new RegExp(`--${name}:\\s*(\\d+)`))?.[1]);
-    expect(token('z-titlebar')).toBe(200);
-    expect(token('z-modal')).toBeGreaterThan(token('z-titlebar'));
+
+    // 整条刻度：同含义复用同一档，不同含义绝不同号（B2 全面归位后的恒定契约）
+    const ladder = [
+      'z-content',
+      'z-raised',
+      'z-floating',
+      'z-chrome',
+      'z-chrome-hot',
+      'z-editor-popup',
+      'z-hint',
+      'z-context-menu',
+      'z-modal',
+      'z-command',
+      'z-lightbox',
+      'z-window-edge',
+      'z-unsaved',
+    ];
+    const values = ladder.map(token);
+    expect(values.every(Number.isFinite), '刻度里有未定义的档位').toBe(true);
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i], `${ladder[i]} 必须高于 ${ladder[i - 1]}`).toBeGreaterThan(values[i - 1]);
+    }
+    expect(token('z-chrome')).toBe(200);
+    expect(token('z-modal')).toBeGreaterThan(token('z-chrome'));
 
     const modal = read('../SettingsModal.vue');
     expect(modal).toMatch(/\.settings-modal-overlay\s*\{[^}]*z-index:\s*var\(--z-modal\)/);

@@ -493,7 +493,7 @@ onUnmounted(() => {
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 400;
+  z-index: var(--z-hint);
   padding: 6px 14px;
   font-size: 12px;
   font-weight: 500;

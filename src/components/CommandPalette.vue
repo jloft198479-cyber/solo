@@ -234,7 +234,7 @@ function onKeydown(event: KeyboardEvent) {
 .palette-overlay {
   position: fixed;
   inset: 0;
-  z-index: 600;
+  z-index: var(--z-command);
   display: flex;
   align-items: flex-start;
   justify-content: center;

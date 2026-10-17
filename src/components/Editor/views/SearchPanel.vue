@@ -163,7 +163,7 @@ defineExpose({
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 300;
+  z-index: var(--z-editor-popup);
   min-width: 420px;
   max-width: 520px;
   background: color-mix(in srgb, var(--bg-color) 92%, transparent);
