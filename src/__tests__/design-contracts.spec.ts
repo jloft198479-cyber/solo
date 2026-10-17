@@ -198,14 +198,24 @@ describe('间距标度（B7）', () => {
 
 describe('圆角刻度（B6）', () => {
   const css = readSrc('assets/styles/main.css');
-  const SCALE = ['xs', 'sm', 'md', 'lg', 'xl', 'pill'];
-  const EXPECTED = ['2px', '3px', '4px', '8px', '10px', '999px'];
+  // 原第 6 档 `xl: 10px` 零消费，已按 B8 删除 —— 有刻度无消费等于留个假选项。
+  // 删档必须同步这里：多一档（偷偷加回来）或少一档（误删承重档）都会红。
+  const SCALE = ['xs', 'sm', 'md', 'lg', 'pill'];
+  const EXPECTED = ['2px', '3px', '4px', '8px', '999px'];
 
   it('刻度齐全且等于既定值', () => {
     const values = SCALE.map((k) =>
       css.match(new RegExp(`--radius-${k}:\\s*([^;]+);`))?.[1].trim(),
     );
     expect(values, '--radius-* 刻度缺档或被改值').toEqual(EXPECTED);
+  });
+
+  it('不许有刻度外的 --radius-* 定义', () => {
+    // 只查「五档都在」挡不住「偷偷加回第六档」—— 那正是 B8 要清掉的东西。
+    // 扫前剥注释：说明文字里写「原 `--radius-xl: 10px` 已删」是正常的，不算定义。
+    const declared = [...stripComments(css).matchAll(/(--radius-[a-z0-9]+)\s*:/g)].map((m) => m[1]);
+    const known = SCALE.map((k) => `--radius-${k}`);
+    expect(declared.sort(), '多出来的圆角档等于又留了个假选项').toEqual(known.sort());
   });
 
   it('不允许字面量圆角（0 = 无圆角、50% = 正圆，两者不是刻度值）', () => {

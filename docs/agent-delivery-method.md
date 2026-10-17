@@ -38,7 +38,7 @@ updates: [AGENTS.md, docs/agent-playbook.md, docs/archive/handoff-design-p3-2026
 ## 三、改码：干净比聪明重要
 
 1. **成对删除**：删一个 UI 模块 = 模板节点 + `ref`/状态 + 事件函数 + import + CSS + 类型/常量，**一次删净**。删完全局 grep 旧类名/变量名确认零残留（本次删 About 弹窗：7 处锚点逐对清，133 行一次出清）。
-2. **不硬编码**：颜色走 `--*` token，尺寸/动效/圆角走设计 token，超时阈值走常量。圆角档位：`--radius-sm` 4 / `--radius-md` 6 / `--radius-lg` 8 / `--radius-xl` 10；拟物控件（开关、色点、头像、圆钮、骨架条）用 999px 是规则内的，别「统一」掉。
+2. **不硬编码**：颜色走 `--*` token，尺寸/动效/圆角走设计 token，超时阈值走常量。圆角**唯一刻度在 [`main.css`](../src/assets/styles/main.css) 的 `--radius-*`（xs/sm/md/lg/pill），别在这里抄值**（曾抄过一次，抄的四个值里三个与实现不符）；拟物控件（开关、色点、头像、圆钮、骨架条）用 `--radius-pill` 是规则内的，别「统一」掉。
 3. **复用优先于新增**：状态栏图标共用 `.icon-btn`，透明度改一处全覆盖；不为单点需求加新类、新文件、新依赖。
 4. **注释写「为什么」不写「是什么」**：如 `/* min-width:0 允许在窄空间收缩换行，避免把右侧快捷键框挤断 */`。
 5. **NodeView 监听器挂 `AbortController`**，`destroy()` 里 `abort()`，异步回写查 `signal.aborted`（硬禁令）。
