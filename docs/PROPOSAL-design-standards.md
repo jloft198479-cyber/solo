@@ -4,7 +4,7 @@ type: proposal
 audience: maintainer
 status: proposal
 tags: [设计, UI, 规范, token, 图标, z-index, 评估]
-summary: 综合 UI/UX 巡检复核链（取数一律以终核为准）的设计侧问题总清单与修复评估：A 组体感三件（真模态 / 代码块字号 / 图标统一）+ B 组规范八条（z-index 刻度 / 按钮共享 / spacing 标度 / 死变量等）；逐条含修复难度 / 可控性 / 性能与验证方式，附建议批次与完成判据。未执行，待拍板。
+summary: 综合 UI/UX 巡检复核链（取数一律以终核为准）的设计侧问题总清单与修复评估：A 组体感四件（真模态 / 代码块字号 / 图标统一 / 段距行高对标 Typora）+ B 组规范八条（z-index 刻度 / 按钮共享 / spacing 标度 / 死变量等）；逐条含修复难度 / 可控性 / 性能与验证方式，附建议批次与完成判据。段距/行高对标与「趁机会规范」范围已拍板（2026-10-17）；其余待拍板，未执行。
 updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-uiux-终核.md, docs/KNOWN-ISSUES.md]
 ---
 
@@ -28,7 +28,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 1. 全部条目都是 UI 层改动：**不碰 parser / serializer / schema，不碰保存与剪贴板数据链**。唯一例外：A3 动到 mermaid / math / code-block 内嵌图标时，需跑剪贴板出站锁做正确性验证（不是性能问题）。
 2. **性能影响全部为"无"**（依据见 §四）：不新增运行时逻辑、不引依赖；反而若干项略减体积。
-3. 建议从**批 1** 开始——四组纯 CSS 小改，改动小、体感立现（详见 §三）。
+3. 建议从**批 1** 开始——五组纯 CSS 小改，改动小、体感立现（详见 §三）。
 
 ## 一 · 清单总表
 
@@ -37,6 +37,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 | A1 | 设置弹窗不是真模态 | 低-中 | 高 | 无 | 批 2 |
 | A2 | 代码块字号焊死 13px | 极低 | 高 | 无 | 批 1 |
 | A3 | 图标 5 套来源 → 统一出口 | 中 | 中-高 | 无（红线：不引库） | 批 3 |
+| A4 | 段距/行高对标 Typora（已拍板） | 极低 | 高 | 无 | 批 1 |
 | B1 | 排版 token 通道 + 文档漂移 | 极低（文档） | 高 | 无 | 批 4 |
 | B2 | z-index 13 值无刻度 | 低-中 | 中 | 无 | 批 2（最小）+ 批 4（全面） |
 | B3 | 幽灵按钮 3 份 / 文字按钮 ≥8 遍 | 低 | 高 | 无 | 批 4 |
@@ -84,7 +85,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 **现状**：5 套并存（组件库 2 个 [`icons/`](../src/components/icons/)｜内联 SVG 32 处 17 文件：`.vue` 25 处 13 文件 + `.ts` innerHTML 7 处 4 文件｜字符图标约 22 个｜符号 1｜Tailwind 尺寸类 1）。重复绘制：对勾 4 份、关闭 X / 复制 / 放大镜各 3-5 份；同一 BubbleMenu 内笔画不齐（link/bulletList 16/16 sw1.5 vs 清除格式 24/24 sw2）；`☐ ⊞ ◈` 在中文 Windows 有豆腐块风险。`package.json` 无任何图标库。
 
-**改什么**：自建 [`src/components/icons/`](../src/components/icons/) 组件（约 12 个，24×24 / sw 1.5 统一规格）→ 分三步替换：① `.vue` 25 处 ② `.ts` innerHTML 7 处 ③ 字符图标（slash 菜单 14 个需小改菜单渲染以支持结构化图标）。
+**改什么**：自建 [`src/components/icons/`](../src/components/icons/) 组件（约 12 个，24×24 / sw 1.5 统一规格；**自建 ≠ 手绘——从 Lucide / Feather（MIT）提取 path 进自建组件，零依赖、全掌控**）→ 分三步替换：① `.vue` 25 处 ② `.ts` innerHTML 7 处 ③ 字符图标（slash 菜单 14 个需小改菜单渲染以支持结构化图标）。
 
 **评估**：
 
@@ -92,6 +93,25 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 - 可控性 **中-高**：主体是等价替换、逐步可查。**两个风险点**：① `.ts` 内嵌图标属编辑器 NodeView 内部 DOM，其中 mermaid / math 块在剪贴板出站路径上 ⇒ 改完必跑 [`externalize-html.spec.ts`](../src/components/Editor/tiptap/__tests__/externalize-html.spec.ts) 与剪贴板相关锁；② slash 字符替换需支持结构化图标（可放最后独立小批）。
 - 性能 **无新增负担**：自建组件零依赖，体积与内联持平。**红线：不引图标库**（会 +依赖 +bundle）。
 - 验证：全量测试 + 出站锁 + 目视截屏对比（笔画粗细一致、无豆腐块）。
+
+### A4 · 段距/行高对标 Typora（已拍板：参考 Typora，不出样张）
+
+**对标结果**（Typora 默认 GitHub 主题 vs solo 现值，2026-10-17 核对）：
+
+| 项 | Typora（默认 GitHub 主题） | solo 现值 | 结论 |
+|---|---|---|---|
+| 行高 | 1.6 | 1.7 | **调 1.6**（对齐，差异 6%） |
+| 段距 | 1rem（当前官方口径；老版主题 0.8em） | 1em（16px） | **持平、不动**（若要更紧，改 1 个变量即可） |
+| 标题字号 | h1 2.25 / h2 1.75 / h3 1.5em… | 1.6 / 1.3 / 1.2em… | 差异较大，**不在本次范围**（另议） |
+| 标题间距 | 上下各 1rem | em 制（段前 > 段后） | 保持（solo 既有取向，含"对齐 Typora"的原注释） |
+
+**数据源**：Typora 官方帮助《Line Spacing》（"the GitHub theme uses 1.6"；默认段落 margin 1rem）＋ 官方主题仓库 `typora-default-themes` 的 `github.css`（body line-height 1.6；历史版 p margin 0.8em）。
+
+**改动点（1 处值 + 2 处注释同步）**：[`editor.css`](../src/components/Editor/tiptap/editor.css) `--mk-line-height: 1.7 → 1.6`；标题注释里引用的"正文行高 1.7em"同步；[`AppearanceSettingsPanel.vue`](../src/components/Settings/AppearanceSettingsPanel.vue):25 的过时注释（"CSS default (1.9)"）顺带校正——属 B1 漂移一员。
+
+**评估**：难度 **极低**（1 行 CSS + 注释）；可控性 **高**（单变量、全编辑器统一、可单点回滚）；性能 **无**。
+
+**注**：审计原建议（行高 → 1.8、段距 → 1.15em）与 Typora 实测方向相反，已按拍板以 Typora 为准；将来想调松改同一变量即可、随时可回。
 
 ### B1 · 排版 token 通道 + 文档漂移
 
@@ -172,7 +192,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 | 批次 | 内容 | 完成判据 |
 |---|---|---|
-| **批 1** | A2 字号 5 处 em 化 + B4 cursor + B5 focus-visible/热区（全 CSS 小改） | 全量绿 + 契约锁（pre 无 px）+ 目视（字号 20px 代码块跟随 / Tab 见按钮 / 按钮手型） |
+| **批 1** | A2 字号 5 处 em 化 + **A4 行高 1.6（对齐 Typora）** + B4 cursor + B5 focus-visible/热区（全 CSS 小改） | 全量绿 + 契约锁（pre 无 px）+ 目视（字号 20px 代码块跟随 / 行距对齐 Typora / Tab 见按钮 / 按钮手型） |
 | **批 2** | A1 真模态（含 B2 最小刻度） | 组件锁 1-3 条 + 目视（盖标题栏 / Esc / Tab 不逃逸 / 焦点归还） |
 | **批 3** | A3 图标统一（先 .vue → 再 .ts → 字符图标可再拆） | 出站锁 + 全量绿 + 截屏对比（笔画一致、无豆腐块） |
 | **批 4** | B1a 文档同步 + B7 spacing + B3 按钮 + B6 归 token + B2 全面刻度 | 全量绿 + docs-lint + 逐类目视 |
@@ -184,19 +204,22 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 | 类别 | 依据 |
 |---|---|
-| 纯 CSS（A2 / B2 / B4 / B5 / B6 / B7） | 浏览器原生计算，无 JS、无额外重排类型变化 |
+| 纯 CSS（A2 / A4 / B2 / B4 / B5 / B6 / B7） | 浏览器原生计算，无 JS、无额外重排类型变化 |
 | 组件结构（A1 / A3 / B3） | A1 仅弹窗打开期间挂 1 个轻量 keydown；A3 自建组件零依赖、体积与内联持平；B3 去重复 |
 | 文档 / 登记（B1 / B8） | 不触运行时 |
 | 主题链路（B8 选项 B 若选） | 仅主题加载期一次映射，微秒级 |
 
 **唯一边界**：A3 若改走"引入图标库"路线会有 bundle 与依赖成本——**推荐自建，红线不引库**。其余全部零运行时开销；若干项（死变量、按钮 / 图标去重）略减体积。
 
-## 五 · 待拍板
+## 五 · 拍板进展
+
+**已拍板（2026-10-17）**：① 段距/行高对标 Typora、不出样张（对标结论与落点见 A4）；② "趁机会规范"范围 = 本清单 A/B 组（结构工程类如拆组件、反向 import 另议，不进本批）。
+
+**待拍板**：
 
 1. **批次顺序**：是否按 批 1 → 批 5 执行（建议从批 1 开始，当天可完成）。
-2. **A3 图标路径**：自建 12 组件（推荐）vs 引入图标库。
+2. **A3 图标路径**：自建 12 组件（推荐：零依赖、规格全掌控，执行 = 从 Lucide / Feather 抄 MIT path）vs 引入图标库（+依赖 +bundle、规格受制上游）。
 3. **B8 死变量策略**：选项 A（删 1 登记 8，推荐）vs 选项 B（全链清理）。
-4. **口味级（不催）**：行高 1.7 / 段距 1em 要不要看 A/B 样张（你 10 月曾把标题段距往小打回，故不擅自列为缺陷）。
 
 ## 附 · 已有结论、不在本清单（防重复评估）
 
