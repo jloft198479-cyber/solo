@@ -102,6 +102,7 @@ import SlashMenu from './views/SlashMenu.vue';
 import EmojiMenu from './views/EmojiMenu.vue';
 import WikilinkMenu from './views/WikilinkMenu.vue';
 import SearchPanel from './views/SearchPanel.vue';
+import { shortcutHint } from '../../commands/registry';
 import './tiptap/editor.css';
 
 type EditorUpdatePayload = EditorSyncPayload;
@@ -123,6 +124,26 @@ function handleImageDblClick(event: Event) {
 
 const fileStore = useFileStore();
 const settingsStore = useSettingsStore();
+
+/**
+ * 空文档那行提示的文案：只放三个入口，教用户「从哪开始」。
+ *
+ * - 键位一律走 `shortcutHint()` 动态取：写死 `Ctrl+F` 在 Mac 上（⌘F）与用户改键后
+ *   都会当面撒谎，这是 registry 里 M-32 立过的规矩。
+ * - **完整速查表不在这里** —— 按命令面板键（Ctrl+K）打开的列表里，每条命令右侧
+ *   已经显示了当前生效的键位；空文档这行只负责把人送到那儿，不重复列。
+ * - 分隔用全角空格（\u3000）：视觉上比普通空格松一档，且不会被格式化工具吞掉。
+ */
+function buildEmptyDocHint(): string {
+  const custom = settingsStore.settings.customShortcuts;
+  const parts = ['开始写作…', '/ 唤起命令'];
+  const find = shortcutHint('edit.find', custom);
+  if (find) parts.push(`${find} 查找`);
+  const palette = shortcutHint('view.commandPalette', custom);
+  if (palette) parts.push(`${palette} 命令面板`);
+  return parts.join('\u3000');
+}
+
 const editorWrapRef = ref<HTMLElement | null>(null);
 const bubbleMenuRef = ref<InstanceType<typeof BubbleMenuComponent> | null>(null);
 const contextMenuRef = ref<InstanceType<typeof ContextMenuComponent> | null>(null);
@@ -332,6 +353,7 @@ function createEditor(content: string) {
       getDocumentPath: () => fileStore.currentFile.path,
       getStoragePath: () => settingsStore.settings.imageStoragePath || null,
       onWikilinkNavigate: handleWikilinkNavigate,
+      getEmptyDocHint: buildEmptyDocHint,
     }),
     editorProps: {
       attributes: {

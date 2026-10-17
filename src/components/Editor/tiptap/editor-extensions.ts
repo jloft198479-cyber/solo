@@ -177,6 +177,12 @@ interface EditorExtensionOptions {
   getStoragePath?: () => string | null;
   /** 互链 [[target]] 点击回调，由上层解析路径并打开目标文档 */
   onWikilinkNavigate?: (target: string) => void;
+  /**
+   * 空文档提示文案。由上层拼装 —— 键位必须走 `shortcutHint()` 动态取，
+   * 不能在这里写死 `Ctrl+F`（用户改键 / Mac 上会当面撒谎）。
+   * 返回函数而非字符串：Placeholder 每次重算装饰时都会调，改键后点一下编辑器即刷新。
+   */
+  getEmptyDocHint?: () => string;
 }
 
 export function createEditorExtensions(options: EditorExtensionOptions) {
@@ -337,7 +343,9 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     // 本守卫是那道中枢拦截（详见 extensions/cell-content-guard.ts 头注释）
     CellContentGuard,
     Placeholder.configure({
-      placeholder: '开始写作… 输入 / 唤起命令',
+      // 空文档独占的那行提示：只教「从哪开始」——/ 命令、查找、命令面板。
+      // 完整键位速查在 Ctrl+K 命令面板里（每条命令右侧已显示），这里不重复。
+      placeholder: () => options.getEmptyDocHint?.() ?? '开始写作… 输入 / 唤起命令',
     }),
     MathBlock,
     MathInline,
