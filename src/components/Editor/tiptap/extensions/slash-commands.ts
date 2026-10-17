@@ -6,6 +6,7 @@ import { PluginKey } from '@tiptap/pm/state';
 
 import { guardedFindSuggestionMatch } from './suggestion-guard';
 import { demoteListItemToBlock, hasListItemToDemote, isInsideListOf } from '../list-demote';
+import type { IconName } from '../../../icons/svg';
 
 const slashPluginKey = new PluginKey('slashCommands');
 
@@ -21,7 +22,13 @@ function demoteAfterDelete(editor: Editor, range: Range): void {
 export interface SlashCommandItem {
   title: string;
   description: string;
-  icon: string;
+  /**
+   * 图标键 —— **必须是图标库里的名字**（`icons/svg.ts` 的 `IconName`），不接受自由字符串。
+   * 2026-10-17 批 3 第 3 步之前这里是 `string`，14 项各填一个字符（`¶` `H1` `☐` `∑` …），
+   * 混了排版符号 / 文字标签 / 伪图标三种性质，改一处全处不动。改成联合类型后，
+   * 填错名字**编译期就红**，也不可能再退回"随手打个字符"。
+   */
+  icon: IconName;
   category: string;
   /**
    * 匹配别名：拼音首字母 + 常用英文缩写。
@@ -46,7 +53,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '正文',
     description: '正文段落',
-    icon: '¶',
+    icon: 'paragraph',
     category: '基础',
     alias: 'zw',
     command: ({ editor, range }) => {
@@ -62,7 +69,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '标题 1',
     description: '大标题',
-    icon: 'H1',
+    icon: 'heading1',
     category: '标题',
     alias: 'bt h1',
     command: ({ editor, range }) => {
@@ -72,7 +79,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '标题 2',
     description: '中标题',
-    icon: 'H2',
+    icon: 'heading2',
     category: '标题',
     alias: 'bt h2',
     command: ({ editor, range }) => {
@@ -82,7 +89,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '标题 3',
     description: '小标题',
-    icon: 'H3',
+    icon: 'heading3',
     category: '标题',
     alias: 'bt h3',
     command: ({ editor, range }) => {
@@ -93,7 +100,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '无序列表',
     description: '项目符号列表',
-    icon: '•',
+    icon: 'bulletList',
     category: '列表',
     alias: 'wxxb ul lb',
     command: ({ editor, range }) => {
@@ -108,7 +115,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '有序列表',
     description: '编号列表',
-    icon: '1.',
+    icon: 'orderedList',
     category: '列表',
     alias: 'yxxb ol lb',
     command: ({ editor, range }) => {
@@ -123,7 +130,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '任务列表',
     description: '待办事项清单',
-    icon: '☐',
+    icon: 'taskList',
     category: '列表',
     alias: 'rwlb task todo lb',
     command: ({ editor, range }) => {
@@ -139,7 +146,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '引用',
     description: '块引用',
-    icon: '❝',
+    icon: 'quote',
     category: '块',
     alias: 'yy quote',
     command: ({ editor, range }) => {
@@ -149,7 +156,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '重点',
     description: '重点提示块',
-    icon: '▎',
+    icon: 'lightbulb',
     category: '块',
     alias: 'zd callout',
     command: ({ editor, range }) => {
@@ -161,7 +168,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '代码块',
     description: '语法高亮代码',
-    icon: '<>',
+    icon: 'code',
     category: '块',
     alias: 'dmk code',
     command: ({ editor, range }) => {
@@ -171,7 +178,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '分割线',
     description: '水平分割线',
-    icon: '—',
+    icon: 'divider',
     category: '块',
     alias: 'fgx hr',
     command: ({ editor, range }) => {
@@ -181,7 +188,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '表格',
     description: '3×3 表格',
-    icon: '⊞',
+    icon: 'table',
     category: '块',
     alias: 'bg table',
     command: ({ editor, range }) => {
@@ -194,7 +201,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: '数学公式',
     description: 'LaTeX 数学公式',
-    icon: '∑',
+    icon: 'math',
     category: '高级',
     alias: 'sxgs math gs',
     command: ({ editor, range }) => {
@@ -206,7 +213,7 @@ export const slashCommandItems: SlashCommandItem[] = [
   {
     title: 'Mermaid 图表',
     description: '流程图/时序图',
-    icon: '◈',
+    icon: 'diagram',
     category: '高级',
     alias: 'mermaid tl tb',
     command: ({ editor, range }) => {

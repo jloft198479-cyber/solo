@@ -81,11 +81,11 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 - 性能 **无**：浏览器原生 CSS 计算，无 JS、无布局抖动。
 - 细节注意：改后验证 pre 内行内 code（`0.875em`）不双重缩小（回归验证项）。
 
-### A3 · 图标 5 套来源 → 统一出口
+### A3 · 图标 5 套来源 → 统一出口（✅ 已落地 2026-10-17 · 批 3 三步全交付）
 
 **现状**：5 套并存（组件库 2 个 [`icons/`](../src/components/icons/)｜内联 SVG 32 处 17 文件：`.vue` 25 处 13 文件 + `.ts` innerHTML 7 处 4 文件｜字符图标约 22 个｜符号 1｜Tailwind 尺寸类 1）。重复绘制：对勾 4 份、关闭 X / 复制 / 放大镜各 3-5 份；同一 BubbleMenu 内笔画不齐（link/bulletList 16/16 sw1.5 vs 清除格式 24/24 sw2）；`☐ ⊞ ◈` 在中文 Windows 有豆腐块风险。`package.json` 无任何图标库。
 
-**改什么**：自建 [`src/components/icons/`](../src/components/icons/) 组件（约 12 个，24×24 / sw 1.5 统一规格；**自建 ≠ 手绘——从 Lucide / Feather（MIT）提取 path 进自建组件，零依赖、全掌控**）→ 分三步替换：① `.vue` 25 处 ② `.ts` innerHTML 7 处 ③ 字符图标（slash 菜单 14 个需小改菜单渲染以支持结构化图标）。
+**改什么**：自建 [`src/components/icons/`](../src/components/icons/) 组件（约 12 个，24×24 / sw 1.5 统一规格；**自建 ≠ 手绘——从 Lucide / Feather（MIT）提取 path 进自建组件，零依赖、全掌控**）→ 分三步替换：① `.vue` 25 处 ② `.ts` innerHTML 7 处 ③ 字符图标（slash 菜单 14 个需小改菜单渲染以支持结构化图标）。**实测订正（2026-10-17 第 3 步）：③ 不需要改渲染结构** —— 图标就是 Vue 组件，`{{ item.icon }}` 换成 `<Icon :name="item.icon" />` 一行即可；真正的改动是**把 `icon: string` 收紧成 `IconName`**。
 
 **评估**：
 
@@ -194,7 +194,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 |---|---|---|
 | **批 1** | ✅ **已执行（2026-10-17）**：A2 字号 5 处 em 化 + A4 行高 1.6（对齐 Typora）+ B4 cursor + B5 focus-visible/热区（全 CSS 小改） | 全量绿 + 契约锁（pre 无 px）+ 目视（字号 20px 代码块跟随 / 行距对齐 Typora / Tab 见按钮 / 按钮手型） |
 | **批 2** | ✅ **已执行（2026-10-17）**：A1 真模态（层叠 / Esc / dialog 语义 / 焦点陷阱 / 焦点归还）+ B2 最小刻度（`--z-titlebar` / `--z-modal` 两档） | 组件锁 1-3 条 + 目视（盖标题栏 / Esc / Tab 不逃逸 / 焦点归还） |
-| **批 3** | A3 图标统一（先 .vue → 再 .ts → 字符图标可再拆） | 出站锁 + 全量绿 + 截屏对比（笔画一致、无豆腐块）。**已交付第 1、2 步**（库 + `.vue` 22 处），余第 3 步 |
+| **批 3** | A3 图标统一（先 .vue → 再 .ts → 字符图标可再拆） | 出站锁 + 全量绿 + 截屏对比（笔画一致、无豆腐块）。✅ **三步全部交付**（38 个图标；`.vue` 22 处；`.ts` 7 处；斜杠菜单 14 项 + 气泡菜单 3 处改用图标键，`icon: string` → `IconName`） |
 | **批 4** | B1a 文档同步 + B7 spacing + B3 按钮 + B6 归 token + B2 全面刻度 | 全量绿 + docs-lint + 逐类目视 |
 | **批 5** | B8 选项 A（删 1 个 + 登记 8 个） | 全量绿 + 台账更新 |
 
@@ -249,6 +249,13 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 - **反向校准（两轮）**：① 一次撤四处（z 值 / document 监听 / 打开聚焦 / 关闭归还）⇒ 4 条锁转红 ② 再**单独**撤 Tab 陷阱、单独撤焦点归还 ⇒ 各自精确转红（第一轮里这两条是假绿，故补做单项校准）。
 - **回滚**：`git tag backup/20261017-0939-pre-design-batch2`（或 revert 批 2 提交）。
 - **待真机目视**：设置弹窗是否严实盖住标题栏、Esc 是否能关、Tab 是否不逃逸、关后焦点是否回到齿轮按钮、开关是否有淡入淡出。
+
+### 批 3（2026-10-17 ✅ 三步全交付）
+
+- 详见 [`PROPOSAL-icon-system.md`](./PROPOSAL-icon-system.md) §八（第 1 步建库 / 第 2 步换 `.vue` / 第 3 步换 `.ts` 与菜单字形）。
+- **本批最终形态**：`icons/svg.ts` 唯一图源 **38 个**；`.vue` 与 `.ts` 全部经 `<Icon>` / `iconSvg()` 取图，内联 `<svg>` 只剩标题栏 3 处永久豁免；斜杠菜单与气泡菜单的「字形」由自由字符串收紧为 `IconName`。
+- **锁**：`icon-spec` 8 条 + `icon-usage` 2 条 + `menu-icons` 3 条；反向校准三组各自单项撤。
+- 回滚：三次提交各自可 revert；锚点 `backup/20261017-1130-pre-batch3-step3`。
 
 ## 附 · 已有结论、不在本清单（防重复评估）
 

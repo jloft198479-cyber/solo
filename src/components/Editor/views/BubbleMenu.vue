@@ -17,7 +17,7 @@
         <span class="italic text-lg">I</span>
       </button>
       <button :class="btnClass(activeMarks.code)" title="行内代码" @click="exec('code')">
-        <span class="font-mono text-sm">&lt;/&gt;</span>
+        <Icon name="code" :size="16" />
       </button>
       <button :class="btnClass(activeMarks.dim)" title="文字变浅" @click="exec('dim')">
         <span class="dim-icon">A</span>
@@ -30,8 +30,12 @@
         <Icon name="bulletList" :size="16" />
       </button>
       <div class="bubble-menu-divider"></div>
-      <button class="bubble-menu-heading-btn" @click="exec('h1')">H1</button>
-      <button class="bubble-menu-heading-btn" @click="exec('h2')">H2</button>
+      <button class="bubble-menu-heading-btn" title="标题 1" @click="exec('h1')">
+        <Icon name="heading1" :size="16" />
+      </button>
+      <button class="bubble-menu-heading-btn" title="标题 2" @click="exec('h2')">
+        <Icon name="heading2" :size="16" />
+      </button>
       <div class="bubble-menu-divider"></div>
       <button class="bubble-menu-clear-btn" title="清除格式" @click="exec('clearFormat')">
         <Icon name="eraser" :size="16" />
@@ -252,8 +256,13 @@ defineExpose({
 }
 
 .bubble-menu-heading-btn {
-  padding: 4px 8px;
-  font-size: 12px;
+  /* 与工具栏其它按钮同尺寸：原来装的是「H1」文字（4px 8px 内边距 + 12px 字），
+     2026-10-17 批 3 第 3 步换成图标后统一成 32×32 —— 否则同排按钮热区一大一小 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-sm);
   background-color: transparent;
   color: var(--text-color);

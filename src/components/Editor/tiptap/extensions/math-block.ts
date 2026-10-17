@@ -8,6 +8,7 @@
 import { Node, mergeAttributes } from '@tiptap/vue-3';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { scheduleIdleRender } from './idle-render-scheduler';
+import { iconSvg } from '../../../icons/svg';
 
 // 异步加载 KaTeX（懒加载，减少首屏 bundle 体积）
 let katexPromise: Promise<typeof import('katex')> | null = null;
@@ -72,7 +73,7 @@ export const MathBlock = Node.create({
       deleteButton.type = 'button';
       deleteButton.className = 'mk-block-delete-button';
       deleteButton.title = '删除此块';
-      deleteButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      deleteButton.innerHTML = iconSvg('close', 14);
       header.appendChild(deleteButton);
 
       deleteButton.addEventListener('click', (e) => {

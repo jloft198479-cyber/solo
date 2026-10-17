@@ -20,11 +20,9 @@ const ALLOWED: Record<string, number> = {
   // 窗口控制按钮（最小化 / 最大化 / 关闭）：10px 画布是 Windows 标题栏的惯例尺寸，
   // 用 24 画布图标会显得又小又细，故**永久排除在图标体系之外**（见方案 §二「不纳入」）
   'components/Layout/CustomTitlebar.vue': 3,
-  // 以下为第 3 步待迁移（`.ts` 里 innerHTML 拼装）。迁移完成即从本清单删除，不得回填。
-  'components/Editor/tiptap/extensions/code-block.ts': 3,
-  'components/Editor/tiptap/extensions/list-fold.ts': 1,
-  'components/Editor/tiptap/extensions/math-block.ts': 1,
-  'components/Editor/tiptap/extensions/mermaid-block.ts': 2,
+  // 第 3 步（2026-10-17）已把 code-block / math-block / mermaid-block / list-fold
+  // 四处 `.ts` 内联 svg 全部改成 `iconSvg()`，清单**已清空到只剩标题栏**。
+  // 不得回填：再往 `.ts` 里内联 svg 就是又开了一套定义，测试会当场拦下。
 };
 
 function walk(dir: string, out: string[] = []): string[] {

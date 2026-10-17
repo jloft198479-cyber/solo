@@ -8,6 +8,7 @@
 import { Node, mergeAttributes } from '@tiptap/vue-3';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { scheduleIdleRender } from './idle-render-scheduler';
+import { iconSvg } from '../../../icons/svg';
 
 // 异步加载 mermaid
 let mermaidPromise: Promise<typeof import('mermaid')> | null = null;
@@ -313,7 +314,7 @@ export const MermaidBlock = Node.create({
       deleteButton.type = 'button';
       deleteButton.className = 'mk-block-delete-button';
       deleteButton.title = '删除此块';
-      deleteButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      deleteButton.innerHTML = iconSvg('close', 14);
       header.appendChild(deleteButton);
 
       // 放大按钮：hover 整块时显示，点击打开 lightbox 全屏预览。
@@ -323,7 +324,7 @@ export const MermaidBlock = Node.create({
       zoomButton.type = 'button';
       zoomButton.className = 'mk-block-zoom-button';
       zoomButton.title = '放大查看';
-      zoomButton.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>';
+      zoomButton.innerHTML = iconSvg('zoomIn', 14);
       header.appendChild(zoomButton);
 
       deleteButton.addEventListener('click', (e) => {

@@ -18,6 +18,7 @@ import type { EditorView } from '@tiptap/pm/view';
 import { isHeavyDocument } from '../../document-scale';
 import { createCompositionTracker } from '../composition-freeze';
 import { scheduleIdleRender } from './idle-render-scheduler';
+import { iconSvg } from '../../../icons/svg';
 import { createLowlight } from 'lowlight';
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
@@ -446,7 +447,7 @@ export const CustomCodeBlock = CodeBlock.extend({
       copyButton.className = 'mk-code-block-copy-button';
       copyButton.title = '复制代码';
       copyButton.innerHTML =
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+        iconSvg('copy', 14);
       header.appendChild(copyButton);
 
       let copyTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -461,12 +462,12 @@ export const CustomCodeBlock = CodeBlock.extend({
             if (eventController.signal.aborted) return;
             copyButton.classList.add('is-copied');
             copyButton.innerHTML =
-              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+              iconSvg('check', 14);
             if (copyTimeout) clearTimeout(copyTimeout);
             copyTimeout = setTimeout(() => {
               copyButton.classList.remove('is-copied');
               copyButton.innerHTML =
-                '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+                iconSvg('copy', 14);
             }, 2000);
           });
         },

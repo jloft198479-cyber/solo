@@ -17,7 +17,7 @@
           @mouseenter="selectedIndex = flatIndexMap.get(item.title)!"
           @click="selectItem(flatIndexMap.get(item.title)!)"
         >
-          <span class="mk-slash-menu-icon">{{ item.icon }}</span>
+          <span class="mk-slash-menu-icon"><Icon :name="item.icon" :size="16" /></span>
           <div class="mk-slash-menu-text">
             <div class="mk-slash-menu-title">{{ item.title }}</div>
             <div class="mk-slash-menu-desc">{{ item.description }}</div>
@@ -32,6 +32,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import type { SlashCommandItem } from '../tiptap/extensions/slash-commands';
+import Icon from '../../icons/Icon';
 import { useFloatingListMenu } from '../../../composables/useFloatingListMenu';
 
 const props = defineProps<{

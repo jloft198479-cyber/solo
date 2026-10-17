@@ -1546,8 +1546,8 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   border-radius: 6px;
   background-color: var(--sidebar-bg);
   border: 1px solid var(--border-color);
-  font-size: 13px;
-  font-weight: 600;
+  /* 图标 16px 由 <Icon :size> 决定；这里只保留颜色（currentColor 的取色口）。
+     2026-10-17 批 3 第 3 步前此处是 13px / 600 的系统字符，换图标后字号字重已无消费点 */
   color: var(--text-color);
   flex-shrink: 0;
 }

@@ -8,6 +8,7 @@ import { isHeavyDocument } from '../../document-scale';
 import { createCompositionTracker, isFrozen, mapFrozenDecorations } from '../composition-freeze';
 import { isWholeDocReplace } from '../transaction-shape';
 import { ITEM_NODE_TYPES, LIST_NODE_TYPES } from '../list-move';
+import { iconSvg } from '../../../icons/svg';
 
 /**
  * 列表折叠 / 展开 —— 幕布式大纲体验的核心。
@@ -85,9 +86,8 @@ interface ListFoldMeta {
   rebuild?: boolean;
 }
 
-const CHEVRON_SVG =
-  '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" ' +
-  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.6 4.4L6 7.8l3.4-3.4"/></svg>';
+/** 折叠箭头：与全站同一份图源；显示尺寸由 `.list-fold-toggle svg` 的 CSS 定为 11px */
+const CHEVRON_SVG = iconSvg('chevronDown', 12);
 
 /**
  * 箭头 widget 的稳定 key（探针实测得来，勿删）。
