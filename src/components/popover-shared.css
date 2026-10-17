@@ -5,18 +5,21 @@
   position: relative;
 }
 
-/* ── 图标按钮：32×32 命中区，0.85 保 16px 小描边图标可辨，hover 提亮留反馈层级 ── */
+/* ── 图标按钮：28×28 命中区，与状态栏的复制 / 设置按钮完全同规格 ──────
+   历史：这里曾是 32×32 / opacity 0.85，而同一排的复制与设置按钮是 32×32 / 0.6
+   ⇒ 四个图标两档浓度（5.4:1 vs 3.0:1）、两种悬停目标，看着"有的重有的轻"。
+   现统一为 28×28 / 0.6，悬停只到次级文字色（不再跳到正文黑）。 */
 .icon-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  opacity: 0.85;
+  opacity: 0.6;
   border-radius: var(--radius-lg);
   transition: opacity var(--motion-fast) ease, background-color var(--motion-fast) ease, color var(--motion-fast) ease;
 }
@@ -24,7 +27,7 @@
 .icon-btn:hover {
   opacity: 1;
   background-color: var(--hover-bg);
-  color: var(--text-color);
+  color: var(--text-secondary);
 }
 
 .icon-btn:active {

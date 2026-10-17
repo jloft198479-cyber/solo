@@ -442,7 +442,7 @@ onUnmounted(() => {
             :title="settingsButtonHint"
             @click="settingsStore.openModal()"
           >
-            <Icon name="settings" :size="16" />
+            <Icon name="settings" :size="14" />
           </button>
         </div>
       </div>
@@ -540,7 +540,7 @@ onUnmounted(() => {
 .statusbar-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .statusbar-stat {
@@ -615,13 +615,13 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-/* ── 设置按钮：与其它图标按钮统一规格 ──────────────────── */
+/* ── 设置按钮：与其它图标按钮统一规格（28px 命中区 / 14px 图标）──── */
 .statusbar-settings-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
@@ -636,7 +636,7 @@ onUnmounted(() => {
 
 .statusbar-settings-btn:hover {
   background-color: var(--hover-bg);
-  color: var(--text-color);
+  color: var(--text-secondary);
   opacity: 1;
 }
 </style>

@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+/* eslint-disable vue/one-component-per-file -- 测试里就地 createApp 挂一个假根，不是真组件文件 */
 import { describe, expect, it } from 'vitest';
 import { createApp, h } from 'vue';
 import Icon from '../Icon';

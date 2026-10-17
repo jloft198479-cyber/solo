@@ -111,8 +111,8 @@ useClickOutside(wrapRef, closePopover);
       :title="copied ? '已复制全文' : copyFailed ? '复制失败' : '复制全文为 Markdown'"
       @click="copyMarkdown"
     >
-      <Icon v-if="!copied" name="copy" :size="16" />
-      <Icon v-else name="check" :size="16" />
+      <Icon v-if="!copied" name="copy" :size="14" />
+      <Icon v-else name="check" :size="14" />
     </button>
   </div>
 </template>
@@ -121,16 +121,17 @@ useClickOutside(wrapRef, closePopover);
 .quick-actions {
   display: flex;
   align-items: center;
-  /* 6px：三个图标按钮并排时留一点缝，4px 看着连成一块（2026-10-17） */
-  gap: 6px;
+  /* 2px：图标本身已有内边距，按钮之间只需一丝缝 —— 大间距会让整排"散开"
+     （2026-10-17 对照 VS Code / Obsidian：两者图标边缘到边缘约 10px，原来 22px） */
+  gap: 2px;
 }
 
 .quick-action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
@@ -145,7 +146,9 @@ useClickOutside(wrapRef, closePopover);
 
 .quick-action-btn:hover {
   background-color: var(--hover-bg);
-  color: var(--text-color);
+  /* 悬停只到次级文字色：原先直接跳到 --text-color（正文黑），一枚 14px 图标
+     突然变全黑，比旁边的文字还重（2026-10-17） */
+  color: var(--text-secondary);
   opacity: 1;
 }
 

@@ -47,7 +47,7 @@ function selectFont(value: string) {
 <template>
   <div class="quick-action-item">
     <button class="icon-btn" title="正文字体" @click.stop="emit('toggle')">
-      <Icon name="type" :size="16" />
+      <Icon name="type" :size="14" />
     </button>
     <Transition name="quick-popover">
       <div v-if="isActive" class="quick-popover">
