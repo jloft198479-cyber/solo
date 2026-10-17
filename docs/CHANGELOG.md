@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- **「关于」页的副标题改为作者署名与纪念寄语**：不再是「版本信息与软件更新」这句功能说明 —— 版本号与检查更新按钮本就在页内，说明文字改为落款，更贴合作品气质。
 - **行高 1.7 → 1.6，对齐 Typora 默认主题**：段距核对后本就持平（`1em`）未动；设置页行高显示值的兜底常量原本硬编码 `1.9`、与编辑器真值漂移，本次一并校正。标题字号未动（10 月刚收过，不翻案）。设计依据见 [docs/PROPOSAL-design-standards.md](./PROPOSAL-design-standards.md) A4。
 - **切换字体只改文章正文，界面不再跟着变**：新增界面字体 `--font-ui`（系统 UI 栈），标题栏 / 侧栏 / 大纲 / 命令面板 / 菜单 / 设置等界面固定用它；编辑区内的提示文字（空段落占位、公式与图表占位）同样固定为界面字体。正文字体设置项文案改为「正文字体」。
   - 副作用说明：界面字体由「你选的正文字体」变为**系统 UI 字体**（英文/数字在 Windows 上走 Segoe UI，中文仍落微软雅黑 UI）——这是本次修复的预期结果。方案与边界定义见 [docs/PROPOSAL-font-scope.md](./PROPOSAL-font-scope.md)。

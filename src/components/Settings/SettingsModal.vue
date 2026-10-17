@@ -133,7 +133,7 @@ const tabMeta = {
   },
   about: {
     title: '关于',
-    description: '版本信息与软件更新。',
+    description: '作者：简乐（微信：fzz198479），给儿子小柏的一个纪念。',
   },
 } as const;
 
