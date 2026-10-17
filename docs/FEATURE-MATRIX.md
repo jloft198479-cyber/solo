@@ -121,7 +121,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 图片节点（含尺寸私有语法） | ✅ | [`image.ts`](../src/components/Editor/tiptap/extensions/image.ts) + `serializer.ts` `![alt\|WxH](src)` | ⚠️ `\|WxH` 是 **solo 私有扩展**，非标准 Markdown，粘到别家编辑器会暴露（属设计选择，未见台账） |
 | 表格节点（自定义 4 件套） | ✅ | `CustomTable` / `Row` / `Header` / `Cell` | 与 `table.ts` 配套 |
 | 语义标题 | ✅ | `semantic-heading.ts` | — |
-| 占位符（空文档提示） | ✅ | `Placeholder.configure` | — |
+| 占位符（空文档提示） | ✅ | `Placeholder.configure` | 文案含三个入口（`/` 命令 · 查找 · 命令面板），键位经 `registry.shortcutHint()` 动态取（Mac 显 ⌘、跟随自定义键）；锁 `empty-doc-hint.spec.ts` |
 | 删除 callout / 公式 / 图表整块 | ✅ | 三个 NodeView 的 `destroy()` + `AbortController` | 一/10（NodeView 泄漏）已修；**新增 NodeView 必须成对清理**（敏感区 §11.7） |
 
 > **核查要点**：12 类 callout 逐一切换看配色是否真的不同（一/20 就是这么漏掉的）；Mermaid 里写中文标签看是否报错提示。
