@@ -521,10 +521,11 @@ onUnmounted(() => {
 }
 
 /* ── 极简状态栏 ──────────────────────────────────────────────
-   设计标准：36px 高度，与画布同色一体（纯统一），图标按钮 32×32
-   命中区，描边 1.4 保持清晰，hover 态有微妙背景反馈。 */
+   与画布同色一体（不画分隔线），图标按钮 32×32 命中区，hover 态有微妙背景反馈。
+   高度 42px = 32px 按钮 + 上下各 5px 呼吸。此前 36px 只剩 2px —— 图标贴着窗口
+   底边、hover 胶囊几乎压线，看着拥挤（2026-10-17 反馈）。 */
 .minimal-statusbar {
-  height: 36px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: space-between;

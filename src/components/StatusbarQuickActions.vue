@@ -121,7 +121,8 @@ useClickOutside(wrapRef, closePopover);
 .quick-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  /* 6px：三个图标按钮并排时留一点缝，4px 看着连成一块（2026-10-17） */
+  gap: 6px;
 }
 
 .quick-action-btn {
