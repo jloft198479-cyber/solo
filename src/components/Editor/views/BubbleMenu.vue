@@ -203,7 +203,7 @@ defineExpose({
   z-index: var(--z-editor-popup);
   display: flex;
   flex-direction: column;
-  padding: 4px;
+  padding: var(--space-xs);
   background-color: var(--popover-bg);
   border: 1px solid var(--popover-border);
   border-radius: var(--radius-md);
@@ -214,7 +214,7 @@ defineExpose({
 .bubble-menu-toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .bubble-menu-btn {
@@ -276,17 +276,17 @@ defineExpose({
 }
 
 .bubble-menu-link-section {
-  margin-top: 4px;
-  padding-top: 4px;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
   border-top: 1px solid var(--border-light);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .bubble-menu-input {
   width: 180px;
-  padding: 4px 8px;
+  padding: var(--space-xs) var(--space-md);
   font-size: 12px;
   background-color: var(--input-bg);
   border: 1px solid var(--input-border);
@@ -305,7 +305,7 @@ defineExpose({
 }
 
 .bubble-menu-btn-primary {
-  padding: 4px 8px;
+  padding: var(--space-xs) var(--space-md);
   font-size: 12px;
   background-color: var(--btn-primary-bg);
   color: var(--btn-primary-text);
@@ -320,7 +320,7 @@ defineExpose({
 }
 
 .bubble-menu-btn-danger {
-  padding: 4px 8px;
+  padding: var(--space-xs) var(--space-md);
   font-size: 12px;
   background-color: transparent;
   color: var(--error-color);

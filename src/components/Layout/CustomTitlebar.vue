@@ -210,7 +210,7 @@ onUnmounted(() => {
   color: var(--text-color);
   opacity: 0.78;
   cursor: text;
-  padding: 2px 4px;
+  padding: var(--space-2xs) var(--space-xs);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

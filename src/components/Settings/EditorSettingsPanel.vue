@@ -32,6 +32,6 @@ const titlebarAutoHide = defineModel<boolean>('titlebarAutoHide', { required: tr
 .editor-settings-panel {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-2xl);
 }
 </style>

@@ -52,12 +52,12 @@ onSettled((family) => clearDownload(family));
 }
 
 .settings-font-select-wrap {
-  margin-top: 8px;
+  margin-top: var(--space-md);
 }
 
 .settings-font-select__input {
   width: 100%;
-  padding: 8px 12px;
+  padding: var(--space-md) var(--space-lg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   background-color: var(--bg-color);
@@ -72,7 +72,7 @@ onSettled((family) => clearDownload(family));
 }
 
 .font-progress-track {
-  margin-top: 6px;
+  margin-top: var(--space-sm);
   height: 3px;
   border-radius: 2px;
   background: var(--border-color);
@@ -87,7 +87,7 @@ onSettled((family) => clearDownload(family));
 }
 
 .settings-font-select__hint {
-  margin-top: 6px;
+  margin-top: var(--space-sm);
   font-size: 12px;
   color: var(--muted-color);
 }

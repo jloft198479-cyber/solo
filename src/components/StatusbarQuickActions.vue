@@ -106,7 +106,7 @@ useClickOutside(wrapRef, closePopover);
       @select="closePopover"
     />
     <button
-      class="quick-action-btn"
+      class="ghost-icon-btn"
       :class="{ 'is-copied': copied, 'is-failed': copyFailed }"
       :title="copied ? '已复制全文' : copyFailed ? '复制失败' : '复制全文为 Markdown'"
       @click="copyMarkdown"
@@ -127,39 +127,13 @@ useClickOutside(wrapRef, closePopover);
   gap: 0;
 }
 
-.quick-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: var(--radius-lg);
-  transition:
-    background-color var(--motion-fast),
-    color var(--motion-fast),
-    opacity var(--motion-fast);
-  opacity: 0.6;
-}
-
-.quick-action-btn:hover {
-  background-color: var(--hover-bg);
-  /* 悬停只到次级文字色：原先直接跳到 --text-color（正文黑），一枚 14px 图标
-     突然变全黑，比旁边的文字还重（2026-10-17） */
-  color: var(--text-secondary);
-  opacity: 1;
-}
-
-.quick-action-btn.is-copied {
+.ghost-icon-btn.is-copied {
   color: var(--success-color);
   opacity: 1;
 }
 
 /* 失败态必须有视觉：只改 tooltip 的话，用户不悬停就看不到（M-22 的原始抱怨正是「按钮不变样」） */
-.quick-action-btn.is-failed {
+.ghost-icon-btn.is-failed {
   color: var(--error-color);
   opacity: 1;
 }

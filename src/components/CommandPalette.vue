@@ -298,11 +298,11 @@ function onKeydown(event: KeyboardEvent) {
 .palette-list {
   flex: 1;
   overflow-y: auto;
-  padding: 6px;
+  padding: var(--space-sm);
 }
 
 .palette-group {
-  margin-bottom: 4px;
+  margin-bottom: var(--space-xs);
 }
 
 .palette-group-label {
@@ -360,7 +360,7 @@ function onKeydown(event: KeyboardEvent) {
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: var(--space-2xs) var(--space-sm);
   white-space: nowrap;
 }
 

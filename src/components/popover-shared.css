@@ -5,34 +5,8 @@
   position: relative;
 }
 
-/* ── 图标按钮：28×28 命中区，与状态栏的复制 / 设置按钮完全同规格 ──────
-   历史：这里曾是 32×32 / opacity 0.85，而同一排的复制与设置按钮是 32×32 / 0.6
-   ⇒ 四个图标两档浓度（5.4:1 vs 3.0:1）、两种悬停目标，看着"有的重有的轻"。
-   现统一为 28×28 / 0.6，悬停只到次级文字色（不再跳到正文黑）。 */
-.icon-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  opacity: 0.6;
-  border-radius: var(--radius-lg);
-  transition: opacity var(--motion-fast) ease, background-color var(--motion-fast) ease, color var(--motion-fast) ease;
-}
-
-.icon-btn:hover {
-  opacity: 1;
-  background-color: var(--hover-bg);
-  color: var(--text-secondary);
-}
-
-.icon-btn:active {
-  background-color: color-mix(in srgb, var(--hover-bg) 70%, transparent);
-}
+/* 图标按钮的基座已收进 main.css 的 `.ghost-icon-btn`（B3，2026-10-17）：
+   这里只保留弹层自身的样式，不再重复声明 28×28 / opacity / 悬停。 */
 
 /* ── 弹出菜单：柔和阴影，充足内边距 ── */
 .quick-popover {
@@ -40,7 +14,7 @@
   bottom: calc(100% + 10px);
   right: 0;
   min-width: 200px;
-  padding: 8px;
+  padding: var(--space-md);
   /* 弹层容器与卡片统一 8px 直角语言 */
   border-radius: var(--radius-lg);
   background: var(--popover-bg);
@@ -50,7 +24,7 @@
 }
 
 .quick-popover-header {
-  padding: 6px 12px 8px;
+  padding: var(--space-sm) var(--space-lg) var(--space-md);
   font-size: 11px;
   color: var(--muted-color);
   font-weight: 600;
@@ -61,14 +35,14 @@
 .quick-popover-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2xs);
 }
 
 .quick-popover-option {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
+  gap: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
   border: none;
   background: transparent;
   color: var(--text-color);

@@ -63,13 +63,13 @@ const emit = defineEmits<{
 }
 
 .theme-info {
-  margin-top: 8px;
+  margin-top: var(--space-md);
 }
 
 .theme-name-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
 }
 
 .theme-name {
@@ -80,7 +80,7 @@ const emit = defineEmits<{
 
 .theme-badge {
   font-size: 10px;
-  padding: 2px 6px;
+  padding: var(--space-2xs) var(--space-sm);
   /* 文字标签走直角语言（非拟物控件） */
   border-radius: var(--radius-sm);
   background: var(--primary-light);

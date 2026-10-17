@@ -46,7 +46,7 @@ function selectFont(value: string) {
 
 <template>
   <div class="quick-action-item">
-    <button class="icon-btn" title="正文字体" @click.stop="emit('toggle')">
+    <button class="ghost-icon-btn" title="正文字体" @click.stop="emit('toggle')">
       <Icon name="type" :size="14" />
     </button>
     <Transition name="quick-popover">
@@ -97,7 +97,7 @@ function selectFont(value: string) {
 <style scoped>
 .font-dl-badge {
   display: inline-block;
-  margin-left: 4px;
+  margin-left: var(--space-xs);
   padding: 0 5px;
   font-size: 10px;
   line-height: 1.6;

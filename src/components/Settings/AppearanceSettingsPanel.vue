@@ -110,19 +110,19 @@ function resetLineHeight() {
 .appearance-settings-panel {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-2xl);
 }
 
 .settings-form-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: var(--space-xl);
 }
 
 .settings-form-item--with-reset {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-md);
 }
 
 .settings-form-item--with-reset > .settings-form-item {

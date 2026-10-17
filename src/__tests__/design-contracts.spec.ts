@@ -26,6 +26,11 @@ function ruleBody(css: string, selector: string): string {
   return css.slice(open + 1, close);
 }
 
+/** 去掉注释再扫：说明文字里引用历史值是正常的，不算硬编码 */
+function stripComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 /** 递归收集 src 下的所有文件（跳过 __tests__ 与 node_modules） */
 function walkAll(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -134,5 +139,35 @@ describe('层级：所有 z-index 一律走语义 token（B2）', () => {
       }
     }
     expect(bad, '请改用 z-[var(--z-*)] 或样式块里的 var(--z-*)').toEqual([]);
+  });
+});
+
+describe('间距标度（B7）', () => {
+  const css = readSrc('assets/styles/main.css');
+  const SCALE = ['2xs', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl'];
+  const EXPECTED = [2, 4, 6, 8, 12, 16, 24, 32];
+
+  it('标度齐全、单调递增、且与实际用值一致', () => {
+    const values = SCALE.map((k) =>
+      Number(css.match(new RegExp(String.raw`--space-${k}:\s*(\d+)px`))?.[1]),
+    );
+    expect(values, '--space-* 刻度缺档').toEqual(EXPECTED);
+  });
+
+  it('刻度内的单值间距一律走 var(--space-*)', () => {
+    const files = walkAll(fileURLToPath(new URL('..', import.meta.url))).filter(
+      (f) => f.endsWith('.vue') || f.endsWith('.css'),
+    );
+    const bad: string[] = [];
+    const re = /^\s*(gap|row-gap|column-gap|padding|margin)(-(?:top|bottom|left|right))?:\s*(\d+)px;/gm;
+    for (const file of files) {
+      const text = stripComments(readFileSync(file, 'utf8'));
+      for (const m of text.matchAll(re)) {
+        if (EXPECTED.includes(Number(m[3]))) {
+          bad.push(`${relative(fileURLToPath(new URL('..', import.meta.url)), file)}: ${m[0].trim()}`);
+        }
+      }
+    }
+    expect(bad, '这些间距在刻度内，请改用 var(--space-*)').toEqual([]);
   });
 });

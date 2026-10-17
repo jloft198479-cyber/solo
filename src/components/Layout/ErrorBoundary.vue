@@ -105,13 +105,13 @@ onBeforeUnmount(() => window.clearTimeout(copyTimer));
 
 .error-boundary-content {
   text-align: center;
-  padding: 32px;
+  padding: var(--space-3xl);
 }
 
 .error-boundary-icon {
   font-size: 40px;
   color: var(--muted-color);
-  margin-bottom: 16px;
+  margin-bottom: var(--space-xl);
 }
 
 .error-boundary-text {
@@ -129,7 +129,7 @@ onBeforeUnmount(() => window.clearTimeout(copyTimer));
 }
 
 .error-boundary-retry {
-  padding: 6px 16px;
+  padding: var(--space-sm) var(--space-xl);
   font-size: 14px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
@@ -148,11 +148,11 @@ onBeforeUnmount(() => window.clearTimeout(copyTimer));
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-md);
 }
 
 .error-boundary-copy {
-  padding: 6px 12px;
+  padding: var(--space-sm) var(--space-lg);
   font-size: 13px;
   border-radius: var(--radius-md);
   border: none;

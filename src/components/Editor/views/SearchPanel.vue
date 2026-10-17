@@ -190,13 +190,13 @@ defineExpose({
 .search-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-md);
   padding: 8px 10px;
 }
 
 .search-replace-row {
   border-top: 1px solid var(--border-color);
-  padding-top: 6px;
+  padding-top: var(--space-sm);
 }
 
 .search-icon {
@@ -226,7 +226,7 @@ defineExpose({
 .search-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
   flex-shrink: 0;
 }
 
@@ -312,7 +312,7 @@ defineExpose({
 
 .search-actions {
   display: flex;
-  gap: 6px;
+  gap: var(--space-sm);
   flex-shrink: 0;
 }
 

@@ -126,7 +126,7 @@ defineExpose({ open, close });
   display: flex;
   flex-direction: column;
   min-width: 160px;
-  padding: 4px;
+  padding: var(--space-xs);
   background-color: var(--popover-bg);
   border: 1px solid var(--popover-border);
   border-radius: var(--radius-md);

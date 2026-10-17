@@ -20,7 +20,7 @@ function selectTheme(id: string) {
 
 <template>
   <div class="quick-action-item">
-    <button class="icon-btn" title="主题" @click.stop="emit('toggle')">
+    <button class="ghost-icon-btn" title="主题" @click.stop="emit('toggle')">
       <Icon name="grid" :size="14" />
     </button>
     <Transition name="quick-popover">

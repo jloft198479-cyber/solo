@@ -438,7 +438,7 @@ onUnmounted(() => {
           <StatusbarQuickActions :editor-ref="editorRef" />
 
           <button
-            class="statusbar-settings-btn"
+            class="ghost-icon-btn"
             :title="settingsButtonHint"
             @click="settingsStore.openModal()"
           >
@@ -540,7 +540,7 @@ onUnmounted(() => {
 .statusbar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-md);
 }
 
 .statusbar-stat {
@@ -581,13 +581,13 @@ onUnmounted(() => {
 .statusbar-save-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
   border: none;
   background: transparent;
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
-  padding: 4px 8px;
+  padding: var(--space-xs) var(--space-md);
   border-radius: 6px;
   color: var(--primary-color);
   transition:
@@ -615,28 +615,4 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-/* ── 设置按钮：与其它图标按钮统一规格（28px 命中区 / 14px 图标）──── */
-.statusbar-settings-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: var(--radius-lg);
-  transition:
-    background-color var(--motion-fast),
-    color var(--motion-fast),
-    opacity var(--motion-fast);
-  opacity: 0.6;
-}
-
-.statusbar-settings-btn:hover {
-  background-color: var(--hover-bg);
-  color: var(--text-secondary);
-  opacity: 1;
-}
 </style>

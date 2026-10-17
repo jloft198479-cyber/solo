@@ -31,13 +31,13 @@ const tabs: Array<{ key: SettingsTabKey; label: string }> = [
 .settings-sidebar {
   width: 176px;
   flex-shrink: 0;
-  padding: 16px;
+  padding: var(--space-xl);
   border-right: 1px solid var(--border-color);
   background: color-mix(in srgb, var(--bg-color) 92%, white 8%);
 }
 
 .settings-sidebar-label {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-lg);
   padding: 0 4px;
   color: var(--muted-color);
   font-size: 11px;
@@ -48,7 +48,7 @@ const tabs: Array<{ key: SettingsTabKey; label: string }> = [
 
 .settings-nav-btn {
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-xs);
   padding: 10px 12px;
   border-radius: var(--radius-md);
   font-weight: 600;

@@ -324,7 +324,7 @@ async function handleReset() {
 }
 
 .settings-close-btn {
-  padding: 4px;
+  padding: var(--space-xs);
   border-radius: var(--radius-md);
   color: var(--muted-color);
   transition:
@@ -347,7 +347,7 @@ async function handleReset() {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-xl);
   margin-bottom: 20px;
 }
 
@@ -377,14 +377,14 @@ async function handleReset() {
 }
 
 .settings-footer-reset {
-  padding: 8px 16px;
+  padding: var(--space-md) var(--space-xl);
   font-size: 14px;
   color: var(--muted-color);
   transition: color var(--motion-fast);
 }
 
 .settings-footer-done {
-  padding: 8px 24px;
+  padding: var(--space-md) var(--space-2xl);
   border-radius: var(--radius-lg);
   background: var(--btn-primary-bg);
   color: var(--btn-primary-text);

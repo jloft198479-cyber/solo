@@ -92,7 +92,7 @@ const {
 .shortcut-settings-panel {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-2xl);
 }
 
 .settings-warning-card {
@@ -111,7 +111,7 @@ const {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-lg);
 }
 
 .shortcut-settings-panel__hint {
@@ -132,15 +132,15 @@ const {
 
 .shortcut-settings-panel__list {
   display: grid;
-  gap: 6px;
+  gap: var(--space-sm);
 }
 
 .shortcut-settings-panel__item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
+  gap: var(--space-lg);
+  padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-lg);
   background-color: var(--sidebar-bg);
   cursor: pointer;
@@ -165,7 +165,7 @@ const {
 .shortcut-settings-panel__controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
   flex-shrink: 0;
 }
 

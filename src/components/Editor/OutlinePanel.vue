@@ -259,7 +259,7 @@ const hasItems = computed(() => props.items.length > 0);
 .outline-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px 8px 16px;
+  padding: var(--space-md) var(--space-md) var(--space-xl);
   display: flex;
   flex-direction: column;
   gap: 1px;

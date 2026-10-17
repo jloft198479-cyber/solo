@@ -104,13 +104,13 @@ async function checkForUpdate() {
 .about-settings-panel {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-2xl);
 }
 
 .update-check-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-lg);
 }
 
 .update-check-btn {
@@ -159,7 +159,7 @@ async function checkForUpdate() {
   background: var(--border-color);
   border-radius: 2px;
   overflow: hidden;
-  margin-top: 8px;
+  margin-top: var(--space-md);
 }
 
 .update-progress-fill {

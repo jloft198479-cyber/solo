@@ -95,11 +95,11 @@ async function handleImportTheme(event: Event) {
 
 <style scoped>
 .theme-selector {
-  padding: 12px;
+  padding: var(--space-lg);
 }
 
 .theme-selector-header {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-xl);
 }
 
 .theme-selector-title {
@@ -109,7 +109,7 @@ async function handleImportTheme(event: Event) {
 }
 
 .theme-selector-subtitle {
-  margin-top: 4px;
+  margin-top: var(--space-xs);
   font-size: 12px;
   color: var(--muted-color);
 }
@@ -148,7 +148,7 @@ async function handleImportTheme(event: Event) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-md);
   color: var(--muted-color);
 }
 
@@ -167,7 +167,7 @@ async function handleImportTheme(event: Event) {
 }
 
 .theme-template-link {
-  margin-top: 12px;
+  margin-top: var(--space-lg);
   padding: 0;
   font-size: 12px;
   color: var(--muted-color);

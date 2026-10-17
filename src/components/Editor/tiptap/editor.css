@@ -556,12 +556,12 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor ul[data-type='taskList'] li {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--space-sm);
 }
 
 .tiptap-editor ul[data-type='taskList'] li > label {
   flex-shrink: 0;
-  margin-top: 4px;
+  margin-top: var(--space-xs);
   user-select: none;
 }
 
@@ -744,7 +744,7 @@ html.doc-heavy .tiptap-editor > hr {
   background-color: var(--code-bg);
   border: 1px solid var(--border-color);
   border-radius: 0 0 4px 4px;
-  padding: 12px 16px;
+  padding: var(--space-lg) var(--space-xl);
   margin: 0;
   /* 自动换行：长行折行显示，不出横向滚动条。适合中文文档为主、代码块短的场景 */
   white-space: pre-wrap;
@@ -831,7 +831,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor th,
 .tiptap-editor td {
   border: 1px solid var(--border-color);
-  padding: 6px 12px;
+  padding: var(--space-sm) var(--space-lg);
   vertical-align: top;
   box-sizing: border-box;
   position: relative;
@@ -1018,7 +1018,7 @@ html.doc-heavy .tiptap-editor > hr {
 }
 
 .tiptap-editor .mk-math-render {
-  padding: 12px 16px;
+  padding: var(--space-lg) var(--space-xl);
   overflow-x: auto;
   min-height: 40px;
   display: flex;
@@ -1047,7 +1047,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor .mk-math-textarea {
   width: 100%;
   min-height: 80px;
-  padding: 12px 16px;
+  padding: var(--space-lg) var(--space-xl);
   font-family: var(--font-mono);
   /* 跟随正文字号缩放（设计规范化 2026-10-17 · A2） */
   font-size: 0.8125em;
@@ -1133,7 +1133,7 @@ html.doc-heavy .tiptap-editor > hr {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-left: 4px;
+  margin-left: var(--space-xs);
   width: 24px;
   height: 24px;
   padding: 0;
@@ -1164,7 +1164,7 @@ html.doc-heavy .tiptap-editor > hr {
 }
 
 .tiptap-editor .mk-mermaid-render {
-  padding: 16px;
+  padding: var(--space-xl);
   overflow-x: auto;
   min-height: 60px;
   display: flex;
@@ -1194,7 +1194,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor .mk-mermaid-textarea {
   width: 100%;
   min-height: 120px;
-  padding: 12px 16px;
+  padding: var(--space-lg) var(--space-xl);
   font-family: var(--font-mono);
   /* 跟随正文字号缩放（设计规范化 2026-10-17 · A2） */
   font-size: 0.8125em;
@@ -1218,7 +1218,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor .mk-callout-header {
   display: flex;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-sm);
 }
 .tiptap-editor .mk-callout-title-button {
   background: none;
@@ -1337,7 +1337,7 @@ html.doc-heavy .tiptap-editor > hr {
   background-color: var(--sidebar-bg);
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  padding: 8px 12px;
+  padding: var(--space-md) var(--space-lg);
   font-family: var(--font-mono);
   font-size: 12px;
   margin: 0 0 12px 0;
@@ -1347,7 +1347,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor .mk-frontmatter-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
   font-weight: 600;
   font-size: 11px;
   text-transform: uppercase;
@@ -1355,7 +1355,7 @@ html.doc-heavy .tiptap-editor > hr {
   color: var(--muted-color);
   cursor: pointer;
   user-select: none;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-xs);
 }
 
 .tiptap-editor .mk-frontmatter-content {
@@ -1403,8 +1403,8 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   right: 16px;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
   background-color: rgba(255, 255, 255, 0.1);
   border-radius: var(--radius-md, 6px);
   backdrop-filter: blur(8px);
@@ -1520,14 +1520,14 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted-color);
-  padding: 8px 12px 4px;
+  padding: var(--space-md) var(--space-lg) var(--space-xs);
 }
 
 .mk-slash-menu-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 12px;
+  padding: var(--space-sm) var(--space-lg);
   cursor: pointer;
   transition: background-color var(--motion-fast);
 }
@@ -1571,7 +1571,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
 }
 
 .mk-slash-menu-empty {
-  padding: 12px;
+  padding: var(--space-lg);
   text-align: center;
   color: var(--muted-color);
   font-size: 13px;
@@ -1598,9 +1598,9 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   cursor: default;
 }
 .tiptap-editor [data-footnote-section] {
-  margin-top: 24px;
+  margin-top: var(--space-2xl);
   border-top: 1px solid var(--border-color);
-  padding-top: 8px;
+  padding-top: var(--space-md);
   font-size: 0.875em;
 }
 .tiptap-editor [data-footnote-def] {

@@ -70,6 +70,40 @@ button:not(:disabled) {
   cursor: pointer;
 }
 
+/* ── 共享控件：幽灵图标按钮（2026-10-17 · B3）─────────────────
+   改前同一套「28×28 透明图标按钮」被写了三份：popover-shared.css `.icon-btn`、
+   StatusbarQuickActions `.quick-action-btn`、App `.statusbar-settings-btn`，
+   差别只剩 opacity 与悬停色 —— 谁改一处、另两处不动，就成了"有的重有的轻"。
+   现在基座只在这里定义；各组件只在模板上挂 `ghost-icon-btn`，需要状态色
+   （已复制 / 失败）时再叠加自己的修饰类。 */
+.ghost-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-lg);
+  opacity: 0.6;
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast),
+    opacity var(--motion-fast);
+}
+
+.ghost-icon-btn:hover {
+  background-color: var(--hover-bg);
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+.ghost-icon-btn:active {
+  background-color: color-mix(in srgb, var(--hover-bg) 70%, transparent);
+}
+
 /* ── 浅色主题（书卷气） ──────────────────────────────────────
    注：本块为「主题注入前」的闪屏/回退兜底，色值须与
    scholar-light 主题 + manager.ts SHARED_LIGHT_COLORS 保持一致
@@ -136,6 +170,24 @@ button:not(:disabled) {
   --radius-md: 4px;
   --radius-lg: 8px;
   --radius-xl: 10px;
+
+  /* ── 间距标度（2026-10-17 · B7）─────────────────────────────
+     改前全仓 `--space` 命中 0 —— 不是没人守规矩，是规矩里没有这一格：
+     实测 6px 用了 11 次、8px 8 次、24px 5 次，但每次都是现写的数字。
+     刻度按**实际用值**取（2 的倍数，小尺寸密、大尺寸疏），不照搬 4/8/12 的
+     教科书刻度 —— 那套覆盖不了项目里最常用的 6px，定了也没人用。
+
+     用法：新代码写 `gap: var(--space-sm)`，不写 `6px`。
+     存量：**渐进迁移，不强迁**；10 / 14 / 18 / 20 / 28 属于刻度外的一次性值，
+     保留字面量（要收编就先证明它反复出现）。 */
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-sm: 6px;
+  --space-md: 8px;
+  --space-lg: 12px;
+  --space-xl: 16px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
 
   /* ── z-index 刻度（语义分层，层间留足间隙；2026-10-17 · B2 全面归位）──────
      改前 13 个离散值、19 处、5 组撞值（50×2 / 100×2 / 300×3 / 400×2 / 9999×2），
@@ -631,7 +683,7 @@ html.theme-transitioning .sidebar {
 }
 
 .unsaved-dialog-inner {
-  padding: 24px;
+  padding: var(--space-2xl);
 }
 
 .unsaved-title {
@@ -650,12 +702,12 @@ html.theme-transitioning .sidebar {
 
 .unsaved-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-md);
   justify-content: flex-end;
 }
 
 .unsaved-btn {
-  padding: 6px 16px;
+  padding: var(--space-sm) var(--space-xl);
   border: none;
   border-radius: var(--radius-md);
   font-size: 13px;

@@ -156,7 +156,7 @@ defineProps<{
 .theme-preview-toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
   height: 24px;
   padding: 0 8px;
   border-bottom: 1px solid;
@@ -165,8 +165,8 @@ defineProps<{
 .theme-preview-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px;
+  gap: var(--space-sm);
+  padding: var(--space-md);
 }
 
 .theme-preview-chip {
@@ -206,7 +206,7 @@ defineProps<{
 
 .theme-preview-callout {
   display: flex;
-  gap: 6px;
+  gap: var(--space-sm);
   align-items: stretch;
   min-height: 18px;
   padding: 4px 5px;
@@ -226,7 +226,7 @@ defineProps<{
 .theme-preview-callout-line {
   width: 74%;
   height: 4px;
-  margin-top: 2px;
+  margin-top: var(--space-2xs);
   border-radius: 999px;
   opacity: 0.9;
 }
@@ -251,7 +251,7 @@ defineProps<{
 
 .theme-preview-code-line--muted {
   width: 82%;
-  margin-top: 4px;
+  margin-top: var(--space-xs);
   opacity: 0.45;
 }
 </style>

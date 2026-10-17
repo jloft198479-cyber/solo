@@ -47,7 +47,7 @@ const model = defineModel<number>({ required: true });
 .settings-range-field__input {
   width: 100%;
   height: 8px;
-  margin-top: 8px;
+  margin-top: var(--space-md);
   border-radius: var(--radius-lg);
   appearance: none;
   background-color: var(--border-color);
@@ -77,7 +77,7 @@ const model = defineModel<number>({ required: true });
 .settings-range-field__limits {
   display: flex;
   justify-content: space-between;
-  margin-top: 8px;
+  margin-top: var(--space-md);
   color: var(--muted-color);
   font-size: 12px;
 }

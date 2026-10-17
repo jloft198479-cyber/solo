@@ -99,17 +99,17 @@ function clearStoragePath() {
 .save-settings-panel {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-2xl);
 }
 
 .storage-path-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-md);
 }
 
 .storage-path-value {
-  padding: 8px 12px;
+  padding: var(--space-md) var(--space-lg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   font-size: 13px;
@@ -126,7 +126,7 @@ function clearStoragePath() {
 
 .storage-path-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-md);
 }
 
 .storage-path-btn {
