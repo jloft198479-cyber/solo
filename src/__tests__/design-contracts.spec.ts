@@ -142,6 +142,30 @@ describe('层级：所有 z-index 一律走语义 token（B2）', () => {
   });
 });
 
+describe('token 引用必须可解析（防改名漏改）', () => {
+  // 2026-10-17 真实事故：`--z-titlebar` 更名为 `--z-chrome` 时漏改了标题栏自身那一处，
+  // `var(--z-titlebar)` 解析失败 ⇒ z-index 退回 auto ⇒ **整个标题栏被正文盖住、看起来"不见了"**。
+  // 教训：清掉字面量 ≠ 引用有效。所以在这里逐条核对「用到就必须定义过」。
+  const css = readFileSync(fileURLToPath(new URL('../assets/styles/main.css', import.meta.url)), 'utf8');
+  const defined = new Set([...css.matchAll(/(--(?:z|space)-[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+
+  it('var(--z-*) 与 var(--space-*) 全部有定义', () => {
+    const files = walkAll(fileURLToPath(new URL('..', import.meta.url))).filter(
+      (f) => f.endsWith('.vue') || f.endsWith('.css'),
+    );
+    const missing: string[] = [];
+    for (const file of files) {
+      const text = stripComments(readFileSync(file, 'utf8'));
+      for (const m of text.matchAll(/var\((--(?:z|space)-[a-z0-9-]+)\)/g)) {
+        if (!defined.has(m[1])) {
+          missing.push(`${relative(fileURLToPath(new URL('..', import.meta.url)), file)}: ${m[1]}`);
+        }
+      }
+    }
+    expect(missing, '这些 token 被引用但没有定义（改名漏改？）').toEqual([]);
+  });
+});
+
 describe('间距标度（B7）', () => {
   const css = readSrc('assets/styles/main.css');
   const SCALE = ['2xs', 'xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl'];

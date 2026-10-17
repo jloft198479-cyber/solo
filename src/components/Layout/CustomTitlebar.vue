@@ -166,7 +166,7 @@ onUnmounted(() => {
   height: 48px;
   display: flex;
   align-items: center;
-  z-index: var(--z-titlebar);
+  z-index: var(--z-chrome);
   background-color: var(--bg-color);
   opacity: 0;
   pointer-events: none;

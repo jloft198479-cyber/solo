@@ -268,6 +268,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 - **锁**：`design-contracts.spec.ts` 新增 2 条 —— 全仓不允许字面量 `z-index` 数字、不允许 Tailwind 数字层级类（扫前剥注释，说明文字里引用历史值不算违规）；`settings-modal.spec.ts` 的第 1 条从「两档比较」升级为**整条刻度单调递增 + 13 档齐全**。
 - 验证：全量 **1910 passed / 0 failed**；反向校准两组单独撤：塞一处 `z-index: 42` → 字面量锁红；把 `--z-hint` 改成 250 → 刻度单调性转红。还原后 `diff` 核对一致。
 - **待真机目视**：设置弹窗仍压住标题栏、气泡菜单不被标题栏遮、右键菜单盖住气泡菜单、图表灯箱与图片全屏在窗口把手之下（边缘可拖拽窗口）。
+- **⚠️ 落地事故（已修）**：改名 `--z-titlebar` → `--z-chrome` 时**漏掉标题栏自身那一处**（`CustomTitlebar.vue` 的 `.custom-titlebar`），`var()` 解析失败 ⇒ `z-index: auto` ⇒ 标题栏被正文盖住、用户看到「顶部菜单栏不见了」。**教训：清掉字面量 ≠ 引用有效**。已补锁「所有 `var(--z-*)` / `var(--space-*)` 引用必须在 main.css 有定义」，反向校准塞一个不存在的 token 即红。
 
 #### B7 · 间距标度（✅ 已完成）
 

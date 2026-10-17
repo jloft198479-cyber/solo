@@ -284,7 +284,7 @@ async function handleReset() {
   border-radius: 0;
 }
 
-/* 模态层：必须高于标题栏（--z-titlebar: 200），否则遮罩顶部漏出 48px、标题栏按钮在"模态"里照样可点 */
+/* 模态层：必须高于窗口 chrome（--z-chrome: 200），否则遮罩顶部漏出 48px、标题栏按钮在"模态"里照样可点 */
 .settings-modal-overlay {
   z-index: var(--z-modal);
 }
