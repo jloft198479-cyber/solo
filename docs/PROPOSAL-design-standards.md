@@ -34,15 +34,15 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 | # | 条目 | 难度 | 可控性 | 性能 | 建议批次 |
 |---|---|---|---|---|---|
-| A1 | 设置弹窗不是真模态 | 低-中 | 高 | 无 | 批 2 |
-| A2 | 代码块字号焊死 13px | 极低 | 高 | 无 | 批 1 |
+| A1 | 设置弹窗不是真模态 | 低-中 | 高 | 无 | 批 2 ✅ |
+| A2 | 代码块字号焊死 13px | 极低 | 高 | 无 | 批 1 ✅ |
 | A3 | 图标 5 套来源 → 统一出口 | 中 | 中-高 | 无（红线：不引库） | 批 3 |
-| A4 | 段距/行高对标 Typora（已拍板） | 极低 | 高 | 无 | 批 1 |
+| A4 | 段距/行高对标 Typora（已拍板） | 极低 | 高 | 无 | 批 1 ✅ |
 | B1 | 排版 token 通道 + 文档漂移 | 极低（文档） | 高 | 无 | 批 4 |
-| B2 | z-index 13 值无刻度 | 低-中 | 中 | 无 | 批 2（最小）+ 批 4（全面） |
+| B2 | z-index 13 值无刻度 | 低-中 | 中 | 无 | 批 2 最小刻度 ✅ / 批 4 全面 |
 | B3 | 幽灵按钮 3 份 / 文字按钮 ≥8 遍 | 低 | 高 | 无 | 批 4 |
-| B4 | 三个按钮光标不是手型（+全面排查） | 极低 | 高 | 无 | 批 1 |
-| B5 | 浮层按钮键盘不可见 + 热区偏小 | 低 | 高 | 无 | 批 1 |
+| B4 | 三个按钮光标不是手型（+全面排查） | 极低 | 高 | 无 | 批 1 ✅ |
+| B5 | 浮层按钮键盘不可见 + 热区偏小 | 低 | 高 | 无 | 批 1 ✅ |
 | B6 | 硬编码残留 + 遮罩配方 4 套 | 低-中 | 高 | 无 | 批 4 |
 | B7 | 无 spacing 标度（token 空洞） | 低 | 高 | 无 | 批 4 |
 | B8 | 9 个零消费 CSS 变量 | 极低（选项 A） | 高 | 无 | 批 5 |
@@ -51,7 +51,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 ## 二 · 逐条展开
 
-### A1 · 设置弹窗不是真模态（三个子缺陷叠加）
+### A1 · 设置弹窗不是真模态（三个子缺陷叠加；✅ 已落地 2026-10-17 · 批 2）
 
 **现状（均实测）**：
 
@@ -121,7 +121,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 **评估**：难度 **极低**（纯文档）；可控性 **高**；性能 **无**。这是审计点名的"最结构性发现"——规范处理 = 显式化（要么发货、要么写明预留），防误读。
 
-### B2 · z-index 刻度（13 个离散值、19 处、5 组撞值）
+### B2 · z-index 刻度（13 个离散值、19 处、5 组撞值；批 2 已落最小刻度 ✅，全面归位留批 4）
 
 **现状**：值集合 `2 / 20 / 50 / 100 / 200 / 201 / 300 / 400 / 600 / 1000 / 2000 / 9999 / 10000`；同值 5 组（50×2、100×2、300×3、400×2、9999×2）；焦点提示与右键菜单同值 400 平局；BubbleMenu 注释已自认"为让路打过补丁"。
 
@@ -193,7 +193,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 | 批次 | 内容 | 完成判据 |
 |---|---|---|
 | **批 1** | ✅ **已执行（2026-10-17）**：A2 字号 5 处 em 化 + A4 行高 1.6（对齐 Typora）+ B4 cursor + B5 focus-visible/热区（全 CSS 小改） | 全量绿 + 契约锁（pre 无 px）+ 目视（字号 20px 代码块跟随 / 行距对齐 Typora / Tab 见按钮 / 按钮手型） |
-| **批 2** | A1 真模态（含 B2 最小刻度） | 组件锁 1-3 条 + 目视（盖标题栏 / Esc / Tab 不逃逸 / 焦点归还） |
+| **批 2** | ✅ **已执行（2026-10-17）**：A1 真模态（层叠 / Esc / dialog 语义 / 焦点陷阱 / 焦点归还）+ B2 最小刻度（`--z-titlebar` / `--z-modal` 两档） | 组件锁 1-3 条 + 目视（盖标题栏 / Esc / Tab 不逃逸 / 焦点归还） |
 | **批 3** | A3 图标统一（先 .vue → 再 .ts → 字符图标可再拆） | 出站锁 + 全量绿 + 截屏对比（笔画一致、无豆腐块） |
 | **批 4** | B1a 文档同步 + B7 spacing + B3 按钮 + B6 归 token + B2 全面刻度 | 全量绿 + docs-lint + 逐类目视 |
 | **批 5** | B8 选项 A（删 1 个 + 登记 8 个） | 全量绿 + 台账更新 |
@@ -233,6 +233,22 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 - **验证**：全量 `vitest` **1885 passed / 0 failed**（基线 1876 + 新锁 9，数目对得上）；`vue-tsc --noEmit` 0；**反向校准**：撤掉四组修复（pre 回 px / 行高兜底回 1.9 / 删全局 cursor / 删焦点规则）⇒ 对应 **4 条锁转红**，还原即复绿。
 - **回滚**：`git tag backup/20261017-0926-pre-design-batch1`（或 revert 批 1 提交）。
 - **待真机目视**（机器验不了的）：行距观感（对齐 Typora）、正文字号调 20px 时代码块跟随、Tab 到浮层按钮可见、设置弹窗按钮手型。
+
+### 批 2（2026-10-17 ✅ 已执行）
+
+- **A1 ①层叠**：[`main.css`](../src/assets/styles/main.css) 新增 `--z-modal: 500`；[`SettingsModal.vue`](../src/components/Settings/SettingsModal.vue) 遮罩去掉 Tailwind `z-50`，改 `.settings-modal-overlay { z-index: var(--z-modal) }` ⇒ 遮罩盖住 48px 标题栏，标题栏按钮在模态里不再可点。
+- **A1 ②Esc**：由「遮罩 `@keydown`」改为 **document 捕获阶段**监听（原实现从未 `focus()` 过任何元素，键盘事件到不了遮罩 —— Esc 是死的）。拦截后 `stopPropagation()`：模态优先，不会顺手退掉焦点模式（全局链在 window 冒泡）。
+- **A1 ③语义**：`role="dialog"` + `aria-modal="true"` + `aria-labelledby="settings-modal-title"`（`<h2>` 补 id）。
+- **A1 ④焦点陷阱**：Tab / Shift+Tab 在对话框内循环；列表排除 `display:none`（主题导入的 file input）与 `tabindex="-1"`。
+- **A1 ⑤焦点归还**：打开时记住 `document.activeElement`，关闭后归还（齿轮 / 菜单 / 快捷键多入口通用）。
+- **顺带修（A1 前置缺陷）**：[`App.vue`](../src/App.vue) 原 `<KeepAlive><SettingsModal v-if="…" /></KeepAlive>` 外层 `v-if` 让组件每次开关都重新创建 ⇒ `Teleport` 里的 `<Transition>` 进出场永远播不出来。改为常驻挂载（显隐由组件内部 `v-if` 驱动），移除已失去缓存对象的 `KeepAlive`。
+- **B2 最小刻度**：[`main.css`](../src/assets/styles/main.css) 写入完整语义分层表（内容 1 / 微凸 10 / 常规浮层 100 / 标题栏 200 / 编辑区浮层 300 / 模态 500 / 命令面板 600 / 全屏遮罩 1000 / 全屏 2000 / 调试 10000），本批实装 `--z-titlebar` + `--z-modal` 两档并各自有消费点（[`CustomTitlebar.vue`](../src/components/Layout/CustomTitlebar.vue) 改用 `var(--z-titlebar)`，值不变）；其余档位批 4 逐处归位，**不预埋零消费变量**。
+- **键盘边界（避免新机制误伤）**：① 快捷键录制中（`data-shortcut-capture`）不接管 —— 那里 Esc = 取消录制 ② 焦点已在更上层浮层（如设置打开时唤起命令面板）时让位，不把焦点抢回弹窗。
+- **契约锁**：新增 [`settings-modal.spec.ts`](../src/components/Settings/__tests__/settings-modal.spec.ts) **9 条**（静态 3：层级 token 关系 / dialog 语义 / Esc 不再挂遮罩；行为 6：焦点进弹窗 / Esc 关闭 / 上层浮层让位 / 录制中不关 / Tab 双向循环 / 焦点归还）。
+- **验证**：全量 `vitest` **1894 passed / 0 failed**（基线 1885 + 新锁 9，数目对得上）；`vue-tsc --noEmit` 0；`npm run lint` 132 warnings / 0 errors（与改动前持平，未新增）。
+- **反向校准（两轮）**：① 一次撤四处（z 值 / document 监听 / 打开聚焦 / 关闭归还）⇒ 4 条锁转红 ② 再**单独**撤 Tab 陷阱、单独撤焦点归还 ⇒ 各自精确转红（第一轮里这两条是假绿，故补做单项校准）。
+- **回滚**：`git tag backup/20261017-0939-pre-design-batch2`（或 revert 批 2 提交）。
+- **待真机目视**：设置弹窗是否严实盖住标题栏、Esc 是否能关、Tab 是否不逃逸、关后焦点是否回到齿轮按钮、开关是否有淡入淡出。
 
 ## 附 · 已有结论、不在本清单（防重复评估）
 

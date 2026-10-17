@@ -462,9 +462,9 @@ onUnmounted(() => {
     </div>
 
     <ErrorBoundary>
-      <KeepAlive>
-        <SettingsModal v-if="settingsStore.isModalOpen" />
-      </KeepAlive>
+      <!-- 常驻挂载：显隐由组件内部 v-if 驱动。此前外层 v-if 会让组件每次开关都重新创建，
+           Teleport 内的 Transition 进出场动画永远播不出来（设计规范化 2026-10-17 · A1） -->
+      <SettingsModal />
     </ErrorBoundary>
 
     <ImageFullscreenOverlay

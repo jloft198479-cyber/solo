@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { useSettingsStore, type SettingsTabKey } from '../../stores/settings';
 import { confirm } from '../../services/tauri/dialog';
 import AppearanceSettingsPanel from './AppearanceSettingsPanel.vue';
@@ -15,12 +15,104 @@ const settingsStore = useSettingsStore();
 // 当前选中的设置分组；每次弹窗打开时按入口指定分组落地（如菜单「关于」直达 about）
 const activeTab = ref<SettingsTabKey>(settingsStore.modalInitialTab);
 
+// 关闭弹窗
+function close() {
+  settingsStore.closeModal();
+}
+
+const overlayRef = ref<HTMLElement | null>(null);
+const dialogRef = ref<HTMLElement | null>(null);
+/** 打开前的焦点位置，关闭时归还（弹窗由齿轮 / 菜单 / 快捷键等多个入口唤起） */
+let lastFocused: HTMLElement | null = null;
+
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** 弹窗内可聚焦元素；display / visibility 隐藏的（如主题导入用的 file input）不算 */
+function focusableItems(): HTMLElement[] {
+  const root = dialogRef.value;
+  if (!root) return [];
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((el) => {
+    const style = window.getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  });
+}
+
+/** 焦点是否已在更上层的浮层里（如设置打开时又唤起命令面板）—— 是则让位，不抢焦点 */
+function focusInOtherLayer(): boolean {
+  const active = document.activeElement as HTMLElement | null;
+  if (!active) return false;
+  return (
+    active !== document.body && active !== overlayRef.value && !dialogRef.value?.contains(active)
+  );
+}
+
+/**
+ * 键盘策略（设计规范化 2026-10-17 · A1）：
+ * - 捕获阶段挂在 document 上 ⇒ 不依赖焦点落在谁身上。原实现把 @keydown 挂在遮罩上，
+ *   而组件从未 focus 过任何元素 ⇒ 键盘事件永远到不了遮罩，Esc 是死的。
+ * - Esc 拦截后 stopPropagation：模态优先，避免同一次 Esc 顺手退掉焦点模式（全局链在 window 冒泡阶段）。
+ * - 快捷键录制中（data-shortcut-capture）不接管：那里 Esc = 取消录制，与 useAppDomEvents 同一约定。
+ * - 焦点在更上层浮层时让位给更上层，避免把命令面板的焦点抢回弹窗。
+ */
+function onKeyDown(e: KeyboardEvent) {
+  if (!settingsStore.isModalOpen) return;
+  const target = e.target as HTMLElement | null;
+  if (target?.closest?.('[data-shortcut-capture="true"]')) return;
+
+  if (e.key === 'Escape') {
+    if (focusInOtherLayer()) return;
+    e.preventDefault();
+    e.stopPropagation();
+    close();
+    return;
+  }
+  if (e.key !== 'Tab' || focusInOtherLayer()) return;
+
+  const items = focusableItems();
+  const root = dialogRef.value;
+  if (!items.length || !root) {
+    e.preventDefault();
+    return;
+  }
+  const first = items[0];
+  const last = items[items.length - 1];
+  const active = document.activeElement as HTMLElement | null;
+  // 焦点还在容器本身 / 漏到窗外 ⇒ 直接拉回边界
+  if (!active || active === root || !root.contains(active)) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+    return;
+  }
+  if (e.shiftKey && active === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
 watch(
   () => settingsStore.isModalOpen,
-  (open) => {
-    if (open) activeTab.value = settingsStore.modalInitialTab;
+  async (open) => {
+    if (open) {
+      lastFocused = document.activeElement as HTMLElement | null;
+      activeTab.value = settingsStore.modalInitialTab;
+      document.addEventListener('keydown', onKeyDown, true);
+      await nextTick();
+      dialogRef.value?.focus();
+    } else {
+      document.removeEventListener('keydown', onKeyDown, true);
+      const el = lastFocused;
+      lastFocused = null;
+      if (el?.isConnected) el.focus();
+    }
   },
+  { immediate: true },
 );
+
+onUnmounted(() => document.removeEventListener('keydown', onKeyDown, true));
 
 const tabMeta = {
   appearance: {
@@ -47,11 +139,6 @@ const tabMeta = {
 
 const activeTabMeta = computed(() => tabMeta[activeTab.value]);
 
-// 关闭弹窗
-function close() {
-  settingsStore.closeModal();
-}
-
 // 点击遮罩关闭
 function onOverlayClick(e: MouseEvent) {
   if (e.target === e.currentTarget) {
@@ -71,14 +158,6 @@ async function handleReset() {
     settingsStore.resetSettings();
   }
 }
-
-// 快捷键关闭
-function onKeyDown(e: KeyboardEvent) {
-  if (e.key === 'Escape') {
-    close();
-  }
-}
-
 </script>
 
 <template>
@@ -86,18 +165,23 @@ function onKeyDown(e: KeyboardEvent) {
     <Transition name="modal">
       <div
         v-if="settingsStore.isModalOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+        ref="overlayRef"
+        class="settings-modal-overlay fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm"
         tabindex="-1"
         @click="onOverlayClick"
-        @keydown="onKeyDown"
       >
         <div
+          ref="dialogRef"
           class="settings-modal__dialog shadow-2xl w-[1040px] max-w-[94vw] max-h-[84vh] overflow-hidden flex flex-col"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settings-modal-title"
+          tabindex="-1"
           @click.stop
         >
           <!-- 头部 -->
           <div class="settings-modal-header">
-            <h2 class="settings-modal-title">设置</h2>
+            <h2 id="settings-modal-title" class="settings-modal-title">设置</h2>
             <button class="settings-close-btn" @click="close">
               <CloseIcon class="settings-close-icon" />
             </button>
@@ -198,6 +282,16 @@ function onKeyDown(e: KeyboardEvent) {
   color: var(--text-color);
   /* 直角语言：弹窗容器完全直角（替代原先 Tailwind rounded-lg 硬编码，与项目 token 体系一致） */
   border-radius: 0;
+}
+
+/* 模态层：必须高于标题栏（--z-titlebar: 200），否则遮罩顶部漏出 48px、标题栏按钮在"模态"里照样可点 */
+.settings-modal-overlay {
+  z-index: var(--z-modal);
+}
+
+/* 容器只是打开时的焦点落点，不是可操作元素 —— 不显示焦点环 */
+.settings-modal__dialog:focus {
+  outline: none;
 }
 
 .settings-modal__content {
