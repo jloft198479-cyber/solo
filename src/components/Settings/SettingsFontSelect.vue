@@ -74,7 +74,7 @@ onSettled((family) => clearDownload(family));
 .font-progress-track {
   margin-top: var(--space-sm);
   height: 3px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--border-color);
   overflow: hidden;
 }
@@ -82,7 +82,7 @@ onSettled((family) => clearDownload(family));
 .font-progress-bar {
   height: 100%;
   background: var(--primary-color);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   transition: width var(--motion-slow) ease;
 }
 

@@ -113,59 +113,68 @@ export interface ThemeColors {
   accentColor?: string;
 }
 
-/** Theme typography (optional, overrides editor defaults) */
+/**
+ * 排版变量（**预留通道**：字段与注入通道都已接通，但当前 8 套预设一个都没声明）。
+ *
+ * 现状：换主题只换颜色，不换排版 —— `presets/` 里的 `typography` 全是空的。
+ * 声明即生效：`manager.ts` 的 `TYPOGRAPHY_VAR_MAP` 会把声明的字段写成
+ * `documentElement` 的行内变量；**不声明的字段退回 `editor.css` 的 `--mk-*` 默认值**。
+ *
+ * 注释里的「当前 X」= 不声明时的实际生效值。它由 `design-contracts.spec.ts` 与
+ * `editor.css` 逐条比对（改 CSS 忘了改这里会直接红），**别在这写"大概"**。
+ */
 export interface ThemeTypography {
-  /** 正文行高，默认 1.9 */
+  /** 正文行高。留空取 `--mk-line-height`（当前 1.6） */
   lineHeight?: string;
-  /** 正文字号，默认 16px */
+  /** 正文字号。留空取 `--mk-font-size`（当前 16px） */
   fontSize?: string;
-  /** 正文字间距，默认 0.02em */
+  /** 正文字间距。留空取 `--mk-letter-spacing`（当前 0） */
   letterSpacing?: string;
-  /** 段落间距，默认 0.75em */
+  /** 段落间距。留空取 `--mk-paragraph-spacing`（当前 1em） */
   paragraphSpacing?: string;
-  /** H1 字号，默认 1.875em */
+  /** H1 字号。留空取 `--mk-heading1-size`（当前 1.6em） */
   heading1Size?: string;
-  /** H2 字号，默认 1.5em */
+  /** H2 字号。留空取 `--mk-heading2-size`（当前 1.3em） */
   heading2Size?: string;
-  /** H3 字号，默认 1.25em */
+  /** H3 字号。留空取 `--mk-heading3-size`（当前 1.2em） */
   heading3Size?: string;
-  /** H4 字号，默认 1.1em */
+  /** H4 字号。留空取 `--mk-heading4-size`（当前 1.05em） */
   heading4Size?: string;
-  /** H5 字号，默认 1em */
+  /** H5 字号。留空取 `--mk-heading5-size`（当前 1em） */
   heading5Size?: string;
-  /** H6 字号，默认 0.9em */
+  /** H6 字号。留空取 `--mk-heading6-size`（当前 0.9em） */
   heading6Size?: string;
-  /** H1 行高，默认 1.35 */
+  /** H1 行高。留空取 `--mk-heading1-line-height`（当前 1.35） */
   heading1LineHeight?: string;
-  /** H2 行高，默认 1.4 */
+  /** H2 行高。留空取 `--mk-heading2-line-height`（当前 1.4） */
   heading2LineHeight?: string;
-  /** H3 行高，默认 1.45 */
+  /** H3 行高。留空取 `--mk-heading3-line-height`（当前 1.45） */
   heading3LineHeight?: string;
-  /** H4 行高，默认 1.5 */
+  /** H4 行高。留空取 `--mk-heading4-line-height`（当前 1.5） */
   heading4LineHeight?: string;
-  /** H5 行高，默认 1.5 */
+  /** H5 行高。留空取 `--mk-heading5-line-height`（当前 1.5） */
   heading5LineHeight?: string;
-  /** H6 行高，默认 1.5 */
+  /** H6 行高。留空取 `--mk-heading6-line-height`（当前 1.5） */
   heading6LineHeight?: string;
-  /** H1 上下 margin，默认 1.4em 0 0.6em */
+  /** H1 上下 margin。留空取 `--mk-heading1-margin`（当前 1.25em 0 0.6em） */
   heading1Margin?: string;
-  /** H2 上下 margin，默认 1.2em 0 0.5em */
+  /** H2 上下 margin。留空取 `--mk-heading2-margin`（当前 1em 0 0.5em） */
   heading2Margin?: string;
-  /** H3 上下 margin，默认 1em 0 0.4em */
+  /** H3 上下 margin。留空取 `--mk-heading3-margin`（当前 0.75em 0 0.4em） */
   heading3Margin?: string;
-  /** H4 上下 margin，默认 0.8em 0 0.3em */
+  /** H4 上下 margin。留空取 `--mk-heading4-margin`（当前 0.6em 0 0.3em） */
   heading4Margin?: string;
-  /** H5 上下 margin，默认 0.6em 0 0.3em */
+  /** H5 上下 margin。留空取 `--mk-heading5-margin`（当前 0.5em 0 0.3em） */
   heading5Margin?: string;
-  /** H6 上下 margin，默认 0.6em 0 0.3em */
+  /** H6 上下 margin。留空取 `--mk-heading6-margin`（当前 0.5em 0 0.3em） */
   heading6Margin?: string;
-  /** H1 字间距，默认 0.04em */
+  /** H1 字间距。留空取 `--mk-heading1-letter-spacing`（当前 -0.02em） */
   heading1LetterSpacing?: string;
-  /** H2 字间距，默认 0.03em */
+  /** H2 字间距。留空取 `--mk-heading2-letter-spacing`（当前 -0.01em） */
   heading2LetterSpacing?: string;
-  /** 引用块边框宽度，默认 2px */
+  /** 引用块边框宽度。留空取 `--mk-quote-border-width`（当前 2px） */
   quoteBorderWidth?: string;
-  /** 高亮标记圆角，默认 0.25em */
+  /** 高亮标记圆角。留空取 `--mk-mark-radius`（当前 0.25em） */
   markBorderRadius?: string;
 }
 

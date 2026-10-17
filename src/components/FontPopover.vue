@@ -101,7 +101,7 @@ function selectFont(value: string) {
   padding: 0 5px;
   font-size: 10px;
   line-height: 1.6;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--muted-color) 12%, transparent);
   color: var(--muted-color);
   vertical-align: middle;
@@ -121,7 +121,7 @@ function selectFont(value: string) {
 .font-progress-track {
   height: 2px;
   margin: 0 12px 4px;
-  border-radius: 1px;
+  border-radius: var(--radius-pill);
   background: var(--border-color);
   overflow: hidden;
 }
@@ -129,7 +129,7 @@ function selectFont(value: string) {
 .font-progress-bar {
   height: 100%;
   background: var(--primary-color);
-  border-radius: 1px;
+  border-radius: var(--radius-pill);
   transition: width var(--motion-slow) ease;
 }
 

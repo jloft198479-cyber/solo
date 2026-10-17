@@ -500,7 +500,7 @@ onUnmounted(() => {
   color: var(--text-secondary);
   background: var(--popover-bg);
   border: 1px solid var(--border-light);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   box-shadow: var(--shadow-md);
   pointer-events: none;
   user-select: none;
@@ -588,7 +588,7 @@ onUnmounted(() => {
   font-size: 12px;
   font-weight: 500;
   padding: var(--space-xs) var(--space-md);
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   color: var(--primary-color);
   transition:
     background-color var(--motion-fast),

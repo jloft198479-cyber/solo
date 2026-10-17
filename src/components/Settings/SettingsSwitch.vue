@@ -27,7 +27,7 @@ const model = defineModel<boolean>({ required: true });
   width: 48px;
   height: 28px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--border-color);
   cursor: pointer;
   transition:
@@ -50,7 +50,7 @@ const model = defineModel<boolean>({ required: true });
   left: 3px;
   width: 20px;
   height: 20px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--input-bg);
   box-shadow: var(--shadow-sm);
   transition: transform var(--motion-base) var(--ease-out);

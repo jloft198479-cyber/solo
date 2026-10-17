@@ -166,7 +166,7 @@ async function handleReset() {
       <div
         v-if="settingsStore.isModalOpen"
         ref="overlayRef"
-        class="settings-modal-overlay fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+        class="settings-modal-overlay fixed inset-0 flex items-center justify-center backdrop-blur-sm"
         tabindex="-1"
         @click="onOverlayClick"
       >
@@ -284,9 +284,12 @@ async function handleReset() {
   border-radius: 0;
 }
 
-/* 模态层：必须高于窗口 chrome（--z-chrome: 200），否则遮罩顶部漏出 48px、标题栏按钮在"模态"里照样可点 */
+/* 模态层：必须高于窗口 chrome（--z-chrome: 200），否则遮罩顶部漏出 48px、标题栏按钮在"模态"里照样可点。
+   遮罩色走 --modal-overlay（明暗两套主题各一份暖棕/黑），不要写死 bg-black/N ——
+   那会绕过主题，浅色主题下这块遮罩比命令面板偏冷偏灰（2026-10-17 · B6 修正）。 */
 .settings-modal-overlay {
   z-index: var(--z-modal);
+  background: var(--modal-overlay);
 }
 
 /* 容器只是打开时的焦点落点，不是可操作元素 —— 不显示焦点环 */

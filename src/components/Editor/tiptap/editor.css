@@ -511,7 +511,7 @@ html.doc-heavy .tiptap-editor > hr {
   cursor: pointer;
   color: var(--muted-color);
   opacity: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   user-select: none;
   transition:
     opacity var(--motion-fast) var(--ease-out),
@@ -568,7 +568,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor ul[data-type='taskList'] li > label input[type='checkbox'] {
   width: 15px;
   height: 15px;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   accent-color: var(--primary-color);
   cursor: pointer;
 }
@@ -600,7 +600,7 @@ html.doc-heavy .tiptap-editor > hr {
   font-family: var(--font-mono);
   background-color: var(--code-bg);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   padding: 0.1em 4px;
   font-size: 0.875em;
 }
@@ -659,7 +659,7 @@ html.doc-heavy .tiptap-editor > hr {
   padding: 0 12px;
   border: 1px solid var(--border-color);
   border-bottom: none;
-  border-radius: 4px 4px 0 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
   background-color: var(--sidebar-bg);
 }
 
@@ -713,7 +713,7 @@ html.doc-heavy .tiptap-editor > hr {
   background: transparent;
   color: var(--muted-color);
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   opacity: 0;
   transition:
     opacity var(--motion-fast),
@@ -743,7 +743,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor pre {
   background-color: var(--code-bg);
   border: 1px solid var(--border-color);
-  border-radius: 0 0 4px 4px;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
   padding: var(--space-lg) var(--space-xl);
   margin: 0;
   /* 自动换行：长行折行显示，不出横向滚动条。适合中文文档为主、代码块短的场景 */
@@ -892,7 +892,7 @@ html.doc-heavy .tiptap-editor > hr {
   max-width: 100%;
   max-height: 520px;
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   display: block;
 }
 
@@ -944,7 +944,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor .mk-image-shell.ProseMirror-selectednode img.mk-image {
   outline: 2px solid var(--primary-color);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
 }
 
 .tiptap-editor .mk-image-shell.is-editing .mk-image-source-text,
@@ -1010,7 +1010,7 @@ html.doc-heavy .tiptap-editor > hr {
 
 .tiptap-editor .mk-math-block {
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   background-color: var(--sidebar-bg);
   margin: 8px 0;
   overflow: hidden;
@@ -1062,7 +1062,7 @@ html.doc-heavy .tiptap-editor > hr {
 /* ── Mermaid 图表 ──────────────────────────────────────────── */
 .tiptap-editor .mk-mermaid-block {
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   background-color: var(--bg-color);
   margin: 12px 0;
   overflow: hidden;
@@ -1105,7 +1105,7 @@ html.doc-heavy .tiptap-editor > hr {
   background: transparent;
   color: var(--muted-color);
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   opacity: 0;
   transition:
     opacity var(--motion-fast),
@@ -1141,7 +1141,7 @@ html.doc-heavy .tiptap-editor > hr {
   background: transparent;
   color: var(--muted-color);
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   opacity: 0;
   transition:
     opacity var(--motion-fast),
@@ -1336,7 +1336,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor .mk-frontmatter {
   background-color: var(--sidebar-bg);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   padding: var(--space-md) var(--space-lg);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -1406,7 +1406,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   gap: var(--space-xs);
   padding: var(--space-xs);
   background-color: rgba(255, 255, 255, 0.1);
-  border-radius: var(--radius-md, 6px);
+  border-radius: var(--radius-md);
   backdrop-filter: blur(8px);
 }
 
@@ -1418,7 +1418,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   height: 32px;
   padding: 0 8px;
   border: none;
-  border-radius: var(--radius-sm, 4px);
+  border-radius: var(--radius-sm);
   background: transparent;
   /* 主题不变例外：lightbox 全屏幕布（--modal-overlay）明暗两套都是深色半透明，
      白字/白 hover 在两套外观下对比度都成立，故不走主题 token（docs/sensitive-areas.md §11.6 已登记例外）。 */
@@ -1455,7 +1455,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
 .tiptap-editor .mk-wikilink {
   color: var(--primary-color);
   background-color: var(--primary-light);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   padding: 0 3px;
   cursor: pointer;
   text-decoration: none;
@@ -1543,7 +1543,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   background-color: var(--sidebar-bg);
   border: 1px solid var(--border-color);
   /* 图标 16px 由 <Icon :size> 决定；这里只保留颜色（currentColor 的取色口）。
@@ -1656,7 +1656,7 @@ html.focus-mode [class*='mk-editor'] .mk-pending-heading::before {
 }
 .mk-jump-target {
   animation: mk-jump-pulse 0.3s var(--ease-out);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 /* ── 主题 / 字体切换时编辑区内容 crossfade ──

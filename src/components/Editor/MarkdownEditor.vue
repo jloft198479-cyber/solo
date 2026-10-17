@@ -953,7 +953,7 @@ defineExpose({
 /* 搜索匹配高亮（ProseMirror decorations 添加，须全局生效） */
 .search-match {
   background-color: color-mix(in srgb, var(--primary-color) 18%, transparent);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }

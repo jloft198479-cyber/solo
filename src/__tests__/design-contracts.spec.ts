@@ -195,3 +195,75 @@ describe('间距标度（B7）', () => {
     expect(bad, '这些间距在刻度内，请改用 var(--space-*)').toEqual([]);
   });
 });
+
+describe('圆角刻度（B6）', () => {
+  const css = readSrc('assets/styles/main.css');
+  const SCALE = ['xs', 'sm', 'md', 'lg', 'xl', 'pill'];
+  const EXPECTED = ['2px', '3px', '4px', '8px', '10px', '999px'];
+
+  it('刻度齐全且等于既定值', () => {
+    const values = SCALE.map((k) =>
+      css.match(new RegExp(`--radius-${k}:\\s*([^;]+);`))?.[1].trim(),
+    );
+    expect(values, '--radius-* 刻度缺档或被改值').toEqual(EXPECTED);
+  });
+
+  it('不允许字面量圆角（0 = 无圆角、50% = 正圆，两者不是刻度值）', () => {
+    const files = walkAll(fileURLToPath(new URL('..', import.meta.url))).filter(
+      (f) => f.endsWith('.vue') || f.endsWith('.css'),
+    );
+    const bad: string[] = [];
+    for (const file of files) {
+      const text = stripComments(readFileSync(file, 'utf8'));
+      for (const m of text.matchAll(/border-radius:\s*([^;]+);/g)) {
+        if (/\d+px/.test(m[1])) {
+          bad.push(`${relative(fileURLToPath(new URL('..', import.meta.url)), file)}: ${m[0]}`);
+        }
+      }
+    }
+    expect(bad, '请改用 var(--radius-*)：刻度见 main.css').toEqual([]);
+  });
+});
+
+describe('模态遮罩（B6）', () => {
+  // 历史问题：设置弹窗写死 bg-black/30，绕过 --modal-overlay 的明暗两套暖棕，
+  // 浅色主题下这块遮罩比命令面板偏冷偏灰 —— 同一语义两套配方。
+  it('设置 / 命令面板 / 未保存三处遮罩都走 --modal-overlay', () => {
+    const settings = readSrc('components/Settings/SettingsModal.vue');
+    const palette = readSrc('components/CommandPalette.vue');
+    const mainCss = readSrc('assets/styles/main.css');
+
+    expect(ruleBody(settings, '.settings-modal-overlay')).toContain('var(--modal-overlay)');
+    expect(ruleBody(palette, '.palette-overlay')).toContain('var(--modal-overlay)');
+    expect(ruleBody(mainCss, '.unsaved-overlay')).toContain('var(--modal-overlay)');
+
+    // 不许再写 bg-black/N（Tailwind 类会盖过主题）
+    expect(settings).not.toMatch(/bg-black\/\d+/);
+  });
+});
+
+describe('排版注释与实测对齐（B1a）', () => {
+  // ThemeTypography 的 JSDoc 曾漂移 15 处（lineHeight 写 1.9 实 1.6、
+  // h1 字号写 1.875em 实 1.6em…），而 8 套预设一个都没声明 typography ⇒
+  // 注释就是唯一文档，写错等于骗人。真理源是 editor.css，这里逐条比对。
+  const types = readSrc('themes/types.ts');
+  const editorCss = readSrc('components/Editor/tiptap/editor.css');
+
+  it('每条「当前 X」都等于 editor.css 的实测值', () => {
+    const docs = [...types.matchAll(/`(--mk-[a-z0-9-]+)`（当前 ([^）]+)）/g)];
+    // 26 个字段写死 —— 注释被删光时锁不能空转成绿
+    expect(docs.length, 'ThemeTypography 注释格式被破坏或被删').toBe(26);
+
+    const bad: string[] = [];
+    for (const m of docs) {
+      const cssVar = m[1];
+      const documented = m[2].trim();
+      const declared = editorCss.match(new RegExp(`${cssVar}:\\s*([^;]+);`))?.[1].trim();
+      const fallback = editorCss.match(new RegExp(`var\\(${cssVar},\\s*([^)]+)\\)`))?.[1].trim();
+      const actual = declared ?? fallback;
+      if (!actual) bad.push(`${cssVar}：editor.css 里既无定义也无 fallback`);
+      else if (actual !== documented) bad.push(`${cssVar}：注释写 ${documented}，实测 ${actual}`);
+    }
+    expect(bad, '注释与 CSS 漂移，请把注释改成实测值').toEqual([]);
+  });
+});

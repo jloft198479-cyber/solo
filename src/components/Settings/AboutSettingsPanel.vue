@@ -157,7 +157,7 @@ async function checkForUpdate() {
   width: 100%;
   height: 3px;
   background: var(--border-color);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
   margin-top: var(--space-md);
 }
@@ -165,7 +165,7 @@ async function checkForUpdate() {
 .update-progress-fill {
   height: 100%;
   background: var(--primary-color);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   transition: width var(--motion-slow) ease;
 }
 </style>

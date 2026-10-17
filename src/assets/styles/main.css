@@ -53,7 +53,7 @@
 :focus-visible {
   outline: 2px solid var(--primary-color);
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 
 /* 按钮类元素的焦点环更贴近边界，避免 outline 与 padding 冲突 */
@@ -165,11 +165,18 @@ button:not(:disabled) {
   --shadow-lg: 0 10px 15px -3px rgba(42, 34, 24, 0.08), 0 4px 6px -4px rgba(42, 34, 24, 0.04);
   --shadow-xl: 0 20px 25px -5px rgba(42, 34, 24, 0.10), 0 8px 10px -6px rgba(42, 34, 24, 0.04);
 
-  /* 圆角 — 直角语言（3/4/8/10），与 manager.ts SHARED 一致 */
+  /* 圆角刻度 —— 全部圆角的唯一出口（2026-10-17 · B6）
+     xs 2 焦点环 / 进度条 / 搜索高亮 · sm 3 小件 · md 4 常规控件
+     lg 8 容器与图标按钮 · xl 10 大容器 · pill 胶囊与全圆
+     刻度按实际用值取：4px 用了 13 次、3px 7 次、2px 7 次、999px 14 次；
+     5/6/1px 三个散值归入最近档（差异 ≤2px，肉眼不可分）。
+     「直角语言」= 圆角一律 ≤10px，不做 iOS 式大圆角。 */
+  --radius-xs: 2px;
   --radius-sm: 3px;
   --radius-md: 4px;
   --radius-lg: 8px;
   --radius-xl: 10px;
+  --radius-pill: 999px;
 
   /* ── 间距标度（2026-10-17 · B7）─────────────────────────────
      改前全仓 `--space` 命中 0 —— 不是没人守规矩，是规矩里没有这一格：
@@ -440,7 +447,7 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: var(--border-color);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -774,7 +781,7 @@ html.theme-transitioning .sidebar {
   bottom: 0;
   left: -40%;
   width: 40%;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--primary-color);
   animation: loading-slide 1.2s var(--ease-out) infinite;
 }

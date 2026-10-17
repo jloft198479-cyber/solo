@@ -359,7 +359,7 @@ function onKeydown(event: KeyboardEvent) {
   color: var(--text-secondary);
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   padding: var(--space-2xs) var(--space-sm);
   white-space: nowrap;
 }

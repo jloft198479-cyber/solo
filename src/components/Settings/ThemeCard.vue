@@ -97,7 +97,7 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--error-color);
   cursor: pointer;
@@ -132,7 +132,7 @@ const emit = defineEmits<{
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--primary-color);
 }
 

@@ -117,7 +117,7 @@ defineProps<{
 .theme-preview-dot {
   width: 5px;
   height: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   opacity: 0.9;
 }
 
@@ -135,7 +135,7 @@ defineProps<{
 .theme-preview-nav {
   height: 7px;
   margin-bottom: 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   opacity: 0.8;
 }
 
@@ -172,13 +172,13 @@ defineProps<{
 .theme-preview-chip {
   width: 28px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .theme-preview-tool {
   width: 14px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   opacity: 0.9;
 }
 
@@ -189,13 +189,13 @@ defineProps<{
 .theme-preview-heading {
   width: 54%;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .theme-preview-line {
   width: 88%;
   height: 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   opacity: 0.9;
 }
 
@@ -216,7 +216,7 @@ defineProps<{
 
 .theme-preview-callout-bar {
   width: 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .theme-preview-callout-content {
@@ -227,7 +227,7 @@ defineProps<{
   width: 74%;
   height: 4px;
   margin-top: var(--space-2xs);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   opacity: 0.9;
 }
 
@@ -245,7 +245,7 @@ defineProps<{
 .theme-preview-code-line {
   width: 62%;
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   opacity: 0.95;
 }
 
