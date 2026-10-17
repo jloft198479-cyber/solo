@@ -121,9 +121,10 @@ useClickOutside(wrapRef, closePopover);
 .quick-actions {
   display: flex;
   align-items: center;
-  /* 2px：图标本身已有内边距，按钮之间只需一丝缝 —— 大间距会让整排"散开"
-     （2026-10-17 对照 VS Code / Obsidian：两者图标边缘到边缘约 10px，原来 22px） */
-  gap: 2px;
+  /* 0：按钮自身 28px 已含 7px 内边距，图标边缘到边缘 = 14px
+     （2026-10-17 对照 VS Code / Obsidian 约 10px：原来 22px → 16px → 14px）。
+     不留缝也是对的：悬停是独占的，不会出现两块高亮相连；热区相邻反而没有"点空"的死缝 */
+  gap: 0;
 }
 
 .quick-action-btn {
