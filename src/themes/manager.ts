@@ -18,6 +18,7 @@ import cinnabarDarkTheme from './presets/cinnabar-dark.json';
 import defaultLightTheme from './presets/default.json';
 import jadeLightTheme from './presets/jade.json';
 import orchidLightTheme from './presets/orchid.json';
+import graphiteLightTheme from './presets/graphite.json';
 
 const PRESET_THEMES: Theme[] = [
   // 浅色组（暖 → 冷）
@@ -27,6 +28,7 @@ const PRESET_THEMES: Theme[] = [
   defaultLightTheme as Theme,
   jadeLightTheme as Theme,
   orchidLightTheme as Theme,
+  graphiteLightTheme as Theme,
   // 深色组（暖 → 冷）
   scholarDarkTheme as Theme,
   cinnabarDarkTheme as Theme,

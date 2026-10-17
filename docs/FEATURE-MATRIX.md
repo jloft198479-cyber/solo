@@ -130,7 +130,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 
 | 功能 | 状态 | 实现锚点 | 已知缺口 / 边界 |
 | --- | --- | --- | --- |
-| 8 套内置主题 | ✅ | [`presets/`](../src/themes/presets/) + [`manager.ts`](../src/themes/manager.ts) | `scholar-light`/`scholar-dark`/`elegant-light`/`cinnabar-light`/`cinnabar-dark`/`default-light`/`jade-light`/`orchid-light`（部分文件名无 `-light` 后缀，但 JSON 内 `id` 有）；**无 `gray-domain`** |
+| 9 套内置主题 | ✅ | [`presets/`](../src/themes/presets/) + [`manager.ts`](../src/themes/manager.ts) | `scholar-light`/`scholar-dark`/`elegant-light`/`cinnabar-light`/`cinnabar-dark`/`default-light`/`jade-light`/`orchid-light`/`graphite-light`（部分文件名无 `-light` 后缀，但 JSON 内 `id` 有）；**无 `gray-domain`** |
 | 自定义主题 CRUD / 导入导出 | ✅ | `manager.ts` `importTheme` + `ThemeSelector.vue` | 兼容 legacy（light/dark 双色）旧格式 |
 | 明暗独立 + 系统主题跟随 | ✅ | `applyDarkClass` + `ensureThemeId()` 回退 | 主题 id 失效按当前外观回退，不黑屏 |
 | 排版随主题（行高/字号/段距/字距） | ✅ | `manager.ts` `injectTypography` → `--mk-*` → [`editor.css`](../src/components/Editor/tiptap/editor.css) | 先 `removeProperty` 再注入；`editor.css` 13 处全量消费 |

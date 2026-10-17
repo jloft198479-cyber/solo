@@ -624,7 +624,7 @@ underline
 
 **主题三层结构（2026-08-21 确立）**：
 - **范式层**：`types.ts::CSS_VAR_MAP`（token 全集）+ `manager.ts::SHARED_LIGHT/DARK_COLORS`（共享默认值：功能色/圆角/markBg/btnGhostBg/modalOverlay）+ `editor.css :root` 排版默认值。
-- **实例层**：**8 套 preset JSON**（`presets/`，数量以 `ls src/themes/presets` 为准）：`scholar-light` / `scholar-dark` / `elegant-light` / `cinnabar-light` / `cinnabar-dark` / `default-light` / `jade-light` / `orchid-light`（**部分文件名无后缀、但 JSON 内 `id` 均带 `-light`；无 `gray-domain`**——旧文档列 7 套已过时）。每套**只写性格差异字段**，共享值一律收进 `SHARED_LIGHT/DARK_COLORS`，禁止复制进各主题。
+- **实例层**：**9 套 preset JSON**（`presets/`，数量以 `ls src/themes/presets` 为准）：`scholar-light` / `scholar-dark` / `elegant-light` / `cinnabar-light` / `cinnabar-dark` / `default-light` / `jade-light` / `orchid-light` / `graphite-light`（**部分文件名无后缀、但 JSON 内 `id` 均带 `-light`；无 `gray-domain`**——旧文档列 7 套已过时）。每套**只写性格差异字段**，共享值一律收进 `SHARED_LIGHT/DARK_COLORS`，禁止复制进各主题。
 - **消费层**：所有渲染层只引用 `var(--x)`。
 
 支持自定义主题 CRUD、导入导出、旧格式（light/dark 双色文件）迁移（`importTheme` 兼容现代与 legacy）。`applyTheme` 附带 `.theme-transitioning` 200ms + 编辑区 `triggerContentCrossfade` 220ms 淡入 + 透传到 localStorage `solo-theme-paint`。
@@ -770,7 +770,7 @@ underline
 | `services/tauri/` 含 `event-names.ts`/`webview.ts`/`opener.ts`/`os.ts`/`window-state.ts` | **均不存在**。当前 12 个文件（数量以 `ls` 为准）：`client`/`command-names`/`document`/`session`/`window`/`dialog`/`clipboard`/`events`/`font`/`asset`/`update`/`store`，见 §3 / §5.3 |
 | 窗口缩放靠前端透明 div（`WindowResizeHandles`） | **Windows 已改走原生子窗**（`src-tauri/src/native_resize.rs`），前端组件仅 macOS / 其他平台生效，见 §12.3 |
 | 无「最近文件 / 阅读位置」 | **已实现**（`commands/session.rs` + `services/tauri/session.ts` + 2 条命令），见 §12.1 |
-| 主题 7 套（含 `gray-domain`） | **实际 8 套**：`scholar-light`/`scholar-dark`/`elegant-light`/`cinnabar-light`/`cinnabar-dark`/`default-light`/`jade-light`/`orchid-light`，见 §10.1 |
+| 主题 7 套（含 `gray-domain`） | **实际 9 套**：`scholar-light`/`scholar-dark`/`elegant-light`/`cinnabar-light`/`cinnabar-dark`/`default-light`/`jade-light`/`orchid-light`/`graphite-light`，见 §10.1 |
 | 编辑器扩展 14 个 | **已过时**：数量以 `editor-extensions.ts` 的 `createEditorExtensions` 返回数组为准（勿硬编码），见 §8.3 |
 | Tauri 插件 6 个 | **实际 7 个**（多 `updater`，见 `autoCheckForUpdate`） |
 | `proxy.rs` 定义 `detect_proxy_for_update` | **不存在 `proxy.rs`**；该命令定义在 `lib.rs`，见 §4.2 |

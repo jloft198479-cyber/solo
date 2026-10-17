@@ -135,7 +135,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`wiki/快速上手.md`](../wiki/快速上手.md)        | guide | user | active | 安装、首次启动、文件关联、多窗口、自动保存                         |
 | [`wiki/编辑器功能指南.md`](../wiki/编辑器功能指南.md) | guide | user | active | 扩展语法写法、slash 命令、查找替换、焦点模式、复制为 HTML           |
 | [`wiki/快捷键速查.md`](../wiki/快捷键速查.md)    | guide | user | active | 全部默认快捷键一览（真理源 `src/commands/registry.ts`）            |
-| [`wiki/主题与字体.md`](../wiki/主题与字体.md)    | guide | user | active | 8 套主题、7 款字体、自定义主题、按需下载                           |
+| [`wiki/主题与字体.md`](../wiki/主题与字体.md)    | guide | user | active | 9 套主题、7 款字体、自定义主题、按需下载                           |
 | [`wiki/图片与文档管理.md`](../wiki/图片与文档管理.md) | guide | user | active | 图片粘贴/拖拽/存储路径、自动保存、崩溃恢复、设置数据位置           |
 | [`wiki/常见问题FAQ.md`](../wiki/常见问题FAQ.md)  | guide | user | active | 常见问题速答，完整排查指向 TROUBLESHOOTING（真理源）               |
 | [`wiki/开发者入口.md`](../wiki/开发者入口.md)    | guide | dev  | active | 开发环境、接手必读、三条铁律速记（细节指向 BUILD_GUIDE/ARCHITECTURE） |
