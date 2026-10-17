@@ -13,7 +13,7 @@ export const paragraphFocusKey = new PluginKey<ParagraphFocusState>('paragraphFo
 type ParagraphFocusState = {
   /** 全量块装饰集（每块一条 active/dimmed），随事务增量维护（P4-03） */
   decorations: DecorationSet;
-  /** 当前聚焦块（光标所在顶层块）起点 */
+  /** 当前聚焦块（光标所在的最小块）起点 */
   activeBlock: number;
 };
 
@@ -21,30 +21,66 @@ function isFocusModeActive(): boolean {
   return document.documentElement.classList.contains('focus-mode');
 }
 
-/** 光标所在顶层块起点；无有效光标（空 doc / 顶层 selection）返回 -1 */
+/**
+ * 光标所在**最小块**起点（等价 Typora 的 `md-end-block`：不能再包含子块的最内层块）。
+ *
+ * 改前取顶层块（`$head.before(1)`）⇒ 整个列表/引用块/callout 同亮，列表里无法只突出
+ * 当前那一行。现在取最内层 textblock ⇒ 列表的每一项、引用与 callout 内的每一段各自
+ * 独立聚焦（Typora 官方 support 页对 Focus Mode 的描述即此粒度）。
+ *
+ * 只影响装饰落点：不进 doc、不进 schema、不进序列化，DOM 结构一个字节不动。
+ * 无有效光标（空 doc / 顶层 selection）返回 -1。
+ */
 function activeBlockOf(state: EditorState | Transaction): number {
   const $head = state.selection.$head;
   if (!$head || $head.depth < 1) return -1;
-  return $head.before(1);
+  // 常态：光标落在 textblock 的内容里
+  for (let depth = $head.depth; depth >= 1; depth--) {
+    if ($head.node(depth).isTextblock) return $head.before(depth);
+  }
+  // 边界态：光标停在容器内、某个块**之前**（实测 `- [ ] A` 的第二项，
+  // pos 落在 taskItem 内而 paragraph 尚未开始，resolve 的 parent 是 taskItem）
+  // ⇒ 向后取最近的 textblock，找不到再向前取。
+  if ($head.nodeAfter?.isTextblock) return $head.pos;
+  const before = $head.nodeBefore;
+  if (before?.isTextblock) return $head.pos - before.nodeSize;
+  return -1;
 }
 
-/** 全量构建：为每个顶层块建一条 active/dimmed 装饰（init / 整体替换 / 强制重建时用） */
+/**
+ * 递归收集**叶块**装饰：只给 `isTextblock`（段落 / 标题 / 代码块）打标记，容器本身不打。
+ * `base` 传该节点**内容起点**的绝对位置（doc 为 0，其他节点为自身起点 + 1）。
+ */
+function collectLeafDecorations(
+  node: PMNode,
+  base: number,
+  activeBlock: number,
+  out: Decoration[],
+): void {
+  node.forEach((child, offset) => {
+    const from = base + offset;
+    if (child.isTextblock) {
+      out.push(
+        Decoration.node(from, from + child.nodeSize, {
+          class: from === activeBlock ? 'paragraph-active' : 'paragraph-dimmed',
+        }),
+      );
+    } else if (child.isBlock) {
+      collectLeafDecorations(child, from + 1, activeBlock, out);
+    }
+  });
+}
+
+/** 全量构建：为每个叶块建一条 active/dimmed 装饰（init / 整体替换 / 强制重建时用） */
 function buildAllBlockDecorations(doc: PMNode, activeBlock: number): DecorationSet {
   const decorations: Decoration[] = [];
-  doc.forEach((node, offset) => {
-    if (!node.isBlock) return;
-    decorations.push(
-      Decoration.node(offset, offset + node.nodeSize, {
-        class: offset === activeBlock ? 'paragraph-active' : 'paragraph-dimmed',
-      }),
-    );
-  });
+  collectLeafDecorations(doc, 0, activeBlock, decorations);
   return DecorationSet.create(doc, decorations);
 }
 
 /**
  * 跨块移动：只把旧聚焦块改回 dimmed、新聚焦块改为 active（O(1) remove/add）。
- * 原实现每次全量遍历顶层块重建（P4-03）。
+ * 原实现每次全量遍历块重建（P4-03）。
  * find 的相交判定是闭区间，会误捞相邻块装饰，须过滤 d.from === 块起点。
  */
 function swapActiveBlock(

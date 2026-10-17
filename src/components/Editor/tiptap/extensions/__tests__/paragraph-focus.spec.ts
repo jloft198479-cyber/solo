@@ -5,6 +5,7 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestSchema } from '../../markdown/__tests__/test-utils';
+import { parseMarkdown } from '../../markdown/parser';
 import { setDocumentTier } from '../../../document-scale';
 import { createParagraphFocusPlugin, paragraphFocusKey } from '../paragraph-focus';
 
@@ -233,5 +234,85 @@ describe('paragraph-focus 组字冻结（IME 防御）', () => {
       { from: 0, to: 9, cls: 'paragraph-active' }, // '你好hello' [0,9)
       { from: 9, to: 16, cls: 'paragraph-dimmed' }, // heading 平移 +2
     ]);
+  });
+});
+
+/**
+ * 粒度锁：聚焦单位是「最小块」（Typora 的 md-end-block），不是顶层块。
+ *
+ * 改前 `$head.before(1)` 取顶层块 ⇒ 整个列表一条装饰、整块同亮，长列表里
+ * 无法只突出当前那一行。这里的判据不是「有几条装饰」这么表面，而是
+ * **装饰的范围必须等于一个段落的 nodeSize** —— 覆盖整个列表就会超出。
+ */
+describe('paragraph-focus 粒度：最小块（沿 Typora Focus Mode）', () => {
+  beforeEach(() => {
+    document.documentElement.classList.add('focus-mode');
+  });
+  afterEach(() => {
+    document.documentElement.classList.remove('focus-mode');
+    setDocumentTier('normal');
+  });
+
+  function mdState(md: string, cursor: number): EditorState {
+    const doc = parseMarkdown(schema, md);
+    return EditorState.create({
+      schema,
+      doc,
+      selection: TextSelection.create(doc, cursor),
+      plugins: [createParagraphFocusPlugin()],
+    });
+  }
+
+  it('列表：每项单独一条（3 项 3 条），active 只覆盖当前项那个段落', () => {
+    const state = mdState('- A\n- B\n- C\n', 3);
+    const list = summaries(state);
+
+    expect(list.map((d) => d.cls)).toEqual([
+      'paragraph-active',
+      'paragraph-dimmed',
+      'paragraph-dimmed',
+    ]);
+    // 段落 nodeSize = 2 + 文本长度 1 = 3；整个列表是 15。范围小于列表即「没打整块」。
+    for (const d of list) expect(d.to - d.from).toBe(3);
+    expect(list[0]).toEqual({ from: 2, to: 5, cls: 'paragraph-active' });
+  });
+
+  it('引用块：装饰落在块内两个段落上，容器本身不带装饰', () => {
+    const list = summaries(mdState('> A\n>\n> B\n', 3));
+    expect(list.map((d) => d.cls)).toEqual(['paragraph-active', 'paragraph-dimmed']);
+    // 顶层只有一个 blockquote，却有 2 条装饰 ⇒ 落点只能是段落
+    expect(list.every((d) => d.to - d.from === 3)).toBe(true);
+  });
+
+  it('待办项：TaskItem 的正文包在 div 里，装饰仍落在段落上', () => {
+    const list = summaries(mdState('- [ ] A\n- [x] B\n', 8));
+    expect(list).toHaveLength(2);
+    expect(list.filter((d) => d.cls === 'paragraph-active')).toHaveLength(1);
+  });
+
+  it('光标停在段落之前的容器边界（点列表项左侧/空项）：仍能定位到该段落', () => {
+    // 这条覆盖 ProseMirror 的边界解析：pos 落在 taskItem 内、paragraph 尚未开始，
+    // `$head.parent` 是 taskItem 而不是段落（PM 会打一条「endpoint not pointing into
+    // inline content」警告，属构造方式使然，不是缺陷）。
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const list = summaries(mdState('- [ ] A\n- [x] B\n', 7));
+    warn.mockRestore();
+
+    expect(list.filter((d) => d.cls === 'paragraph-active')).toEqual([
+      { from: 7, to: 10, cls: 'paragraph-active' },
+    ]);
+  });
+
+  it('嵌套列表：外层无正文的父项不产生装饰，子项逐条独立', () => {
+    // `- A` 下挂两个子项：段落只有 A / A1 / A2 三段（父项首段是 A）
+    const list = summaries(mdState('- A\n  - A1\n  - A2\n', 3));
+    expect(list).toHaveLength(3);
+    expect(list.filter((d) => d.cls === 'paragraph-active')).toHaveLength(1);
+  });
+
+  it('项内标题（`- ## 标题`）：标题本身就是叶块，整体作为聚焦单位', () => {
+    const list = summaries(mdState('- ## 标题\n- 正文\n', 4));
+    expect(list).toHaveLength(2);
+    expect(list.filter((d) => d.cls === 'paragraph-active')).toHaveLength(1);
   });
 });

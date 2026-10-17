@@ -75,7 +75,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 互链补全（`[[`） | ✅ | [`wikilink-suggest.ts`](../src/components/Editor/tiptap/extensions/wikilink-suggest.ts) + `list_markdown_files` | 一/21 已修（曾因扩展级 option 漏递永久失效）；未保存文档也弹，候选为空给引导 |
 | 代码上下文不弹菜单 | ✅ | [`suggestion-guard.ts`](../src/components/Editor/tiptap/extensions/suggestion-guard.ts) | `![[` 嵌入语法不触发 `[[`（一/18、一/22） |
 | 查找 / 替换 | ✅ | [`useEditorSearch.ts`](../src/components/Editor/tiptap/useEditorSearch.ts) + [`SearchPanel.vue`](../src/components/Editor/views/SearchPanel.vue) + [`search-highlight.ts`](../src/components/Editor/tiptap/extensions/search-highlight.ts) | 快捷键是 `Mod-f`/`Mod-h`（wiki 写 `Mod-g` 是错的，附录 B-2） |
-| 焦点模式 | ✅ | [`paragraph-focus.ts`](../src/components/Editor/tiptap/extensions/paragraph-focus.ts) + `<html>.focus-mode` | 非当前段落整体变淡；组字期装饰只平移不重建（一/15） |
+| 焦点模式 | ✅ | [`paragraph-focus.ts`](../src/components/Editor/tiptap/extensions/paragraph-focus.ts) + `<html>.focus-mode` | **最小块粒度**（列表每项、引用/callout 内每段独立；对标 Typora `md-end-block`）；列表圆点/勾选框单独联动；组字期装饰只平移不重建（一/15） |
 | 字数统计（含大文档降级） | ✅ | [`editor-metadata.ts`](../src/components/Editor/tiptap/editor-metadata.ts) + `App.vue` `degradedWordCountTitle` | 150ms 防抖；大文档显示 `≈` 前缀 |
 | 大纲面板 | ✅ | [`useOutline.ts`](../src/composables/useOutline.ts) + [`OutlinePanel.vue`](../src/components/Editor/OutlinePanel.vue) | `Mod+/` 开合（`view.toggleOutline`，**可在设置自定义**） |
 | 列表区幕布式大纲（折叠） | ✅ | [`list-fold.ts`](../src/components/Editor/tiptap/extensions/list-fold.ts) + `editor.css` | 悬停列表行左侧箭头折叠/展开该项下全部子层级；折叠态按文档路径在内存里跨文档记忆（上限 50 篇）。**入口只有鼠标悬停箭头**：无快捷键、不进命令面板、无「全部折叠/展开」（已知缺口） |

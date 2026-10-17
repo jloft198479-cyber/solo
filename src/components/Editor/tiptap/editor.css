@@ -1608,7 +1608,9 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   line-height: 1.6;
 }
 
-/* ── 焦点写作模式：段落聚焦 ───────────────────────────────── */
+/* ── 焦点写作模式：段落聚焦 ─────────────────────────────────
+   粒度 = 不能再分的最小块（Typora Focus Mode 的 md-end-block 同级）：
+   列表每一项、引用/callout 里每一段各自独立聚焦，不是整块同亮。 */
 html.focus-mode .paragraph-dimmed {
   opacity: var(--mk-focus-dimmed-opacity);
   transition: opacity var(--motion-slow) var(--ease-out);
@@ -1616,6 +1618,27 @@ html.focus-mode .paragraph-dimmed {
 
 html.focus-mode .paragraph-active {
   opacity: 1;
+  transition: opacity var(--motion-slow) var(--ease-out);
+}
+
+/* 列表圆点 / 序号 / 待办勾选框不属于段落（`li::marker`、`li > label`），
+   段落上的 opacity 管不到 —— 不补这段就会出现「文字淡了、符号还亮着」。
+   `:has()` 只认**直属本级**的段落（普通项 `li > p`、待办项 `li > div > p`、
+   项内标题 `li > h1`），嵌套子项的聚焦态不会误算到父项头上。 */
+html.focus-mode li:not(:has(> .paragraph-active, > div > .paragraph-active))::marker {
+  /* `::marker` 不接受 opacity（规范只开放 font / color / content 等），
+     故把同一个淡化比例折成颜色透明度 —— 比例仍以 `--mk-focus-dimmed-opacity`
+     为唯一真理源，不另写魔数。 */
+  color: color-mix(
+    in srgb,
+    currentColor calc(var(--mk-focus-dimmed-opacity) * 100%),
+    transparent
+  );
+  transition: color var(--motion-slow) var(--ease-out);
+}
+
+html.focus-mode ul[data-type='taskList'] li:not(:has(> .paragraph-active, > div > .paragraph-active)) > label {
+  opacity: var(--mk-focus-dimmed-opacity);
   transition: opacity var(--motion-slow) var(--ease-out);
 }
 
