@@ -138,7 +138,7 @@ describe('层级：所有 z-index 一律走语义 token（B2）', () => {
         bad.push(`${relative(fileURLToPath(new URL('..', import.meta.url)), file)}: ${m[0]}`);
       }
     }
-    expect(bad, '请改用 z-[var(--z-*)] 或样式块里的 var(--z-*)').toEqual([]);
+    expect(bad, '请改用 z-index 的 --z-* 语义 token（写在样式块里）').toEqual([]);
   });
 });
 
