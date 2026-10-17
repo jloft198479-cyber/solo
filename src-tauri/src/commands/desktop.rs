@@ -149,7 +149,11 @@ pub fn register_shell_new() -> Result<(), AppError> {
                 .map_err(|e| AppError::Native(e.to_string()))?;
         }
 
-        // 清理旧版可能残留的 .markdown\ShellNew，避免 Explorer 右键出现两个"新建"项
+        // 清理旧版可能残留的 .markdown\ShellNew，避免 Explorer 右键出现两个"新建"项。
+        // 已知取舍（2026-10-17 复核）：这个键无法区分是 solo 旧版建的还是别的程序建的
+        // （两者都只放一个 NullFile），一律删除是既有行为；给 .markdown 注册 ShellNew 的
+        // 程序极少，且只在"注册"这一刻执行一次，风险可接受。注销侧同理，见下方
+        // clear_shell_associations 的说明。
         let _ = classes.delete_subkey_all(".markdown\\ShellNew");
 
         // 仅 .md 注册 ShellNew（右键"新建"菜单）
@@ -196,65 +200,88 @@ pub fn register_shell_new() -> Result<(), AppError> {
     }
 }
 
+/// 清除 solo 写入的关联，**保留同一扩展名键下其他程序的内容**。
+///
+/// 判据（AGENTS.md 敏感区第 21 条「注销不得整键删除」）：
+/// - 扩展名键的默认值只在**仍指向 `prog_id`** 时才删这个值，键本身与其他子键一律不动
+///   （`.md` 键下还挂着 Windows 维护的 `OpenWithProgids`、其他编辑器的 `shell\open\command`）；
+/// - `ShellNew` 是 solo 独占创建的（`.md` 现役、`.markdown` 是旧版残留），可整键删；
+/// - `prog_id` 子树是 solo 独占的，可整树删。
+///
+/// 抽成独立函数只为**可测**：测试在 `HKCU\Software\Classes` 下用临时扩展名造场景，
+/// 真跑一遍注销再断言「别人的打开方式还在」。这样这条纪律由 `cargo test` 守，
+/// 而不是靠人记得。
+///
+/// 返回 (是否有实质变更, 失败项)。无变更时调用方不得广播 SHChangeNotify —— 空注销也
+/// 通知会逼 Explorer 全盘重算图标、桌面文件夹重绘闪动。
+#[cfg(target_os = "windows")]
+fn clear_shell_associations(
+    classes: &winreg::RegKey,
+    exts: &[&str],
+    prog_id: &str,
+) -> (bool, Vec<String>) {
+    use winreg::enums::{KEY_READ, KEY_WRITE};
+
+    let mut failures: Vec<String> = Vec::new();
+    let mut changed = false;
+
+    for ext in exts {
+        // ShellNew：solo 独占创建，可整键删除
+        match classes.delete_subkey_all(format!("{}\\ShellNew", ext)) {
+            Ok(()) => changed = true,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => failures.push(format!("{}\\ShellNew: {}", ext, e)),
+        }
+
+        // 默认值：先读，确认指向我们的 ProgID 才删**这一个值**（不删键、不碰子键）
+        if let Ok(key) = classes.open_subkey_with_flags(ext, KEY_READ | KEY_WRITE) {
+            let owned = key.get_value::<String, _>("").ok().as_deref() == Some(prog_id);
+            if owned {
+                match key.delete_value("") {
+                    Ok(()) => changed = true,
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => failures.push(format!("{} 默认值: {}", ext, e)),
+                }
+            }
+        }
+    }
+
+    // solo 自己的 ProgID 子树（独占）：由叶到根逐层删
+    for sub in ["DefaultIcon", "shell\\open\\command", "shell\\open", "shell", ""] {
+        let path = if sub.is_empty() {
+            prog_id.to_string()
+        } else {
+            format!("{}\\{}", prog_id, sub)
+        };
+        match classes.delete_subkey_all(&path) {
+            Ok(()) => changed = true,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => failures.push(format!("{}: {}", path, e)),
+        }
+    }
+
+    (changed, failures)
+}
+
 /// 移除 solo 的文件关联和右键菜单。
 #[tauri::command]
 pub fn unregister_shell_new() -> Result<(), AppError> {
     #[cfg(target_os = "windows")]
     {
-        use winreg::enums::*;
+        use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE};
         use winreg::RegKey;
 
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        let classes_path = "Software\\Classes";
+        // 连 Software\Classes 都不存在 ⇒ 从未注册过，无事可做（也不该广播刷新）
+        let classes = match hkcu.open_subkey_with_flags("Software\\Classes", KEY_READ | KEY_WRITE) {
+            Ok(key) => key,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => return Err(AppError::Native(e.to_string())),
+        };
 
-        // 敏感区第 21 条：注销**不得整键删除**。
-        // 扩展名主键（.md / .markdown）可能与其它程序共享——只有在「默认值仍指向 solo」
-        // 时才清掉这一个值，绝不递归删整棵键（旧实现曾把用户系统里所有 .md 打开方式一并抹掉）。
-        let prog_id = "solo.markdown";
-        let mut failures: Vec<String> = Vec::new();
-        // 是否真的删掉过东西：没有任何实质变更时不广播 SHChangeNotify。
-        // 开关本就没开 / 已注销过时再点一次关闭，注册表毫无变化，
-        // 却仍广播 SHCNE_ASSOCCHANGED 会逼 Explorer 全盘重算图标 ⇒ 桌面文件夹重绘闪动。
-        let mut changed = false;
+        let (changed, failures) =
+            clear_shell_associations(&classes, &[".md", ".markdown"], "solo.markdown");
 
-        for ext in &[".md", ".markdown"] {
-            // ShellNew 是 solo 独占创建的，可整键删除
-            match hkcu.delete_subkey_all(format!("{}\\{}\\ShellNew", classes_path, ext)) {
-                Ok(()) => changed = true,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                Err(e) => failures.push(format!("{}\\ShellNew: {}", ext, e)),
-            }
-            // 只清「属于 solo 的」默认值：先读，确认指向我们的 ProgID 才删值（不删键）
-            if let Ok(key) = hkcu
-                .open_subkey_with_flags(format!("{}\\{}", classes_path, ext), KEY_READ | KEY_WRITE)
-            {
-                let owned = key.get_value::<String, _>("").ok().as_deref() == Some(prog_id);
-                if owned {
-                    match key.delete_value("") {
-                        Ok(()) => changed = true,
-                        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                        Err(e) => failures.push(format!("{} 默认值: {}", ext, e)),
-                    }
-                }
-            }
-        }
-
-        // solo 自己的 ProgID 子树（独占）可整树删除
-        for sub in ["DefaultIcon", "shell\\open\\command", "shell\\open", "shell", ""] {
-            let path = if sub.is_empty() {
-                format!("{}\\{}", classes_path, prog_id)
-            } else {
-                format!("{}\\{}\\{}", classes_path, prog_id, sub)
-            };
-            match hkcu.delete_subkey_all(&path) {
-                Ok(()) => changed = true,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                Err(e) => failures.push(format!("{}: {}", path, e)),
-            }
-        }
-
-        // 注销侧同样要通知 Explorer 刷新缓存（旧实现只挂了注册侧，M-02）；
-        // 但只在确实删掉过关联时通知——空注销不打扰 Explorer（见 changed 注释）。
         if changed {
             notify_shell_change();
         }
@@ -357,5 +384,153 @@ mod tests {
             .map(|a| association_is_current(&a, PROG_ID, EXE))
             .unwrap_or(false);
         assert!(!already);
+    }
+
+    // ── 注销纪律：只删自己写的（AGENTS.md 敏感区第 21 条）───────────────
+    //
+    // 下面两条**真写注册表**：在 HKCU\Software\Classes 下用 `.solo-test-*` 前缀造临时键，
+    // 跑完由 Drop 清掉，绝不碰 .md / .markdown 真实键。
+    // 之所以要真跑而不只是测纯函数：这条纪律失效的后果是「用户关掉开关，系统里所有
+    // .md 打开方式一起消失」，只有真删一次才知道删没删多。
+
+    struct RegistrySandbox {
+        classes: winreg::RegKey,
+        ext: &'static str,
+        prog: &'static str,
+    }
+
+    impl RegistrySandbox {
+        fn new(ext: &'static str, prog: &'static str) -> Self {
+            let hkcu = winreg::RegKey::predef(winreg::enums::HKEY_CURRENT_USER);
+            let classes = hkcu
+                .open_subkey_with_flags("Software\\Classes", winreg::enums::KEY_ALL_ACCESS)
+                .expect("HKCU\\Software\\Classes 应可读写");
+            let _ = classes.delete_subkey_all(ext);
+            let _ = classes.delete_subkey_all(prog);
+            RegistrySandbox { classes, ext, prog }
+        }
+    }
+
+    impl Drop for RegistrySandbox {
+        fn drop(&mut self) {
+            let _ = self.classes.delete_subkey_all(self.ext);
+            let _ = self.classes.delete_subkey_all(self.prog);
+        }
+    }
+
+    /// 核心回归：默认值指向 solo 时只清这一个值；同一键下**别人的**
+    /// `OpenWithProgids`（Windows 维护的"可打开该类型的程序"清单，含 Typora / Word 等）
+    /// 与 `shell` 命令必须原样保留。
+    /// 旧实现 `delete_subkey_all(".md")` 会把整键连根拔掉 —— 这条测试就是防它回来。
+    #[test]
+    fn 注销只清默认值_别人的打开方式仍在() {
+        let sb = RegistrySandbox::new(".solo-test-md", "solo.test.prog");
+
+        {
+            let (ext_key, _) = sb.classes.create_subkey(sb.ext).unwrap();
+            ext_key.set_value("", &sb.prog).unwrap();
+            let (owp, _) = sb
+                .classes
+                .create_subkey(format!("{}\\OpenWithProgids", sb.ext))
+                .unwrap();
+            owp.set_value("Typora.md", &"").unwrap();
+            let (other, _) = sb
+                .classes
+                .create_subkey(format!("{}\\shell\\open\\command", sb.ext))
+                .unwrap();
+            other.set_value("", &"\"C:\\Other\\other.exe\" \"%1\"").unwrap();
+            let (shell_new, _) = sb
+                .classes
+                .create_subkey(format!("{}\\ShellNew", sb.ext))
+                .unwrap();
+            shell_new.set_value("NullFile", &"").unwrap();
+        }
+        {
+            let (prog_key, _) = sb.classes.create_subkey(sb.prog).unwrap();
+            prog_key.set_value("", &"solo测试").unwrap();
+            let (cmd, _) = sb
+                .classes
+                .create_subkey(format!("{}\\shell\\open\\command", sb.prog))
+                .unwrap();
+            cmd.set_value("", &"\"C:\\solo.exe\" \"%1\"").unwrap();
+        }
+
+        let (changed, failures) = clear_shell_associations(&sb.classes, &[sb.ext], sb.prog);
+        assert!(failures.is_empty(), "不该有失败项：{:?}", failures);
+        assert!(changed, "确实删掉了 solo 的内容，应报告有变更");
+
+        // 1) 扩展名键本身必须保留（绝不整键删除）
+        let ext_key = sb
+            .classes
+            .open_subkey(sb.ext)
+            .expect("扩展名键被整键删掉了 —— 这正是旧 bug");
+        // 2) solo 写的默认值应已清除
+        assert!(
+            ext_key.get_value::<String, _>("").is_err(),
+            "指向 solo 的默认值应已删除"
+        );
+        // 3) 别人的「打开方式」清单必须还在
+        let owp = sb
+            .classes
+            .open_subkey(format!("{}\\OpenWithProgids", sb.ext))
+            .expect("OpenWithProgids 被连带删掉了");
+        assert!(
+            owp.get_value::<String, _>("Typora.md").is_ok(),
+            "别人的 OpenWithProgids 条目被删掉了"
+        );
+        // 4) 别人的 shell 命令必须还在
+        assert!(
+            sb.classes
+                .open_subkey(format!("{}\\shell\\open\\command", sb.ext))
+                .is_ok(),
+            "别人的 shell 命令被连带删掉了"
+        );
+        // 5) solo 建的 ShellNew 应已删除
+        assert!(
+            sb.classes
+                .open_subkey(format!("{}\\ShellNew", sb.ext))
+                .is_err(),
+            "ShellNew 应当被删除"
+        );
+        // 6) solo 的 ProgID 子树应已整树删除
+        assert!(
+            sb.classes.open_subkey(sb.prog).is_err(),
+            "solo 的 ProgID 子树应当被删除"
+        );
+    }
+
+    /// 默认值已指向别的程序（用户改选过）时，solo 一个值都不该动，
+    /// 也不该报告「有变更」——否则会白发一次 SHChangeNotify 让桌面闪动。
+    #[test]
+    fn 默认值不属于solo时一律不动() {
+        let sb = RegistrySandbox::new(".solo-test-other", "solo.test.prog2");
+
+        {
+            let (ext_key, _) = sb.classes.create_subkey(sb.ext).unwrap();
+            ext_key.set_value("", &"Typora.md").unwrap();
+            let (owp, _) = sb
+                .classes
+                .create_subkey(format!("{}\\OpenWithProgids", sb.ext))
+                .unwrap();
+            owp.set_value("Typora.md", &"").unwrap();
+        }
+
+        let (changed, failures) = clear_shell_associations(&sb.classes, &[sb.ext], sb.prog);
+        assert!(failures.is_empty(), "不该有失败项：{:?}", failures);
+        assert!(
+            !changed,
+            "没有任何 solo 的东西可删，不该报告变更（也不该广播刷新）"
+        );
+
+        let ext_key = sb.classes.open_subkey(sb.ext).unwrap();
+        assert_eq!(
+            ext_key.get_value::<String, _>("").unwrap(),
+            "Typora.md",
+            "别人的默认值被改动了"
+        );
+        assert!(sb
+            .classes
+            .open_subkey(format!("{}\\OpenWithProgids", sb.ext))
+            .is_ok());
     }
 }
