@@ -22,12 +22,12 @@ const effectiveFontSize = computed({
   },
 });
 
-/** Effective lineHeight: user value → theme typography → CSS default (1.9) */
+/** Effective lineHeight: user value → theme typography → CSS default (1.6) */
 const effectiveLineHeight = computed({
   get: () => {
     if (settingsStore.settings.lineHeight != null) return settingsStore.settings.lineHeight;
     const raw = settingsStore.currentTheme?.typography?.lineHeight;
-    return raw ? parseFloat(raw) : 1.9;
+    return raw ? parseFloat(raw) : 1.6; // 与 editor.css --mk-line-height 保持一致（设计契约锁住，设计规范化 2026-10-17 · A4）
   },
   set: (v: number) => {
     settingsStore.settings.lineHeight = v;

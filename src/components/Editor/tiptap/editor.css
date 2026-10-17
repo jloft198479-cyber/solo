@@ -30,7 +30,7 @@
 
 /* 排版变量默认值设在 :root，由主题和设置页通过 documentElement inline style 覆盖 */
 :root {
-  --mk-line-height: 1.7;
+  --mk-line-height: 1.6;
   --mk-font-size: 16px;
   --mk-letter-spacing: 0;
   --mk-paragraph-spacing: 1em;
@@ -46,7 +46,7 @@
   --mk-heading4-line-height: 1.5;
   --mk-heading5-line-height: 1.5;
   --mk-heading6-line-height: 1.5;
-  /* 标题段前距 ≈ 0.5~0.8 行（≤ 正文行高 1.7em）：打标题 = 跳出一行醒目大字，
+  /* 标题段前距 ≈ 0.5~0.8 行（≤ 正文行高 1.6em）：打标题 = 跳出一行醒目大字，
      不是「空出一行再出字」（旧值 h1 2.4em ≈ 1.4 行，写作时视觉上像多打了空行，
      台账 §二 #30 用户澄清的真正痛点）。层次感由「比段间距略宽 + 字号」承担，
      对齐 Typora / iA Writer 的写作手感；段后距保持不变。 */
@@ -707,7 +707,7 @@ html.doc-heavy .tiptap-editor > hr {
   justify-content: center;
   margin-left: auto;
   width: 24px;
-  height: 20px;
+  height: 24px;
   padding: 0;
   border: none;
   background: transparent;
@@ -722,6 +722,11 @@ html.doc-heavy .tiptap-editor > hr {
 }
 
 .tiptap-editor .mk-code-block-shell:hover .mk-code-block-copy-button {
+  opacity: 1;
+}
+
+/* 键盘焦点时也要显形（原仅 hover 显形 ⇒ Tab 过去看不见；设计规范化 2026-10-17 · B5） */
+.tiptap-editor .mk-code-block-copy-button:focus-visible {
   opacity: 1;
 }
 
@@ -746,7 +751,8 @@ html.doc-heavy .tiptap-editor > hr {
   overflow-wrap: break-word;
   word-break: break-all;
   font-family: var(--font-mono);
-  font-size: 13px;
+  /* 0.8125em = 16px 字号下的 13px；跟随正文字号缩放（设计规范化 2026-10-17 · A2） */
+  font-size: 0.8125em;
   line-height: 1.6;
 }
 
@@ -1023,7 +1029,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor .mk-math-placeholder {
   color: var(--muted-color);
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: 0.8125em;
   font-style: italic;
 }
 
@@ -1043,7 +1049,8 @@ html.doc-heavy .tiptap-editor > hr {
   min-height: 80px;
   padding: 12px 16px;
   font-family: var(--font-mono);
-  font-size: 13px;
+  /* 跟随正文字号缩放（设计规范化 2026-10-17 · A2） */
+  font-size: 0.8125em;
   line-height: 1.6;
   background-color: var(--code-bg);
   color: var(--text-color);
@@ -1092,7 +1099,7 @@ html.doc-heavy .tiptap-editor > hr {
   justify-content: center;
   margin-left: auto;
   width: 24px;
-  height: 20px;
+  height: 24px;
   padding: 0;
   border: none;
   background: transparent;
@@ -1111,6 +1118,11 @@ html.doc-heavy .tiptap-editor > hr {
   opacity: 1;
 }
 
+/* 键盘焦点时也要显形（设计规范化 2026-10-17 · B5） */
+.tiptap-editor .mk-block-delete-button:focus-visible {
+  opacity: 1;
+}
+
 .tiptap-editor .mk-block-delete-button:hover {
   color: var(--error-color);
   background-color: var(--hover-bg);
@@ -1123,7 +1135,7 @@ html.doc-heavy .tiptap-editor > hr {
   justify-content: center;
   margin-left: 4px;
   width: 24px;
-  height: 20px;
+  height: 24px;
   padding: 0;
   border: none;
   background: transparent;
@@ -1138,6 +1150,11 @@ html.doc-heavy .tiptap-editor > hr {
 }
 
 .tiptap-editor .mk-mermaid-block:hover .mk-block-zoom-button {
+  opacity: 1;
+}
+
+/* 键盘焦点时也要显形（设计规范化 2026-10-17 · B5） */
+.tiptap-editor .mk-block-zoom-button:focus-visible {
   opacity: 1;
 }
 
@@ -1159,7 +1176,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor .mk-mermaid-placeholder {
   color: var(--muted-color);
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: 0.8125em;
   font-style: italic;
 }
 
@@ -1179,7 +1196,8 @@ html.doc-heavy .tiptap-editor > hr {
   min-height: 120px;
   padding: 12px 16px;
   font-family: var(--font-mono);
-  font-size: 13px;
+  /* 跟随正文字号缩放（设计规范化 2026-10-17 · A2） */
+  font-size: 0.8125em;
   line-height: 1.6;
   background-color: var(--code-bg);
   color: var(--text-color);

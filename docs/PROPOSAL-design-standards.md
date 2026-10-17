@@ -4,7 +4,7 @@ type: proposal
 audience: maintainer
 status: proposal
 tags: [设计, UI, 规范, token, 图标, z-index, 评估]
-summary: 综合 UI/UX 巡检复核链（取数一律以终核为准）的设计侧问题总清单与修复评估：A 组体感四件（真模态 / 代码块字号 / 图标统一 / 段距行高对标 Typora）+ B 组规范八条（z-index 刻度 / 按钮共享 / spacing 标度 / 死变量等）；逐条含修复难度 / 可控性 / 性能与验证方式，附建议批次与完成判据。段距/行高对标与「趁机会规范」范围已拍板（2026-10-17）；其余待拍板，未执行。
+summary: 综合 UI/UX 巡检复核链（取数一律以终核为准）的设计侧问题总清单与修复评估：A 组体感四件（真模态 / 代码块字号 / 图标统一 / 段距行高对标 Typora）+ B 组规范八条（z-index 刻度 / 按钮共享 / spacing 标度 / 死变量等）；逐条含修复难度 / 可控性 / 性能与验证方式，附建议批次与完成判据。段距/行高对标与「趁机会规范」范围已拍板（2026-10-17）；**批 1 已执行**（字号 em / 行高 1.6 / 光标 / 键盘可见性 + 9 条契约锁），余批待推进。
 updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-uiux-终核.md, docs/KNOWN-ISSUES.md]
 ---
 
@@ -68,7 +68,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 - 性能 **无**：焦点陷阱仅在弹窗打开期间挂 1 个轻量 keydown 监听；z-index 纯样式。
 - 验证：组件测试 1-3 条（打开→Esc→关闭；Tab 循环不逃逸；层级静态断言）+ 真机目视（弹窗盖住标题栏、Tab 不逃逸、关后焦点回到齿轮）。
 
-### A2 · 代码块字号焊死 13px
+### A2 · 代码块字号焊死 13px（✅ 已落地 2026-10-17 · 批 1）
 
 **现状**：[`editor.css`](../src/components/Editor/tiptap/editor.css) 共 9 处 `13px`——**内容类 5 处应跟随字号**：`pre`（`:749`）、math 占位+编辑框（`:1026`/`:1046`）、mermaid 占位+编辑框（`:1162`/`:1182`）；**界面类 4 处不动**（slash 菜单 `:1531`/`:1543`/`:1559`、wikilink 菜单 `:1566`——浮动菜单 UI，固定字号合理）。
 
@@ -94,7 +94,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 - 性能 **无新增负担**：自建组件零依赖，体积与内联持平。**红线：不引图标库**（会 +依赖 +bundle）。
 - 验证：全量测试 + 出站锁 + 目视截屏对比（笔画粗细一致、无豆腐块）。
 
-### A4 · 段距/行高对标 Typora（已拍板：参考 Typora，不出样张）
+### A4 · 段距/行高对标 Typora（已拍板：参考 Typora，不出样张；✅ 已落地 2026-10-17 · 批 1）
 
 **对标结果**（Typora 默认 GitHub 主题 vs solo 现值，2026-10-17 核对）：
 
@@ -142,7 +142,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 **评估**：难度 **低**；可控性 **高**（样式统一、逐处目视）；性能 **无**（略减样式体积）。
 
-### B4 · 三个按钮光标不是手型（+全面排查）
+### B4 · 三个按钮光标不是手型（+全面排查；✅ 已落地 2026-10-17 · 全局兜底）
 
 **现状**：settings-close-btn / footer-reset / footer-done 无 `cursor: pointer`（[`SettingsModal.vue`](../src/components/Settings/SettingsModal.vue):232-300）；根因：Tailwind v4 preflight 已不再给 button 加 pointer。
 
@@ -150,7 +150,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 **评估**：难度 **极低**；可控性 **高**；性能 **无**。并入批 1 顺手做。
 
-### B5 · 浮层按钮键盘不可见 + 热区偏小
+### B5 · 浮层按钮键盘不可见 + 热区偏小（✅ 已落地 2026-10-17 · 批 1）
 
 **现状**：代码块复制 / 块删除 / 块缩放按钮 `opacity: 0` 仅 hover 显形、无 `:focus-visible` ⇒ 键盘 Tab 过去看不见；热区 24×20 低于 24 舒适线（[`editor.css`](../src/components/Editor/tiptap/editor.css):709/1094/1125 区段）。
 
@@ -192,7 +192,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 | 批次 | 内容 | 完成判据 |
 |---|---|---|
-| **批 1** | A2 字号 5 处 em 化 + **A4 行高 1.6（对齐 Typora）** + B4 cursor + B5 focus-visible/热区（全 CSS 小改） | 全量绿 + 契约锁（pre 无 px）+ 目视（字号 20px 代码块跟随 / 行距对齐 Typora / Tab 见按钮 / 按钮手型） |
+| **批 1** | ✅ **已执行（2026-10-17）**：A2 字号 5 处 em 化 + A4 行高 1.6（对齐 Typora）+ B4 cursor + B5 focus-visible/热区（全 CSS 小改） | 全量绿 + 契约锁（pre 无 px）+ 目视（字号 20px 代码块跟随 / 行距对齐 Typora / Tab 见按钮 / 按钮手型） |
 | **批 2** | A1 真模态（含 B2 最小刻度） | 组件锁 1-3 条 + 目视（盖标题栏 / Esc / Tab 不逃逸 / 焦点归还） |
 | **批 3** | A3 图标统一（先 .vue → 再 .ts → 字符图标可再拆） | 出站锁 + 全量绿 + 截屏对比（笔画一致、无豆腐块） |
 | **批 4** | B1a 文档同步 + B7 spacing + B3 按钮 + B6 归 token + B2 全面刻度 | 全量绿 + docs-lint + 逐类目视 |
@@ -213,13 +213,26 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 ## 五 · 拍板进展
 
-**已拍板（2026-10-17）**：① 段距/行高对标 Typora、不出样张（对标结论与落点见 A4）；② "趁机会规范"范围 = 本清单 A/B 组（结构工程类如拆组件、反向 import 另议，不进本批）。
+**已拍板（2026-10-17）**：① 段距/行高对标 Typora、不出样张（对标结论与落点见 A4）；② "趁机会规范"范围 = 本清单 A/B 组（结构工程类如拆组件、反向 import 另议，不进本批）；③ **批 1 已执行**（当日指令"开始，确保安全可回滚"，执行记录见 §六）。
 
 **待拍板**：
 
-1. **批次顺序**：是否按 批 1 → 批 5 执行（建议从批 1 开始，当天可完成）。
+1. **批 2–5 推进**：批 1 已完成；批 2（A1 真模态 + z 刻度）可随时开工，批 3（A3 图标）见下条。
 2. **A3 图标路径**：自建 12 组件（推荐：零依赖、规格全掌控，执行 = 从 Lucide / Feather 抄 MIT path）vs 引入图标库（+依赖 +bundle、规格受制上游）。
 3. **B8 死变量策略**：选项 A（删 1 登记 8，推荐）vs 选项 B（全链清理）。
+
+## 六 · 执行记录
+
+### 批 1（2026-10-17 ✅ 已执行）
+
+- **A2**：[`editor.css`](../src/components/Editor/tiptap/editor.css) `pre` / math 占位+编辑框 / mermaid 占位+编辑框共 **5 处** `13px → 0.8125em`（16px 字号下等价 13px，字号放大时跟随）。slash / wikilink 菜单 4 处界面字号按方案**不动**。
+- **A4**：`--mk-line-height: 1.7 → 1.6`（对齐 Typora 默认 GitHub 主题）；标题注释同步；[`AppearanceSettingsPanel.vue`](../src/components/Settings/AppearanceSettingsPanel.vue) 行高兜底 `1.9 → 1.6`（原注释/兜底与 CSS 真值本就漂移，设置页显示现与编辑器一致）。
+- **B4**：[`main.css`](../src/assets/styles/main.css) 全局兜底 `button:not(:disabled) { cursor: pointer }`（Tailwind v4 preflight 不再给 button 手型光标；一处修、全仓生效）。
+- **B5**：[`editor.css`](../src/components/Editor/tiptap/editor.css) 代码块复制 / 块删除 / 块缩放三按钮 + [`ThemeCard.vue`](../src/components/Settings/ThemeCard.vue) 删除按钮补 `:focus-visible { opacity: 1 }`（键盘 Tab 可见）；热区 `24×20 → 24×24`。
+- **契约锁**：新增 [`design-contracts.spec.ts`](../src/__tests__/design-contracts.spec.ts) **9 条**（字号 em 机制 3 + 行高双源一致 1 + 全局光标 1 + 焦点显形 4）。
+- **验证**：全量 `vitest` **1885 passed / 0 failed**（基线 1876 + 新锁 9，数目对得上）；`vue-tsc --noEmit` 0；**反向校准**：撤掉四组修复（pre 回 px / 行高兜底回 1.9 / 删全局 cursor / 删焦点规则）⇒ 对应 **4 条锁转红**，还原即复绿。
+- **回滚**：`git tag backup/20261017-0926-pre-design-batch1`（或 revert 批 1 提交）。
+- **待真机目视**（机器验不了的）：行距观感（对齐 Typora）、正文字号调 20px 时代码块跟随、Tab 到浮层按钮可见、设置弹窗按钮手型。
 
 ## 附 · 已有结论、不在本清单（防重复评估）
 

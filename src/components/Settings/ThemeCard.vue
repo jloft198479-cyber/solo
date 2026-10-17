@@ -111,6 +111,11 @@ const emit = defineEmits<{
   opacity: 1;
 }
 
+/* 键盘焦点时也要显形（原仅 hover 显形；设计规范化 2026-10-17 · B5） */
+.theme-delete-btn:focus-visible {
+  opacity: 1;
+}
+
 .theme-delete-btn:hover {
   background: var(--error-bg);
 }

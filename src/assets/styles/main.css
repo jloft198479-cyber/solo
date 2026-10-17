@@ -63,6 +63,13 @@ button:focus-visible,
   outline-offset: 1px;
 }
 
+/* 按钮悬浮光标兜底：Tailwind v4 preflight 不再给 button 加 cursor: pointer，
+   桌面应用无触摸端顾虑 ⇒ 统一补上，避免「按钮悬停显示箭头」漏网
+   （设计规范化 2026-10-17 · B4，覆盖设置弹窗关闭 / 恢复默认 / 完成等按钮）。 */
+button:not(:disabled) {
+  cursor: pointer;
+}
+
 /* ── 浅色主题（书卷气） ──────────────────────────────────────
    注：本块为「主题注入前」的闪屏/回退兜底，色值须与
    scholar-light 主题 + manager.ts SHARED_LIGHT_COLORS 保持一致
