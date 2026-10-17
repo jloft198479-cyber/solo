@@ -160,8 +160,9 @@ updates: [docs/PROPOSAL-design-standards.md, docs/INDEX.md]
 - **气泡菜单标题按钮尺寸 32×32**：原来装 12px 文字（`padding: 4px 8px`，实际约 24px 高），换成图标后与同排 `bubble-menu-btn` / `bubble-menu-clear-btn` 拉齐，避免同排热区一大一小。
 - **本步不需要改菜单渲染结构**（原方案预判「需小改以支持结构化图标」）：图标本身就是 Vue 组件，`<Icon>` 直接放进原位置即可。
 - **新增契约锁** [`menu-icons.spec.ts`](../src/components/Editor/tiptap/extensions/__tests__/menu-icons.spec.ts) **3 条**：① 14 项的图标键都存在于图标库；② 键必须是 ASCII 标识符（挡回退成字符）；③ 气泡菜单不许再内联字符字形（`&lt;/&gt;`、`>H1<`），且必须使用 `heading1`/`heading2`。
-- 验证：全量 **1907 passed / 0 failed**（1904 + 新锁 3）；`vue-tsc` 0；构建通过。
-- 反向校准**三组，各自单独撤**：① 某项改回 `'¶'` → 锁 1、2 红；② 往 `.ts` 塞一处内联 svg → 使用锁 1 红；③ 气泡菜单改回文字 `H1` → 锁 3 红。还原即复绿（已 `diff` 核对字节一致）。
+- **新增渲染锁** [`slash-menu-render.spec.ts`](../src/components/Editor/views/__tests__/slash-menu-render.spec.ts) **1 条**：挂载菜单后 14 个图标格必须都是 `<svg>`、且**格内没有文字** —— 数据层对了、模板仍可能退回 `{{ item.icon }}`（屏幕上会印出 `paragraph` 字样），这条挡的就是那种回退。
+- 验证：全量 **1908 passed / 0 failed**（1904 + 新锁 4）；`vue-tsc` 0；构建通过。
+- 反向校准**四组，各自单独撤**：① 某项改回 `'¶'` → 锁 1、2 红；② 往 `.ts` 塞一处内联 svg → 使用锁 1 红；③ 气泡菜单改回文字 `H1` → 锁 3 红；④ SlashMenu 模板退回插值 → 渲染锁红。还原即复绿（已 `diff` 核对字节一致）。
 - 回滚：`git revert` 本提交；锚点 `backup/20261017-1130-pre-batch3-step3`。
 - **遗留观感待人工确认**：列表折叠箭头由 12 画布 / 线宽 1.6（11px 显示 ≈1.47px）换成 24 画布 / 线宽 2（≈0.92px），会略变细；嫌淡可单独把该处恢复为自绘（唯一例外）。
 

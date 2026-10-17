@@ -254,7 +254,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 - 详见 [`PROPOSAL-icon-system.md`](./PROPOSAL-icon-system.md) §八（第 1 步建库 / 第 2 步换 `.vue` / 第 3 步换 `.ts` 与菜单字形）。
 - **本批最终形态**：`icons/svg.ts` 唯一图源 **38 个**；`.vue` 与 `.ts` 全部经 `<Icon>` / `iconSvg()` 取图，内联 `<svg>` 只剩标题栏 3 处永久豁免；斜杠菜单与气泡菜单的「字形」由自由字符串收紧为 `IconName`。
-- **锁**：`icon-spec` 8 条 + `icon-usage` 2 条 + `menu-icons` 3 条；反向校准三组各自单项撤。
+- **锁**：`icon-spec` 8 条 + `icon-usage` 2 条 + `menu-icons` 3 条 + `slash-menu-render` 1 条；反向校准四组各自单项撤。
 - 回滚：三次提交各自可 revert；锚点 `backup/20261017-1130-pre-batch3-step3`。
 
 ## 附 · 已有结论、不在本清单（防重复评估）
