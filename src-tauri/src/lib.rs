@@ -316,13 +316,24 @@ pub fn run() {
             // C3：remote-image-cache 磁盘缓存容量清理（后台线程，不阻塞启动）
             commands::image::cleanup_remote_image_cache(&app.handle());
 
-            let raw_args = std::env::args().collect::<Vec<_>>();
+            // 不用 std::env::args()：它在任何参数含非 Unicode（如 Windows 未配对代理项）时
+            // 直接 panic —— 启动期崩溃没有任何提示，用户只看到「双击没反应」。
+            // 改 args_os：日志用 lossy 展示（仅供排查），路径解析只取真 Unicode 的，
+            // 取不到就等同该参数不存在（os error 2 的静默跳过链条照旧生效）。
+            let raw_args_os = std::env::args_os().collect::<Vec<_>>();
+            let raw_args = raw_args_os
+                .iter()
+                .map(|arg| arg.to_string_lossy())
+                .collect::<Vec<_>>();
             append_startup_log(
                 Some(&app.handle()),
                 format!("setup raw args={:?}", raw_args),
             );
 
-            let raw_paths = open_paths_from_args(raw_args.iter().skip(1), None);
+            let raw_paths = open_paths_from_args(
+                raw_args_os.iter().skip(1).filter_map(|arg| arg.to_str()),
+                None,
+            );
             if !raw_paths.is_empty() {
                 append_startup_log(
                     Some(&app.handle()),
