@@ -2,13 +2,18 @@
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { DOMSerializer } from '@tiptap/pm/model';
 import type { Node as PMNode } from '@tiptap/pm/model';
-import { EditorView } from '@tiptap/pm/view';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { EditorView, Decoration, DecorationSet } from '@tiptap/pm/view';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import { parseMarkdown } from '../../markdown/parser';
 import { setDocumentTier } from '../../../document-scale';
-import { createListFoldPlugin, clearFoldedMemory, listFoldKey } from '../list-fold';
+import {
+  createListFoldPlugin,
+  clearFoldedMemory,
+  listFoldKey,
+  rebuildDecorationsInRange,
+} from '../list-fold';
 
 const schema = createTestSchema();
 
@@ -273,7 +278,8 @@ describe('list-fold 跨文档记忆（切走再切回）', () => {
     let state = mountedWithPath(NESTED, pathRef);
     state = state.apply(state.tr.setMeta(listFoldKey, { toggle: ITEM }));
 
-    // 顶部插入段落：纯 map 平移，不触发 rebuild 分支（真实场景里 rAF 重建可能还没跑）
+    // 顶部插入段落：位置随事务平移；插入块属结构变化会触发重建，但折叠项本身仍合法
+    // ⇒ 折叠态不该丢（重建不等于失忆）
     state = state.apply(state.tr.insert(0, schema.nodes.paragraph.create(null, schema.text('新'))));
     expect(foldState(state).folded).toEqual([ITEM + 3]);
 
@@ -353,12 +359,12 @@ describe('list-fold 装饰 DOM 与组字冻结（IME 防御）', () => {
     Object.defineProperty(v, 'composing', { configurable: true, get: () => value });
   }
 
-  it('rAF 重建后箭头 DOM 复用同一节点（不给 widget 稳定 key 就会被换掉）', () => {
+  it('全量重建后箭头 DOM 复用同一节点（不给 widget 稳定 key 就会被换掉）', () => {
     const v = mountView(NESTED);
     const before = v.dom.querySelector('.list-fold-toggle');
     expect(before).not.toBeNull();
 
-    // 打字（map 平移）→ 再走一次 rAF 那次重建
+    // 打字（map 平移）→ 再手动触发一次全量重建（等价于块结构变化后的同步重建）
     v.dispatch(v.state.tr.insertText('，', ARROW));
     v.dispatch(v.state.tr.setMeta(listFoldKey, { rebuild: true }));
 
@@ -417,5 +423,156 @@ describe('list-fold 装饰 DOM 与组字冻结（IME 防御）', () => {
     setComposing(v, false);
     v.dispatch(v.state.tr.setSelection(TextSelection.create(v.state.doc, INSIDE_HIDDEN)));
     expect(foldState(v.state).folded).toEqual([]);
+  });
+});
+
+/**
+ * 2026-10-19 性能修复：折叠装饰只在「块结构变化」时重建。
+ *
+ * 旧行为：每个按键都排一次 rAF、派发一个 rebuild 事务、全文档重扫（3000 项约 27ms/键）。
+ * 新行为：纯文字 step 只 map；结构变化在当前事务内同步重建；组字期记账、解冻后补建。
+ *
+ * 判据用 `DecorationSet.create` 的调用次数：`map` 走内部构造、不经过 `create`，
+ * 所以「create 被调用」= 真的发生了全量重建（本测试只挂折叠插件，不受别的插件干扰）。
+ */
+describe('list-fold 只在块结构变化时重建（性能修复）', () => {
+  let view: EditorView | null = null;
+  let mount: HTMLElement | null = null;
+  let restoreSpy: (() => void) | null = null;
+
+  beforeEach(() => {
+    mount = document.createElement('div');
+    document.body.appendChild(mount);
+  });
+  afterEach(() => {
+    restoreSpy?.();
+    restoreSpy = null;
+    if (view && !view.isDestroyed) view.destroy();
+    view = null;
+    if (mount) mount.remove();
+    mount = null;
+    setDocumentTier('normal');
+  });
+
+  function mountView(md: string): EditorView {
+    const doc = docOf(md);
+    view = new EditorView(mount!, {
+      state: EditorState.create({
+        schema,
+        doc,
+        selection: TextSelection.create(doc, ARROW),
+        plugins: [createListFoldPlugin()],
+      }),
+    });
+    return view;
+  }
+
+  function setComposing(v: EditorView, value: boolean) {
+    Object.defineProperty(v, 'composing', { configurable: true, get: () => value });
+  }
+
+  /** 监听「全量重建」：create 被调用即重建（map 不会走这里） */
+  function watchRebuild() {
+    const spy = vi.spyOn(DecorationSet, 'create');
+    restoreSpy = () => spy.mockRestore();
+    return spy;
+  }
+
+  /** 造一个「父项 + 子列表」的顶层列表，用于模拟回车 / 粘贴产生的新结构 */
+  function nestedListOf(text: string): PMNode {
+    const child = schema.nodes.bulletList.create(
+      null,
+      schema.nodes.listItem.create(
+        null,
+        schema.nodes.paragraph.create(null, schema.text(`${text}1`)),
+      ),
+    );
+    const item = schema.nodes.listItem.create(null, [
+      schema.nodes.paragraph.create(null, schema.text(text)),
+      child,
+    ]);
+    return schema.nodes.bulletList.create(null, item);
+  }
+
+  it('项内打字：不触发全量重建（create 一次都不调）', () => {
+    const v = mountView(NESTED);
+    const spy = watchRebuild();
+    v.dispatch(v.state.tr.insertText('，', ARROW + 1));
+    expect(spy).not.toHaveBeenCalled();
+    expect(foldState(v.state).arrowPos).toEqual([ARROW]);
+  });
+
+  it('打字不改变折叠态；隐藏装饰随事务平移', () => {
+    const v = mountView(NESTED);
+    v.dispatch(v.state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+    const spy = watchRebuild();
+    v.dispatch(v.state.tr.insertText('，', ARROW + 1));
+    expect(spy).not.toHaveBeenCalled();
+    expect(foldState(v.state).folded).toEqual([ITEM]);
+    expect(foldState(v.state).hidden.length).toBe(1);
+  });
+
+  it('删除唯一子项（块级删除）→ 重建，父项箭头消失', () => {
+    const v = mountView(NESTED);
+    expect(foldState(v.state).arrowPos).toEqual([ARROW]);
+    v.dispatch(v.state.tr.delete(HIDDEN_FROM, HIDDEN_TO));
+    expect(foldState(v.state).arrowPos).toEqual([]);
+  });
+
+  it('插入新的「父项 + 子列表」→ 重建，新项立刻有箭头', () => {
+    const v = mountView(NESTED);
+    v.dispatch(v.state.tr.insert(v.state.doc.content.size, nestedListOf('C')));
+    expect(foldState(v.state).arrowPos.length).toBe(2);
+  });
+
+  it('组字期结构变化：先记账，解冻后补建一次', () => {
+    const v = mountView(NESTED);
+    setComposing(v, true);
+    const spy = watchRebuild();
+    v.dispatch(v.state.tr.delete(HIDDEN_FROM, HIDDEN_TO));
+
+    // 冻结期只 map：不能动 DOM（箭头暂时还在是预期的），但欠账已记下
+    expect(spy).not.toHaveBeenCalled();
+    expect(foldState(v.state).arrowPos).toEqual([ARROW]);
+    expect(listFoldKey.getState(v.state)!.pendingRebuild).toBe(true);
+
+    // 解冻后的第一个事务补建 → 坏箭头被清掉
+    setComposing(v, false);
+    v.dispatch(v.state.tr.insertText('x', ARROW + 1));
+    expect(foldState(v.state).arrowPos).toEqual([]);
+    expect(listFoldKey.getState(v.state)!.pendingRebuild).toBe(false);
+  });
+
+  it('折叠项失去子列表后，折叠位置被剪掉（不留幽灵折叠）', () => {
+    const v = mountView(NESTED);
+    v.dispatch(v.state.tr.setMeta(listFoldKey, { toggle: ITEM }));
+    expect(foldState(v.state).folded).toEqual([ITEM]);
+
+    v.dispatch(v.state.tr.delete(HIDDEN_FROM, HIDDEN_TO));
+    expect(foldState(v.state).folded).toEqual([]);
+  });
+
+  it('局部重建只重算窗口内的装饰（窗口外那道不重新创建）', () => {
+    const doc = docOf('- A\n  - A1\n- B\n\n分隔\n\n- C\n  - C1\n');
+    const v = new EditorView(mount!, {
+      state: EditorState.create({
+        schema,
+        doc,
+        selection: TextSelection.create(doc, 3),
+        plugins: [createListFoldPlugin()],
+      }),
+    });
+
+    const base = listFoldKey.getState(v.state)!.decorations;
+    const positions = base.find().map((d) => d.from);
+    expect(positions.length, '前置条件：两张列表各有一个箭头').toBe(2);
+
+    // 只重建第一张列表；全量重建会把两条都重造，局部重建只造窗口内那一条
+    const spy = vi.spyOn(Decoration, 'widget');
+    restoreSpy = () => spy.mockRestore();
+    const next = rebuildDecorationsInRange(doc, new Set(), base, 0, doc.child(0).nodeSize);
+    expect(next.find().map((d) => d.from)).toEqual(positions);
+    expect(spy).toHaveBeenCalledTimes(1);
+    v.destroy();
   });
 });

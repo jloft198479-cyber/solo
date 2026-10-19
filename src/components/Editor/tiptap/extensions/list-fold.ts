@@ -1,11 +1,19 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
-import type { Node as PMNode } from '@tiptap/pm/model';
+import type { Fragment, Node as PMNode } from '@tiptap/pm/model';
+import {
+  AddMarkStep,
+  AttrStep,
+  RemoveMarkStep,
+  ReplaceAroundStep,
+  ReplaceStep,
+  type Step,
+} from '@tiptap/pm/transform';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { EditorView } from '@tiptap/pm/view';
 import { isHeavyDocument } from '../../document-scale';
-import { createCompositionTracker, isFrozen, mapFrozenDecorations } from '../composition-freeze';
+import { createCompositionTracker, mapFrozenDecorations } from '../composition-freeze';
 import { isWholeDocReplace } from '../transaction-shape';
 import { ITEM_NODE_TYPES, LIST_NODE_TYPES } from '../list-move';
 import { iconSvg } from '../../../icons/svg';
@@ -22,8 +30,10 @@ import { iconSvg } from '../../../icons/svg';
  * 1. 组字期只 mapFrozenDecorations 平移，绝不重建（重建会换掉正在组字的 DOM →
  *    WebView2 IME 候选窗失锚）。
  * 2. 大文档（isHeavyDocument）直接不建装饰——与段落聚焦同款降级，避免大文档卡顿。
- * 3. widget 用 getPos() 动态取位、装饰用 map 增量平移——不每次按键重建全部箭头，
- *    把「重建」交给 rAF 合并触发（避免 DOM 抖动，见 view().update）。
+ * 3. widget 用 getPos() 动态取位、装饰用 map 增量平移；**只有块结构真的变了才重扫**。
+ *    2026-10-19 起：触发判据从「doc 变了」收紧为「块结构变了」（`touchesBlockStructure`
+ *    保守判定，见下方注释）——纯打字零全文扫描；结构变化在**当前事务内**同步重建，
+ *    组字期则记账到 `pendingRebuild`，解冻后补建。widget 稳定 key 保证重建不换 DOM。
  */
 
 export const listFoldKey = new PluginKey<ListFoldState>('listFold');
@@ -77,12 +87,18 @@ interface ListFoldState {
   decorations: DecorationSet;
   /** 当前折叠态归属的文档路径（null = 无身份文档，不参与记忆） */
   path: string | null;
+  /**
+   * 组字期欠下的「结构变化重建」。
+   * 组字期不能重建 DOM（会换掉正在组字的节点、导致候选窗失锚），
+   * 只能先记账；解冻后的第一个事务补建并清位。
+   */
+  pendingRebuild: boolean;
 }
 
 interface ListFoldMeta {
   /** 切换某项的折叠态（箭头点击） */
   toggle?: number;
-  /** 强制重扫重建（rAF 合并触发 / 结构变化后） */
+  /** 强制重扫重建（结构变化 / 测试显式触发） */
   rebuild?: boolean;
 }
 
@@ -179,10 +195,19 @@ function createToggleDOM(
   return dom;
 }
 
-/** 全量构建折叠装饰（init / 整文档替换 / 折叠态变化 / rAF 重建时用） */
-function buildDecorations(doc: PMNode, folded: Set<number>): DecorationSet {
+/**
+ * 收集折叠装饰：给了 range 就只扫这个窗口（结构变化的局部重建），否则扫全文档。
+ *
+ * 每条装饰都挂在「项」上（箭头 widget / 折叠隐藏的 class），所以窗口必须**包含完整的项**
+ * ——调用方负责把窗口扩到最近的外层项（见 `computeRebuildWindow`）。
+ */
+function collectDecorations(
+  doc: PMNode,
+  folded: Set<number>,
+  range?: { from: number; to: number },
+): Decoration[] {
   const decorations: Decoration[] = [];
-  doc.descendants((node, pos) => {
+  const visit = (node: PMNode, pos: number): boolean => {
     const name = node.type.name;
     if (SKIP_SUBTREE.has(name)) return false;
 
@@ -209,8 +234,43 @@ function buildDecorations(doc: PMNode, folded: Set<number>): DecorationSet {
       }
     }
     return true;
-  });
-  return DecorationSet.create(doc, decorations);
+  };
+
+  if (range) {
+    doc.nodesBetween(range.from, range.to, visit);
+    // `nodesBetween` 会把**祖先项**也访问进来（窗口起点在项内部时）；
+    // 只保留装饰范围完整落在窗口内的，避免把窗口外的旧箭头又加一遍（重复箭头）。
+    return decorations.filter((d) => d.from >= range.from && d.to <= range.to);
+  }
+  doc.descendants(visit);
+  return decorations;
+}
+
+/** 全量构建折叠装饰（init / 整文档替换 / 折叠态变化 / 窗口无法界定时的兜底） */
+function buildDecorations(doc: PMNode, folded: Set<number>): DecorationSet {
+  return DecorationSet.create(doc, collectDecorations(doc, folded));
+}
+
+/**
+ * 局部重建：只重算 `[from, to]` 窗口内的装饰，窗口外的装饰原样保留
+ * （保留 = 不重新创建，widget 的稳定 key 与 DOM 都不动）。
+ *
+ * 调用方必须保证窗口覆盖所有受影响项的**完整范围**（含直接父项与新兄弟项），
+ * 否则会漏箭头；窗口算不准时一律退回 `buildDecorations` 全量重建。
+ */
+export function rebuildDecorationsInRange(
+  doc: PMNode,
+  folded: Set<number>,
+  base: DecorationSet,
+  from: number,
+  to: number,
+): DecorationSet {
+  if (to <= from) return base;
+  const stale = base.find(from, to).filter((d) => d.from <= to && d.to >= from);
+  let next = stale.length > 0 ? base.remove(stale) : base;
+  const added = collectDecorations(doc, folded, { from, to });
+  if (added.length > 0) next = next.add(doc, added);
+  return next;
 }
 
 /** 折叠位置随事务平移；被删除的条目丢弃 */
@@ -284,6 +344,132 @@ function restoreFolded(path: string | null, doc: PMNode): Set<number> {
   return pruneFolded(remembered, doc);
 }
 
+/** Fragment 是否只含行内节点（文字 / 行内图片 / 硬换行等）。出现块节点即视为结构变化 */
+function isInlineOnly(fragment: Fragment): boolean {
+  let inline = true;
+  fragment.forEach((node) => {
+    if (!node.isInline) inline = false;
+  });
+  return inline;
+}
+
+/**
+ * 单个 step 是否「确认安全」（不会改变块结构）：
+ * - `ReplaceStep` 且插入内容全是 inline、被删内容也全是 inline（打字 / 删字）；
+ * - `AddMarkStep` / `RemoveMarkStep`（加粗、链接等）；
+ * - `AttrStep`（节点属性，如任务勾选）。
+ *
+ * 其余（`ReplaceAroundStep` 切项 / 缩进 / 包裹、含块节点的替换、未知 step）一律不安全。
+ * `docBefore` 是该 step **之前**的文档（`tr.docs[i]`），用来检查被删区间的内容。
+ */
+function stepIsSafe(step: Step, docBefore: PMNode): boolean {
+  if (step instanceof AddMarkStep || step instanceof RemoveMarkStep || step instanceof AttrStep) {
+    return true;
+  }
+  if (!(step instanceof ReplaceStep)) return false;
+  if (!isInlineOnly(step.slice.content)) return false;
+  return !(step.from < step.to && !isInlineOnly(docBefore.slice(step.from, step.to).content));
+}
+
+/**
+ * 这次事务有没有动「块结构」——**保守判定，只放行确认安全的 step**。
+ *
+ * 折叠箭头只依赖一个结构事实：某个列表项有没有子列表。纯文字编辑（打字 / 删字 /
+ * 行内粘贴）不会改变它，只需要 `decorations.map` 平移；切项、缩进、包裹、粘贴块、
+ * 删除块则会。
+ *
+ * 为什么不反过来「找插入内容里的列表节点」：漏掉任何一种形态（或上游将来新增
+ * step 类型）都会留下**坏箭头**——静默、难测。反过来只放行确认安全的，未知情况
+ * 一律重扫：最坏是多扫一次（有界），不会漏判。
+ */
+function touchesBlockStructure(tr: Transaction): boolean {
+  for (let i = 0; i < tr.steps.length; i++) {
+    if (!stepIsSafe(tr.steps[i], tr.docs[i])) return true;
+  }
+  return false;
+}
+
+/**
+ * 位置 `pos` 处的「项覆盖范围」。
+ *
+ * - 落在某个项内部：取**最内层**那个项（改动动的是它）；
+ * - 落在项与项之间（split 会把新项插在边界旁 / 整项被删后落在邻项旁）：取前后相邻项；
+ * - 列表嵌在项里时，再把**父项**一并纳入 —— 缩进 / 反缩进 / 删除子项都会让父项的
+ *   「有没有子列表」变化，箭头要跟着增删。父项只在**边界态**扩展：改动落在子项内部时
+ *   父项的子列表必然还在，不需要它（2026-10-19 用 11 个定点形状 + 211 步种子化随机按键
+ *   验证过：去掉内部态的父项扩展不影响任何一条；留着只会白白把窗口放大到父项整棵子树）。
+ *
+ * 返回 null = 位置落在顶层块之间（如整段列表被替换），调用方退回全量重建。
+ */
+function itemCoverRange(doc: PMNode, pos: number): { from: number; to: number } | null {
+  const $pos = doc.resolve(Math.max(0, Math.min(pos, doc.content.size)));
+
+  // ① 在某个项内：最内层的那个项
+  for (let d = $pos.depth; d > 0; d--) {
+    if (!ITEM_NODE_TYPES.has($pos.node(d).type.name)) continue;
+    const from = $pos.before(d);
+    return { from, to: from + $pos.node(d).nodeSize };
+  }
+
+  // ② 边界态：前后相邻项都算
+  let out: { from: number; to: number } | null = null;
+  const prev = $pos.nodeBefore;
+  const next = $pos.nodeAfter;
+  if (prev && ITEM_NODE_TYPES.has(prev.type.name)) {
+    out = { from: $pos.pos - prev.nodeSize, to: $pos.pos };
+  }
+  if (next && ITEM_NODE_TYPES.has(next.type.name)) {
+    const to = $pos.pos + next.nodeSize;
+    out = out
+      ? { from: Math.min(out.from, $pos.pos), to: Math.max(out.to, to) }
+      : { from: $pos.pos, to };
+  }
+  if (!out) return null;
+
+  // 相邻项的父项（列表若嵌在某个项里）
+  const pd = $pos.depth - 1;
+  if (pd >= 1 && ITEM_NODE_TYPES.has($pos.node(pd).type.name)) {
+    const pFrom = $pos.before(pd);
+    out.from = Math.min(out.from, pFrom);
+    out.to = Math.max(out.to, pFrom + $pos.node(pd).nodeSize);
+  }
+  return out;
+}
+
+/**
+ * 结构变化的受影响窗口（**新文档坐标**）：扩到最近的外层项，
+ * 覆盖「被改到的项 + 直接父项（可能失去/获得子列表）+ 新建的兄弟项」。
+ *
+ * 任何一步算不出安全边界（例如变化落在顶层块之间、或整段列表被整体替换）→ 返回 null，
+ * 调用方退回全量重建。宁可多扫，不可漏箭头。
+ */
+function computeRebuildWindow(tr: Transaction): { from: number; to: number } | null {
+  let from = Number.POSITIVE_INFINITY;
+  let to = -1;
+  for (let i = 0; i < tr.steps.length; i++) {
+    const step = tr.steps[i];
+    if (stepIsSafe(step, tr.docs[i])) continue;
+    // 只有这两种 step 有 from/to；其它未知 step 无法算窗口 → 全量兜底
+    if (!(step instanceof ReplaceStep) && !(step instanceof ReplaceAroundStep)) return null;
+    // 用「从第 i 步到末尾」的映射把旧坐标换算到最终文档（多步事务也成立）
+    const slice = tr.mapping.slice(i);
+    const a = slice.mapResult(step.from, -1).pos;
+    const b = slice.mapResult(step.to, 1).pos;
+    if (a < from) from = a;
+    if (b > to) to = b;
+  }
+  if (!Number.isFinite(from) || to < 0) return null;
+  // 端点常落在「列表容器的开/闭 token」上（例：文档**以列表开头**时的缩进，step 的
+  // from 恰好是位置 0）——那里前后都是容器而不是项，`itemCoverRange` 只能返回 null。
+  // 向内挪一格即可落进相邻项的正文区，窗口照旧扩到整个项；挪了还不行才判「界定不了」。
+  const head = itemCoverRange(tr.doc, from) ?? itemCoverRange(tr.doc, from + 1);
+  const tail = itemCoverRange(tr.doc, to) ?? itemCoverRange(tr.doc, to - 1);
+  if (!head || !tail) return null;
+  const start = Math.min(head.from, tail.from);
+  const end = Math.max(head.to, tail.to);
+  return end > start ? { from: start, to: end } : null;
+}
+
 /** 插件工厂：测试可直接调用。`getPath` 返回当前文档路径（null = 无身份文档，不记忆） */
 export function createListFoldPlugin(getPath: () => string | null = () => null): Plugin<ListFoldState> {
   const tracker = createCompositionTracker();
@@ -293,34 +479,16 @@ export function createListFoldPlugin(getPath: () => string | null = () => null):
     folded: new Set<number>(),
     decorations: DecorationSet.empty,
     path,
+    pendingRebuild: false,
   });
 
   return new Plugin<ListFoldState>({
     key: listFoldKey,
     view(editorView) {
+      // 只做组字信号登记；重建由 apply 内的结构判定同步完成（不再走 rAF 事务）
       const untrack = tracker.track(editorView);
-      let rafId: number | null = null;
-      const scheduleRebuild = () => {
-        if (rafId != null) return;
-        rafId = requestAnimationFrame(() => {
-          rafId = null;
-          if (editorView.isDestroyed) return;
-          // 组字期不重建（会把正在组字的 DOM 换掉）——继续等，组字结束后重建
-          if (isFrozen(editorView)) {
-            scheduleRebuild();
-            return;
-          }
-          editorView.dispatch(editorView.state.tr.setMeta(listFoldKey, { rebuild: true }));
-        });
-      };
       return {
-        // 文档变化后合并到下一帧重建一次（期间装饰走 map 平移、不抖动）；
-        // 大文档不建装饰，也无需排重建任务
-        update(view, prevState) {
-          if (!isHeavyDocument() && view.state.doc !== prevState.doc) scheduleRebuild();
-        },
         destroy() {
-          if (rafId != null) cancelAnimationFrame(rafId);
           untrack();
         },
       };
@@ -331,29 +499,44 @@ export function createListFoldPlugin(getPath: () => string | null = () => null):
         if (isHeavyDocument()) return emptyState(path);
         // 首次载入：若路径已有记忆则恢复（编辑器实例可能晚于文档切换创建）
         const restored = restoreFolded(path, state.doc);
-        return { folded: restored, decorations: buildDecorations(state.doc, restored), path };
+        return {
+          folded: restored,
+          decorations: buildDecorations(state.doc, restored),
+          path,
+          pendingRebuild: false,
+        };
       },
       apply(tr, value) {
         // 大文档：不建装饰（与段落聚焦同款降级）
         if (isHeavyDocument()) {
-          return value.decorations === DecorationSet.empty && value.folded.size === 0
+          return value.decorations === DecorationSet.empty &&
+            value.folded.size === 0 &&
+            !value.pendingRebuild
             ? value
             : emptyState(value.path);
         }
 
         const meta = tr.getMeta(listFoldKey) as ListFoldMeta | undefined;
 
-        // 组字期：只平移，不重建（rebuild 也一并推迟到组字结束）
+        // 组字期：只平移、不重建（重建会换掉正在组字的 DOM → 候选窗失锚）。
+        // 结构变化先记账，解冻后的第一个事务补建（见下方 pendingRebuild）。
         if (tracker.isFrozen() && !meta?.toggle) {
           return {
             folded: value.folded,
             decorations: mapFrozenDecorations(value.decorations, tr),
             path: value.path,
+            pendingRebuild:
+              value.pendingRebuild ||
+              meta?.rebuild === true ||
+              (tr.docChanged && touchesBlockStructure(tr)),
           };
         }
 
         let folded = value.folded;
         let decorations = value.decorations;
+        let pendingRebuild = value.pendingRebuild;
+        /** 本次结构变化的局部重建窗口；null = 全量重建（兜底） */
+        let rebuildWindow: { from: number; to: number } | null = null;
 
         if (tr.docChanged) {
           // 整体替换（切文件 / 载入）：旧折叠态位置对新文档无意义。
@@ -368,6 +551,7 @@ export function createListFoldPlugin(getPath: () => string | null = () => null):
                 folded: restored,
                 decorations: buildDecorations(tr.doc, restored),
                 path: nextPath,
+                pendingRebuild: false,
               };
             }
             // 同路径整体替换（外部修改重载 / 另存为落盘）：位置大概率已漂移，
@@ -376,15 +560,24 @@ export function createListFoldPlugin(getPath: () => string | null = () => null):
               folded: new Set<number>(),
               decorations: buildDecorations(tr.doc, new Set()),
               path: value.path,
+              pendingRebuild: false,
             };
           }
           folded = mapFolded(folded, tr);
-          // 只平移装饰（复用 widget DOM，避免每次按键重建箭头）
+          // 纯文字编辑只平移装饰（widget 复用 DOM，不重建）；块结构变了才记账重扫。
+          // 判据是**保守黑名单**：只有确认安全的 step 才跳过，未知一律重扫（见函数注释）。
           decorations = decorations.map(tr.mapping, tr.doc);
+          if (touchesBlockStructure(tr)) {
+            pendingRebuild = true;
+            // 只有「本次事务独立产生的结构变化」才能算窗口；若之前组字期还欠着一次
+            // 重建（value.pendingRebuild），旧坐标已不可信 ⇒ 退回全量。
+            if (!value.pendingRebuild) rebuildWindow = computeRebuildWindow(tr);
+          }
         }
 
-        // 需要按最新结构重扫的情形：点击折叠、rAF 合并重建、光标落进隐藏子树
-        let rebuild = false;
+        // 需要按最新结构重扫的情形：点击折叠、显式 rebuild、块结构变化、
+        // 解冻后补建、光标落进隐藏子树
+        let rebuild = pendingRebuild;
 
         if (meta?.toggle != null) {
           const next = new Set(folded);
@@ -392,27 +585,45 @@ export function createListFoldPlugin(getPath: () => string | null = () => null):
           else next.add(meta.toggle);
           folded = next;
           rebuild = true;
+          rebuildWindow = null;
         } else if (meta?.rebuild) {
-          folded = pruneFolded(folded, tr.doc);
           rebuild = true;
+          rebuildWindow = null;
         }
 
         const revealed = revealFoldedAtCursor(folded, tr.doc, tr.selection.from);
         if (revealed !== folded) {
           folded = revealed;
           rebuild = true;
+          rebuildWindow = null;
         }
 
         if (rebuild) {
+          // 结构变化可能让某个折叠项失去子列表 ⇒ 顺手剪掉失效的折叠位置
+          // （纯文字编辑进不到这里；剪枝只随结构变化发生）。
+          folded = pruneFolded(folded, tr.doc);
           // 折叠态即用户当下的「阅读姿势」——每次变更顺手同步进记忆，
           // 保证切文件那一刻取到的是最新的一份（无需在切换时另存）。
           saveFolded(value.path, folded);
-          return { folded, decorations: buildDecorations(tr.doc, folded), path: value.path };
+          return {
+            folded,
+            decorations: rebuildWindow
+              ? rebuildDecorationsInRange(
+                  tr.doc,
+                  folded,
+                  decorations,
+                  rebuildWindow.from,
+                  rebuildWindow.to,
+                )
+              : buildDecorations(tr.doc, folded),
+            path: value.path,
+            pendingRebuild: false,
+          };
         }
-        // 无事发生（绝大多数纯光标移动走这条）→ 原样返回，保持 state 引用不变
+        // 无事发生（绝大多数纯光标移动 / 纯打字走这条）→ 原样返回，保持 state 引用不变
         return folded === value.folded && decorations === value.decorations
           ? value
-          : { folded, decorations, path: value.path };
+          : { folded, decorations, path: value.path, pendingRebuild: false };
       },
     },
     props: {
