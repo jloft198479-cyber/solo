@@ -78,6 +78,15 @@ async function handleOpenFile(path: string, silent = false) {
   await documentSession.openDocumentWithPrompt(path, silent);
 }
 
+/**
+ * 互链跳转：另开一窗打开目标文档，当前文档留在原窗口（产品语义「一窗一文档」）。
+ * 与 handleOpenFile 刻意分开——菜单「打开」/最近文件/拖入/启动走的是「我主动换文件」，
+ * 仍在当前窗口内替换；点互链是「顺着链接跳过去」，不该顶掉当前这篇。
+ */
+async function handleWikilinkNavigate(path: string) {
+  await newEditorWindow(path);
+}
+
 /** 命令面板「最近文件」入口：含脏态确认，取消时返回 false 让面板保持打开 */
 async function handleOpenRecentFile(path: string) {
   return documentSession.openDocumentWithPrompt(path);
@@ -373,7 +382,7 @@ onUnmounted(() => {
             :outline-open="outlineOpen"
             @update="handleEditorUpdate"
             @image-dblclick="openFullscreenPreview"
-            @navigate-wikilink="handleOpenFile"
+            @navigate-wikilink="handleWikilinkNavigate"
           />
 
           <ImagePreviewView
