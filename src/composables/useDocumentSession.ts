@@ -9,6 +9,12 @@ import {
 } from '../services/tauri/document';
 import { normalizeTauriError } from '../services/tauri/client';
 import { recordDocumentSession } from '../services/tauri/session';
+import {
+  emitWikilinksSynced,
+  listenWikilinksSynced,
+  type UnlistenFn,
+  type WikilinksSyncedPayload,
+} from '../services/tauri/events';
 import { confirm, message, open, save } from '../services/tauri/dialog';
 import { useFileStore } from '../stores/file';
 import { DEFAULT_DISPLAY_NAME } from '../stores/file';
@@ -17,6 +23,7 @@ import {
   countVisibleChars,
   resolveDocumentTier,
   setDocumentTier,
+  isHeavyDocument,
   HEAVY_DOC_CHARS,
 } from '../components/Editor/document-scale';
 
@@ -58,6 +65,20 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   const AUTOSAVE_STATUS_DISPLAY_MS = 2000;
   /** 自动保存间隔下限（秒），与 settings store 保持一致 */
   const MIN_AUTOSAVE_INTERVAL_SECONDS = 5;
+
+  /**
+   * 跨窗口比对文件路径：Windows 大小写不敏感，Rust 侧与前端拿到的路径
+   * 可能一个用 `\`、一个用 `/`，直接全等比会漏判。
+   */
+  function isSamePath(a: string, b: string): boolean {
+    return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase();
+  }
+
+  /** 把同目录文件名拼到某文档路径的目录下（保留原分隔符，不猜平台） */
+  function joinSibling(docPath: string, fileName: string): string {
+    const cut = Math.max(docPath.lastIndexOf('/'), docPath.lastIndexOf('\\'));
+    return cut < 0 ? fileName : `${docPath.slice(0, cut + 1)}${fileName}`;
+  }
 
   /**
    * 为另存为对话框生成预填的文件名。
@@ -381,8 +402,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   /**
    * 改名成功后同步「指向本文档」的互链：先只读预览哪些同目录文档链到旧名，
    * 有则列清单让用户确认，确认后才真正改写。任何失败只留痕、绝不影响改名主流程。
-   * 跨窗口若另有窗口正开着被改的文件，靠既有的「外部修改」提示（checkExternalModification）
-   * 与保存冲突检测（mtime 乐观锁）兜底，此处不新增机制。
+   *
+   * 改写落盘后必须**广播**出去：被改的那几篇此刻可能正开在**别的窗口**里，
+   * 那个窗口的内存态还留着旧链接名，只有收到广播才会重载（见 handleWikilinksSynced）。
+   * 不广播的话，用户会一直看到旧名字，直到手动点一下「重新加载」。
    */
   async function syncInboundWikilinks(oldPath: string, newPath: string, oldStem: string) {
     try {
@@ -398,9 +421,49 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       const changed = await syncWikilinksOnRename(oldPath, newPath, false);
       if (changed.length > 0) {
         updateAutoSaveStatus(`已更新 ${changed.length} 篇文档里的链接`);
+        await emitWikilinksSynced({ paths: changed.map((name) => joinSibling(newPath, name)) });
       }
     } catch (error) {
       console.warn('[wikilink-sync] failed:', normalizeTauriError(error).message);
+    }
+  }
+
+  /** 外部修改后的统一提示（30s 自动消失，避免常驻挡视野）。脏态与无脏态共用同一出口。 */
+  function promptExternalModified() {
+    externalFileWarning.value = '文件已被外部修改，点击重新加载';
+    if (externalWarningTimer) clearTimeout(externalWarningTimer);
+    externalWarningTimer = setTimeout(() => {
+      externalFileWarning.value = null;
+    }, 30_000);
+  }
+
+  /**
+   * 收到「改名同步改写了某文档」广播时的自处理。
+   * - 改的不是我正开着的这篇 → 与我无关，直接返回（多窗口场景下必然如此）
+   * - 是这篇、内容干净且**非大文档** → 静默重载，让被改写的链接名**当场**变新
+   * - 是这篇、有未保存编辑 / 已属 heavy 档 → 不动内容，改走既有「外部修改」提示由用户裁决
+   *
+   * 大文档挡在门外是为性能：重载 = 全量重新解析 + NodeView 重渲（50 万字档上是可见的一次顿挫），
+   * 不值当为「链接名刷新」这一个收益自动付；heavy 档本就靠用户挑时机（同 `file.ts` 的档位取舍）。
+   */
+  async function handleWikilinksSynced(payload: WikilinksSyncedPayload) {
+    const path = fileStore.currentFile.path;
+    if (!path || isSaving || isOpeningFile) return;
+    if (!Array.isArray(payload?.paths) || !payload.paths.some((p) => isSamePath(p, path))) return;
+
+    if (evaluateDirtyFromEditor() || isHeavyDocument()) {
+      promptExternalModified();
+      return;
+    }
+
+    try {
+      const document = await openDocument(path);
+      // 重载期间用户换了文档 / 撞上保存：放弃刷新，避免把另一篇的内容写进当前这篇
+      if (!isSamePath(fileStore.currentFile.path ?? '', path) || isSaving) return;
+      fileStore.setFile(document.content, document.path, document.lastModifiedMs);
+      clearExternalWarning();
+    } catch (error) {
+      console.warn('[wikilink-sync] 刷新被改写文档失败:', normalizeTauriError(error).message);
     }
   }
 
@@ -415,8 +478,8 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   /**
    * 检查当前文件是否被外部修改。
    * 在窗口获得焦点时调用，对比磁盘 mtime 与上次保存/加载时记录的 mtime。
-   * - 有未保存编辑（脏态）：提示用户存在外部修改，让用户决定保留自己的还是丢弃重加载。
-   * - 无未保存编辑：静默重新加载（避免用户看到陈旧内容）。
+   * 不一致就统一提示（**无脏态也提示**——静默重载会丢失光标/滚动位置，打断阅读），
+   * 由用户决定是否重新加载。
    */
   async function checkExternalModification(): Promise<void> {
     const path = fileStore.currentFile.path;
@@ -429,13 +492,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       const baseline = fileStore.currentFile.lastModifiedTime;
       if (baseline !== null && diskMtime === baseline) return;
 
-      // mtime 不同 → 外部修改了文件，统一提示用户决定是否重新加载
-      // （无脏态也提示——静默重载会丢失光标/滚动位置，打断阅读）
-      externalFileWarning.value = '文件已被外部修改，点击重新加载';
-      if (externalWarningTimer) clearTimeout(externalWarningTimer);
-      externalWarningTimer = setTimeout(() => {
-        externalFileWarning.value = null;
-      }, 30_000);
+      promptExternalModified();
     } catch (error) {
       // 获取 mtime 失败（文件可能被删除/移动）：跳过本次检查，但留痕便于排查
       console.warn('[external-check] getFileMtime failed:', error);
@@ -501,7 +558,23 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     { immediate: true },
   );
 
+  // 跨窗口广播监听：别的窗口改名同步改写了我正开着的这篇 → 立刻刷新（见 handleWikilinksSynced）
+  let unlistenWikilinksSynced: UnlistenFn | null = null;
+  let disposed = false;
+  void listenWikilinksSynced(handleWikilinksSynced)
+    .then((fn) => {
+      // 注册是异步的，onUnmounted 可能先跑完：此时直接注销，别把监听器漏在外面
+      if (disposed) fn();
+      else unlistenWikilinksSynced = fn;
+    })
+    .catch((error: unknown) => {
+      // 事件系统不可用时跳过本次订阅（与 App.vue 对 listenEditorFocus 的兜法一致）
+      console.warn('[wikilink-sync] 监听广播失败:', normalizeTauriError(error).message);
+    });
+
   onUnmounted(() => {
+    disposed = true;
+    unlistenWikilinksSynced?.();
     stopAutoSave();
     if (autoSaveStatusTimer) {
       clearTimeout(autoSaveStatusTimer);

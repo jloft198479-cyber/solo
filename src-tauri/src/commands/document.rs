@@ -334,8 +334,9 @@ fn replace_targets_in_line(line: &str, old_stem: &str, new_stem: &str) -> String
 /// 只处理同目录、扩展名白名单（`OPEN_EXTENSIONS`）内的文档，按**已扫描文档数**限流
 /// （`SAME_DIR_DOC_LIMIT`，防 node_modules 病态目录）；改写保护围栏代码块（见
 /// `rewrite_wikilink_targets`）。单个文件读/写失败一律静默跳过，**任何情况都不阻断改名主流程**。
-/// 跨窗口若另有窗口正开着被改的文件，靠既有的「外部修改」提示（`checkExternalModification`）
-/// 与保存冲突检测（mtime 乐观锁）兜底，不在此新增机制。
+/// 跨窗口若另有窗口正开着被改的文件：前端在做完 `dry_run=false` 的改写后会广播
+/// `solo:wikilinks-synced`（携带被改路径），那个窗口收到后自行重载（脏态则改提示），
+/// 本命令不感知窗口；保存侧另有 mtime 乐观锁兜底。
 #[tauri::command]
 pub async fn sync_wikilinks_on_rename(
     old_path: String,

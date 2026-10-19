@@ -1,7 +1,14 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { emit, listen } from '@tauri-apps/api/event';
 
 const MENU_EVENT = 'menu-event';
 const WINDOW_CLOSE_REQUESTED = 'window-close-requested';
+/**
+ * 改名同步改写了别的文档。跨窗口广播（**全局目标**，非定向）：
+ * 改写发生在「改名那篇」所在的窗口，被改的却是**另一个窗口正开着的文档**，
+ * 定向事件到不了它，必须让所有窗口都收到再各自按路径过滤。
+ */
+const WIKILINKS_SYNCED = 'solo:wikilinks-synced';
 
 export type UnlistenFn = () => void;
 export type AppEventHandler<T> = (payload: T) => void | Promise<void>;
@@ -81,4 +88,26 @@ export async function listenWindowCloseRequested(handler: AppEventHandler<null>)
 /** 编辑器焦点事件：窗口获得焦点 / 需要初始化编辑器时由 Rust 定向发出 */
 export async function listenEditorFocus(handler: () => void): Promise<UnlistenFn> {
   return listenWindowEvent<null>('solo:editor-focus', handler);
+}
+
+export interface WikilinksSyncedPayload {
+  /** 已被改写的文档绝对路径（改名那篇的**同目录**兄弟，由前端按旧/新路径拼好） */
+  paths: string[];
+}
+
+/**
+ * 广播「这些文档的盘上内容刚被改名同步改写」。
+ *
+ * 走全局 emit（JS 侧 `emit` 的目标是 `Any`，不过滤监听方 target），
+ * 因此每个窗口都能收到——这正是需要的：改写方与受影响方**不是同一个窗口**。
+ */
+export async function emitWikilinksSynced(payload: WikilinksSyncedPayload): Promise<void> {
+  await emit(WIKILINKS_SYNCED, payload);
+}
+
+/** 监听改名同步广播（全局口径，配合上面的 emitWikilinksSynced） */
+export async function listenWikilinksSynced(
+  handler: AppEventHandler<WikilinksSyncedPayload>,
+): Promise<UnlistenFn> {
+  return listen<WikilinksSyncedPayload>(WIKILINKS_SYNCED, (event) => handler(event.payload));
 }
