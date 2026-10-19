@@ -449,7 +449,11 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   async function handleWikilinksSynced(payload: WikilinksSyncedPayload) {
     const path = fileStore.currentFile.path;
     if (!path || isSaving || isOpeningFile) return;
-    if (!Array.isArray(payload?.paths) || !payload.paths.some((p) => isSamePath(p, path))) return;
+    // 事件可能来自任何窗口，载荷按「这是不是我开着的这篇」自过滤
+    const claimed =
+      Array.isArray(payload?.paths) &&
+      payload.paths.some((p) => typeof p === 'string' && isSamePath(p, path));
+    if (!claimed) return;
 
     if (evaluateDirtyFromEditor() || isHeavyDocument()) {
       promptExternalModified();
@@ -460,6 +464,12 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       const document = await openDocument(path);
       // 重载期间用户换了文档 / 撞上保存：放弃刷新，避免把另一篇的内容写进当前这篇
       if (!isSamePath(fileStore.currentFile.path ?? '', path) || isSaving) return;
+      // 读盘这几百毫秒里用户可能已经开始输入：await 之前那次脏态判断已经过时，
+      // 脏了就不能 setFile（会把刚打的字静默抹掉），改走既有提示让用户裁决。
+      if (evaluateDirtyFromEditor()) {
+        promptExternalModified();
+        return;
+      }
       fileStore.setFile(document.content, document.path, document.lastModifiedMs);
       clearExternalWarning();
     } catch (error) {

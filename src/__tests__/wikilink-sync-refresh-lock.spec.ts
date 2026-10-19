@@ -105,5 +105,11 @@ describe('改名同步互链 ⇄ 受影响窗口刷新 接线锁', () => {
     // 大文档自动重载 = 一次全量重解析的顿挫（≥50 万字档），必须挡在自动路径之外改走提示
     expect(body, '大文档性能闸被拆了 —— 会自动重载大文档').toContain('isHeavyDocument()');
     expect(body.indexOf('isHeavyDocument()')).toBeLessThan(body.indexOf('fileStore.setFile('));
+    // 读盘期间用户可能已经开始输入：await 之后必须再查一次脏态，
+    // 只查 await 之前那次会把刚打的字静默抹掉（2026-10-20 复审）
+    expect(
+      body.lastIndexOf('evaluateDirtyFromEditor()'),
+      '重载前缺少第二次脏态检查（await 之后）',
+    ).toBeGreaterThan(body.indexOf('await openDocument('));
   });
 });
