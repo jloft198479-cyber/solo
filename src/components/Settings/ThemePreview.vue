@@ -23,71 +23,54 @@ defineProps<{
       <div class="theme-preview-dot" :style="{ backgroundColor: theme.colors.primaryColor }" />
       <div class="theme-preview-dot" :style="{ backgroundColor: theme.colors.tagColor }" />
     </div>
-    <div class="theme-preview-shell">
-      <div
-        class="theme-preview-sidebar"
-        :style="{ backgroundColor: theme.colors.sidebarBg, borderColor: theme.colors.borderLight }"
-      >
+    <!-- 缩略图只画真实存在的结构：标题栏 + 文档正文。
+         solo 没有左侧导航栏（一窗一文档，唯一可选面板是右侧大纲），
+         曾画过的「左侧导航列」会让人误以为有侧边栏 —— 别再加回来。 -->
+    <div class="theme-preview-editor">
+      <div class="theme-preview-toolbar" :style="{ borderColor: theme.colors.borderLight }">
+        <div class="theme-preview-chip" :style="{ backgroundColor: theme.colors.primaryColor }" />
+        <div class="theme-preview-tool" :style="{ backgroundColor: theme.colors.tagBg }" />
         <div
-          class="theme-preview-nav theme-preview-nav--active"
-          :style="{ backgroundColor: theme.colors.selectedBg }"
-        />
-        <div class="theme-preview-nav" :style="{ backgroundColor: theme.colors.hoverBg }" />
-        <div
-          class="theme-preview-nav theme-preview-nav--short"
-          :style="{ backgroundColor: theme.colors.hoverBg }"
+          class="theme-preview-tool theme-preview-tool--small"
+          :style="{ backgroundColor: theme.colors.tagBg }"
         />
       </div>
 
-      <div class="theme-preview-editor">
-        <div class="theme-preview-toolbar" :style="{ borderColor: theme.colors.borderLight }">
-          <div class="theme-preview-chip" :style="{ backgroundColor: theme.colors.primaryColor }" />
-          <div class="theme-preview-tool" :style="{ backgroundColor: theme.colors.tagBg }" />
+      <div class="theme-preview-body">
+        <div class="theme-preview-heading" :style="{ backgroundColor: theme.colors.textColor }" />
+        <div class="theme-preview-line" :style="{ backgroundColor: theme.colors.textColor }" />
+        <div
+          class="theme-preview-line theme-preview-line--muted"
+          :style="{ backgroundColor: theme.colors.textSecondary }"
+        />
+        <div class="theme-preview-callout" :style="{ backgroundColor: theme.colors.calloutTipBg }">
           <div
-            class="theme-preview-tool theme-preview-tool--small"
-            :style="{ backgroundColor: theme.colors.tagBg }"
+            class="theme-preview-callout-bar"
+            :style="{ backgroundColor: theme.colors.calloutTip }"
           />
-        </div>
-
-        <div class="theme-preview-body">
-          <div class="theme-preview-heading" :style="{ backgroundColor: theme.colors.textColor }" />
-          <div class="theme-preview-line" :style="{ backgroundColor: theme.colors.textColor }" />
-          <div
-            class="theme-preview-line theme-preview-line--muted"
-            :style="{ backgroundColor: theme.colors.textSecondary }"
-          />
-          <div
-            class="theme-preview-callout"
-            :style="{ backgroundColor: theme.colors.calloutTipBg }"
-          >
+          <div class="theme-preview-callout-content">
             <div
-              class="theme-preview-callout-bar"
-              :style="{ backgroundColor: theme.colors.calloutTip }"
-            />
-            <div class="theme-preview-callout-content">
-              <div
-                class="theme-preview-callout-line"
-                :style="{ backgroundColor: theme.colors.textColor }"
-              />
-              <div
-                class="theme-preview-callout-line theme-preview-callout-line--short"
-                :style="{ backgroundColor: theme.colors.textSecondary }"
-              />
-            </div>
-          </div>
-          <div
-            class="theme-preview-code"
-            :style="{ backgroundColor: theme.colors.codeBg, borderColor: theme.colors.codeBorder }"
-          >
-            <div
-              class="theme-preview-code-line"
-              :style="{ backgroundColor: theme.colors.primaryColor }"
+              class="theme-preview-callout-line"
+              :style="{ backgroundColor: theme.colors.textColor }"
             />
             <div
-              class="theme-preview-code-line theme-preview-code-line--muted"
+              class="theme-preview-callout-line theme-preview-callout-line--short"
               :style="{ backgroundColor: theme.colors.textSecondary }"
             />
           </div>
+        </div>
+        <div
+          class="theme-preview-code"
+          :style="{ backgroundColor: theme.colors.codeBg, borderColor: theme.colors.codeBorder }"
+        >
+          <div
+            class="theme-preview-code-line"
+            :style="{ backgroundColor: theme.colors.primaryColor }"
+          />
+          <div
+            class="theme-preview-code-line theme-preview-code-line--muted"
+            :style="{ backgroundColor: theme.colors.textSecondary }"
+          />
         </div>
       </div>
     </div>
@@ -121,36 +104,12 @@ defineProps<{
   opacity: 0.9;
 }
 
-.theme-preview-shell {
-  display: flex;
-  min-height: 103px;
-}
-
-.theme-preview-sidebar {
-  width: 24%;
-  padding: 9px 7px;
-  border-right: 1px solid;
-}
-
-.theme-preview-nav {
-  height: 7px;
-  margin-bottom: 7px;
-  border-radius: var(--radius-pill);
-  opacity: 0.8;
-}
-
-.theme-preview-nav--active {
-  width: 92%;
-}
-
-.theme-preview-nav--short {
-  width: 62%;
-}
-
 .theme-preview-editor {
   flex: 1;
   display: flex;
   flex-direction: column;
+  /* 缩略图正文区的最小高度（与 .theme-preview 的 122px 对齐：18 顶栏 + 103 正文 + 边框） */
+  min-height: 103px;
 }
 
 .theme-preview-toolbar {
