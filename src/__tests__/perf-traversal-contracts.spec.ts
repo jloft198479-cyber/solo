@@ -51,7 +51,11 @@ describe('整篇遍历静态锁：全文扫描必须 perf-allow 标注', () => {
       const lines = readFileSync(file, 'utf8').split('\n');
       lines.forEach((line, i) => {
         if (!WHOLE_DOC_READ.test(line)) return;
-        if (line.includes('perf-allow')) return;
+        // 认「本行或紧邻下一行」：prettier 会把跟在 `{` 后面的行尾注释挪到下一行（实测），
+        // 只认本行的话，谁跑一次 `bun run format`，已标注的合法调用点会集体转红。
+        // 换来的代价是「整篇读取紧挨着一句无关 perf-allow 注释」能蒙过去——本锁只拦
+        // 无意识引入，蒙混属主动作弊，与「拆了标注」同级，不在这里防。
+        if (line.includes('perf-allow') || (lines[i + 1] ?? '').includes('perf-allow')) return;
         offenders.push(`${file.replace(/\\/g, '/')}:${i + 1}: ${line.trim()}`);
       });
     }

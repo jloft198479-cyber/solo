@@ -98,7 +98,8 @@ interface ListFoldState {
 interface ListFoldMeta {
   /** 切换某项的折叠态（箭头点击） */
   toggle?: number;
-  /** 强制重扫重建（结构变化 / 测试显式触发） */
+  /** 强制重扫重建。2026-10-19 起生产路径不再派发它（结构变化由 `touchesBlockStructure`
+   *  在事务内直接判定），现存调用方只有 list-fold.spec.ts —— 保留作测试显式重建入口 */
   rebuild?: boolean;
 }
 
