@@ -83,7 +83,8 @@ function clearStoragePath() {
         <div>
           <label class="settings-row-title">Windows 文件关联</label>
           <p class="settings-row-desc">
-            将 solo 设为 .md 文件的默认打开程序，并在右键"新建"菜单中添加 Markdown 文档入口。
+            注册 .md 文件关联，并在右键"新建"菜单中添加 Markdown 文档入口。系统已为 .md
+            指定其他默认程序时，请到系统「默认应用」里切换。
           </p>
         </div>
         <SettingsSwitch v-model="shellIntegration" label="切换文件关联" />
