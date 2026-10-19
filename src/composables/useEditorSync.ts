@@ -3,7 +3,7 @@ import { debounce } from 'lodash-es';
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
 import {
   extractEditorOutline,
-  getEditorCursorInfo,
+  getEditorSelectionLength,
   getEditorWordCount,
   type EditorOutlineItem,
 } from '../components/Editor/tiptap/editor-metadata';
@@ -14,7 +14,6 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 
 export interface EditorSyncPayload {
   wordCount?: number;
-  cursor?: { line: number; col: number };
   selectionLen?: number;
   outline?: EditorOutlineItem[];
 }
@@ -41,7 +40,8 @@ const SERIALIZE_DEBOUNCE_MS = 500;
 // 该时长内执行，保证 store 数据不滞后（P4-05）
 const SERIALIZE_IDLE_TIMEOUT_MS = 2000;
 // 光标信息防抖：拖选时频繁触发 selection 更新，100ms 节流避免全量遍历 doc 计算行号
-const CURSOR_INFO_DEBOUNCE_MS = 100;
+// 选区字数防抖：拖选时 selection 高频变化，100ms 节流只算最后一次（O(选区)，非全文）
+const SELECTION_LEN_DEBOUNCE_MS = 100;
 
 // P4-05：requestIdleCallback 让「停顿后」的序列化落到浏览器空闲时段，不阻塞
 // 下一次按键的主线程；非支持环境（测试 / 老 WebView）退化 setTimeout(0)，
@@ -131,10 +131,10 @@ export function useEditorSync(options: EditorSyncOptions) {
     scheduleSerialize(ed);
   }, SERIALIZE_DEBOUNCE_MS);
 
-  const debouncedEmitCursorInfo = debounce((ed: TiptapEditor) => {
+  const debouncedEmitSelectionLen = debounce((ed: TiptapEditor) => {
     if (ed.isDestroyed) return;
-    options.onUpdate(getEditorCursorInfo(ed));
-  }, CURSOR_INFO_DEBOUNCE_MS);
+    options.onUpdate({ selectionLen: getEditorSelectionLength(ed) });
+  }, SELECTION_LEN_DEBOUNCE_MS);
 
   /** 编辑器 doc 变化（onUpdate 回调）入口 */
   function handleDocChange(ed: TiptapEditor) {
@@ -149,7 +149,7 @@ export function useEditorSync(options: EditorSyncOptions) {
 
   /** 编辑器选区变化（onSelectionUpdate 回调）入口 */
   function handleSelectionChange(ed: TiptapEditor) {
-    debouncedEmitCursorInfo(ed);
+    debouncedEmitSelectionLen(ed);
   }
 
   /** 立即补发全量统计（setContent 后手动调用，避免跳过防抖窗口） */
@@ -206,7 +206,7 @@ export function useEditorSync(options: EditorSyncOptions) {
     debouncedWordCount.cancel();
     debouncedOutline.cancel();
     debouncedSerialize.cancel();
-    debouncedEmitCursorInfo.cancel();
+    debouncedEmitSelectionLen.cancel();
     if (serializeIdleId !== null) {
       cancelIdle(serializeIdleId);
       serializeIdleId = null;

@@ -192,7 +192,7 @@ export function parseMarkdownTablePaste(schema: Schema, text: string): Slice | n
   if (!doc || doc.childCount === 0) return null;
 
   let hasTable = false;
-  doc.descendants((node) => {
+  doc.descendants((node) => { // perf-allow: doc 是「粘贴解析产物」而非编辑器 state.doc，有界于粘贴内容
     if (node.type.name === 'table') hasTable = true;
     return !hasTable;
   });

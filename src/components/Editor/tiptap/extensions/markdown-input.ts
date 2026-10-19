@@ -519,7 +519,7 @@ function scanHeadings(doc: PMNode): {
   let emptyHeading: { pos: number; level: number } | null = null;
   let pendingHeading: PendingHeading | null = null;
 
-  doc.descendants((node, pos) => {
+  doc.descendants((node, pos) => { // perf-allow: scanHeadings 有 WeakMap 按 doc 缓存 + 命中即短路，每 state 至多一次
     // 找到其一即可停止深层遍历
     if (emptyHeading || pendingHeading) return false;
 
@@ -750,7 +750,7 @@ function buildPendingHeadingDecorations(doc: PMNode): DecorationSet {
   const decorations: Decoration[] = [];
   const headingType = doc.type.schema.nodes.heading;
 
-  doc.descendants((node, pos) => {
+  doc.descendants((node, pos) => { // perf-allow: 首次加载一次性全量构建，后续由 updatePendingDecorations 增量维护
     if (node.type.name !== 'paragraph') return true;
 
     const match = /^(#{1,6})\s/.exec(node.textContent);

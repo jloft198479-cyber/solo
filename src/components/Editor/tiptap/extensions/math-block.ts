@@ -156,6 +156,10 @@ export const MathBlock = Node.create({
         renderDiv.style.display = 'block';
         header.style.display = 'flex';
 
+        // 内容没变：不发事务（省一整条插件链路 + 脏态误标），也不重渲——
+        // enterEdit 只藏不清 renderDiv，旧渲染还原样摆着（台账 §一 #73，与 mermaid 同修）
+        if (newLatex === node.textContent) return;
+
         // 更新节点内容
         if (typeof getPos === 'function') {
           const pos = getPos();
@@ -170,10 +174,12 @@ export const MathBlock = Node.create({
             } else {
               tr.delete(from, to);
             }
+            // 只 dispatch，不手动渲：内容变了 ⇒ update() 回调会渲恰好一遍
             editor.view.dispatch(tr);
+            return;
           }
         }
-
+        // getPos 拿不到（理论不可达兜底）：手动渲一次
         renderKatex(newLatex);
       }
 

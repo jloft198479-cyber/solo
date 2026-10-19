@@ -422,6 +422,10 @@ export const MermaidBlock = Node.create({
         renderDiv.style.display = 'block';
         header.style.display = 'flex';
 
+        // 内容没变：不发事务（省一整条插件链路 + 脏态误标），也不重渲——
+        // enterEdit 只藏不清 renderDiv，进编辑前渲好的内容还原样摆着（台账 §一 #73）
+        if (newSource === node.textContent) return;
+
         if (typeof getPos === 'function') {
           const pos = getPos();
           if (pos != null) {
@@ -435,10 +439,13 @@ export const MermaidBlock = Node.create({
             } else {
               tr.delete(from, to);
             }
+            // 只 dispatch，不手动渲：内容变了 ⇒ update() 回调会用新内容渲
+            // 恰好一遍（原来这里再渲一次 = 同一张图渲两遍）
             editor.view.dispatch(tr);
+            return;
           }
         }
-
+        // getPos 拿不到（理论不可达兜底）：手动渲一次，保证退出编辑仍有显示
         renderMermaid(newSource);
       }
 

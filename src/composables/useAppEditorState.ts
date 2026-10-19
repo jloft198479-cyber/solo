@@ -21,7 +21,6 @@ export type AppEditorExpose = {
 
 export type AppEditorUpdatePayload = {
   wordCount?: number;
-  cursor?: { line: number; col: number };
   selectionLen?: number;
   outline?: EditorOutlineItem[];
 };
@@ -30,13 +29,11 @@ export function useAppEditorState() {
   const editorRef = ref<AppEditorExpose | null>(null);
   const stats = reactive({
     wordCount: 0,
-    cursor: { line: 1, col: 1 },
     selectionLen: 0,
     outline: [] as EditorOutlineItem[],
   });
   function handleEditorUpdate(data: AppEditorUpdatePayload) {
     if (data.wordCount !== undefined) stats.wordCount = data.wordCount;
-    if (data.cursor) stats.cursor = data.cursor;
     if (data.selectionLen !== undefined) stats.selectionLen = data.selectionLen;
     // 大纲数据：编辑器已算好并经 @update 抛出，这里落地供右侧 OutlinePanel 渲染
     if (data.outline !== undefined) stats.outline = data.outline;

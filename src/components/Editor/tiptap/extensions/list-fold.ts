@@ -242,12 +242,13 @@ function collectDecorations(
     // 只保留装饰范围完整落在窗口内的，避免把窗口外的旧箭头又加一遍（重复箭头）。
     return decorations.filter((d) => d.from >= range.from && d.to <= range.to);
   }
-  doc.descendants(visit);
+  doc.descendants(visit); // perf-allow: 全量分支——仅 init/整文档替换/窗口无法界定的兜底（打字/结构操作走上方 range 分支）
   return decorations;
 }
 
 /** 全量构建折叠装饰（init / 整文档替换 / 折叠态变化 / 窗口无法界定时的兜底） */
 function buildDecorations(doc: PMNode, folded: Set<number>): DecorationSet {
+
   return DecorationSet.create(doc, collectDecorations(doc, folded));
 }
 

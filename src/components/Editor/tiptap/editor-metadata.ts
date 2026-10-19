@@ -9,14 +9,9 @@ export interface EditorOutlineItem {
   pos: number;
 }
 
-export interface EditorCursorInfo {
-  cursor: { line: number; col: number };
-  selectionLen: number;
-}
-
 export function getEditorWordCount(editor: TiptapEditor): number {
   let count = 0;
-  editor.state.doc.descendants((node) => {
+  editor.state.doc.descendants((node) => { // perf-allow: 字数天然 O(N)，150ms 防抖 + idle 降级（useEditorSync）
     if (node.isText) {
       // stripZwnj：ZWNJ **不是空白**（`\s` 不匹配 U+200C）⇒ 不剥就每个计 1 字，
       // 「打开文档字数即虚高」（台账 §二 #32）。
@@ -38,7 +33,7 @@ export function extractEditorOutline(editor: TiptapEditor): EditorOutlineItem[] 
   if (cached) return cached;
 
   const outline: EditorOutlineItem[] = [];
-  state.doc.descendants((node, pos) => {
+  state.doc.descendants((node, pos) => { // perf-allow: 大纲天然 O(N)，500ms 防抖 + WeakMap 按 state 缓存（每 state 至多一次）
     if (node.type.name === 'heading') {
       outline.push({
         level: node.attrs.level,
@@ -55,53 +50,27 @@ export function extractEditorOutline(editor: TiptapEditor): EditorOutlineItem[] 
 }
 
 /**
- * 获取光标位置信息（行号 + 列号 + 选区文本）。
+ * 选区内的字数（状态栏「N 字选中」的唯一数据源）。空选区返回 0。
  *
- * 使用祖先路径遍历（ancestor walk）代替全量 doc.descendants：
- * 从光标位置沿文档树向上，仅计数每个层级中位于当前节点之前的兄弟块，
- * 而非遍历光标前的所有块节点。
- * 复杂度从 O(光标前所有节点数) 降为 O(树深度 × 平均兄弟数)，
- * 对大文档和深层嵌套结构（如长列表、多层引用）提速显著。
+ * **历史（2026-10-19 删除行号，台账 §一 #72）**：这里原本还返回光标行号/列号，
+ * 实现是「沿祖先路径数前序兄弟块、每块再 descendants 数其块级后代」——最外层就是
+ * 遍历光标前的**所有**顶层块，复杂度 O(光标前全部节点)，注释却写着「降为 O(深度×兄弟数)」。
+ * 实测 107KB 文档 1.42ms、282KB 5.03ms，而它挂在「选区变化 → 100ms 防抖」链路上，
+ * 停笔就来一次；更要命的是 `stats.cursor` 全仓没有任何读取方、行号也没有 UI 用途 ⇒ 纯白烧。
+ *
+ * 若将来真要做「跳转到行」，**按需算一次** O(N) 完全可接受，别再放回每键/每次选区链路。
  */
-export function getEditorCursorInfo(editor: TiptapEditor): EditorCursorInfo {
-  const { from } = editor.state.selection;
-  const $from = editor.state.doc.resolve(from);
-  let line = 1;
-
-  // 沿祖先路径向上：在每个层级中，计数同级且位于当前节点之前的块节点
-  for (let depth = $from.depth; depth > 0; depth--) {
-    const parent = $from.node(depth - 1);
-    const indexInParent = $from.index(depth - 1);
-    for (let i = 0; i < indexInParent; i++) {
-      const sibling = parent.child(i);
-      if (sibling.isBlock) {
-        line++;
-        // 嵌套块（如 blockquote 内的段落）：计数其内部所有块级后代
-        sibling.descendants((node) => {
-          if (node.isBlock) line++;
-        });
-      }
-    }
-  }
-
-  const col = from - $from.start($from.depth) + 1;
+export function getEditorSelectionLength(editor: TiptapEditor): number {
   const selection = editor.state.selection;
-  // 状态栏只需要字数，不拷全文：大文档全选时 textBetween 会拷贝整份内容
-  let selectionLen = 0;
-  if (!selection.empty) {
-    editor.state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
-      if (node.isText) {
-        // nodesBetween 会给出与选区部分重叠的文本节点，按交集裁剪才精确
-        const start = Math.max(selection.from, pos);
-        const end = Math.min(selection.to, pos + (node.text?.length ?? 0));
-        selectionLen += Math.max(0, end - start);
-      }
-      return true;
-    });
-  }
-
-  return {
-    cursor: { line, col },
-    selectionLen,
-  };
+  if (selection.empty) return 0;
+  let len = 0;
+  // 不拷文本（大文档全选时 textBetween 会拷贝整份内容），逐节点累加交集长度
+  editor.state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+    if (!node.isText) return true;
+    const start = Math.max(selection.from, pos);
+    const end = Math.min(selection.to, pos + (node.text?.length ?? 0));
+    len += Math.max(0, end - start);
+    return true;
+  });
+  return len;
 }

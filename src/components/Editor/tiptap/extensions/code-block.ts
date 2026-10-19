@@ -206,7 +206,7 @@ function collectPendingBlocks(
   done: WeakSet<PMNode>,
 ): { node: PMNode; pos: number }[] {
   const pending: { node: PMNode; pos: number }[] = [];
-  doc.descendants((node, pos) => {
+  doc.descendants((node, pos) => { // perf-allow: 空闲批次收集未高亮块，仅初始/文件切换跑，WeakSet 跳过已完成
     if (node.type.name === name && !done.has(node)) pending.push({ node, pos });
     return true;
   });
