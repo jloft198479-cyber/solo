@@ -543,6 +543,27 @@ describe('list-fold 只在块结构变化时重建（性能修复）', () => {
     expect(listFoldKey.getState(v.state)!.pendingRebuild).toBe(false);
   });
 
+  it('组字期文档位移：折叠位置跟着事务平移，不会脱锚到别的项', () => {
+    const v = mountView('前言\n\n- A\n  - A1\n- B\n');
+    let aPos = -1;
+    v.state.doc.descendants((node, pos) => {
+      if (aPos >= 0) return false;
+      if (node.type.name === 'listItem' && node.firstChild?.textContent === 'A') {
+        aPos = pos;
+        return false;
+      }
+      return true;
+    });
+    v.dispatch(v.state.tr.setMeta(listFoldKey, { toggle: aPos }));
+    expect(foldState(v.state).folded).toEqual([aPos]);
+
+    // 组字期在前言里插字 ⇒ 列表整体右移 1。冻结期只 map 装饰、不 map 折叠位置的话，
+    // 解冻后 folded 仍指向旧坐标，剪枝会把它落到别的项上（折叠错项）。
+    setComposing(v, true);
+    v.dispatch(v.state.tr.insertText('前', 1));
+    expect(foldState(v.state).folded, '组字期折叠位置也要随事务平移').toEqual([aPos + 1]);
+  });
+
   it('折叠项失去子列表后，折叠位置被剪掉（不留幽灵折叠）', () => {
     const v = mountView(NESTED);
     v.dispatch(v.state.tr.setMeta(listFoldKey, { toggle: ITEM }));

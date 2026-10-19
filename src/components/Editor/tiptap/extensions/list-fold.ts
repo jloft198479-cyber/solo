@@ -522,9 +522,11 @@ export function createListFoldPlugin(getPath: () => string | null = () => null):
 
         // 组字期：只平移、不重建（重建会换掉正在组字的 DOM → 候选窗失锚）。
         // 结构变化先记账，解冻后的第一个事务补建（见下方 pendingRebuild）。
+        // folded 与装饰一样必须随事务 map：否则解冻后折叠坐标停在旧位置，
+        // pruneFolded 会把它落到别的项上（折叠错项，2026-10-20 复审）。
         if (tracker.isFrozen() && !meta?.toggle) {
           return {
-            folded: value.folded,
+            folded: mapFolded(value.folded, tr),
             decorations: mapFrozenDecorations(value.decorations, tr),
             path: value.path,
             pendingRebuild:
