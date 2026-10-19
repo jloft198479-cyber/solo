@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createEditorExtensions } from '../../editor-extensions';
 import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import { parseMarkdown } from '../../markdown/parser';
+import { serializeMarkdown } from '../../markdown/serializer';
 
 /**
  * 列表「行首 Backspace 劈开列表」的**行为契约锁**（方案 `PROPOSAL-list-structure-fix.md` §六 阶段 1）。
@@ -220,6 +221,99 @@ describe('删光一项文字后退格 ⇒ 空项整行消失（2026-10-10 用户
     clearTextThenBackspace(editor, '乙');
     expect(treeSig(editor.state.doc)).toBe('bulletList(「甲」 / 「丙」)');
     expect(topLevelTypes(editor.state.doc)).toEqual(['bulletList']);
+  });
+});
+
+/**
+ * 空壳列表项（空段 + 子列表）的行首退格（2026-10-19 用户报告「一行两个圆点」）。
+ *
+ * 病：父项 A 下挂 A1，回车另起一项（旧行为把 A1 甩给了新项），再删空新项按退格——
+ * 守卫只删掉空段落，留下 `listItem(bulletList(A1))` 这个**没有正文的圆点壳**：
+ * 壳的 marker 与子项 marker 挤在同一行（配合 `li ul` 的竖引导线，正是用户截图），
+ * 落盘 `- - A1`。期望（同 list-demote 的托孤契约）：壳溶解、子项升一级。
+ *
+ * ⚠️ 反向校准：撤掉 `isPureShell` 分支 ⇒ 本组转红（旧实现只剩空壳）。
+ * 注意不能拿 `treeSig` 当唯一判据——它拍平 textContent，看不见壳（「假锁」陷阱：
+ * 旧实现下 `treeSig` 同样是 `bulletList(「A」 / 「A1」)`），故必须断言**每项首块是正文**。
+ */
+describe('空壳项：空段 + 子列表的行首退格 ⇒ 壳溶解（2026-10-19 用户报告）', () => {
+  /**
+   * 复刻用户路径：光标所在项**原本有子列表**，把正文删光后再按退格。
+   * 注意不能直接拿 markdown `- \\n  - A1` 造场景——解析出来是「只有子列表」的壳，
+   * 没有空段落可删，走不到守卫（那条路是历史文件遗留，另行处理）。
+   */
+  function clearTextThenBackspace(editor: Editor, text: string): void {
+    const from = posOfText(editor.state.doc, text);
+    editor.commands.setTextSelection({ from, to: from + text.length });
+    editor.commands.deleteSelection();
+    editor.view.dom.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Backspace' }),
+    );
+  }
+
+  it('壳溶解：子项升一级，落盘不再出现 `- - `', () => {
+    const editor = makeEditor('- A\n- A0\n  - A1\n');
+    clearTextThenBackspace(editor, 'A0');
+
+    const doc = editor.state.doc;
+    const list = topNodes(doc)[0];
+    expect(list.type.name).toBe('bulletList');
+    expect(list.childCount).toBe(2);
+    // 承重断言：每一项的首块都必须是正文块 —— 空壳项的首块会是子列表
+    list.forEach((li, _offset, i) => {
+      expect(li.firstChild?.type.name, `第 ${i + 1} 项留下了没有正文的空壳`).toBe('paragraph');
+    });
+    expect(serializeMarkdown(doc)).not.toContain('- - ');
+  });
+
+  it('壳在中间：托孤后兄弟顺序不变', () => {
+    const editor = makeEditor('- A\n- A0\n  - A1\n- B\n');
+    clearTextThenBackspace(editor, 'A0');
+    expect(treeSig(editor.state.doc)).toBe('bulletList(「A」 / 「A1」 / 「B」)');
+    expect(serializeMarkdown(editor.state.doc)).not.toContain('- - ');
+  });
+
+  // ⚠️ 非承重锁：撤掉上面的壳溶解分支，这条**仍然是绿**（旧路径也把光标送回 A 末尾）
+  // —— 只作意图哨兵，防未来改光标落点时无声退化，不当「修复生效」的证据。
+  it('光标落到前一项末尾（用户预期「光标到 A 项后」）', () => {
+    const editor = makeEditor('- A\n- A0\n  - A1\n');
+    clearTextThenBackspace(editor, 'A0');
+    const $from = editor.state.selection.$from;
+    expect($from.parent.textContent).toBe('A');
+    expect($from.parentOffset).toBe(1);
+  });
+});
+
+describe('嵌套首项行首退格：不得降级成段落（2026-10-19 体检 P2）', () => {
+  it('带后随兄弟：A1 仍是列表项，整体提升一级', () => {
+    const editor = makeEditor('- A\n  - A1\n  - A2\n');
+    pressAt(editor, 'A1', { key: 'Backspace' });
+
+    const list = topNodes(editor.state.doc)[0];
+    expect(list.type.name).toBe('bulletList');
+    expect(list.childCount, '顶层仍是一张列表、两项').toBe(2);
+    // 承重断言：旧实现会把 A1 降级成 A 项里的第二段（圆点消失）
+    expect(list.child(0).childCount, 'A 项里不应出现第二段').toBe(1);
+    expect(list.child(1).firstChild?.type.name).toBe('paragraph');
+    expect(list.child(1).firstChild?.textContent).toBe('A1');
+    expect(serializeMarkdown(editor.state.doc)).toBe('- A\n- A1\n  - A2\n');
+  });
+
+  it('带孙 + 后随兄弟：子树跟着 A1 一起走', () => {
+    const editor = makeEditor('- A\n  - A1\n    - A1a\n  - A2\n');
+    pressAt(editor, 'A1', { key: 'Backspace' });
+    expect(serializeMarkdown(editor.state.doc)).toBe('- A\n- A1\n  - A1a\n  - A2\n');
+  });
+
+  it('回归：嵌套非首项仍并进上一项（守卫不能放宽过头）', () => {
+    const editor = makeEditor('- A\n  - A1\n  - A2\n');
+    pressAt(editor, 'A2', { key: 'Backspace' });
+    const list = topNodes(editor.state.doc)[0];
+    expect(list.childCount).toBe(1);
+    const inner = list.child(0).child(1);
+    expect(inner.type.name).toBe('bulletList');
+    expect(inner.childCount).toBe(1);
+    expect(inner.child(0).textContent).toBe('A1A2');
   });
 });
 

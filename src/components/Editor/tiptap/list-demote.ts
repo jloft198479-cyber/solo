@@ -4,6 +4,7 @@ import { TextSelection } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { ITEM_NODE_TYPES, LIST_NODE_TYPES } from './list-move';
+import { dissolveShell } from './list-shell';
 import { isFrozen } from './composition-freeze';
 
 /**
@@ -79,48 +80,6 @@ function splitItem(item: PMNode, parentList: PMNode): { blocks: PMNode[]; carrie
     }
   });
   return { blocks, carried };
-}
-
-/**
- * 纯空壳列表项：自身没有任何文字、children 全是列表（markdown 里根本没有存在意义的
- * `- - 乙` 那种结构）。它只会「为了包住下级而存在」——一旦下级被托孤走，它就该溶解，
- * 否则落盘会留下 `- - 丙` 这种畸形（🔴B 第二轮复测的退化输入会触发）。
- */
-function isPureShell(node: PMNode): boolean {
-  if (!ITEM_NODE_TYPES.has(node.type.name)) return false;
-  let onlyLists = true;
-  node.forEach((c) => {
-    // 空段落子节点（无文字）不打破 onlyLists ⇒ 含「空段落 + 子列表」的项也算纯壳，
-    // 会连空段落一起溶解 —— 空段落没有 markdown 表达，属预期取舍。
-    if (!LIST_NODE_TYPES.has(c.type.name) && c.textContent.trim().length > 0) onlyLists = false;
-  });
-  return onlyLists;
-}
-
-/** 把纯空壳列表项溶解掉：它的子列表项提升到父列表（与父列表同类型时展开，否则整块保留） */
-function dissolveShell(tr: Transaction, shellPos: number): void {
-  const shell = tr.doc.nodeAt(shellPos);
-  if (!shell || !isPureShell(shell)) return;
-  const $pos = tr.doc.resolve(shellPos + 1);
-  let listItemDepth = -1;
-  for (let d = $pos.depth; d > 0; d--) {
-    if (ITEM_NODE_TYPES.has($pos.node(d).type.name)) {
-      listItemDepth = d;
-      break;
-    }
-  }
-  if (listItemDepth < 1) return;
-  const parentList = $pos.node(listItemDepth - 1);
-  if (!LIST_NODE_TYPES.has(parentList.type.name)) return;
-  const promoted: PMNode[] = [];
-  shell.forEach((c) => {
-    if (LIST_NODE_TYPES.has(c.type.name)) {
-      if (c.type.name === parentList.type.name) c.forEach((gc) => promoted.push(gc));
-      else promoted.push(c);
-    }
-  });
-  if (promoted.length === 0) tr.delete(shellPos, shellPos + shell.nodeSize);
-  else tr.replaceWith(shellPos, shellPos + shell.nodeSize, Fragment.from(promoted));
 }
 
 /**

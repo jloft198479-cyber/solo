@@ -522,6 +522,7 @@ OrderedList                OrderedList.extend：同上
 TaskList
 ListItem                   ListItem.extend：首格放开为 block+（台账 §二 #30）
 TaskItem                   TaskItem.extend + configure({nested:true})：[ ] 输入规则挂这里
+ListEnterGuard             回车「新建同级项」守卫：父项行尾回车不再把子列表甩给新项
 ListBackspaceGuard         行首退格「永不劈开列表」守卫
 CellContentGuard           入站 path（粘贴/insertContent/拖拽）的表格结构守卫
 Placeholder

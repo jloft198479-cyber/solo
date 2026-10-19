@@ -2,6 +2,7 @@ import { Extension, type Editor } from '@tiptap/core';
 import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 import { isFrozen } from '../composition-freeze';
+import { dissolveShell, isPureShell } from '../list-shell';
 
 /**
  * 列表「行首退格永不劈开列表」守卫（方案 `docs/PROPOSAL-list-structure-fix.md` §四 方案 A）。
@@ -110,8 +111,11 @@ function handleListBackspace(editor: Editor): boolean {
   const firstBlock = item.firstChild as PMNode;
 
   // 首块是空 textblock（如 F-8 修复后列表项里的补位空段）：
-  // ① 项里还有别的块 ⇒ 只删这个空块，项结构不动（产物合法）。
-  // ② 空段是唯一子块 ⇒ 绝不能只删块——会留下**零子块 listItem**（违反 schema
+  // ① 空段 + 其余**全是子列表**（纯空壳）⇒ 只删空段会留下一个没有正文的圆点壳：
+  //    壳的 li::marker 与子项 marker 会挤在同一行（2026-10-19 用户看到「两个点」），
+  //    落盘还是 `- - A1` 这种怪结构。按 list-demote 的托孤契约整壳溶解、子项升一级。
+  // ② 项里还有普通块 ⇒ 只删这个空块，项结构不动（产物合法）。
+  // ③ 空段是唯一子块 ⇒ 绝不能只删块——会留下**零子块 listItem**（违反 schema
   //    `block+`），圆点壳残留且上游命令对非法结构全部失效 = 「列表删不掉」
   //    （2026-10-10 用户报告，回归锁 list-backspace.spec.ts「圆点不留壳」组）。
   //    此时删掉**整个空项**；单项空列表仍放行上游——那是「退出列表」+
@@ -119,6 +123,23 @@ function handleListBackspace(editor: Editor): boolean {
   //    复审 F-2），必须保持。
   if (firstBlock.isTextblock && firstBlock.content.size === 0) {
     const tr = state.tr;
+    // ① 的前置 childCount > 1 不能省：单项空列表（只有空段、没有子列表）也满足
+    // isPureShell，若走溶解会把它整项删掉 —— 那条路必须留给「退出列表」的上游 lift。
+    if (item.childCount > 1 && isPureShell(item)) {
+      const itemStart = state.selection.$from.before(itemDepth);
+      dissolveShell(tr, itemStart);
+      if (tr.steps.length > 0) {
+        // 光标跟到前一项末尾（壳是首项时落到提升上来的首项开头）
+        tr.setSelection(
+          index > 0
+            ? TextSelection.near(tr.doc.resolve(itemStart - 1), -1)
+            : TextSelection.near(tr.doc.resolve(itemStart), 1),
+        );
+        view.dispatch(tr);
+        return true;
+      }
+      // 溶解不成立（子列表塞不进父容器）⇒ 退一步仍按「只删空块」处理
+    }
     if (item.childCount > 1) {
       const from = state.selection.$from.before(itemDepth + 1);
       const to = state.selection.$from.after(itemDepth + 1);
@@ -138,6 +159,12 @@ function handleListBackspace(editor: Editor): boolean {
 
   // 单项列表：行首退格 = 退出列表（上游 lift 行为正确，§七 决定 2 保持现状）
   if (list.childCount === 1) return false;
+
+  // 嵌套项的**首项**：放行上游 lift —— 与头注释契约表「嵌套子项｜放行上游 lift」一致。
+  // 不能走下面的 lift + joinBackward：实测它把「列表与列表」合并，这一行会降级成
+  // 父项里的第二段（圆点消失、子树与后续兄弟改挂到父项）；上游 lift 则是整体提升
+  // 一级、圆点与子树都在（2026-10-19 体检 P2）。嵌套**非首项**不受影响，仍并进上一项。
+  if (index === 0 && isNestedItem(state.selection.$from, itemDepth)) return false;
 
   if (index > 0) {
     // 非首项：并进上一项（同容器兄弟），永不劈开（契约「禁止劈开」组）

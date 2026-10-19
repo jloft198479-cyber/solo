@@ -53,6 +53,7 @@ import {
 } from './extensions/wikilink-suggest';
 import { ParagraphFocus } from './extensions/paragraph-focus';
 import { ListFold } from './extensions/list-fold';
+import { ListEnterGuard } from './extensions/list-enter-guard';
 import { ListBackspaceGuard } from './extensions/list-backspace-guard';
 import { guardListInputRules } from './extensions/list-input-guard';
 import { CellContentGuard } from './extensions/cell-content-guard';
@@ -334,6 +335,9 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
         return guardListInputRules(this.parent?.() ?? []);
       },
     }).configure({ nested: true }),
+    // 列表回车「新建同级项」守卫——父项行尾回车不再把子列表甩给新项（2026-10-19
+    // 用户报告）；与下方 Backspace 守卫同批，详见 extensions/list-enter-guard.ts
+    ListEnterGuard,
     // 列表行首退格「永不劈开列表」守卫——必须在 ListKeymap（StarterKit 内，
     // priority 100）之前接管 Backspace / Mod-Backspace / Shift-Tab，
     // 方案与契约锁见 extensions/list-backspace-guard.ts 头注释

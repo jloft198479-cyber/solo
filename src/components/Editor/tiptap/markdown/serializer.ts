@@ -44,6 +44,24 @@ function computePairEscape(text: string): { caret: boolean; equals: boolean; dol
   return { caret: caret >= 2, equals: eqRuns >= 2, dollar: dollar >= 2 };
 }
 
+/**
+ * 子列表的**第一行**会不会只剩一个 `-`（首项是空 listItem）。
+ *
+ * 这一行紧跟在一个有文字的段落后面时，会被 CommonMark 读成 **setext 下划线**
+ * （`- A\n  - ` ⇒ 「A」变成 H2，重开即改块类型，2026-10-19 体检 P1）。
+ * 故 `renderContent` 遇到这个形状必须用空行断开。
+ *
+ * 只认 `bulletList` + `listItem`：有序列表的首行是 `1.`、待办项是 `- [ ]`，
+ * 都不是合法的 setext 下划线，不需要也不应该插空行。
+ */
+function startsWithEmptyBulletItem(list: PMNode): boolean {
+  if (list.type.name !== 'bulletList' || list.childCount === 0) return false;
+  const first = list.child(0);
+  if (first.type.name !== 'listItem') return false;
+  const block = first.firstChild;
+  return !!block && block.type.name === 'paragraph' && block.content.size === 0;
+}
+
 export class MarkdownSerializerState {
   /**
    * 输出分片。**刻意不累加字符串**：V8 的 `+=` 只生成惰性 ConsString（绳结），
@@ -634,7 +652,14 @@ export class MarkdownSerializerState {
         if (prev.type.name === 'horizontalRule' && child.type.name === 'horizontalRule') {
           this.ensureNewline();
         } else if (tightChildList && LIST_NODE_NAMES.has(child.type.name)) {
-          this.ensureNewline();
+          // 空首子项的第一行只剩 `-`，紧跟段落会被读成 setext 下划线 ⇒ 必须空行断开；
+          // 其余嵌套保持紧凑单换行（普通列表输出不受影响）
+          const setextRisk =
+            prev.type.name === 'paragraph' &&
+            prev.content.size > 0 &&
+            startsWithEmptyBulletItem(child);
+          if (setextRisk) this.blankLine();
+          else this.ensureNewline();
         } else {
           this.blankLine();
         }
