@@ -23,8 +23,6 @@ export interface Settings {
   autoSave: boolean;
   /** Auto save interval in seconds */
   autoSaveInterval: number;
-  /** Spell check */
-  spellCheck: boolean;
   /** Titlebar auto-hide (false = always visible) */
   titlebarAutoHide: boolean;
   /** Editor line height. null = use current theme's typography default. */
@@ -49,7 +47,6 @@ const DEFAULT_SETTINGS: Settings = {
   fontFamily: 'Microsoft YaHei UI',
   autoSave: false,
   autoSaveInterval: 30,
-  spellCheck: true,
   titlebarAutoHide: false,
   lineHeight: null,
   customShortcuts: {},
@@ -90,6 +87,10 @@ export function normalizeSettings(storedSettings?: Partial<Settings> | null): Se
       merged.lineHeight = null;
     }
   }
+
+  // 2026-10-20：拼写检查功能已移除（中文环境没有可查词典，能查的环境又会把代码块里的
+  // 标识符当错词标红），顺手清掉存量配置键，避免死字段一直躺在 settings.json 里
+  delete (merged as unknown as Record<string, unknown>).spellCheck;
 
   return {
     ...merged,
@@ -326,7 +327,6 @@ export const useSettingsStore = defineStore('settings', {
             () => this.settings.lineHeight,
             () => this.settings.autoSave,
             () => this.settings.autoSaveInterval,
-            () => this.settings.spellCheck,
             () => this.settings.titlebarAutoHide,
             () => this.settings.customShortcuts,
             () => this.settings.alwaysOnTop,

@@ -2,21 +2,12 @@
 import SettingsSwitch from './SettingsSwitch.vue';
 import './settings-shared.css';
 
-const spellCheck = defineModel<boolean>('spellCheck', { required: true });
 const titlebarAutoHide = defineModel<boolean>('titlebarAutoHide', { required: true });
 </script>
 
 <template>
   <div class="editor-settings-panel">
     <section class="settings-section-card">
-      <div class="settings-row">
-        <div>
-          <label class="settings-row-title">拼写检查</label>
-          <p class="settings-row-desc">启用系统拼写检查</p>
-        </div>
-        <SettingsSwitch v-model="spellCheck" label="切换拼写检查" />
-      </div>
-
       <div class="settings-row">
         <div>
           <label class="settings-row-title">标题栏自动隐藏</label>

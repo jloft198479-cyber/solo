@@ -211,7 +211,6 @@ async function handleReset() {
                 <!-- 编辑器设置 -->
                 <EditorSettingsPanel
                   v-else-if="activeTab === 'editor'"
-                  v-model:spell-check="settingsStore.settings.spellCheck"
                   v-model:titlebar-auto-hide="settingsStore.settings.titlebarAutoHide"
                 />
 

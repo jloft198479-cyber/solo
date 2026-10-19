@@ -358,7 +358,11 @@ function createEditor(content: string) {
     editorProps: {
       attributes: {
         class: 'tiptap-editor',
-        spellcheck: settingsStore.settings.spellCheck ? 'true' : 'false',
+        // 明确关掉浏览器拼写检查（2026-10-20 拍板移除该功能）：
+        // ① WebView2 的检查语言跟系统走（中文没有可查词典，开了也没反应）；
+        // ② 能查的环境（macOS / 装了英文语言包的 Windows）会把代码块与行内代码里的
+        //    标识符当错词标红——对写代码是纯噪音。写死 false 才能跨平台行为一致。
+        spellcheck: 'false',
       },
       // text/plain 的产出（照 Typora 范式）：选区是文本型内容就给「渲染后的
       // 干净文字」，含 solo 专有语法（公式/图表/互链/脚注/frontmatter/callout/
@@ -881,14 +885,6 @@ onBeforeUnmount(() => {
   // 8. 阅读位置最后一次落盘（fire-and-forget：IPC 已发出，窗口销毁不影响 Rust 侧落盘）
   flushReadingPosition();
 });
-
-// 拼写检查：编辑器创建后 settings 变更时动态更新 DOM 属性
-watch(
-  () => settingsStore.settings.spellCheck,
-  (enabled) => {
-    editor.value?.view.dom.setAttribute('spellcheck', enabled ? 'true' : 'false');
-  },
-);
 
 // 图片存储路径变化时清空路径解析缓存（基目录变了，旧缓存失效）
 watch(
