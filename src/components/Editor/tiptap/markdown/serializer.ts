@@ -45,11 +45,15 @@ function computePairEscape(text: string): { caret: boolean; equals: boolean; dol
 }
 
 /**
- * 子列表的**第一行**会不会只剩一个 `-`（首项是空 listItem）。
+ * 子列表的**第一行**会不会只剩一个 `-`（首项没有可见正文）。
  *
  * 这一行紧跟在一个有文字的段落后面时，会被 CommonMark 读成 **setext 下划线**
  * （`- A\n  - ` ⇒ 「A」变成 H2，重开即改块类型，2026-10-19 体检 P1）。
  * 故 `renderContent` 遇到这个形状必须用空行断开。
+ *
+ * 判据是「**没有可见正文**」而不是「内容长度为 0」（2026-10-20 复审）：
+ * 只含空格的段落落盘也是 `-  `（短横 + 尾随空白），setext 下划线允许尾随空白，
+ * 同样会被读成标题；只含硬换行的段落同理。ZWNJ 会在序列化时剥掉，一并算空。
  *
  * 只认 `bulletList` + `listItem`：有序列表的首行是 `1.`、待办项是 `- [ ]`，
  * 都不是合法的 setext 下划线，不需要也不应该插空行。
@@ -59,7 +63,7 @@ function startsWithEmptyBulletItem(list: PMNode): boolean {
   const first = list.child(0);
   if (first.type.name !== 'listItem') return false;
   const block = first.firstChild;
-  return !!block && block.type.name === 'paragraph' && block.content.size === 0;
+  return !!block && block.type.name === 'paragraph' && stripZwnj(block.textContent).trim() === '';
 }
 
 export class MarkdownSerializerState {

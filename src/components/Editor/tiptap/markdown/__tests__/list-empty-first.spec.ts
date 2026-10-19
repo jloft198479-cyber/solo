@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import { createTestSchema, roundTrip } from './test-utils';
 import { parseMarkdown } from '../parser';
+import { serializeMarkdown } from '../serializer';
 
 const schema = createTestSchema();
 
@@ -62,5 +63,26 @@ describe('空首子项：用空行断开 setext 歧义（2026-10-19 P1）', () =
 
   it('空项不在首位：不加空行（无 setext 风险）', () => {
     expect(roundTrip('- A\n  - A1\n  - \n')).toBe('- A\n  - A1\n  - \n');
+  });
+
+  /**
+   * 首子项的段落里只有**空白字符**时同样是 setext 风险：那一行落盘是 `  -  `
+   * （短横 + 空格），CommonMark 的 setext 下划线允许尾随空白 ⇒ 父项仍会被读成 H2。
+   * 判据不能只看 `content.size === 0`（2026-10-20 复审）。
+   */
+  it('首子项段落只有空格：同样用空行断开', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('bulletList', null, [
+        schema.node('listItem', null, [
+          schema.node('paragraph', null, [schema.text('A')]),
+          schema.node('bulletList', null, [
+            schema.node('listItem', null, [schema.node('paragraph', null, [schema.text(' ')])]),
+          ]),
+        ]),
+      ]),
+    ]);
+    const out = serializeMarkdown(doc);
+    expect(headingTexts(out), '空白首段也会被读成 setext 下划线').toEqual([]);
+    expect(out).toContain('- A\n\n');
   });
 });
