@@ -283,10 +283,16 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       } catch (error) {
         const appError = normalizeTauriError(error);
         if (appError.code === 'document_conflict' && !force) {
-          const confirmed = await confirm('文件已被外部修改，是否强制覆盖？', {
+          // 文案由 Rust 按真实病因给（外部修改 / 文件被移动或删除），这里只负责渲染：
+          // 曾经写死「文件已被外部修改」，文件被删时用户看到的是错误场景。
+          // 按钮标签按「文件已不在」切换；正则只负责选词，判定仍以 Rust 给的错误为准，
+          // 匹配不上就走「强制覆盖」默认文案（不会把普通冲突说成重建）。
+          const reason = appError.message || '文件已被外部修改，是否强制覆盖？';
+          const fileGone = /移动或删除/.test(reason);
+          const confirmed = await confirm(reason, {
             title: '检测到冲突',
             kind: 'warning',
-            okLabel: '强制覆盖',
+            okLabel: fileGone ? '重新创建' : '强制覆盖',
             cancelLabel: '取消',
           });
           if (!confirmed) {
@@ -371,7 +377,11 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       renamedPath = renameResult.path;
 
       // 2. 保存内容到新路径（force=true，因为文件刚被 rename 过来）
-      const { result: saveResult, content: savedContent } = await persistDocument(renamedPath, true, null);
+      const { result: saveResult, content: savedContent } = await persistDocument(
+        renamedPath,
+        true,
+        null,
+      );
 
       fileStore.setFile(savedContent, saveResult.path, saveResult.lastModifiedMs);
       autoSaveFailCount = 0;

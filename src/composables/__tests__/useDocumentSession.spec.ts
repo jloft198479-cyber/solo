@@ -343,6 +343,42 @@ describe('useDocumentSession', () => {
     expect(saveDocumentMock).toHaveBeenNthCalledWith(1, '/tmp/demo.md', 'draft', 1000, false);
     expect(saveDocumentMock).toHaveBeenNthCalledWith(2, '/tmp/demo.md', 'draft', 1000, true);
     expect(fileStoreState.markSaved).toHaveBeenCalledWith(1500, 'draft');
+    // 普通「外部修改」冲突：正文取 Rust 消息，按钮仍是「强制覆盖」
+    expect(confirmMock).toHaveBeenCalledWith(
+      'conflict',
+      expect.objectContaining({ okLabel: '强制覆盖' }),
+    );
+  });
+
+  it('文件被移动或删除：弹窗按「重建」措辞，不再误报「已被外部修改」', async () => {
+    // 回归：旧实现对 document_conflict 写死「文件已被外部修改，是否强制覆盖？」，
+    // 而文件被删/挪走时 Rust 给的是「是否在此位置重新创建？」—— 用户看到错误场景。
+    fileStoreState.currentFile = {
+      path: '/tmp/demo.md',
+      content: 'draft',
+      isDirty: true,
+      lastModifiedTime: 1000,
+      displayName: 'demo',
+      originalBaseName: 'demo',
+    };
+    const goneMessage = '文件已被移动或删除，是否在此位置重新创建？';
+    saveDocumentMock.mockRejectedValueOnce({
+      code: 'document_conflict',
+      message: goneMessage,
+    });
+    confirmMock.mockResolvedValueOnce(false); // 用户取消，仅断言弹窗内容
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => 'draft',
+    });
+
+    await expect(session.saveCurrentDocument()).resolves.toBe(false);
+    expect(confirmMock).toHaveBeenCalledWith(
+      goneMessage,
+      expect.objectContaining({ okLabel: '重新创建' }),
+    );
   });
 
   it('冲突取消后基线不被污染、脏标不被洗白（保存失败静默丢编辑回归锁）', async () => {
@@ -570,8 +606,18 @@ describe('useDocumentSession', () => {
 
     expect(ok).toBe(true);
     // 预览 + 改写各一次，参数为 (旧路径, 新路径, dryRun)
-    expect(syncWikilinksMock).toHaveBeenNthCalledWith(1, '/tmp/original.md', '/tmp/新标题.md', true);
-    expect(syncWikilinksMock).toHaveBeenNthCalledWith(2, '/tmp/original.md', '/tmp/新标题.md', false);
+    expect(syncWikilinksMock).toHaveBeenNthCalledWith(
+      1,
+      '/tmp/original.md',
+      '/tmp/新标题.md',
+      true,
+    );
+    expect(syncWikilinksMock).toHaveBeenNthCalledWith(
+      2,
+      '/tmp/original.md',
+      '/tmp/新标题.md',
+      false,
+    );
     expect(confirmMock).toHaveBeenCalledTimes(1);
   });
 
