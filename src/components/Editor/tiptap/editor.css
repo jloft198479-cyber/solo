@@ -181,7 +181,6 @@ html.doc-heavy .tiptap-editor > hr {
   line-height: 1.35;
 }
 
-
 /* ── 标题 ──────────────────────────────────────────────────── */
 .tiptap-editor h1,
 .tiptap-editor h2,
@@ -389,7 +388,8 @@ html.doc-heavy .tiptap-editor > hr {
  * 自然落在左侧竖线与内容之间，视觉上可接受。
  */
 .tiptap-editor blockquote {
-  border-left: var(--mk-quote-border-width) solid var(--primary-color);
+  border-left: var(--mk-quote-border-width) solid
+    var(--blockquote-border-color, var(--primary-color));
   padding: 0.75em 0 0.75em 1em;
   margin: var(--mk-paragraph-spacing) 0;
   color: var(--text-secondary);
@@ -423,9 +423,10 @@ html.doc-heavy .tiptap-editor > hr {
   margin: calc(var(--mk-paragraph-spacing) * 0.2) 0;
 }
 
-/* 列表 marker 用次要色，让正文内容更突出（iA Writer / Notion 一致做法） */
+/* 列表 marker 用次要色，让正文内容更突出（iA Writer / Notion 一致做法）。
+   可被主题的 listMarkerColor 单独覆盖（--list-marker-color）。 */
 .tiptap-editor li::marker {
-  color: var(--text-secondary);
+  color: var(--list-marker-color, var(--text-secondary));
 }
 
 /* 列表项正文段。`position: relative` 是折叠箭头的绝对定位锚点：位置只跟文字起点有关，
@@ -599,7 +600,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor code {
   font-family: var(--font-mono);
   background-color: var(--code-bg);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--code-border, var(--border-color));
   border-radius: var(--radius-md);
   padding: 0.1em 4px;
   font-size: 0.875em;
@@ -643,7 +644,7 @@ html.doc-heavy .tiptap-editor > hr {
 /* ── 水平线 ────────────────────────────────────────────────── */
 .tiptap-editor hr {
   border: none;
-  border-top: 1px solid var(--border-light);
+  border-top: 1px solid var(--hr-color, var(--border-light));
   margin: 2em 0;
 }
 
@@ -657,10 +658,10 @@ html.doc-heavy .tiptap-editor > hr {
   align-items: center;
   min-height: 28px;
   padding: 0 12px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--code-border, var(--border-color));
   border-bottom: none;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
-  background-color: var(--sidebar-bg);
+  background-color: var(--surface-alt, var(--sidebar-bg));
 }
 
 .tiptap-editor .mk-code-block-language-button {
@@ -742,7 +743,7 @@ html.doc-heavy .tiptap-editor > hr {
 
 .tiptap-editor pre {
   background-color: var(--code-bg);
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--code-border, var(--border-color));
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   padding: var(--space-lg) var(--space-xl);
   margin: 0;
@@ -830,7 +831,7 @@ html.doc-heavy .tiptap-editor > hr {
 
 .tiptap-editor th,
 .tiptap-editor td {
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--table-border-color, var(--border-color));
   padding: var(--space-sm) var(--space-lg);
   vertical-align: top;
   box-sizing: border-box;
@@ -900,9 +901,9 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor img.mk-image.is-loading {
   background: linear-gradient(
     90deg,
-    var(--sidebar-bg) 25%,
+    var(--surface-alt, var(--sidebar-bg)) 25%,
     var(--border-light) 50%,
-    var(--sidebar-bg) 75%
+    var(--surface-alt, var(--sidebar-bg)) 75%
   );
   background-size: 200% 100%;
   animation: img-skeleton 1.2s ease-in-out infinite;
@@ -974,7 +975,7 @@ html.doc-heavy .tiptap-editor > hr {
 
 /* ── 选中状态 ──────────────────────────────────────────────── */
 .tiptap-editor ::selection {
-  background-color: color-mix(in srgb, var(--primary-color) 18%, transparent);
+  background-color: var(--selection-bg, color-mix(in srgb, var(--primary-color) 18%, transparent));
 }
 
 /* ── 光标 ──────────────────────────────────────────────────── */
@@ -1011,7 +1012,7 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor .mk-math-block {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  background-color: var(--sidebar-bg);
+  background-color: var(--surface-alt, var(--sidebar-bg));
   margin: 8px 0;
   overflow: hidden;
   cursor: pointer;
@@ -1268,73 +1269,95 @@ html.doc-heavy .tiptap-editor > hr {
 .tiptap-editor .mk-callout[data-callout-type='abstract'] {
   background-color: var(--callout-abstract-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='abstract'] :is(.mk-callout-title-button, .mk-callout-title-input) {
+.tiptap-editor
+  .mk-callout[data-callout-type='abstract']
+  :is(.mk-callout-title-button, .mk-callout-title-input) {
   color: var(--callout-abstract);
 }
 .tiptap-editor .mk-callout[data-callout-type='info'] {
   background-color: var(--callout-info-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='info'] :is(.mk-callout-title-button, .mk-callout-title-input) {
+.tiptap-editor
+  .mk-callout[data-callout-type='info']
+  :is(.mk-callout-title-button, .mk-callout-title-input) {
   color: var(--callout-info);
 }
 .tiptap-editor .mk-callout[data-callout-type='tip'] {
   background-color: var(--callout-tip-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='tip'] :is(.mk-callout-title-button, .mk-callout-title-input) {
+.tiptap-editor
+  .mk-callout[data-callout-type='tip']
+  :is(.mk-callout-title-button, .mk-callout-title-input) {
   color: var(--callout-tip);
 }
 .tiptap-editor .mk-callout[data-callout-type='success'] {
   background-color: var(--callout-success-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='success'] :is(.mk-callout-title-button, .mk-callout-title-input) {
+.tiptap-editor
+  .mk-callout[data-callout-type='success']
+  :is(.mk-callout-title-button, .mk-callout-title-input) {
   color: var(--callout-success);
 }
 .tiptap-editor .mk-callout[data-callout-type='question'] {
   background-color: var(--callout-question-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='question'] :is(.mk-callout-title-button, .mk-callout-title-input) {
+.tiptap-editor
+  .mk-callout[data-callout-type='question']
+  :is(.mk-callout-title-button, .mk-callout-title-input) {
   color: var(--callout-question);
 }
 .tiptap-editor .mk-callout[data-callout-type='warning'] {
   background-color: var(--callout-warning-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='warning'] :is(.mk-callout-title-button, .mk-callout-title-input) {
+.tiptap-editor
+  .mk-callout[data-callout-type='warning']
+  :is(.mk-callout-title-button, .mk-callout-title-input) {
   color: var(--callout-warning);
 }
 .tiptap-editor .mk-callout[data-callout-type='failure'] {
   background-color: var(--callout-failure-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='failure'] :is(.mk-callout-title-button, .mk-callout-title-input) {
+.tiptap-editor
+  .mk-callout[data-callout-type='failure']
+  :is(.mk-callout-title-button, .mk-callout-title-input) {
   color: var(--callout-failure);
 }
 .tiptap-editor .mk-callout[data-callout-type='danger'] {
   background-color: var(--callout-danger-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='danger'] :is(.mk-callout-title-button, .mk-callout-title-input) {
+.tiptap-editor
+  .mk-callout[data-callout-type='danger']
+  :is(.mk-callout-title-button, .mk-callout-title-input) {
   color: var(--callout-danger);
 }
 .tiptap-editor .mk-callout[data-callout-type='bug'] {
   background-color: var(--callout-bug-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='bug'] :is(.mk-callout-title-button, .mk-callout-title-input) {
+.tiptap-editor
+  .mk-callout[data-callout-type='bug']
+  :is(.mk-callout-title-button, .mk-callout-title-input) {
   color: var(--callout-bug);
 }
 .tiptap-editor .mk-callout[data-callout-type='example'] {
   background-color: var(--callout-example-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='example'] :is(.mk-callout-title-button, .mk-callout-title-input) {
+.tiptap-editor
+  .mk-callout[data-callout-type='example']
+  :is(.mk-callout-title-button, .mk-callout-title-input) {
   color: var(--callout-example);
 }
 .tiptap-editor .mk-callout[data-callout-type='quote'] {
   background-color: var(--callout-quote-bg);
 }
-.tiptap-editor .mk-callout[data-callout-type='quote'] :is(.mk-callout-title-button, .mk-callout-title-input) {
+.tiptap-editor
+  .mk-callout[data-callout-type='quote']
+  :is(.mk-callout-title-button, .mk-callout-title-input) {
   color: var(--callout-quote);
 }
 
 /* ── Frontmatter ───────────────────────────────────────────── */
 .tiptap-editor .mk-frontmatter {
-  background-color: var(--sidebar-bg);
+  background-color: var(--surface-alt, var(--sidebar-bg));
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: var(--space-md) var(--space-lg);
@@ -1544,7 +1567,7 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-lg);
-  background-color: var(--sidebar-bg);
+  background-color: var(--surface-alt, var(--sidebar-bg));
   border: 1px solid var(--border-color);
   /* 图标 16px 由 <Icon :size> 决定；这里只保留颜色（currentColor 的取色口）。
      2026-10-17 批 3 第 3 步前此处是 13px / 600 的系统字符，换图标后字号字重已无消费点 */
@@ -1629,15 +1652,14 @@ html.focus-mode li:not(:has(> .paragraph-active, > div > .paragraph-active))::ma
   /* `::marker` 不接受 opacity（规范只开放 font / color / content 等），
      故把同一个淡化比例折成颜色透明度 —— 比例仍以 `--mk-focus-dimmed-opacity`
      为唯一真理源，不另写魔数。 */
-  color: color-mix(
-    in srgb,
-    currentColor calc(var(--mk-focus-dimmed-opacity) * 100%),
-    transparent
-  );
+  color: color-mix(in srgb, currentColor calc(var(--mk-focus-dimmed-opacity) * 100%), transparent);
   transition: color var(--motion-slow) var(--ease-out);
 }
 
-html.focus-mode ul[data-type='taskList'] li:not(:has(> .paragraph-active, > div > .paragraph-active)) > label {
+html.focus-mode
+  ul[data-type='taskList']
+  li:not(:has(> .paragraph-active, > div > .paragraph-active))
+  > label {
   opacity: var(--mk-focus-dimmed-opacity);
   transition: opacity var(--motion-slow) var(--ease-out);
 }

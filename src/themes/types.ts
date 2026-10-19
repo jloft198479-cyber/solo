@@ -36,11 +36,23 @@ export interface ThemeColors {
   primaryLight: string;
   bgColor: string;
   bgSecondary: string;
+  /**
+   * 编辑器中的「次级容器」底色：代码块工具条 / 数学块 / frontmatter / 图片占位 /
+   * 斜杠菜单图标 / 设置底栏。缺省回退 `--sidebar-bg`（即今天的观感）。
+   * 单独成项是为了切断 `sidebarBg` 的兼职 —— 它本意只该管右侧大纲面板。
+   */
+  surfaceAltColor?: string;
   textColor: string;
   textSecondary: string;
   mutedColor: string;
   borderColor: string;
   borderLight: string;
+  /** 水平分割线 `hr`。缺省回退 `--border-light` */
+  hrColor?: string;
+  /** 表格单元格边框。缺省回退 `--border-color` */
+  tableBorderColor?: string;
+  /** 列表前的小圆点 / 序号。缺省回退 `--text-secondary` */
+  listMarkerColor?: string;
   sidebarBg: string;
   sidebarHover: string;
   codeBg: string;
@@ -48,21 +60,32 @@ export interface ThemeColors {
   hoverBg: string;
   activeBg: string;
   selectedBg: string;
+  /** 编辑器内选中文本的底色。缺省回退 `primary-color` 18% 混合 */
+  selectionBg?: string;
   quoteBg: string;
-  tagBg: string;
-  tagColor: string;
+  /** 引用块左侧竖线。缺省回退 `--primary-color`（与 quoteBg 对称） */
+  quoteBorderColor?: string;
+  /**
+   * 标签底色/文字色。**预留槽位**：solo 暂无标签功能，界面无消费点。
+   * 故为可选 —— 主题模板不提供，写了也不生效（`main.css` 只保留变量定义）。
+   */
+  tagBg?: string;
+  tagColor?: string;
   successColor: string;
-  successBg: string;
+  /** 成功提示底色。**预留槽位**：暂无 toast 类 UI，无消费点 */
+  successBg?: string;
   warningColor: string;
   warningBg: string;
   errorColor: string;
   errorBg: string;
   infoColor: string;
-  infoBg: string;
+  /** 信息提示底色。**预留槽位**：暂无 toast 类 UI，无消费点 */
+  infoBg?: string;
   shadowSm: string;
   shadowMd: string;
-  shadowLg: string;
-  shadowXl: string;
+  /** 大/超大阴影。**预留槽位**：弹窗走 modalShadow、浮层走 popoverShadow，无消费点 */
+  shadowLg?: string;
+  shadowXl?: string;
   modalBg: string;
   modalBorder: string;
   modalOverlay: string;
@@ -114,9 +137,14 @@ export interface ThemeColors {
 }
 
 /**
- * 排版变量（**预留通道**：字段与注入通道都已接通，但当前 8 套预设一个都没声明）。
+ * 排版变量（**按层级分工**：全文级四项归「设置 → 编辑器」，主题只保留局部视觉项）。
  *
- * 现状：换主题只换颜色，不换排版 —— `presets/` 里的 `typography` 全是空的。
+ * 现状：9 套预设的 `typography` 全是空的 ⇒ 换主题只换颜色，不换排版；
+ * 主题模板给的是 7 个局部项（H1~H6 字号梯度 + 引用块边框宽度），值等于默认值，
+ * 照抄不改版式零变化（`theme-template.spec.ts` 锁「模板值 = editor.css 实测值」）。
+ * ⚠️ `lineHeight` / `fontSize` / `letterSpacing` / `paragraphSpacing` 已从模板移除
+ * （全文级排版归设置管，主题不该碰），仅为兼容旧版自定义主题文件而保留在接口里。
+ *
  * 声明即生效：`manager.ts` 的 `TYPOGRAPHY_VAR_MAP` 会把声明的字段写成
  * `documentElement` 的行内变量；**不声明的字段退回 `editor.css` 的 `--mk-*` 默认值**。
  *
@@ -193,11 +221,15 @@ export const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
   primaryLight: '--primary-light',
   bgColor: '--bg-color',
   bgSecondary: '--bg-secondary',
+  surfaceAltColor: '--surface-alt',
   textColor: '--text-color',
   textSecondary: '--text-secondary',
   mutedColor: '--muted-color',
   borderColor: '--border-color',
   borderLight: '--border-light',
+  hrColor: '--hr-color',
+  tableBorderColor: '--table-border-color',
+  listMarkerColor: '--list-marker-color',
   sidebarBg: '--sidebar-bg',
   sidebarHover: '--sidebar-hover',
   codeBg: '--code-bg',
@@ -205,7 +237,9 @@ export const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
   hoverBg: '--hover-bg',
   activeBg: '--active-bg',
   selectedBg: '--selected-bg',
+  selectionBg: '--selection-bg',
   quoteBg: '--quote-bg',
+  quoteBorderColor: '--blockquote-border-color',
   tagBg: '--tag-bg',
   tagColor: '--tag-color',
   successColor: '--success-color',
@@ -267,5 +301,3 @@ export const CSS_VAR_MAP: Record<keyof ThemeColors, string> = {
   markBg: '--mark-bg',
   accentColor: '--accent-color',
 };
-
-

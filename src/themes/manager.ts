@@ -54,6 +54,9 @@ const SHARED_LIGHT_COLORS: Partial<ThemeColors> = {
   errorBg: 'rgba(185, 28, 28, 0.1)',
   infoColor: '#1d4ed8',
   infoBg: 'rgba(29, 78, 216, 0.1)',
+  // 第二性格色（链接悬停 / 大纲面板右边框 / 命令面板光标）。
+  // 9 套预设都显式声明；这里兜底是为了让「没声明 accentColor 的自定义主题」也有值。
+  accentColor: '#b5472e',
   markBg: '#fef08a',
   btnGhostBg: 'transparent',
   modalOverlay: 'rgba(0, 0, 0, 0.45)',
@@ -92,6 +95,7 @@ const SHARED_DARK_COLORS: Partial<ThemeColors> = {
   errorBg: 'rgba(248, 113, 113, 0.15)',
   infoColor: '#93c5fd',
   infoBg: 'rgba(147, 197, 253, 0.15)',
+  accentColor: '#84b3d2',
   markBg: 'rgba(254, 240, 138, 0.35)',
   btnGhostBg: 'transparent',
   modalOverlay: 'rgba(0, 0, 0, 0.65)',
@@ -146,9 +150,21 @@ function injectColors(colors: ThemeColors) {
   for (const [key, cssVar] of Object.entries(CSS_VAR_MAP)) {
     const colorKey = key as keyof ThemeColors;
     const value = colors[colorKey];
-    // diff 注入：仅当值与当前生效值不同才写，避免无谓的样式重算（性能）
-    if (value && style.getPropertyValue?.(cssVar) !== value) {
-      style.setProperty(cssVar, value);
+    const current = style.getPropertyValue?.(cssVar) ?? '';
+    if (value) {
+      // diff 注入：仅当值与当前生效值不同才写，避免无谓的样式重算（性能）
+      if (current !== value) {
+        style.setProperty(cssVar, value);
+      }
+    } else if (current) {
+      // 主题未声明该字段 ⇒ 清掉行内值，回落到 :root 的默认/派生值。
+      // 与 injectTypography 对齐：否则上一个主题的可选字段（如 accentColor）会残留，
+      // 出现「换了主题、光标颜色还是上一个主题的」。
+      try {
+        style.removeProperty(cssVar);
+      } catch {
+        style.setProperty(cssVar, '');
+      }
     }
   }
 }

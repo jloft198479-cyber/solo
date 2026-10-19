@@ -193,9 +193,7 @@ async function handleReset() {
             <SettingsSidebarNav v-model="activeTab" />
 
             <!-- 设置内容 -->
-            <div
-              class="flex-1 overflow-y-auto settings-content-area settings-modal__content"
-            >
+            <div class="flex-1 overflow-y-auto settings-content-area settings-modal__content">
               <div class="settings-content">
                 <div class="settings-page-header">
                   <div>
@@ -376,7 +374,7 @@ async function handleReset() {
   justify-content: space-between;
   padding: 16px 28px;
   border-top: 1px solid var(--border-color);
-  background-color: var(--sidebar-bg);
+  background-color: var(--surface-alt, var(--sidebar-bg));
 }
 
 .settings-footer-reset {
@@ -405,5 +403,4 @@ async function handleReset() {
     flex-direction: column;
   }
 }
-
 </style>

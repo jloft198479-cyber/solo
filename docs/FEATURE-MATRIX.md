@@ -133,12 +133,13 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 9 套内置主题 | ✅ | [`presets/`](../src/themes/presets/) + [`manager.ts`](../src/themes/manager.ts) | `scholar-light`/`scholar-dark`/`elegant-light`/`cinnabar-light`/`cinnabar-dark`/`default-light`/`jade-light`/`orchid-light`/`graphite-light`（部分文件名无 `-light` 后缀，但 JSON 内 `id` 有）；**无 `gray-domain`** |
 | 自定义主题 CRUD / 导入导出 | ✅ | `manager.ts` `importTheme` + `ThemeSelector.vue` | 兼容 legacy（light/dark 双色）旧格式 |
 | 明暗独立 + 系统主题跟随 | ✅ | `applyDarkClass` + `ensureThemeId()` 回退 | 主题 id 失效按当前外观回退，不黑屏 |
-| 排版随主题（行高/字号/段距/字距） | ✅ | `manager.ts` `injectTypography` → `--mk-*` → [`editor.css`](../src/components/Editor/tiptap/editor.css) | 先 `removeProperty` 再注入；`editor.css` 13 处全量消费 |
+| 排版随主题（行高/字号/段距/字距） | ⚠️ 已解耦 | `manager.ts` `injectTypography` → `--mk-*` → [`editor.css`](../src/components/Editor/tiptap/editor.css) | **2026-10-20 起：全文级四项归「设置 → 编辑器」，主题模板不再暴露**；局部项（标题字号梯度 / 引用边框宽度）仍可由主题声明。通道保留、预设全空 |
 | 字号 / 行高手动调节 | ✅ | [`AppearanceSettingsPanel.vue`](../src/components/Settings/AppearanceSettingsPanel.vue) | `null` = 用主题默认（v12 迁移改的） |
 | 7 款字体 + 按需下载 | ✅ | [`fonts.ts`](../src/constants/fonts.ts) + [`fontLoader.ts`](../src/services/fontLoader.ts) | `fileName` 有值=下载型；`undefined`=系统字体 |
 | 字体加载双通道 | ✅ | `fontLoader.ts` `registerFontViaCss`（asset:// 首选）→ `readFontBytes`（字节兜底） | 一/7 已修 CORS 静默拦截；**永不删兜底通道** |
 | 编辑器与导出共用字体栈 | ✅ | [`fontStack.ts`](../src/utils/fontStack.ts) `buildFontStack` | 真理源自一处 |
-| 全格式色走主题 token | ✅ | [`types.ts`](../src/themes/types.ts) `CSS_VAR_MAP`（68 字段） | 敏感区 §11.6 硬规矩：hljs / mermaid / KaTeX 颜色也须走 token，禁止硬编码 |
+| 全格式色走主题 token | ✅ | [`types.ts`](../src/themes/types.ts) `CSS_VAR_MAP`（字段数以实际为准，勿硬编码） | 敏感区 §11.6 硬规矩：hljs / mermaid / KaTeX 颜色也须走 token，禁止硬编码 |
+| 零件级颜色可单独调 | ✅ | `listMarkerColor` / `tableBorderColor` / `quoteBorderColor` / `hrColor` / `selectionBg` / `surfaceAltColor` | 全部带 fallback 回退到语义色；`surfaceAltColor` 切断 `sidebarBg` 的兼职 |
 | 主题切换过渡动效 | ✅ | `.theme-transitioning` 200ms + 编辑区 220ms 淡入 | `prefers-reduced-motion` 需自行核对 |
 
 > **核查要点**：新建自定义主题只许写「性格差异」字段，共享值必须走 `SHARED_LIGHT/DARK_COLORS`；切换主题后状态栏「未保存」指示色也要跟着变（现走 `--primary-color`，2026-10-13 起；历史 bug：曾被漏登记的 `--dirty-color` 已随该次改动移除）。

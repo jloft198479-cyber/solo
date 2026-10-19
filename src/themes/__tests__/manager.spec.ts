@@ -106,6 +106,38 @@ describe('theme manager', () => {
     expect(lightSuccess).not.toEqual(darkSuccess);
   });
 
+  it('切到不声明可选字段的主题时，清掉上一个主题的行内值（防残留）', () => {
+    // 状态化 style：模拟真实 documentElement.style 的写 / 读 / 删
+    // （beforeEach 的 getPropertyValue 恒返回 ''，走不到清除分支，必须换成有状态的）
+    const store: Record<string, string> = {};
+    vi.stubGlobal('document', {
+      documentElement: {
+        classList: { toggle: vi.fn(), add: vi.fn(), remove: vi.fn() },
+        style: {
+          setProperty: (k: string, v: string) => {
+            store[k] = v;
+          },
+          getPropertyValue: (k: string) => store[k] ?? '',
+          removeProperty: (k: string) => {
+            delete store[k];
+          },
+        },
+        getBoundingClientRect: vi.fn(),
+      },
+      querySelector: vi.fn(() => null),
+    });
+
+    const base = getPresetTheme('default-light')!;
+    // 主题 A：声明可选项 surfaceAltColor
+    applyTheme({ ...base, colors: { ...base.colors, surfaceAltColor: '#123456' } });
+    expect(store['--surface-alt']).toBe('#123456');
+
+    // 主题 B：不声明 ⇒ 行内值必须被清掉，回落 :root 的派生默认值。
+    // 曾是真实 bug：注入「只增不删」⇒ 切主题后光标色 / 容器底色残留上一个主题的。
+    applyTheme(base);
+    expect(store['--surface-alt']).toBeUndefined();
+  });
+
   // 注：原先三条 `--dirty-color` 用例已随该 token 一并移除（2026-10-13）——
   // 状态栏「未保存」色改为跟随主题主色（--primary-color），主题不再注入该变量。
 });

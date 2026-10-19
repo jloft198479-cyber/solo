@@ -27,12 +27,7 @@ const {
       <div class="shortcut-settings-panel__hint">
         {{ isMac ? 'Mac 使用 ⌘ 键' : 'Windows/Linux 使用 Ctrl 键' }} · 点击行可修改快捷键
       </div>
-      <button
-        class="shortcut-settings-panel__reset"
-        @click="resetAllShortcuts"
-      >
-        重置全部
-      </button>
+      <button class="shortcut-settings-panel__reset" @click="resetAllShortcuts">重置全部</button>
     </div>
 
     <section v-if="conflictWarning" class="settings-section-card settings-warning-card">
@@ -142,7 +137,7 @@ const {
   gap: var(--space-lg);
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-lg);
-  background-color: var(--sidebar-bg);
+  background-color: var(--surface-alt, var(--sidebar-bg));
   cursor: pointer;
   transition:
     background-color var(--motion-fast),

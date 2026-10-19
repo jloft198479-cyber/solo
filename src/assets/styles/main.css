@@ -11,35 +11,41 @@
      字体只作用于页面内容。切换正文字体时界面保持不变。
      中文仍落微软雅黑 UI，保证与改动前中文观感一致。 */
   --font-ui:
-    system-ui, -apple-system, 'Segoe UI', Roboto,
-    'Microsoft YaHei UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Microsoft YaHei UI', 'PingFang SC',
+    'Hiragino Sans GB', sans-serif;
 
   /* ── 正文字体：只作用于编辑区文档内容（.tiptap-editor） ──── */
   --font-text:
-    -apple-system, BlinkMacSystemFont,
-    'Segoe UI', Roboto, Helvetica, Arial,
-    'Microsoft YaHei UI', 'Microsoft YaHei', 'PingFang SC',
-    'Hiragino Sans GB', 'STHeiti', system-ui, sans-serif;
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Microsoft YaHei UI',
+    'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'STHeiti', system-ui, sans-serif;
 
   /* ── 统一动效语言（Linear / Raycast 风格：一致 > 多） ──
      参考 web.dev / RAIL：120ms 人觉瞬时，200ms 跟手不拖沓；
      ease-out 缓出曲线让动作「停在终点」，比 ease 更跟手。 */
-  --motion-fast: 120ms;  /* 菜单 / 按钮 / 小切换 */
-  --motion-base: 200ms;  /* 面板 / 视图 / crossfade */
-  --motion-slow: 300ms;  /* 进度条 / 焦点模式变暗等更缓的过渡 */
+  --motion-fast: 120ms; /* 菜单 / 按钮 / 小切换 */
+  --motion-base: 200ms; /* 面板 / 视图 / crossfade */
+  --motion-slow: 300ms; /* 进度条 / 焦点模式变暗等更缓的过渡 */
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 /* 通用入场动效工具类：scale + opacity 轻量跟手，所有面板/菜单共用，
    保证「这儿弹那儿滑」的不一致感消失。 */
 @keyframes smooth-enter {
-  from { opacity: 0; transform: scale(0.98); }
-  to   { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* ── 无障碍底线：尊重用户系统偏好，关掉所有动画 ── */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -58,8 +64,8 @@
 
 /* 按钮类元素的焦点环更贴近边界，避免 outline 与 padding 冲突 */
 button:focus-visible,
-[role="button"]:focus-visible,
-[role="menuitem"]:focus-visible {
+[role='button']:focus-visible,
+[role='menuitem']:focus-visible {
   outline-offset: 1px;
 }
 
@@ -84,7 +90,7 @@ button:not(:disabled) {
   height: 28px;
   padding: 0;
   border: none;
-  background: transparent;
+  background: var(--btn-ghost-bg, transparent);
   color: var(--text-secondary);
   border-radius: var(--radius-lg);
   opacity: 0.6;
@@ -109,12 +115,14 @@ button:not(:disabled) {
    scholar-light 主题 + manager.ts SHARED_LIGHT_COLORS 保持一致
    （真理源自一处），否则启动瞬间会跳色。 */
 :root {
-  /* ⚠️ 预留槽位（B8，2026-10-17 登记）—— 下面 8 个变量当前零消费，**不是僵尸**：
-     `--code-border` `--tag-bg` `--tag-color` `--shadow-lg` `--shadow-xl`
-     `--success-bg` `--info-bg` `--btn-ghost-bg`
-     接口 / 契约表 / 明暗两套声明齐全，前 5 个在 9 套预设里都配了值（45 个真实配色）；
-     场景已定：标签 chip、success·info 状态、大阴影。**别再当垃圾清理**，
-     要用时直接取，无需新增定义。判据与出处见 `docs/KNOWN-ISSUES.md` §三。 */
+  /* ⚠️ 预留槽位（B8，2026-10-17 登记；2026-10-20 更新）—— 下面 6 个变量当前零消费，
+     **不是僵尸**：`--tag-bg` `--tag-color` `--shadow-lg` `--shadow-xl`
+     `--success-bg` `--info-bg`
+     接口 / 契约表 / 明暗两套声明齐全，场景已定（标签 chip、大阴影、success·info 状态）。
+     **别再当垃圾清理**，要用时直接取，无需新增定义。
+     原本同批的 `--code-border` 与 `--btn-ghost-bg` 已接通（代码块边框、幽灵按钮背景）。
+     这 6 个**不进主题模板** —— 没有 UI 对应的开关不递给用户，`theme-template.spec.ts` 会拦。
+     判据与出处见 `docs/KNOWN-ISSUES.md` §三。 */
 
   /* 主色调 — 墨色系 */
   --primary-color: #8a4e25;
@@ -130,10 +138,20 @@ button:not(:disabled) {
   /* 侧边栏 */
   --sidebar-bg: #efe7d8;
   --sidebar-hover: rgba(138, 78, 37, 0.06);
+  /* 编辑器次级容器（代码块工具条 / 数学块 / frontmatter / 图片占位 / 设置底栏）。
+     默认引用 --sidebar-bg 保住老主题的观感；主题声明 surfaceAltColor 即脱离绑定，
+     从此改 sidebarBg 只影响右侧大纲面板。 */
+  --surface-alt: var(--sidebar-bg);
 
   /* 边框 */
   --border-color: #e3d9c8;
   --border-light: #ece3d4;
+  /* 零件级边框/符号：默认全部派生自上面的通用色（保住老主题观感），
+     主题显式声明即可单独调整。 */
+  --hr-color: var(--border-light);
+  --table-border-color: var(--border-color);
+  --list-marker-color: var(--text-secondary);
+  --blockquote-border-color: var(--primary-color);
 
   /* 弱化文字 */
   --muted-color: #6b5d49;
@@ -148,11 +166,13 @@ button:not(:disabled) {
   /* 交互状态 */
   --hover-bg: rgba(138, 78, 37, 0.04);
   --active-bg: rgba(138, 78, 37, 0.08);
-  --selected-bg: rgba(138, 78, 37, 0.10);
+  --selected-bg: rgba(138, 78, 37, 0.1);
+  /* 编辑器内选中文本底色。派生自主色（= 今天的行为），主题声明 selectionBg 才脱离 */
+  --selection-bg: color-mix(in srgb, var(--primary-color) 18%, transparent);
 
   /* 引用 & 标签 */
   --quote-bg: rgba(138, 78, 37, 0.05);
-  --tag-bg: rgba(138, 78, 37, 0.10);
+  --tag-bg: rgba(138, 78, 37, 0.1);
   --tag-color: #6f3d1c;
   --mark-bg: #fef08a;
 
@@ -170,7 +190,7 @@ button:not(:disabled) {
   --shadow-sm: 0 1px 2px rgba(42, 34, 24, 0.04);
   --shadow-md: 0 4px 6px -1px rgba(42, 34, 24, 0.06), 0 2px 4px -2px rgba(42, 34, 24, 0.04);
   --shadow-lg: 0 10px 15px -3px rgba(42, 34, 24, 0.08), 0 4px 6px -4px rgba(42, 34, 24, 0.04);
-  --shadow-xl: 0 20px 25px -5px rgba(42, 34, 24, 0.10), 0 8px 10px -6px rgba(42, 34, 24, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(42, 34, 24, 0.1), 0 8px 10px -6px rgba(42, 34, 24, 0.04);
 
   /* 圆角刻度 —— 全部圆角的唯一出口（2026-10-17 · B6）
      xs 2 焦点环 / 进度条 / 搜索高亮 · sm 3 小件 · md 4 常规控件
@@ -239,7 +259,7 @@ button:not(:disabled) {
   --modal-bg: #f6f1e8;
   --modal-border: #e3d9c8;
   --modal-overlay: rgba(44, 36, 22, 0.4);
-  --modal-shadow: 0 25px 50px -12px rgba(42, 34, 24, 0.20);
+  --modal-shadow: 0 25px 50px -12px rgba(42, 34, 24, 0.2);
 
   /* 输入框 */
   --input-bg: #ffffff;
@@ -288,7 +308,6 @@ button:not(:disabled) {
   --callout-example-bg: rgba(91, 33, 182, 0.08);
   --callout-quote: #44403c;
   --callout-quote-bg: rgba(68, 64, 60, 0.08);
-
 }
 
 /* ── 深色主题（夜读墨色） ────────────────────────────────────
@@ -328,11 +347,11 @@ html.dark {
   /* 交互状态 */
   --hover-bg: rgba(111, 159, 191, 0.04);
   --active-bg: rgba(111, 159, 191, 0.08);
-  --selected-bg: rgba(111, 159, 191, 0.10);
+  --selected-bg: rgba(111, 159, 191, 0.1);
 
   /* 引用 & 标签 */
   --quote-bg: rgba(111, 159, 191, 0.05);
-  --tag-bg: rgba(111, 159, 191, 0.10);
+  --tag-bg: rgba(111, 159, 191, 0.1);
   --tag-color: #9fc1da;
   --mark-bg: #854d0e;
 
@@ -347,16 +366,16 @@ html.dark {
   --info-bg: rgba(147, 197, 253, 0.15);
 
   /* 阴影 */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.30);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.30);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.40), 0 4px 6px -4px rgba(0, 0, 0, 0.30);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.35), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.45), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
 
   /* 弹窗/模态框 */
   --modal-bg: #141a20;
   --modal-border: #2a3640;
   --modal-overlay: rgba(0, 0, 0, 0.65);
-  --modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.50);
+  --modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 
   /* 输入框 */
   --input-bg: #1b232b;
@@ -501,8 +520,10 @@ html.theme-transitioning aside,
 html.theme-transitioning .statusbar-container,
 html.theme-transitioning .outline-panel,
 html.theme-transitioning .sidebar {
-
-  transition: background-color var(--motion-base) var(--ease-out), color var(--motion-base) var(--ease-out), border-color var(--motion-base) var(--ease-out) !important;
+  transition:
+    background-color var(--motion-base) var(--ease-out),
+    color var(--motion-base) var(--ease-out),
+    border-color var(--motion-base) var(--ease-out) !important;
 }
 
 /* ── 打印样式 ──────────────────────────────────────────────── */
@@ -510,7 +531,6 @@ html.theme-transitioning .sidebar {
   .statusbar-container,
   aside,
   .bubble-menu {
-
     display: none !important;
   }
 
@@ -726,7 +746,9 @@ html.theme-transitioning .sidebar {
   border-radius: var(--radius-md);
   font-size: 13px;
   cursor: pointer;
-  transition: background-color var(--motion-fast), color var(--motion-fast);
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast);
 }
 
 .unsaved-btn--save {
@@ -758,13 +780,23 @@ html.theme-transitioning .sidebar {
 }
 
 @keyframes unsaved-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes unsaved-scale-in {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* ── 文档加载指示（消费 fileStore.isLoading，大文件读取/解析反馈） ──
@@ -794,6 +826,10 @@ html.theme-transitioning .sidebar {
 }
 
 @keyframes loading-slide {
-  from { transform: translateX(0); }
-  to { transform: translateX(350%); }
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(350%);
+  }
 }

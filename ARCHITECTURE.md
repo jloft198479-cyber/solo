@@ -212,7 +212,7 @@ md-editor/
 │   ├── themes/                   #   主题系统
 │   │   ├── types.ts              #   Theme / ThemeColors / ThemeTypography
 │   │   ├── manager.ts            #   applyTheme：注入颜色 + 排版变量
-│   │   └── presets/              #   8 套预设 JSON（见 §10.1）
+│   │   └── presets/              #   9 套预设 JSON（见 §10.1）
 │   │
 │   ├── utils/
 │   │   ├── fontStack.ts          #   buildFontStack：统一字体栈（编辑器+导出共享）

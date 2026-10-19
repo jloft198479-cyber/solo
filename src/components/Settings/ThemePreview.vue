@@ -19,9 +19,12 @@ defineProps<{
       class="theme-preview-topbar"
       :style="{ backgroundColor: theme.colors.bgSecondary, borderColor: theme.colors.borderLight }"
     >
-      <!-- 顶栏圆点用主题自有性格色（主色/标签），体现各主题差异 -->
+      <!-- 顶栏圆点用主题自有性格色（主色 / 第二性格色 accentColor），体现各主题差异 -->
       <div class="theme-preview-dot" :style="{ backgroundColor: theme.colors.primaryColor }" />
-      <div class="theme-preview-dot" :style="{ backgroundColor: theme.colors.tagColor }" />
+      <div
+        class="theme-preview-dot"
+        :style="{ backgroundColor: theme.colors.accentColor ?? theme.colors.primaryHover }"
+      />
     </div>
     <!-- 缩略图只画真实存在的结构：标题栏 + 文档正文。
          solo 没有左侧导航栏（一窗一文档，唯一可选面板是右侧大纲），
@@ -29,10 +32,10 @@ defineProps<{
     <div class="theme-preview-editor">
       <div class="theme-preview-toolbar" :style="{ borderColor: theme.colors.borderLight }">
         <div class="theme-preview-chip" :style="{ backgroundColor: theme.colors.primaryColor }" />
-        <div class="theme-preview-tool" :style="{ backgroundColor: theme.colors.tagBg }" />
+        <div class="theme-preview-tool" :style="{ backgroundColor: theme.colors.primaryLight }" />
         <div
           class="theme-preview-tool theme-preview-tool--small"
-          :style="{ backgroundColor: theme.colors.tagBg }"
+          :style="{ backgroundColor: theme.colors.primaryLight }"
         />
       </div>
 

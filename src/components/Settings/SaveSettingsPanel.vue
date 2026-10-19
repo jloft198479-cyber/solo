@@ -55,9 +55,7 @@ function clearStoragePath() {
       <div class="settings-row settings-row--column">
         <div>
           <label class="settings-row-title">图片存储位置</label>
-          <p class="settings-row-desc">
-            默认保存在文档所在目录的 assets/ 文件夹中
-          </p>
+          <p class="settings-row-desc">默认保存在文档所在目录的 assets/ 文件夹中</p>
         </div>
         <div class="storage-path-row">
           <div v-if="imageStoragePath" class="storage-path-value storage-path-value--custom">
@@ -91,7 +89,6 @@ function clearStoragePath() {
         <SettingsSwitch v-model="shellIntegration" label="切换文件关联" />
       </div>
     </section>
-
   </div>
 </template>
 
@@ -114,7 +111,7 @@ function clearStoragePath() {
   border-radius: var(--radius-md);
   font-size: 13px;
   color: var(--muted-color);
-  background: var(--sidebar-bg);
+  background: var(--surface-alt, var(--sidebar-bg));
   word-break: break-all;
   font-family: var(--font-mono, monospace);
 }
@@ -137,7 +134,9 @@ function clearStoragePath() {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background-color var(--motion-fast), border-color var(--motion-fast);
+  transition:
+    background-color var(--motion-fast),
+    border-color var(--motion-fast);
 }
 
 .storage-path-btn:hover {
