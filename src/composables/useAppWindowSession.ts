@@ -9,6 +9,7 @@ import { message } from '../services/tauri/dialog';
 import {
   destroyCurrentWindow,
   isCurrentWindowFullscreen,
+  newEditorWindow,
   registerShellNew,
   reportWindowClose,
   requestAppQuit,
@@ -116,30 +117,44 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
   let removeDropListener: (() => void) | null = null;
   let stopTitleWatcher: (() => void) | null = null;
 
-  async function handleOpenPayload(payload: AppOpenPathsPayload | null | undefined) {
-    if (!payload?.paths?.length) {
-      return;
+  /** 打开一个启动路径；文件不存在则静默跳过，其他错误弹窗但不中断后续步骤。 */
+  async function openStartupPath(path: string) {
+    // 启动路径可能来自 OS 文件关联 / 更新后重启的残留参数，
+    // 文件可能已被移动或删除。silent=true 让内层不弹"打开失败"对话框，
+    // 把错误抛到这里做静默跳过。
+    try {
+      await options.openDocument(path, true);
+    } catch (err) {
+      // invokeCommand 抛的是 TauriAppError 对象 {code, message}，
+      // 用 normalizeTauriError 提取 message 再做正则匹配。
+      const msg = normalizeTauriError(err).message;
+      // os error 2 = ERROR_FILE_NOT_FOUND（Windows）| ENOENT（Unix）
+      if (/os error\s*2|No such file|file not found/i.test(msg)) {
+        console.warn(`[startup] 跳过不存在的启动文件: ${path}`);
+      } else {
+        // 非文件缺失的错误（如权限问题）弹窗提示用户，
+        // 但不 throw 以免中断 setup（setupDragDrop 等后续步骤仍需执行）。
+        console.error(`[startup] 打开启动文件失败: ${path}`, msg);
+        await message(`打开文件失败: ${msg}`, { title: '错误', kind: 'error' });
+      }
     }
-    for (const path of payload.paths) {
-      if (!path) continue;
-      // 启动路径可能来自 OS 文件关联 / 更新后重启的残留参数，
-      // 文件可能已被移动或删除。silent=true 让内层不弹"打开失败"对话框，
-      // 把错误抛到这里做静默跳过。
+  }
+
+  async function handleOpenPayload(payload: AppOpenPathsPayload | null | undefined) {
+    const paths = (payload?.paths ?? []).filter((path): path is string => Boolean(path));
+    const [first, ...rest] = paths;
+    if (!first) return;
+
+    // 本窗口只承接第一个，其余**各开一窗**。
+    // Windows 资源管理器多选 .md 回车时，一条命令行会带上全部路径；
+    // 旧实现顺序在同一窗口打开，前几个被后一个顶掉 —— 用户只看到最后一份。
+    // 「一窗一文档」是产品设定（见 App.vue 的互链跳转注释），多文件就该多窗。
+    await openStartupPath(first);
+    for (const path of rest) {
       try {
-        await options.openDocument(path, true);
-      } catch (err) {
-        // invokeCommand 抛的是 TauriAppError 对象 {code, message}，
-        // 用 normalizeTauriError 提取 message 再做正则匹配。
-        const msg = normalizeTauriError(err).message;
-        // os error 2 = ERROR_FILE_NOT_FOUND（Windows）| ENOENT（Unix）
-        if (/os error\s*2|No such file|file not found/i.test(msg)) {
-          console.warn(`[startup] 跳过不存在的启动文件: ${path}`);
-        } else {
-          // 非文件缺失的错误（如权限问题）弹窗提示用户，
-          // 但不 throw 以免中断 setup（setupDragDrop 等后续步骤仍需执行）。
-          console.error(`[startup] 打开启动文件失败: ${path}`, msg);
-          await message(`打开文件失败: ${msg}`, { title: '错误', kind: 'error' });
-        }
+        await newEditorWindow(path);
+      } catch (error) {
+        console.warn(`[startup] 为新窗口打开失败，跳过: ${path}`, error);
       }
     }
   }
