@@ -8,59 +8,61 @@
       @mousedown.prevent
       @click.stop
     >
-    <!-- 主工具栏 -->
-    <div class="bubble-menu-toolbar">
-      <button :class="btnClass(activeMarks.bold)" title="加粗" @click="exec('bold')">
-        <span class="font-bold text-lg">B</span>
-      </button>
-      <button :class="btnClass(activeMarks.italic)" title="斜体" @click="exec('italic')">
-        <span class="italic text-lg">I</span>
-      </button>
-      <button :class="btnClass(activeMarks.code)" title="行内代码" @click="exec('code')">
-        <Icon name="code" :size="16" />
-      </button>
-      <button :class="btnClass(activeMarks.dim)" title="文字变浅" @click="exec('dim')">
-        <span class="dim-icon">A</span>
-      </button>
-      <button :class="btnClass(activeMarks.link)" title="链接" @click="toggleLinkInput">
-        <Icon name="link" :size="16" />
-      </button>
-      <div class="bubble-menu-divider"></div>
-      <button :class="btnClass(activeMarks.bulletList)" title="无序列表" @click="exec('bulletList')">
-        <Icon name="bulletList" :size="16" />
-      </button>
-      <div class="bubble-menu-divider"></div>
-      <button class="bubble-menu-heading-btn" title="标题 1" @click="exec('h1')">
-        <Icon name="heading1" :size="16" />
-      </button>
-      <button class="bubble-menu-heading-btn" title="标题 2" @click="exec('h2')">
-        <Icon name="heading2" :size="16" />
-      </button>
-      <div class="bubble-menu-divider"></div>
-      <button class="bubble-menu-clear-btn" title="清除格式" @click="exec('clearFormat')">
-        <Icon name="eraser" :size="16" />
-      </button>
-    </div>
+      <!-- 主工具栏 -->
+      <div class="bubble-menu-toolbar">
+        <button :class="btnClass(activeMarks.bold)" title="加粗" @click="exec('bold')">
+          <span class="font-bold text-lg">B</span>
+        </button>
+        <button :class="btnClass(activeMarks.italic)" title="斜体" @click="exec('italic')">
+          <span class="italic text-lg">I</span>
+        </button>
+        <button :class="btnClass(activeMarks.code)" title="行内代码" @click="exec('code')">
+          <Icon name="code" :size="16" />
+        </button>
+        <button :class="btnClass(activeMarks.dim)" title="文字变浅" @click="exec('dim')">
+          <span class="dim-icon">A</span>
+        </button>
+        <button :class="btnClass(activeMarks.link)" title="链接" @click="toggleLinkInput">
+          <Icon name="link" :size="16" />
+        </button>
+        <div class="bubble-menu-divider"></div>
+        <button
+          :class="btnClass(activeMarks.bulletList)"
+          title="无序列表"
+          @click="exec('bulletList')"
+        >
+          <Icon name="bulletList" :size="16" />
+        </button>
+        <div class="bubble-menu-divider"></div>
+        <button class="bubble-menu-heading-btn" title="标题 1" @click="exec('h1')">
+          <Icon name="heading1" :size="16" />
+        </button>
+        <button class="bubble-menu-heading-btn" title="标题 2" @click="exec('h2')">
+          <Icon name="heading2" :size="16" />
+        </button>
+        <div class="bubble-menu-divider"></div>
+        <button class="bubble-menu-clear-btn" title="清除格式" @click="exec('clearFormat')">
+          <Icon name="eraser" :size="16" />
+        </button>
+      </div>
 
-    <!-- 链接输入区 -->
-    <div v-if="showLinkInput" class="bubble-menu-link-section">
-      <input
-        ref="linkInputRef"
-        v-model="linkUrl"
-        type="url"
-        placeholder="输入链接地址..."
-        class="bubble-menu-input"
-        @keydown.enter="applyLink"
-        @keydown.escape.stop="cancelLink"
-      />
-      <button class="bubble-menu-btn-primary" @click="applyLink">
-        确定
-      </button>
-      <button v-if="activeMarks.link" class="bubble-menu-btn-danger" @click="removeLink">
-        移除
-      </button>
+      <!-- 链接输入区 -->
+      <div v-if="showLinkInput" class="bubble-menu-link-section">
+        <input
+          ref="linkInputRef"
+          v-model="linkUrl"
+          type="url"
+          placeholder="输入链接地址..."
+          class="bubble-menu-input"
+          @keydown.enter="applyLink"
+          @keydown.escape.stop="cancelLink"
+        />
+        <button class="bubble-menu-btn-primary" @click="applyLink">确定</button>
+        <button v-if="activeMarks.link" class="bubble-menu-btn-danger" @click="removeLink">
+          移除
+        </button>
+      </div>
     </div>
-  </div>
   </Transition>
 </template>
 
@@ -132,10 +134,7 @@ const showLinkInput = ref(false);
 const linkUrl = ref('');
 const linkInputRef = ref<HTMLInputElement | null>(null);
 
-const btnClass = (active: boolean) => [
-  'bubble-menu-btn',
-  active ? 'bubble-menu-btn--active' : '',
-];
+const btnClass = (active: boolean) => ['bubble-menu-btn', active ? 'bubble-menu-btn--active' : ''];
 
 const exec = (type: string) => {
   emit('action', type);
@@ -177,9 +176,14 @@ const cancelLink = () => {
 defineExpose({
   update(show: boolean, left: number, top: number, marks: Partial<ActiveMarks>, linkHref?: string) {
     visible.value = show;
-    pos.left = left;
-    pos.top = top;
-    if (show) nextTick(() => clampToViewport(left));
+    // 只在显示时接管坐标：调用方隐藏时传的是占位 0,0，若照单全收，
+    // 离场动画（.mk-menu-leave-active 期间元素仍可见）会把菜单画到视口左上角闪一下。
+    // 保留最后一次真实位置 ⇒ 取消选区时菜单就地淡出，不再瞬移到角落。
+    if (show) {
+      pos.left = left;
+      pos.top = top;
+      nextTick(() => clampToViewport(left));
+    }
     Object.assign(activeMarks, marks);
 
     // 如果已有链接，填充 URL
@@ -208,7 +212,9 @@ defineExpose({
   border: 1px solid var(--popover-border);
   border-radius: var(--radius-md);
   box-shadow: var(--popover-shadow);
-  transition: opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
+  transition:
+    opacity var(--motion-fast) ease,
+    transform var(--motion-fast) ease;
 }
 
 .bubble-menu-toolbar {
@@ -344,7 +350,9 @@ defineExpose({
   /* 用 --text-color 而非 --muted-color：与相邻按钮一致对比度，让按钮「看得见」 */
   color: var(--text-color);
   background-color: transparent;
-  transition: background-color var(--motion-fast), color var(--motion-fast);
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast);
   cursor: pointer;
   border: none;
 }
