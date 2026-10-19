@@ -200,7 +200,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 
 | 功能 | 状态 | 实现锚点 | 已知缺口 / 边界 |
 | --- | --- | --- | --- |
-| 启动自动检查更新 | ✅ | [`update.ts`](../src/services/tauri/update.ts) `checkUpdateAvailability` + tauri updater | 可在「关于」页关闭（`enableAutoUpdateCheck`） |
+| 启动自动检查更新 | ✅ 默认关闭 | [`update.ts`](../src/services/tauri/update.ts) `checkUpdateAvailability` + tauri updater | **默认关闭**（`enableAutoUpdateCheck: false`）——国内直连 GitHub 不可用，开启只会增加失败提示；「关于」页可手动检查或显式开启 |
 | 手动检查更新 | ✅ | AboutSettingsPanel「检查更新」 | 成功只提示「去软件里更新」，**不对外发链接**（协作纪律） |
 | 更新代理检测 | ✅ | `updater.rs` `detect_github_proxy` | 环境变量/注册表/端口探测 |
 | CNB 国内镜像自动更新 | ⛔ | CNB 仅作手动下载镜像 | **待用户拍板 A/B**（§二 #7）：启用需改写 `latest.json` 的 `url` + 实测多端点 fallback |
