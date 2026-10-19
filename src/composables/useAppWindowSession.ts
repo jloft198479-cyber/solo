@@ -4,7 +4,7 @@ import type { AppOpenPathsPayload } from '../services/tauri/events';
 import { listenWindowCloseRequested, subscribeDragDrop } from '../services/tauri/events';
 import { isDocumentPath } from '../components/Editor/tiptap/extensions/wikilink-drop';
 import { saveWindowState, StateFlags } from '@tauri-apps/plugin-window-state';
-import { normalizeTauriError } from '../services/tauri/client';
+import { normalizeTauriError, withErrorHint } from '../services/tauri/client';
 import { message } from '../services/tauri/dialog';
 import {
   destroyCurrentWindow,
@@ -135,7 +135,7 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
         // 非文件缺失的错误（如权限问题）弹窗提示用户，
         // 但不 throw 以免中断 setup（setupDragDrop 等后续步骤仍需执行）。
         console.error(`[startup] 打开启动文件失败: ${path}`, msg);
-        await message(`打开文件失败: ${msg}`, { title: '错误', kind: 'error' });
+        await message(`打开文件失败: ${withErrorHint(msg)}`, { title: '错误', kind: 'error' });
       }
     }
   }

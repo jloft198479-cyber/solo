@@ -7,7 +7,7 @@ import {
   getFileMtime,
   type DocumentOpenResult,
 } from '../services/tauri/document';
-import { normalizeTauriError } from '../services/tauri/client';
+import { normalizeTauriError, withErrorHint } from '../services/tauri/client';
 import { recordDocumentSession } from '../services/tauri/session';
 import {
   emitWikilinksSynced,
@@ -136,7 +136,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       if (silent) throw error;
       const { message: errorMessage } = normalizeTauriError(error);
       console.error('Failed to open document:', errorMessage);
-      await message(`打开文件失败: ${errorMessage}`, { title: '错误', kind: 'error' });
+      await message(`打开文件失败: ${withErrorHint(errorMessage)}`, {
+        title: '错误',
+        kind: 'error',
+      });
       return false;
     } finally {
       fileStore.setLoading(false);
@@ -306,7 +309,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
         // 手动保存（Ctrl+S / 状态栏按钮）永远弹 modal；自动保存首次弹 modal，后续降级
         autoSaveFailCount += 1;
         if (manual || autoSaveFailCount <= AUTO_SAVE_MAX_MODAL) {
-          await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
+          await message(`保存失败: ${withErrorHint(appError.message)}`, {
+            title: '错误',
+            kind: 'error',
+          });
         } else {
           updateAutoSaveStatus(`保存失败: ${appError.message}`);
         }
@@ -344,7 +350,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     } catch (error) {
       const appError = normalizeTauriError(error);
       console.error('Failed to save document:', appError.message);
-      await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
+      await message(`保存失败: ${withErrorHint(appError.message)}`, {
+        title: '错误',
+        kind: 'error',
+      });
       return false;
     } finally {
       isSaving = false;
@@ -394,7 +403,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       }
       const appError = normalizeTauriError(error);
       console.error('Failed to save renamed document:', appError.message);
-      await message(`保存失败: ${appError.message}`, { title: '错误', kind: 'error' });
+      await message(`保存失败: ${withErrorHint(appError.message)}`, {
+        title: '错误',
+        kind: 'error',
+      });
     } finally {
       isSaving = false;
     }

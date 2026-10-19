@@ -88,7 +88,7 @@ import { useEditorSearch, pulseJumpTarget } from './tiptap/useEditorSearch';
 import { getBlockElFromPos, scrollElementIntoView, posOutsideContent } from './tiptap/editor-dom';
 import { resolveImageDisplay, getFileMtime, saveDocument } from '../../services/tauri/document';
 import { recordDocumentSession, readDocumentSession } from '../../services/tauri/session';
-import { normalizeTauriError } from '../../services/tauri/client';
+import { normalizeTauriError, withErrorHint } from '../../services/tauri/client';
 import { confirm, message } from '../../services/tauri/dialog';
 import { toAssetUrl } from '../../services/tauri/asset';
 import { listenEditorFocus } from '../../services/tauri/events';
@@ -238,7 +238,10 @@ async function handleWikilinkNavigate(target: string) {
     } catch (err) {
       const appError = normalizeTauriError(err);
       if (appError.code !== 'document_conflict') {
-        await message(`创建文档失败：${appError.message}`, { title: '错误', kind: 'error' });
+        await message(`创建文档失败：${withErrorHint(appError.message)}`, {
+          title: '错误',
+          kind: 'error',
+        });
         return;
       }
       // conflict：复查真伪——文件实际存在 → 不覆盖，直接打开；仍不存在 → 强制创建
@@ -250,7 +253,10 @@ async function handleWikilinkNavigate(target: string) {
           await saveDocument(resolved, initialContent, null, true);
         } catch (err2) {
           const e2 = normalizeTauriError(err2);
-          await message(`创建文档失败：${e2.message}`, { title: '错误', kind: 'error' });
+          await message(`创建文档失败：${withErrorHint(e2.message)}`, {
+            title: '错误',
+            kind: 'error',
+          });
           return;
         }
       }
