@@ -30,6 +30,10 @@ import { isFrozen } from '../composition-freeze';
  * - 首块之后混有普通块（项内续行 / 多段落项）⇒ 那是在项内续行，不是大纲换项；
  * - 单块项（没有子列表）⇒ 上游行为已正确，不必绕路。
  *
+ * 例外（**会接管**）：列表项内的**代码块** —— 上游 keymap 顺序让 ListItem 抢走回车
+ * （见 `handleListEnter` 内注释），本扩展按 `newlineInCode` 语义补一个换行，
+ * 保证「代码块在列表项里也能正常换行」。
+ *
  * 契约锁 `__tests__/list-enter.spec.ts`；⚠️ 跑在 happy-dom，真机手感另按 AGENTS §4。
  */
 
@@ -55,6 +59,20 @@ function handleListEnter(editor: Editor): boolean {
   const { selection } = state;
   if (!(selection instanceof TextSelection) || !selection.empty) return false;
   const { $from } = selection;
+
+  // 列表项内的代码块：Enter = 在代码里换行（与文档级代码块一致）。
+  // 上游顺序坑（2026-10-20 复审，实测）：tiptap 按「反转后的扩展表」收集 keymap
+  // （`core/dist:5225` `sortExtensions([...extensions].reverse())`），同 priority 时
+  // ListItem 的 Enter 排在 core Keymap 的 `newlineInCode` 之前 ⇒ 列表项里代码块的回车
+  // 会**拆项**，子列表还会被新项带走。这里按 `newlineInCode` 的语义补回换行。
+  if ($from.parent.type.spec.code && itemDepthAt($from) > 0) {
+    // 组字期绝不做事务（AGENTS 禁令 #8），直接吞掉；PM 本身也会在合成态忽略 keydown，
+    // 这条分支与下方同款，属意图哨兵
+    if (isFrozen(editor.view)) return true;
+    editor.view.dispatch(state.tr.insertText('\n'));
+    return true;
+  }
+
   const itemDepth = itemDepthAt($from);
   if (itemDepth < 0) return false;
   const item = $from.node(itemDepth);

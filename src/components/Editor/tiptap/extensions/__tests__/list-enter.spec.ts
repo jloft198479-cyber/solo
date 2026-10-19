@@ -26,6 +26,11 @@ afterEach(() => {
 });
 
 function makeEditor(md: string): Editor {
+  return makeEditorFromDoc(parseMarkdown(schema, md));
+}
+
+/** 直接给 PM doc（markdown 表达不出的形状用：代码块作项首块 + 子列表） */
+function makeEditorFromDoc(doc: PMNode): Editor {
   const editor = new Editor({
     extensions: createEditorExtensions({
       slashMenuRef: ref(null),
@@ -39,7 +44,7 @@ function makeEditor(md: string): Editor {
       wikilinkMenuCommand: ref(() => {}),
       searchHighlightOptions: {} as never,
     }),
-    content: parseMarkdown(schema, md).toJSON(),
+    content: doc.toJSON(),
   });
   editors.push(editor);
   return editor;
@@ -161,5 +166,53 @@ describe('列表回车 = 新建同级项（2026-10-19 用户报告）', () => {
     );
     expect(topNodes(editor.state.doc).length).toBe(1);
     expect(topNodes(editor.state.doc)[0].type.name).toBe('bulletList');
+  });
+
+  /**
+   * 列表项内的代码块：Enter 必须是在代码里换行，不得拆项。
+   *
+   * 2026-10-20 复审实测（两条独立成因，都要治）：
+   * ① 本守卫原来只看「光标在项内首块末尾」，没看首块是不是代码块 ⇒ 直接接管；
+   * ② 即使把守卫让开，上游 tiptap 按**反转扩展序**收集 keymap（`core/dist:5225`），
+   *    同 priority 下 ListItem 的 Enter 排在 core Keymap 的 `newlineInCode` 之前 ⇒
+   *    仍会 `splitListItem` 拆项，且子列表被新项带走。
+   * 故修法是本扩展按 `newlineInCode` 语义补一个换行，而不是「让回上游」。
+   */
+  it('代码块作项首块（带子列表）：Enter 换行，不拆项、子列表不动', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('bulletList', null, [
+        schema.node('listItem', null, [
+          schema.node('codeBlock', { language: '' }, [schema.text('code')]),
+          schema.node('bulletList', null, [
+            schema.node('listItem', null, [schema.node('paragraph', null, [schema.text('A1')])]),
+          ]),
+        ]),
+      ]),
+    ]);
+    const editor = makeEditorFromDoc(doc);
+    pressEnterAtEnd(editor, 'code');
+
+    const list = topNodes(editor.state.doc)[0];
+    expect(list.type.name).toBe('bulletList');
+    expect(list.childCount, '代码块末尾回车不该产生新的列表项').toBe(1);
+    expect(list.child(0).firstChild?.type.name).toBe('codeBlock');
+    expect(list.child(0).firstChild?.textContent, '代码块里应插入换行').toBe('code\n');
+    expect(list.child(0).childCount, '子列表必须留在原项').toBe(2);
+  });
+
+  it('代码块是项里唯一子块（最常见的真实形状）：Enter 换行，不拆项', () => {
+    const doc = schema.node('doc', null, [
+      schema.node('bulletList', null, [
+        schema.node('listItem', null, [
+          schema.node('codeBlock', { language: '' }, [schema.text('code')]),
+        ]),
+      ]),
+    ]);
+    const editor = makeEditorFromDoc(doc);
+    pressEnterAtEnd(editor, 'code');
+
+    const list = topNodes(editor.state.doc)[0];
+    expect(list.childCount, '只有一个子块的项也不该被拆开').toBe(1);
+    expect(list.child(0).firstChild?.textContent).toBe('code\n');
   });
 });
