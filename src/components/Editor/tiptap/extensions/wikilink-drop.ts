@@ -12,7 +12,19 @@
  */
 
 const DOC_EXT = /\.(md|markdown|txt)$/i; // 可打开的文档后缀（窗口层打开逻辑 / 图片拖入让路逻辑共用，勿各处内联）
-const LINKABLE_EXT = /\.(md|markdown)$/i; // 可成链的文档后缀（.txt 维持「打开」）
+/**
+ * 互链里**算「已经写了后缀」**的只有 `.md` / `.markdown`（大小写不敏感）——与 Obsidian 同口径。
+ *
+ * 其余一律当裸名、解析时补 `.md`：`.env`（文件其实是 `.env.md`）、`周报.终稿`
+ * （文件其实是 `周报.终稿.md`）都能点开，而不是去开一个不存在的 `.env` / `周报.终稿`。
+ * 解析、补全、标红三处共用本判定，别再各自内联正则。
+ */
+const MARKDOWN_EXT = /\.(md|markdown)$/i; // 可成链的文档后缀（.txt 维持「打开」）
+
+/** 名字是否已是 markdown 文件（`.md` / `.markdown`）。 */
+export function hasMarkdownExtension(name: string): boolean {
+  return MARKDOWN_EXT.test(name);
+}
 /**
  * target 里**可以省略**的后缀：只有 `.md`。
  *
@@ -76,6 +88,22 @@ export function wikilinkTargetFromRelative(relativePath: string): string {
   return normalizePath(relativePath).replace(STRIPPABLE_EXT, '');
 }
 
+/**
+ * 产出侧字符闸门：含这些字符的文件名**不允许**由补全 / 拖入产出互链。
+ *
+ * 判定侧、解析侧都按既定语义办事，唯独产出侧不检查就会造出自相矛盾的死链：
+ * - `#`：解析时按 Obsidian 锚点语义剥掉 ⇒ `[[C#笔记]]` 解析成 `C.md`（真实文件是 `C#笔记.md`），
+ *   点它还会在磁盘造出一个空 `C.md`；
+ * - `[` `]`：落盘正则的 target 段是 `[^\]|]+`，`]` 无法被表达 ⇒ 回读时 target 被截断、
+ *   正文多出一个裸 `]`（保真链路静默损坏，重则整条退化成纯文本）；
+ * - `|`：别名分隔符（Windows 文件名非法，macOS / Linux 可达）。
+ *
+ * 挡在产出侧而不是 serializer：一条规则同时堵住两个入口，且不碰 parser / serializer。
+ */
+export function isLinkableTarget(target: string): boolean {
+  return !/[#[\]|]/.test(target);
+}
+
 export type DropDecision =
   | { kind: 'fallback' } // 编辑器不接住：文档交窗口层「打开」，图片等交既有 drop 逻辑
   | { kind: 'insert'; targets: string[] }; // 在落点处插入这些互链
@@ -96,14 +124,15 @@ export function decideDocumentDrop(
 
   const targets: string[] = [];
   for (const p of paths) {
-    if (!LINKABLE_EXT.test(p)) continue;
+    if (!hasMarkdownExtension(p)) continue;
     if (normalizePath(p) === self) continue; // 拖当前文档自身不生成自链接（与 [[ 补全排除自身口径一致）
     const segs = relativeSegments(selfDir, p);
     if (!segs) continue;
     // 深度上限与补全/标红同口径：范围外的目标不生成链接
     if (segs.length - 1 > WIKILINK_SCAN_DEPTH) continue;
     const target = wikilinkTargetFromRelative(segs.join('/'));
-    if (target) targets.push(target);
+    // 解析器读不回来的字符不产出（否则成链即死链，见 isLinkableTarget）
+    if (target && isLinkableTarget(target)) targets.push(target);
   }
 
   return targets.length > 0 ? { kind: 'insert', targets } : { kind: 'fallback' };

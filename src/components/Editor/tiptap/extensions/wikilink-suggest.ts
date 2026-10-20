@@ -16,7 +16,7 @@ import type { SuggestionOptions } from '@tiptap/suggestion';
 import { PluginKey } from '@tiptap/pm/state';
 
 import { guardedFindSuggestionMatch } from './suggestion-guard';
-import { basename } from './wikilink-drop';
+import { basename, isLinkableTarget } from './wikilink-drop';
 import { listMarkdownFiles, type MarkdownFileList } from '../../../../services/tauri/document';
 
 const wikilinkPluginKey = new PluginKey('wikilinkSuggest');
@@ -94,6 +94,8 @@ export function filterWikilinkCandidates(
     if (fileName === selfName) continue;
     const target = fileName.replace(DOC_SUFFIX, '');
     if (!target) continue;
+    // 含 `#` / `[` / `]` / `|` 的文件名解析器读不回来 —— 不进菜单，避免「选中即死链」
+    if (!isLinkableTarget(target)) continue;
     if (!q || target.toLowerCase().includes(q)) {
       items.push({ fileName, target });
       if (items.length >= MENU_ITEM_LIMIT) break;

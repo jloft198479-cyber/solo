@@ -10,8 +10,11 @@ import {
 import { normalizeTauriError, withErrorHint } from '../services/tauri/client';
 import { recordDocumentSession } from '../services/tauri/session';
 import {
+  emitFileRenamed,
   emitWikilinksSynced,
+  listenFileRenamed,
   listenWikilinksSynced,
+  type FileRenamedPayload,
   type UnlistenFn,
   type WikilinksSyncedPayload,
 } from '../services/tauri/events';
@@ -415,6 +418,11 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     // 放在锁外跑，避免弹框等交互期间仍持有 isSaving（否则 saveCurrentDocumentAs 遇 isSaving
     // 会直接 return false，用户点"另存为"没反应无提示）。失败只留痕、不影响改名结果。
     if (saveOk && renamedPath) {
+      // 先让「还开着旧路径的窗口」跟到新路径：它不在下面的改动清单里，收不到同步广播；
+      // 不跟的话，它下一次自动保存会弹出「重新创建」把旧路径的文件复活（P1-1）。
+      await emitFileRenamed({ oldPath, newPath: renamedPath }).catch((error: unknown) => {
+        console.warn('[file-renamed] 广播失败:', normalizeTauriError(error).message);
+      });
       await syncInboundWikilinks(oldPath, renamedPath);
     }
     return saveOk;
@@ -509,6 +517,48 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     } catch (error) {
       console.warn('[wikilink-sync] 刷新被改写文档失败:', normalizeTauriError(error).message);
     }
+  }
+
+  /**
+   * 别的窗口把这篇文章改名了：静默把本窗口的路径跟到新名字（VS Code / Obsidian 的既有做法）。
+   *
+   * - **只换路径，不动 buffer / 脏态**：改名不改内容，内存里没保存的编辑原样保留；
+   * - 不弹框、不写盘；脏着的话，下次自动保存直写新路径，若与改名窗口的落盘撞车，
+   *   由 `save_document` 的 mtime 冲突检查兜底（既有机制，不在这里另造一套）；
+   * - 同一窗口自己改名时 store 路径已先更新，不会命中本条。
+   */
+  function handleFileRenamed(payload: FileRenamedPayload) {
+    const oldPath = payload?.oldPath;
+    const newPath = payload?.newPath;
+    if (!oldPath || !newPath) return;
+
+    const path = fileStore.currentFile.path;
+    if (!path || isSaving || isOpeningFile) return;
+    if (!isSamePath(path, oldPath)) return;
+
+    // 用户在这边改了一半的标题不能被改名连带抹掉：跟随之后仍按他的标题去保存
+    const pendingTitle =
+      fileStore.currentFile.displayName !== fileStore.currentFile.originalBaseName
+        ? fileStore.currentFile.displayName
+        : null;
+
+    fileStore.renamePath(newPath);
+    if (pendingTitle) fileStore.setDisplayName(pendingTitle);
+
+    // 基线对齐到新路径的磁盘时间；不取到就置 null（宁可下次多问一次，也不假装没变）
+    void getFileMtime(newPath)
+      .then((mtime) => {
+        if (isSamePath(fileStore.currentFile.path ?? '', newPath)) {
+          fileStore.syncLastModifiedTime(mtime);
+        }
+      })
+      .catch(() => {
+        if (isSamePath(fileStore.currentFile.path ?? '', newPath)) {
+          fileStore.syncLastModifiedTime(null);
+        }
+      });
+
+    updateAutoSaveStatus(`文档已改名：${newPath.split(/[/\\]/).pop() ?? newPath}`);
   }
 
   function clearExternalWarning() {
@@ -616,9 +666,21 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       console.warn('[wikilink-sync] 监听广播失败:', normalizeTauriError(error).message);
     });
 
+  // 跨窗口改名跟随：别的窗口把这篇改名了 → 静默换路径（见 handleFileRenamed）
+  let unlistenFileRenamed: UnlistenFn | null = null;
+  void listenFileRenamed(handleFileRenamed)
+    .then((fn) => {
+      if (disposed) fn();
+      else unlistenFileRenamed = fn;
+    })
+    .catch((error: unknown) => {
+      console.warn('[file-renamed] 监听广播失败:', normalizeTauriError(error).message);
+    });
+
   onUnmounted(() => {
     disposed = true;
     unlistenWikilinksSynced?.();
+    unlistenFileRenamed?.();
     stopAutoSave();
     if (autoSaveStatusTimer) {
       clearTimeout(autoSaveStatusTimer);

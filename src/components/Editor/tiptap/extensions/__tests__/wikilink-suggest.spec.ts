@@ -71,6 +71,17 @@ describe('filterWikilinkCandidates', () => {
     ]);
   });
 
+  it('文件名含 # / [ ] / | → 不进菜单（选中即得死链，点它还会造垃圾文件）', async () => {
+    listMarkdownFilesMock.mockResolvedValue({
+      files: ['C#笔记.md', '截图[1].md', '论文]终稿.md', 'a|b.md', '正常.md'],
+      truncated: false,
+    });
+    await refreshWikilinkCandidates('C:\\docs\\A.md');
+    expect(filterWikilinkCandidates('', 'C:\\docs\\A.md').map((i) => i.target)).toEqual(['正常']);
+    // 直接搜坏文件名也不该冒出来（过滤在匹配之前）
+    expect(filterWikilinkCandidates('C#', 'C:\\docs\\A.md')).toEqual([]);
+  });
+
   it('菜单上限 50 条', async () => {
     listMarkdownFilesMock.mockResolvedValue({
       files: Array.from({ length: 60 }, (_, i) => `f${String(i).padStart(2, '0')}.md`),

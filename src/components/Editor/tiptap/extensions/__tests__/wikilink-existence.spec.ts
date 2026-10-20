@@ -115,12 +115,15 @@ describe('失效互链：名字索引与判定口径', () => {
     expect(isWikilinkTargetMissing('a/b', index)).toBe(true);
   });
 
-  it('目标是 .markdown / .txt 等清单不收的扩展名 → 不标（实测曾误标）', () => {
+  it('只有 .md / .markdown 算「已带后缀」；其余补 .md 后再判（与解析器同口径）', () => {
     const index = buildWikilinkNameIndex(['B.md']);
+    // .markdown 清单不收 → 判不了，不标（宁可漏标不误标）
     expect(isWikilinkTargetMissing('B.markdown', index)).toBe(false);
-    expect(isWikilinkTargetMissing('note.txt', index)).toBe(false);
     // .md 仍按正常口径判定
     expect(isWikilinkTargetMissing('C.md', index)).toBe(true);
+    // `.note` 不是 markdown 后缀 → 实际指向 `.note.md`，目录里没有 → 标红（不再当成「判不了」）
+    expect(isWikilinkTargetMissing('.note', index)).toBe(true);
+    expect(isWikilinkTargetMissing('note.txt', index)).toBe(true);
   });
 
   it('标题锚点不参与文件名判定（[[B#小节]] 判的是 B）', () => {

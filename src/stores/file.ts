@@ -107,6 +107,15 @@ export const useFileStore = defineStore('file', {
     },
 
     /**
+     * 仅把磁盘时间基线对齐到新路径（跨窗口改名跟随用）。
+     * 不碰 content / isDirty / displayName：改名只换了路径，内存里的编辑必须原样留着。
+     * 不对齐的后果：窗口一获得焦点，`checkExternalModification` 会误报「文件已在外部修改」。
+     */
+    syncLastModifiedTime(lastModifiedTime: number | null) {
+      this.currentFile.lastModifiedTime = lastModifiedTime;
+    },
+
+    /**
      * 保存成功后清脏。
      * content 传入时同步基线为「实际写入磁盘的内容」——基线只能在保存
      * 成功后更新（失败/冲突取消时若提前更新，后续 syncEditedContent 语义

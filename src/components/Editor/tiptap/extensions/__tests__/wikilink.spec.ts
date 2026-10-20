@@ -32,6 +32,14 @@ describe('resolveWikilinkTarget', () => {
 
   it('keeps an explicit extension instead of appending .md', () => {
     expect(resolveWikilinkTarget('F:\\notes\\A.md', 'B.markdown')).toBe('F:\\notes\\B.markdown');
+    expect(resolveWikilinkTarget('F:\\notes\\A.md', 'B.MD')).toBe('F:\\notes\\B.MD');
+  });
+
+  it('文件名里有点不等于写了后缀：只有 .md/.markdown 才不补（Obsidian 同口径）', () => {
+    // `.env.md` 的链接写法是 [[.env]]：补 .md 才能打开，不能去找不存在的 `.env`
+    expect(resolveWikilinkTarget('F:\\notes\\A.md', '.env')).toBe('F:\\notes\\.env.md');
+    // `周报.终稿.md` 同理
+    expect(resolveWikilinkTarget('F:\\notes\\A.md', '周报.终稿')).toBe('F:\\notes\\周报.终稿.md');
   });
 
   it('resolves a subfolder target and normalizes separators to the current path style', () => {

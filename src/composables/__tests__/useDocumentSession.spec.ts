@@ -15,6 +15,9 @@ const openDocumentMock = vi.fn();
 const saveDocumentMock = vi.fn();
 const renameFileMock = vi.fn();
 const syncWikilinksMock = vi.fn();
+const getFileMtimeMock = vi.fn();
+const emitFileRenamedMock = vi.fn();
+const listenFileRenamedMock = vi.fn();
 
 const fileStoreState = {
   currentFile: {
@@ -61,6 +64,12 @@ const fileStoreState = {
     fileStoreState.currentFile.displayName = baseName;
     fileStoreState.currentFile.originalBaseName = baseName;
   }),
+  setDisplayName: vi.fn((name: string) => {
+    fileStoreState.currentFile.displayName = name.trim() || DEFAULT_DISPLAY_NAME;
+  }),
+  syncLastModifiedTime: vi.fn((lastModifiedTime: number | null) => {
+    fileStoreState.currentFile.lastModifiedTime = lastModifiedTime;
+  }),
   reset: vi.fn(),
 };
 
@@ -83,6 +92,14 @@ vi.mock('../../services/tauri/document', () => ({
   saveDocument: saveDocumentMock,
   renameFile: renameFileMock,
   syncWikilinksOnRename: syncWikilinksMock,
+  getFileMtime: getFileMtimeMock,
+}));
+
+vi.mock('../../services/tauri/events', () => ({
+  emitWikilinksSynced: vi.fn().mockResolvedValue(undefined),
+  listenWikilinksSynced: vi.fn().mockResolvedValue(() => {}),
+  emitFileRenamed: emitFileRenamedMock,
+  listenFileRenamed: listenFileRenamedMock,
 }));
 
 vi.mock('../../stores/file', async (importOriginal) => {
@@ -105,6 +122,9 @@ vi.mock('vue', async () => {
   };
 });
 
+type FileRenamedHandler = (payload: { oldPath: string; newPath: string }) => void;
+let capturedFileRenamedHandler: FileRenamedHandler | null = null;
+
 describe('useDocumentSession', () => {
   beforeEach(() => {
     openMock.mockReset();
@@ -115,6 +135,16 @@ describe('useDocumentSession', () => {
     saveDocumentMock.mockReset();
     renameFileMock.mockReset();
     syncWikilinksMock.mockReset();
+    getFileMtimeMock.mockReset();
+    getFileMtimeMock.mockResolvedValue(2000);
+    emitFileRenamedMock.mockReset();
+    emitFileRenamedMock.mockResolvedValue(undefined);
+    listenFileRenamedMock.mockReset();
+    capturedFileRenamedHandler = null;
+    listenFileRenamedMock.mockImplementation((handler: FileRenamedHandler) => {
+      capturedFileRenamedHandler = handler;
+      return Promise.resolve(() => {});
+    });
     // 默认：改名同步预览返回空（无文档链到旧名）→ 前端同步链路安全早退，不影响其它用例
     syncWikilinksMock.mockResolvedValue([]);
     fileStoreState.currentFile = {
@@ -129,6 +159,8 @@ describe('useDocumentSession', () => {
     fileStoreState.setFile.mockClear();
     fileStoreState.markSaved.mockClear();
     fileStoreState.renamePath.mockClear();
+    fileStoreState.setDisplayName.mockClear();
+    fileStoreState.syncLastModifiedTime.mockClear();
     fileStoreState.reset.mockClear();
     // 忠实语义版只在其用例内需要，每个用例开头复位回默认桩，防跨用例泄漏
     fileStoreState.syncEditedContent.mockImplementation(() => false);
@@ -606,6 +638,62 @@ describe('useDocumentSession', () => {
     expect(syncWikilinksMock).toHaveBeenCalledWith('/tmp/original.md', '/tmp/新标题.md');
     // 改名同步不再打扰用户（弹框会被自动保存打断，错过一次就永久不同步）
     expect(confirmMock).not.toHaveBeenCalled();
+    // 广播旧→新，供「还开着旧路径的窗口」跟随（P1-1）
+    expect(emitFileRenamedMock).toHaveBeenCalledWith({
+      oldPath: '/tmp/original.md',
+      newPath: '/tmp/新标题.md',
+    });
+  });
+
+  /**
+   * P1-1 回归锁：A 窗口改名后，B 窗口（开着旧路径）必须静默跟到新路径。
+   * 不跟的后果：B 的自动保存发现旧文件没了 → 弹「重新创建」→ 磁盘上复活旧文件。
+   */
+  it('别的窗口改名 → 只换路径，不重载、不写盘、未保存内容原样保留', async () => {
+    fileStoreState.currentFile = {
+      path: '/tmp/original.md',
+      content: 'draft',
+      isDirty: true,
+      lastModifiedTime: 1000,
+      displayName: '草稿标题',
+      originalBaseName: 'original',
+    };
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    useDocumentSession({ resetViewMode: vi.fn() });
+    capturedFileRenamedHandler?.({ oldPath: '/tmp/original.md', newPath: '/tmp/新标题.md' });
+
+    expect(fileStoreState.renamePath).toHaveBeenCalledWith('/tmp/新标题.md');
+    expect(fileStoreState.currentFile.path).toBe('/tmp/新标题.md');
+    // 内容与脏态不动：改名不是内容变更，重载会抹掉用户没保存的字
+    expect(fileStoreState.currentFile.content).toBe('draft');
+    expect(fileStoreState.currentFile.isDirty).toBe(true);
+    // 本窗口改了一半的标题不能被连带抹掉
+    expect(fileStoreState.currentFile.displayName).toBe('草稿标题');
+    expect(openDocumentMock).not.toHaveBeenCalled();
+    expect(saveDocumentMock).not.toHaveBeenCalled();
+    // 基线对齐到新路径的 mtime，避免下次聚焦误报「外部修改」
+    await vi.waitFor(() =>
+      expect(fileStoreState.syncLastModifiedTime).toHaveBeenCalledWith(2000),
+    );
+  });
+
+  it('改名跟随只认旧路径：与本文档无关就完全不动', async () => {
+    fileStoreState.currentFile = {
+      path: '/tmp/mine.md',
+      content: 'draft',
+      isDirty: false,
+      lastModifiedTime: 1000,
+      displayName: 'mine',
+      originalBaseName: 'mine',
+    };
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    useDocumentSession({ resetViewMode: vi.fn() });
+    capturedFileRenamedHandler?.({ oldPath: '/tmp/other.md', newPath: '/tmp/other-2.md' });
+
+    expect(fileStoreState.renamePath).not.toHaveBeenCalled();
+    expect(fileStoreState.currentFile.path).toBe('/tmp/mine.md');
   });
 
   it('silent saves in place when displayName matches original base name', async () => {

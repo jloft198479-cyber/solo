@@ -72,6 +72,19 @@ describe('decideDocumentDrop', () => {
     expect(resolveWikilinkTarget('C:\\docs\\a.md', 'sub/b')).toBe('C:\\docs\\sub\\b.md');
   });
 
+  it('文件名含 # / [ ] / | → fallback（解析器读不回来，成链即死链）', () => {
+    // `[[C#笔记]]` 会被锚点规则剥成 `C.md`；`[[笔记[1]]]` 落盘回读会丢 `]` 并多出裸文本
+    for (const bad of ['C#笔记.md', '截图[1].md', '论文]终稿.md', 'a|b.md']) {
+      expect(decideDocumentDrop([`C:\\docs\\${bad}`], 'C:\\docs\\a.md', true)).toEqual({
+        kind: 'fallback',
+      });
+    }
+    // 混拖：健康文件照常成链，坏文件单独回落，不连坐
+    expect(
+      decideDocumentDrop(['C:\\docs\\C#笔记.md', 'C:\\docs\\b.md'], 'C:\\docs\\a.md', true),
+    ).toEqual({ kind: 'insert', targets: ['b'] });
+  });
+
   it('重复 / 混合分隔符不影响判定（归一化分支）', () => {
     expect(
       decideDocumentDrop(['C:/docs//sub\\\\b.md'], 'C:\\docs\\a.md', true),

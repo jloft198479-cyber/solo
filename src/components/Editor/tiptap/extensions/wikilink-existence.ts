@@ -29,7 +29,7 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
 import { splitWikilinkAnchor } from './wikilink';
-import { WIKILINK_SCAN_DEPTH } from './wikilink-drop';
+import { WIKILINK_SCAN_DEPTH, hasMarkdownExtension } from './wikilink-drop';
 import type { MarkdownFileList } from '../../../../services/tauri/document';
 
 export const wikilinkExistenceKey = new PluginKey<DecorationSet>('wikilinkExistence');
@@ -75,7 +75,7 @@ export function buildWikilinkNameIndex(files: readonly string[]): Set<string> {
  * - 绝对路径（`C:...` / `/...`）：不在相对清单里，判不了
  * - 目标含 `..`：出界到父目录及以上，扫描范围之外
  * - 路径段数超过 `WIKILINK_SCAN_DEPTH`：超出扫描深度
- * - 目标自带**非 `.md`** 扩展名（`[[B.markdown]]`）：清单只列 `.md`
+ * - 目标解析后不是 `.md`（如 `[[B.markdown]]`）：清单只列 `.md`，扫不到就判不了
  *
  * `#` 之后是标题锚点，先剥掉再比（`[[B#小节]]` 判的是 `B`）。
  */
@@ -101,18 +101,19 @@ export function isWikilinkTargetMissing(
   // 超出扫描深度：清单里根本不会出现，判不了
   if (segments.length - 1 > WIKILINK_SCAN_DEPTH) return false;
 
-  // 非 .md 扩展名：清单只列 .md（用 lastIndexOf 判，比正则少一次对象分配）
-  const lastDot = t.lastIndexOf('.');
-  const lastSlash = t.lastIndexOf('/');
-  if (lastDot > lastSlash + 1 && t.slice(lastDot + 1) !== 'md') return false;
+  // 与解析器同口径（`resolveWikilinkTarget`）：只有 `.md` / `.markdown` 算已带后缀，
+  // 其余补 `.md`。所以 `.env` 判的是 `.env.md`，不是 `.env`。
+  const resolved = hasMarkdownExtension(t) ? t : `${t}.md`;
+  // 清单只列 `.md`：`.markdown` 目标扫不到，判不了（宁可漏标，不可误标）
+  if (!resolved.endsWith('.md')) return false;
 
-  return !index.has(t);
+  return !index.has(resolved);
 }
 
-/** 悬停提示里的文件名：目标已带扩展名就原样用，别拼成 `B.md.md`；锚点不进文件名。 */
+/** 悬停提示里的文件名：目标已带 markdown 后缀就原样用，别拼成 `B.md.md`；锚点不进文件名。 */
 function displayFileName(target: string): string {
   const { path } = splitWikilinkAnchor(target);
-  return /\.[a-z0-9]+$/i.test(path) ? path : `${path}.md`;
+  return hasMarkdownExtension(path) ? path : `${path}.md`;
 }
 
 function buildDecorations(doc: PMNode, getFiles: () => MarkdownFileList): DecorationSet {

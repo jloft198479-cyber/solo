@@ -9,6 +9,7 @@ const WINDOW_CLOSE_REQUESTED = 'window-close-requested';
  * 定向事件到不了它，必须让所有窗口都收到再各自按路径过滤。
  */
 const WIKILINKS_SYNCED = 'solo:wikilinks-synced';
+const FILE_RENAMED = 'solo:file-renamed';
 
 export type UnlistenFn = () => void;
 export type AppEventHandler<T> = (payload: T) => void | Promise<void>;
@@ -91,7 +92,7 @@ export async function listenEditorFocus(handler: () => void): Promise<UnlistenFn
 }
 
 export interface WikilinksSyncedPayload {
-  /** 已被改写的文档绝对路径（改名那篇的**同目录**兄弟，由前端按旧/新路径拼好） */
+  /** 已被改写的文档绝对路径（Rust 直返；范围 = 改名文档的本层 + 向上 `WIKILINK_SCAN_DEPTH` 层） */
   paths: string[];
 }
 
@@ -110,4 +111,28 @@ export async function listenWikilinksSynced(
   handler: AppEventHandler<WikilinksSyncedPayload>,
 ): Promise<UnlistenFn> {
   return listen<WikilinksSyncedPayload>(WIKILINKS_SYNCED, (event) => handler(event.payload));
+}
+
+export interface FileRenamedPayload {
+  oldPath: string;
+  newPath: string;
+}
+
+/**
+ * 广播「这篇文档在磁盘上换了路径」。
+ *
+ * 必须走全局 emit：改名发生在 A 窗口，而还开着旧路径的可能是任意 B 窗口，
+ * 发送方无从知道它的 label。**与 wikilinks-synced 分开**——那条的语义是
+ * 「你开着的文档内容被改写 → 重载」，这条是「路径变了 → 只跟着换路径，绝不重载」
+ * （buffer 里可能有 A 并不知道的未保存编辑，重载会把它抹掉）。
+ */
+export async function emitFileRenamed(payload: FileRenamedPayload): Promise<void> {
+  await emit(FILE_RENAMED, payload);
+}
+
+/** 监听改名跟随广播（全局口径，配合上面的 emitFileRenamed） */
+export async function listenFileRenamed(
+  handler: AppEventHandler<FileRenamedPayload>,
+): Promise<UnlistenFn> {
+  return listen<FileRenamedPayload>(FILE_RENAMED, (event) => handler(event.payload));
 }

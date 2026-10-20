@@ -9,6 +9,7 @@
  */
 import { Node, mergeAttributes, InputRule } from '@tiptap/vue-3';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
+import { hasMarkdownExtension } from './wikilink-drop';
 
 const wikilinkClickKey = new PluginKey('wikilinkClick');
 
@@ -52,7 +53,9 @@ export function resolveWikilinkTarget(
   const sep = currentPath[lastSep];
 
   const normalized = t.replace(/[\\/]+/g, sep);
-  const withExt = /\.[^\\/]+$/.test(normalized) ? normalized : `${normalized}.md`;
+  // 只有 `.md` / `.markdown` 算「已带后缀」，其余补 `.md`（`.env` → `.env.md`）。
+  // 与 Obsidian 同口径：文件名里有点不等于写了后缀，判据必须是 markdown 后缀本身。
+  const withExt = hasMarkdownExtension(normalized) ? normalized : `${normalized}.md`;
   return `${dir}${sep}${withExt}`;
 }
 
