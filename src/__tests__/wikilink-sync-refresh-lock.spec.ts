@@ -10,6 +10,10 @@
  *   修法：改写落盘后由前端广播 `solo:wikilinks-synced`（JS `emit` 的目标是 `Any`，
  *   全局送达，见 tauri `event/listener.rs` 的 `match_any_or_filter`），收到广播的窗口
  *   按路径自认领——干净就静默重载、脏就改走既有「外部修改」提示。
+ * - 2026-10-20 二次排查（用户实测仍失效，真实文件在 Desktop\solo）：
+ *   同步改写本身没问题，断在**「先问再改」**这个设计上 —— 改名保存时弹「要不要一并更新？」，
+ *   该框会被自动保存打断、用户随手关掉；答过「先不动」之后再没有第二次机会，
+ *   链接一直指旧名，界面也**不给任何提示**。⇒ 改为一律自动同步，不再询问（见下方第 2 条断言）。
  * - 这里的风险是**静默回归**：谁重构 `syncInboundWikilinks` 时把广播那行删掉，
  *   行为倒退回「用户一直看到旧名字」，而 tsc / lint / 其它测试**全绿**
  *   （跨窗口事件投递压根不在 JS 单测覆盖范围内，只能真机验）。
@@ -82,11 +86,14 @@ describe('改名同步互链 ⇄ 受影响窗口刷新 接线锁', () => {
   it('改写落盘成功后才广播（syncInboundWikilinks 内，且晚于 changed.length 判定）', () => {
     const body = bodyOf(session, 'syncInboundWikilinks');
     expect(body, '广播那行被删了 —— 窗口不会再自动刷新').toContain('emitWikilinksSynced(');
-    expect(body.indexOf('changed.length > 0')).toBeLessThan(body.indexOf('emitWikilinksSynced('));
-    // 只预览（dry_run=true）那一步绝不能广播：那时一个文件都还没改
-    const dryRunCall = body.indexOf('syncWikilinksOnRename(oldPath, newPath, true)');
-    expect(dryRunCall, '预览调用签名变了，本锁需同步更新').toBeGreaterThan(-1);
-    expect(body.indexOf('emitWikilinksSynced(')).toBeGreaterThan(dryRunCall);
+    expect(body.indexOf('changed.length === 0')).toBeLessThan(body.indexOf('emitWikilinksSynced('));
+    // 改名同步**不再询问**（2026-10-20 二次排查）：弹框会被自动保存打断、用户随手关掉，
+    // 答过「先不动」之后再没有第二次机会，链接一直指旧名而界面毫无提示 —— 用户实测踩过。
+    expect(body, '不许再弹确认框 / 不许退回「先预览再询问」').not.toContain('confirm(');
+    expect(
+      body,
+      '调用签名变了：现在是 syncWikilinksOnRename(oldPath, newPath)，没有 dryRun 那一趟',
+    ).toContain('syncWikilinksOnRename(oldPath, newPath)');
   });
 
   it('订阅广播且随组件卸载注销（异步注册也要兜住先卸载的竞态）', () => {

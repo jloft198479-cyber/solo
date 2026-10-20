@@ -325,23 +325,24 @@ fn replace_targets_in_line(line: &str, old_stem: &str, new_stem: &str) -> String
 
 /// 改名后同步「指向本文档」的互链：扫描同目录其它文档，把 `[[旧名]]` 改成 `[[新名]]`。
 ///
-/// - `dry_run = true`：只读预览，返回**将被改动**的文件名，不写盘（供前端先列清单让用户确认）。
-/// - `dry_run = false`：真正改写，每个文件走 `atomic_write`（整篇写成功才算数，绝不出现半篇），
-///   返回**已改动**的文件名。
+/// 直接改写并返回**已改动**的文件名，每个文件走 `atomic_write`（整篇写成功才算数，
+/// 绝不出现半篇）。**不再先预览让用户确认**（2026-10-20 改）：改名就是要链接跟着走，
+/// 弹框问一次用户要么没注意、要么被自动保存打断，答过「先不动」之后就再没有第二次机会，
+/// 链接会一直指着旧名且界面毫无提示 —— 实测踩过。代价是这里会改用户没正眼看过的文件，
+/// 但改的是「指向被改名文档」的互链目标，本就是改名的自然结果。
 ///
 /// 边界与安全：路径解析全在本函数（从 `new_path` 取父目录、从两路径取 `file_stem`）；
 /// **跳过改名后的这篇自身**（`skip_filename`）——不碰用户正在编辑、内存态未刷新的文档；
 /// 只处理同目录、扩展名白名单（`OPEN_EXTENSIONS`）内的文档，按**已扫描文档数**限流
 /// （`SAME_DIR_DOC_LIMIT`，防 node_modules 病态目录）；改写保护围栏代码块（见
 /// `rewrite_wikilink_targets`）。单个文件读/写失败一律静默跳过，**任何情况都不阻断改名主流程**。
-/// 跨窗口若另有窗口正开着被改的文件：前端在做完 `dry_run=false` 的改写后会广播
-/// `solo:wikilinks-synced`（携带被改路径），那个窗口收到后自行重载（脏态则改提示），
-/// 本命令不感知窗口；保存侧另有 mtime 乐观锁兜底。
+/// 跨窗口若另有窗口正开着被改的文件：前端在改写后广播 `solo:wikilinks-synced`
+/// （携带被改路径），那个窗口收到后自行重载（脏态则改提示），本命令不感知窗口；
+/// 保存侧另有 mtime 乐观锁兜底。
 #[tauri::command]
 pub async fn sync_wikilinks_on_rename(
     old_path: String,
     new_path: String,
-    dry_run: bool,
 ) -> Result<Vec<String>, AppError> {
     validate_document_extension(&new_path, &OPEN_EXTENSIONS, "同步链接")?;
 
@@ -378,7 +379,6 @@ pub async fn sync_wikilinks_on_rename(
             &old_stem,
             &new_stem,
             &skip_filename,
-            dry_run,
             SAME_DIR_DOC_LIMIT,
         )
     })
@@ -392,13 +392,11 @@ pub async fn sync_wikilinks_on_rename(
 /// 同步执行（由命令包进 `spawn_blocking`）。抽成独立函数便于用 `limit` 做小样本单测。
 /// - `skip_filename`：跳过改名后的当前文档自身（同目录唯一同名文件，不比对路径全等即可）。
 /// - `limit`：最多**扫描**多少个候选文档（已扫描数，非命中数）——真正给病态大目录兜底。
-/// - `dry_run`：只预览命中、不写盘。
 fn scan_and_rewrite_wikilinks(
     dir: &Path,
     old_stem: &str,
     new_stem: &str,
     skip_filename: &str,
-    dry_run: bool,
     limit: usize,
 ) -> Vec<String> {
     let mut affected: Vec<String> = Vec::new();
@@ -435,8 +433,8 @@ fn scan_and_rewrite_wikilinks(
             Err(_) => continue,
         };
         if let Some(updated) = rewrite_wikilink_targets(&content, old_stem, new_stem) {
-            // 预览模式不写盘；改写模式写失败则跳过（不计入 affected）
-            if !dry_run && atomic_write(&path, updated.as_bytes()).is_err() {
+            // 写失败则跳过（不计入 affected）
+            if atomic_write(&path, updated.as_bytes()).is_err() {
                 continue;
             }
             affected.push(name);
@@ -1521,7 +1519,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sync_wikilinks_dry_run_previews_then_apply_writes() {
+    async fn sync_wikilinks_rewrites_matching_links_only() {
         let dir = test_dir();
         // 模拟改名已落盘：new.md 已存在；link.md 里有指向旧名 old 的链接
         let new_path = dir.join("new.md");
@@ -1538,16 +1536,8 @@ mod tests {
         let old_str = dir.join("old.md").to_string_lossy().to_string();
         let new_str = new_path.to_string_lossy().to_string();
 
-        // 预览：只报 link.md，且不写盘；子目录不碰
-        let preview = sync_wikilinks_on_rename(old_str.clone(), new_str.clone(), true)
-            .await
-            .unwrap();
-        assert_eq!(preview, vec!["link.md".to_string()]);
-        assert_eq!(fs::read_to_string(&link).unwrap(), "see [[old]] here");
-        assert_eq!(fs::read_to_string(sub.join("deep.md")).unwrap(), "[[old]]");
-
-        // 改写：真正落盘；近名/普通链接/子目录均不受影响
-        let changed = sync_wikilinks_on_rename(old_str, new_str, false).await.unwrap();
+        // 一次调用即落盘（不再有 dry_run 预览那一步）
+        let changed = sync_wikilinks_on_rename(old_str, new_str).await.unwrap();
         assert_eq!(changed, vec!["link.md".to_string()]);
         assert_eq!(fs::read_to_string(&link).unwrap(), "see [[new]] here");
         assert_eq!(
@@ -1566,7 +1556,7 @@ mod tests {
         atomic_write(&link, b"[[same]]").unwrap();
         // 新旧名相同 → 直接返回空，不扫描不改写
         let p = dir.join("same.md").to_string_lossy().to_string();
-        let res = sync_wikilinks_on_rename(p.clone(), p, false).await.unwrap();
+        let res = sync_wikilinks_on_rename(p.clone(), p).await.unwrap();
         assert!(res.is_empty());
         assert_eq!(fs::read_to_string(&link).unwrap(), "[[same]]");
         let _ = fs::remove_dir_all(dir);
@@ -1595,9 +1585,7 @@ mod tests {
 
         let old_str = dir.join("old.md").to_string_lossy().to_string();
         let new_str = new_path.to_string_lossy().to_string();
-        let changed = sync_wikilinks_on_rename(old_str, new_str, false)
-            .await
-            .unwrap();
+        let changed = sync_wikilinks_on_rename(old_str, new_str).await.unwrap();
 
         assert_eq!(changed, vec!["link.md".to_string()]);
         assert_eq!(
@@ -1616,10 +1604,13 @@ mod tests {
             atomic_write(&dir.join(f), b"see [[old]]").unwrap();
         }
         // limit=2：只处理 2 个候选（读目录顺序不定，仅断言命中数=2）；证明按"已扫描数"而非"命中数"限流
-        let affected = scan_and_rewrite_wikilinks(&dir, "old", "new", "new.md", true, 2);
+        let affected = scan_and_rewrite_wikilinks(&dir, "old", "new", "new.md", 2);
         assert_eq!(affected.len(), 2);
-        // 全量（大 limit）：四个都命中
-        let all = scan_and_rewrite_wikilinks(&dir, "old", "new", "new.md", true, 500);
+        // 上面那次已把命中的改写成 [[new]]，重置后再跑全量（大 limit）：四个都命中
+        for f in ["a.md", "b.md", "c.md", "d.md"] {
+            atomic_write(&dir.join(f), b"see [[old]]").unwrap();
+        }
+        let all = scan_and_rewrite_wikilinks(&dir, "old", "new", "new.md", 500);
         assert_eq!(all, vec!["a.md", "b.md", "c.md", "d.md"].iter().map(|s| s.to_string()).collect::<Vec<_>>());
         let _ = fs::remove_dir_all(dir);
     }

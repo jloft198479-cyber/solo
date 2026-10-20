@@ -73,6 +73,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | Slash 命令菜单 | ✅ | [`slash-commands.ts`](../src/components/Editor/tiptap/extensions/slash-commands.ts) | 中文前缀可唤出（`allowedPrefixes: null`）；代码块内不弹 |
 | Emoji 菜单（`:`） | ✅ | [`emoji-suggest.ts`](../src/components/Editor/tiptap/extensions/emoji-suggest.ts) | 盘符 `G:` 误触发已修（一/25） |
 | 互链补全（`[[`） | ✅ | [`wikilink-suggest.ts`](../src/components/Editor/tiptap/extensions/wikilink-suggest.ts) + `list_markdown_files` | 一/21 已修（曾因扩展级 option 漏递永久失效）；未保存文档也弹，候选为空给引导 |
+| 失效互链标记 | ✅ | [`wikilink-existence.ts`](../src/components/Editor/tiptap/extensions/wikilink-existence.ts) | 指向不存在文件的互链标红 + 悬停说明。**只在打开/切文档时重算**，打字只平移 decoration（性能硬约束）；`[[sub/B]]` 这类带路径目标判不了，不标 |
 | 代码上下文不弹菜单 | ✅ | [`suggestion-guard.ts`](../src/components/Editor/tiptap/extensions/suggestion-guard.ts) | `![[` 嵌入语法不触发 `[[`（一/18、一/22） |
 | 查找 / 替换 | ✅ | [`useEditorSearch.ts`](../src/components/Editor/tiptap/useEditorSearch.ts) + [`SearchPanel.vue`](../src/components/Editor/views/SearchPanel.vue) + [`search-highlight.ts`](../src/components/Editor/tiptap/extensions/search-highlight.ts) | 快捷键是 `Mod-f`/`Mod-h`（wiki 写 `Mod-g` 是错的，附录 B-2） |
 | 焦点模式 | ✅ | [`paragraph-focus.ts`](../src/components/Editor/tiptap/extensions/paragraph-focus.ts) + `<html>.focus-mode` | **最小块粒度**（列表每项、引用/callout 内每段独立；对标 Typora `md-end-block`）；列表圆点/勾选框单独联动；组字期装饰只平移不重建（一/15） |

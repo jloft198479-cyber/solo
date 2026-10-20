@@ -102,6 +102,23 @@ fn create_editor_window(
         .decorations(false)
         .visible(false);
 
+    // WebView2 的 additionalBrowserArgs 是「同一用户数据目录内必须一致」的硬约束。
+    // 主窗口配置里带了 TSFImeSupport，而 Tauri 默认值不带 —— 新窗口若用默认值，
+    // CreateCoreWebView2EnvironmentWithOptions 会失败，但 build() 仍返回 Ok，
+    // 拿到的是没有 HWND 的空壳：窗口不存在、前端永远等不到 startup_ready，
+    // 用户看到的正是「点互链毫无反应」。⇒ 一律沿用主窗口配置，不另立一套。
+    // 取 `windows.first()` 依赖「tauri.conf.json 里只声明主窗口这一个条目」——
+    // 若将来加第二个配置窗口且它排在前面，这里会取错，届时改按 label 匹配。
+    if let Some(args) = app
+        .config()
+        .app
+        .windows
+        .first()
+        .and_then(|w| w.additional_browser_args.as_deref())
+    {
+        builder = builder.additional_browser_args(args);
+    }
+
     // 透明模式：消除 Windows 无边框窗口快速缩放时的黑边屏闪（Tauri issue #13270）。
     // 视觉不变——前端 body 透明、.app-root 铺不透明底色；macOS 走独立背景处理，不启用。
     #[cfg(target_os = "windows")]
@@ -148,6 +165,12 @@ fn create_editor_window(
     Ok(label)
 }
 
+/// 另开一扇编辑器窗口（互链跳转 / Ctrl+N / 多选文件各开一窗都走这里）。
+///
+/// **必须保持 `async`**：同步命令直接在事件循环线程上执行，`build()` 里的 WebView2
+/// 初始化要靠同一个消息循环推进，等于自己等自己 —— 实测窗口壳出现但永远不 ready，
+/// 命令也不返回（死锁）。async 命令跑在运行时工作线程上，建窗动作能借主线程消息循环
+/// 完成，两边都不阻塞。别图省事把它改回 `fn`（`window-create-lock.spec.ts` 有锁）。
 #[tauri::command]
 async fn new_editor_window(
     app: tauri::AppHandle,

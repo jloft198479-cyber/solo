@@ -34,6 +34,7 @@ import { Dim } from './extensions/dim';
 import { Frontmatter } from './extensions/frontmatter';
 import { FootnoteRef, FootnoteSection, FootnoteDef } from './extensions/footnote';
 import { Wikilink } from './extensions/wikilink';
+import { WikilinkExistence } from './extensions/wikilink-existence';
 import { LinkOpen } from './extensions/link-open';
 import {
   SlashCommands,
@@ -184,6 +185,11 @@ interface EditorExtensionOptions {
    * 返回函数而非字符串：Placeholder 每次重算装饰时都会调，改键后点一下编辑器即刷新。
    */
   getEmptyDocHint?: () => string;
+  /**
+   * 同目录可编辑文档的文件名清单（含扩展名），用来标记指向不存在文件的互链。
+   * 复用 `wikilink-suggest` 的候选缓存，不额外读目录；返回空数组即「还没拿到」，此时不标。
+   */
+  getWikilinkSiblingFiles?: () => readonly string[];
 }
 
 export function createEditorExtensions(options: EditorExtensionOptions) {
@@ -364,6 +370,9 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
     Dim,
     Wikilink.configure({
       onNavigate: options.onWikilinkNavigate,
+    }),
+    WikilinkExistence.configure({
+      getSiblingFiles: options.getWikilinkSiblingFiles ?? (() => []),
     }),
     SlashCommands.configure({
       suggestion: {

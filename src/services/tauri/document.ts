@@ -60,15 +60,14 @@ export async function renameFile(oldPath: string, newName: string) {
 }
 
 /**
- * 改名后同步「指向本文档」的互链。
- * dryRun=true 只读预览、返回将被改动的同目录文件名（供先列清单让用户确认）；
- * dryRun=false 真正原子改写并返回已改动的文件名。路径解析全在 Rust 侧，前端只递旧/新路径。
+ * 改名后同步「指向本文档」的互链：原子改写同目录里 `[[旧名]]` 的目标段，返回已改动的文件名。
+ * 路径解析全在 Rust 侧，前端只递旧/新路径。**没有预览模式**——改名即同步，不再询问
+ * （问一次用户错过/答「先不动」就永久不同步，界面还不提示，2026-10-20 实测踩过）。
  */
-export async function syncWikilinksOnRename(oldPath: string, newPath: string, dryRun: boolean) {
+export async function syncWikilinksOnRename(oldPath: string, newPath: string) {
   return invokeCommand<string[]>(TAURI_COMMANDS.syncWikilinksOnRename, {
     oldPath,
     newPath,
-    dryRun,
   });
 }
 

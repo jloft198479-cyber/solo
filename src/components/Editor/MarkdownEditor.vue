@@ -62,7 +62,8 @@ import { CellSelection, selectedRect } from '@tiptap/pm/tables';
 import type { SlashCommandItem } from './tiptap/extensions/slash-commands';
 import type { EmojiItem } from './tiptap/extensions/emoji-suggest';
 import type { WikilinkCandidateItem } from './tiptap/extensions/wikilink-suggest';
-import { refreshWikilinkCandidates } from './tiptap/extensions/wikilink-suggest';
+import { refreshWikilinkCandidates, getWikilinkCandidates } from './tiptap/extensions/wikilink-suggest';
+import { wikilinkExistenceKey } from './tiptap/extensions/wikilink-existence';
 import {
   executeEditorCommand,
   runBubbleMenuAction,
@@ -359,6 +360,7 @@ function createEditor(content: string) {
       getDocumentPath: () => fileStore.currentFile.path,
       getStoragePath: () => settingsStore.settings.imageStoragePath || null,
       onWikilinkNavigate: handleWikilinkNavigate,
+      getWikilinkSiblingFiles: () => getWikilinkCandidates(fileStore.currentFile.path),
       getEmptyDocHint: buildEmptyDocHint,
     }),
     editorProps: {
@@ -530,8 +532,9 @@ watch(
       saveReadingPositionNow(prevPath);
     }
     resolvedImageCache.clear();
-    // 预取互链 [[ 补全候选：切文档即后台刷新，首次敲 [[ 时直接命中缓存
-    void refreshWikilinkCandidates(path);
+    // 预取互链 [[ 补全候选：切文档即后台刷新，首次敲 [[ 时直接命中缓存；
+    // 拿到清单后顺手重算「失效互链」标记（同一份缓存，不额外读目录）
+    void refreshWikilinkCandidates(path).then(markBrokenWikilinks);
     if (!editor.value || editor.value.isDestroyed) return;
     const content = fileStore.currentFile.content;
     // 比较当前 editor 序列化结果与目标内容，相同则跳过（如另存为场景）。
@@ -771,7 +774,17 @@ function lazyInitEditor() {
   if (editor.value && !editor.value.isDestroyed) return;
   createEditor(fileStore.currentFile.content || props.initialContent || '');
   // 预取互链候选：初始文档不走 path watch，懒初始化时后台拉一次
-  void refreshWikilinkCandidates(fileStore.currentFile.path);
+  void refreshWikilinkCandidates(fileStore.currentFile.path).then(markBrokenWikilinks);
+}
+
+/**
+ * 目录清单到手后重算「失效互链」标记（指向不存在文件的互链标红）。
+ * 插件的全量重扫**只在这里和打开文档时**发生 —— 打字路径只做 decoration 平移。
+ */
+function markBrokenWikilinks() {
+  const instance = editor.value;
+  if (!instance || instance.isDestroyed) return;
+  instance.view.dispatch(instance.state.tr.setMeta(wikilinkExistenceKey, 'refresh'));
 }
 
 let unlistenFocus: (() => void) | null = null;

@@ -1489,6 +1489,16 @@ html.dark .tiptap-editor .mk-mermaid-render .cluster-label {
   background-color: var(--selected-bg);
 }
 
+/* 指向的文件不存在（被改名/删除）：红色波浪线 + 淡红底。
+   只做「看得见」不做自动修复 —— 资源管理器改名时 solo 收不到通知，见 wikilink-existence.ts */
+.tiptap-editor .mk-wikilink--broken,
+.tiptap-editor .mk-wikilink--broken:hover {
+  color: var(--error-color);
+  background-color: var(--error-bg);
+  text-decoration: underline wavy var(--error-color);
+  text-underline-offset: 2px;
+}
+
 .tiptap-editor .mk-wikilink::before {
   content: '[[';
   color: var(--muted-color);

@@ -281,7 +281,7 @@ md-editor/
 | `get_file_mtime` | document.rs | 读文件 mtime（互链跳转前的存在性检查） |
 | `list_markdown_files` | document.rs | 列同目录 .md 文件名（互链 `[[` 补全候选，排序 + 上限 500） |
 | `rename_file` | document.rs | 重命名文件（去后缀、防冲突、大小写敏感） |
-| `sync_wikilinks_on_rename` | document.rs | 改名后同步「指向本文档」的互链：扫同目录，`dry_run` 预览 / 原子改写 `[[旧名]]`→`[[新名]]`（见 KNOWN-ISSUES §一 #23） |
+| `sync_wikilinks_on_rename` | document.rs | 改名后同步「指向本文档」的互链：扫同目录，原子改写 `[[旧名]]`→`[[新名]]`（不预览、不询问，见 KNOWN-ISSUES §一 #23） |
 | `import_document_image` | document.rs | 图片复制到 `assets/`，同名自动加后缀 |
 | `save_clipboard_image` | document.rs | 解析 data URL → base64 解码 → 写入 assets |
 | `read_clipboard_html` | clipboard.rs | 从系统剪贴板读 HTML 富文本（绕开 webview `clipboardData` 空值问题，外部应用/跨源粘贴保格式） |
@@ -535,6 +535,7 @@ Superscript
 Subscript
 Dim
 Wikilink
+WikilinkExistence
 SlashCommands
 EmojiSuggest
 WikilinkSuggest

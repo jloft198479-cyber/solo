@@ -370,9 +370,8 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     const currentFile = fileStore.currentFile;
     if (!currentFile.path) return saveCurrentDocumentAs();
 
-    // 捕获改名前的旧路径与旧名（setFile 之后 originalBaseName 会被重置为新名，故先存）
+    // 捕获改名前的旧路径（setFile 之后 currentFile.path 会变成新路径，故先存）
     const oldPath = currentFile.path;
-    const oldStem = currentFile.originalBaseName;
 
     isSaving = true;
     // rename 成功后会拿到新路径——即使后续写内容失败，也必须让 store 跟到新路径，
@@ -411,40 +410,32 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       isSaving = false;
     }
 
-    // 改名已落盘成功、且已释放 isSaving 锁，才同步「指向本文档」的互链：
-    // 先预览列清单、用户确认后才改写。放在锁外跑，弹框等用户点选期间不会再持有 isSaving
-    // （否则 saveCurrentDocumentAs 遇 isSaving 会直接 return false，用户点"另存为"没反应无提示）。
-    // 失败只留痕、不影响改名结果。
+    // 改名已落盘成功、且已释放 isSaving 锁，才同步「指向本文档」的互链。
+    // 放在锁外跑，避免弹框等交互期间仍持有 isSaving（否则 saveCurrentDocumentAs 遇 isSaving
+    // 会直接 return false，用户点"另存为"没反应无提示）。失败只留痕、不影响改名结果。
     if (saveOk && renamedPath) {
-      await syncInboundWikilinks(oldPath, renamedPath, oldStem);
+      await syncInboundWikilinks(oldPath, renamedPath);
     }
     return saveOk;
   }
 
   /**
-   * 改名成功后同步「指向本文档」的互链：先只读预览哪些同目录文档链到旧名，
-   * 有则列清单让用户确认，确认后才真正改写。任何失败只留痕、绝不影响改名主流程。
+   * 改名成功后同步「指向本文档」的互链：直接改写同目录里 `[[旧名]]` 的目标段并返回改动篇数。
+   *
+   * **不问用户**（2026-10-20 改，原先是「先预览列清单 → 弹框确认 → 再改写」）：
+   * 改名就是要链接跟着走；弹框会被自动保存打断、用户随手关掉，答过「先不动」之后
+   * 再没有第二次机会，链接会一直指着旧名而界面毫无提示。实测踩过这个坑。
    *
    * 改写落盘后必须**广播**出去：被改的那几篇此刻可能正开在**别的窗口**里，
    * 那个窗口的内存态还留着旧链接名，只有收到广播才会重载（见 handleWikilinksSynced）。
-   * 不广播的话，用户会一直看到旧名字，直到手动点一下「重新加载」。
    */
-  async function syncInboundWikilinks(oldPath: string, newPath: string, oldStem: string) {
+  async function syncInboundWikilinks(oldPath: string, newPath: string) {
     try {
-      const affected = await syncWikilinksOnRename(oldPath, newPath, true);
-      if (affected.length === 0) return;
+      const changed = await syncWikilinksOnRename(oldPath, newPath);
+      if (changed.length === 0) return;
 
-      const ok = await confirm(
-        `有 ${affected.length} 篇文档链接到改名前的「${oldStem}」，要不要把里面的链接一并更新为新名字？\n\n${affected.join('\n')}`,
-        { title: '更新指向本文档的链接', kind: 'info', okLabel: '一并更新', cancelLabel: '先不动' },
-      );
-      if (!ok) return;
-
-      const changed = await syncWikilinksOnRename(oldPath, newPath, false);
-      if (changed.length > 0) {
-        updateAutoSaveStatus(`已更新 ${changed.length} 篇文档里的链接`);
-        await emitWikilinksSynced({ paths: changed.map((name) => joinSibling(newPath, name)) });
-      }
+      updateAutoSaveStatus(`已更新 ${changed.length} 篇文档里的链接`);
+      await emitWikilinksSynced({ paths: changed.map((name) => joinSibling(newPath, name)) });
     } catch (error) {
       console.warn('[wikilink-sync] failed:', normalizeTauriError(error).message);
     }

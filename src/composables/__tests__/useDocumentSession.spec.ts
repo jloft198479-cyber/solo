@@ -583,7 +583,7 @@ describe('useDocumentSession', () => {
     );
   });
 
-  it('renaming syncs inbound wikilinks after confirm (preview then apply)', async () => {
+  it('renaming syncs inbound wikilinks automatically (no prompt)', async () => {
     fileStoreState.currentFile = {
       path: '/tmp/original.md',
       content: 'draft',
@@ -594,55 +594,18 @@ describe('useDocumentSession', () => {
     };
     renameFileMock.mockResolvedValue({ path: '/tmp/新标题.md' });
     saveDocumentMock.mockResolvedValue({ path: '/tmp/新标题.md', lastModifiedMs: 2000 });
-    confirmMock.mockResolvedValue(true);
-    // 第一次（dryRun=true）预览命中两篇；第二次（dryRun=false）改写返回同样两篇
-    syncWikilinksMock
-      .mockResolvedValueOnce(['a.md', 'b.md'])
-      .mockResolvedValueOnce(['a.md', 'b.md']);
+    syncWikilinksMock.mockResolvedValueOnce(['a.md', 'b.md']);
 
     const { useDocumentSession } = await import('../useDocumentSession');
     const session = useDocumentSession({ resetViewMode: vi.fn() });
     const ok = await session.saveCurrentDocument();
 
     expect(ok).toBe(true);
-    // 预览 + 改写各一次，参数为 (旧路径, 新路径, dryRun)
-    expect(syncWikilinksMock).toHaveBeenNthCalledWith(
-      1,
-      '/tmp/original.md',
-      '/tmp/新标题.md',
-      true,
-    );
-    expect(syncWikilinksMock).toHaveBeenNthCalledWith(
-      2,
-      '/tmp/original.md',
-      '/tmp/新标题.md',
-      false,
-    );
-    expect(confirmMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('renaming skips apply when user cancels the sync prompt', async () => {
-    fileStoreState.currentFile = {
-      path: '/tmp/original.md',
-      content: 'draft',
-      isDirty: true,
-      lastModifiedTime: 1000,
-      displayName: '新标题',
-      originalBaseName: 'original',
-    };
-    renameFileMock.mockResolvedValue({ path: '/tmp/新标题.md' });
-    saveDocumentMock.mockResolvedValue({ path: '/tmp/新标题.md', lastModifiedMs: 2000 });
-    confirmMock.mockResolvedValue(false); // 用户点"先不动"
-    syncWikilinksMock.mockResolvedValueOnce(['a.md']);
-
-    const { useDocumentSession } = await import('../useDocumentSession');
-    const session = useDocumentSession({ resetViewMode: vi.fn() });
-    const ok = await session.saveCurrentDocument();
-
-    expect(ok).toBe(true); // 改名本身成功
-    // 只跑了预览一次，未触发改写（dryRun=false）
+    // 一次调用直接改写，参数只有 (旧路径, 新路径) —— 不再有 dryRun 预览那一趟
     expect(syncWikilinksMock).toHaveBeenCalledTimes(1);
-    expect(syncWikilinksMock).toHaveBeenCalledWith('/tmp/original.md', '/tmp/新标题.md', true);
+    expect(syncWikilinksMock).toHaveBeenCalledWith('/tmp/original.md', '/tmp/新标题.md');
+    // 改名同步不再打扰用户（弹框会被自动保存打断，错过一次就永久不同步）
+    expect(confirmMock).not.toHaveBeenCalled();
   });
 
   it('silent saves in place when displayName matches original base name', async () => {
