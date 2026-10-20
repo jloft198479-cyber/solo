@@ -29,13 +29,16 @@ describe('filterWikilinkCandidates', () => {
   it('无文档路径 / 缓存未命中时返回空列表', async () => {
     expect(filterWikilinkCandidates('', null)).toEqual([]);
     // 已刷新 a 目录后，b 目录路径的过滤在刷新前应为空（单槽缓存 key 隔离）
-    listMarkdownFilesMock.mockResolvedValue(['a.md']);
+    listMarkdownFilesMock.mockResolvedValue({ files: ['a.md'], truncated: false });
     await refreshWikilinkCandidates('C:\\docs\\a.md');
     expect(filterWikilinkCandidates('', 'C:\\docs\\b.md')).toEqual([]);
   });
 
   it('去 .md 后缀、排除自身、大小写不敏感匹配', async () => {
-    listMarkdownFilesMock.mockResolvedValue(['笔记.md', 'README.md', 'temp.md', '.md']);
+    listMarkdownFilesMock.mockResolvedValue({
+      files: ['笔记.md', 'README.md', 'temp.md', '.md'],
+      truncated: false,
+    });
     await refreshWikilinkCandidates('C:\\docs\\笔记.md');
 
     // 排除自身「笔记.md」；".md"（target 为空）跳过
@@ -50,35 +53,64 @@ describe('filterWikilinkCandidates', () => {
     expect(filterWikilinkCandidates('笔记', 'C:\\docs\\笔记.md')).toEqual([]);
   });
 
+  it('跨目录候选：相对路径直接当 target（与手打写法、跳转拼接三者一致）', async () => {
+    listMarkdownFilesMock.mockResolvedValue({
+      files: ['B.md', 'sub/C.md'],
+      truncated: false,
+    });
+    await refreshWikilinkCandidates('C:\\docs\\A.md');
+    expect(filterWikilinkCandidates('', 'C:\\docs\\A.md').map((i) => i.target)).toEqual([
+      'B',
+      'sub/C',
+    ]);
+    // 子目录里的同名文件不算「自身」（自身只按同层文件名排除）
+    await refreshWikilinkCandidates('C:\\docs\\sub\\A.md');
+    expect(filterWikilinkCandidates('', 'C:\\docs\\sub\\A.md').map((i) => i.target)).toEqual([
+      'B',
+      'sub/C',
+    ]);
+  });
+
   it('菜单上限 50 条', async () => {
-    listMarkdownFilesMock.mockResolvedValue(
-      Array.from({ length: 60 }, (_, i) => `f${String(i).padStart(2, '0')}.md`),
-    );
+    listMarkdownFilesMock.mockResolvedValue({
+      files: Array.from({ length: 60 }, (_, i) => `f${String(i).padStart(2, '0')}.md`),
+      truncated: false,
+    });
     await refreshWikilinkCandidates('D:\\notes\\index.md');
     expect(filterWikilinkCandidates('', 'D:\\notes\\index.md')).toHaveLength(50);
   });
 });
 
 describe('refreshWikilinkCandidates', () => {
-  it('失败退化为空列表，不抛错', async () => {
+  it('失败退化为空清单，不抛错', async () => {
     listMarkdownFilesMock.mockRejectedValue(new Error('io'));
     await expect(refreshWikilinkCandidates('E:\\x\\a.md')).resolves.toBeUndefined();
-    expect(getWikilinkCandidates('E:\\x\\a.md')).toEqual([]);
+    // truncated=false 配空 files：标红侧走「索引为空 → 不标」，语义安全
+    expect(getWikilinkCandidates('E:\\x\\a.md')).toEqual({
+      files: [],
+      truncated: false,
+    });
+  });
+
+  it('原样透传 truncated（清单不完整 → 标红侧放弃判定）', async () => {
+    listMarkdownFilesMock.mockResolvedValue({ files: ['a.md'], truncated: true });
+    await refreshWikilinkCandidates('E:\\x\\a.md');
+    expect(getWikilinkCandidates('E:\\x\\a.md').truncated).toBe(true);
   });
 
   it('并发去重：同路径同时刷新只发一次 IPC', async () => {
-    let resolveFn: (v: string[]) => void = () => {};
+    let resolveFn: (v: { files: string[]; truncated: boolean }) => void = () => {};
     listMarkdownFilesMock.mockReturnValue(
-      new Promise<string[]>((resolve) => {
+      new Promise<{ files: string[]; truncated: boolean }>((resolve) => {
         resolveFn = resolve;
       }),
     );
     const p1 = refreshWikilinkCandidates('F:\\y\\a.md');
     const p2 = refreshWikilinkCandidates('F:\\y\\a.md');
-    resolveFn(['a.md']);
+    resolveFn({ files: ['a.md'], truncated: false });
     await Promise.all([p1, p2]);
     expect(listMarkdownFilesMock).toHaveBeenCalledTimes(1);
-    expect(getWikilinkCandidates('F:\\y\\a.md')).toEqual(['a.md']);
+    expect(getWikilinkCandidates('F:\\y\\a.md').files).toEqual(['a.md']);
   });
 
   it('无路径时为 no-op（无目录可扫；菜单照常弹，空态给引导）', async () => {

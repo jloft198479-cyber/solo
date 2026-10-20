@@ -48,7 +48,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 保存冲突检测（mtime） | ✅ | [`document.rs`](../src-tauri/src/commands/document.rs) `save_document` + [`useDocumentSession.ts`](../src/composables/useDocumentSession.ts) | 冲突 → 弹「强制覆盖」，非静默（敏感区 §11.2） |
 | 外部修改提示 + 重载 | ✅ | [`file.ts`](../src/stores/file.ts) `reloadToken` + `App.vue` `externalFileWarning` | 同路径重载靠 `reloadToken`（KNOWN-ISSUES 一/14） |
 | 重命名（含改标题即另存） | ✅ | [`document.rs`](../src-tauri/src/commands/document.rs) `rename_file` + `handleRename` | 实际改名走 save-as 流程 |
-| 改名后同步入链文档 | ✅ | `document.rs` `sync_wikilinks_on_rename`（`dry_run` 预览 → 用户确认 → 原子改写） | **仅同目录、裸名与 `.md`**；手打的 `[[子/文]]`、`[[x.markdown]]` 不覆盖；缩进/行内代码不保护（§二 一/23 已知限制） |
+| 改名后同步入链文档 | ✅ | `document.rs` `sync_wikilinks_on_rename`（改名即原子改写，无预览确认） | 范围 = 改名文档的**本层 + 向上两层**目录（引用方只可能在这几层，深度与补全/标红同源）；覆盖该层真实写法：裸名（仅 `.md`）、`[[子/文]]`、带全名（含 `.markdown`）；`../` 出界写法不覆盖（与标红同口径，补全也产不出）；缩进/行内代码不保护（§二 一/23 已知限制） |
 | 自动保存 | ⚠️ | [`useDocumentSession.ts`](../src/composables/useDocumentSession.ts) 递归 `setTimeout`；[`settings.ts`](../src/stores/settings.ts) `autoSave` / `autoSaveInterval` | **默认关闭**（`autoSave: false`），默认间隔 **30 秒**，下限 5 秒。⚠️ wiki 写「2 秒自动保存」是错的，见附录 B-1 |
 | 崩溃 / 意外退出恢复 | ⚠️ | 只靠 `.tmp` 残留兜底：[`document.rs`](../src-tauri/src/commands/document.rs) `cleanup_stale_tmp_files`（>1h 才清） | **无自动备份/会话恢复**（§二 一/19 是残留清理，不是恢复） |
 | 最近文件快开 | ✅ | [`session.rs`](../src-tauri/src/commands/session.rs)（落盘 `app_local_data_dir/session/`，上限 10 去重置顶）+ [`CommandPalette.vue`](../src/components/CommandPalette.vue)「最近文件」分组 | `Ctrl+K` 面板首组，点击经脏态确认打开；无历史时该组自动隐藏 |
@@ -72,8 +72,8 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 输入法组字期冻结（防候选窗失锚） | ⚠️ | [`composition-freeze.ts`](../src/components/Editor/tiptap/composition-freeze.ts)（`isFrozen`/`mapFrozenDecorations`/`createCompositionTracker`） | 机制完整；但**候选窗失锚仍未复现根治**（§二 #8，判定为 WebView2/TSF 上游缺陷，已加 IMM32 规避待真机验证）。**新增 decoration/NodeView 必须走它** |
 | Slash 命令菜单 | ✅ | [`slash-commands.ts`](../src/components/Editor/tiptap/extensions/slash-commands.ts) | 中文前缀可唤出（`allowedPrefixes: null`）；代码块内不弹 |
 | Emoji 菜单（`:`） | ✅ | [`emoji-suggest.ts`](../src/components/Editor/tiptap/extensions/emoji-suggest.ts) | 盘符 `G:` 误触发已修（一/25） |
-| 互链补全（`[[`） | ✅ | [`wikilink-suggest.ts`](../src/components/Editor/tiptap/extensions/wikilink-suggest.ts) + `list_markdown_files` | 一/21 已修（曾因扩展级 option 漏递永久失效）；未保存文档也弹，候选为空给引导 |
-| 失效互链标记 | ✅ | [`wikilink-existence.ts`](../src/components/Editor/tiptap/extensions/wikilink-existence.ts) | 指向不存在文件的互链标红 + 悬停说明。**只在打开/切文档时重算**，打字只平移 decoration（性能硬约束）；`[[sub/B]]` 这类带路径目标判不了，不标 |
+| 互链补全（`[[`） | ✅ | [`wikilink-suggest.ts`](../src/components/Editor/tiptap/extensions/wikilink-suggest.ts) + `list_markdown_files` | 范围 = 当前目录树（深度 `WIKILINK_SCAN_DEPTH`），候选为相对路径 `sub/B`；一/21 已修（曾因扩展级 option 漏递永久失效）；未保存文档也弹，候选为空给引导 |
+| 失效互链标记 | ✅ | [`wikilink-existence.ts`](../src/components/Editor/tiptap/extensions/wikilink-existence.ts) | 指向不存在文件的互链标红 + 悬停说明。**只在打开/切文档/清单刷新时重算**，打字只平移 decoration（性能硬约束）；跨目录目标按相对路径判，超出深度 / `../` 出界 / 绝对路径判不了不标 |
 | 代码上下文不弹菜单 | ✅ | [`suggestion-guard.ts`](../src/components/Editor/tiptap/extensions/suggestion-guard.ts) | `![[` 嵌入语法不触发 `[[`（一/18、一/22） |
 | 查找 / 替换 | ✅ | [`useEditorSearch.ts`](../src/components/Editor/tiptap/useEditorSearch.ts) + [`SearchPanel.vue`](../src/components/Editor/views/SearchPanel.vue) + [`search-highlight.ts`](../src/components/Editor/tiptap/extensions/search-highlight.ts) | 快捷键是 `Mod-f`/`Mod-h`（wiki 写 `Mod-g` 是错的，附录 B-2） |
 | 焦点模式 | ✅ | [`paragraph-focus.ts`](../src/components/Editor/tiptap/extensions/paragraph-focus.ts) + `<html>.focus-mode` | **最小块粒度**（列表每项、引用/callout 内每段独立；对标 Typora `md-end-block`）；列表圆点/勾选框单独联动；组字期装饰只平移不重建（一/15） |
@@ -117,7 +117,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | Callout（12 类型配色） | ✅ | [`callout.ts`](../src/components/Editor/tiptap/extensions/callout.ts) | 一/20 已修（NodeView 曾从不挂 `data-callout-type`，所有类型渲染成 note） |
 | KaTeX 行内 / 块级 | ✅ | [`math-inline.ts`](../src/components/Editor/tiptap/extensions/math-inline.ts) / [`math-block.ts`](../src/components/Editor/tiptap/extensions/math-block.ts) | KaTeX 懒加载，解析器传空壳引擎 |
 | Mermaid 图表 | ⚠️ | [`mermaid-block.ts`](../src/components/Editor/tiptap/extensions/mermaid-block.ts) | 中文/特殊字符标签需用户自加引号 `A["文本"]`（**§二 #2**） |
-| WikiLink `[[ ]]`（补全/跳转/不存在则创建/拖入成链） | ✅ | [`wikilink.ts`](../src/components/Editor/tiptap/extensions/wikilink.ts) + [`wikilink-drop.ts`](../src/components/Editor/tiptap/extensions/wikilink-drop.ts) | 拖入落点已修但**真机 OS 拖拽手感未人工确认**（§二 #9 待发布） |
+| WikiLink `[[ ]]`（补全/跳转/不存在则创建/拖入成链） | ✅ | [`wikilink.ts`](../src/components/Editor/tiptap/extensions/wikilink.ts) + [`wikilink-drop.ts`](../src/components/Editor/tiptap/extensions/wikilink-drop.ts) | `#` 之后按标题锚点剥离（`[[B#小节]]` → `B.md`，不做锚点跳转）；拖入限「当前目录树 + 深度内」，超范围回落「打开」；**真机 OS 拖拽手感未人工确认**（§二 #9 待发布） |
 | 任务列表（含嵌套） | ✅ | `TaskList` / `TaskItem.configure({ nested: true })` | 嵌套 `- 父\n  - [ ] 子` 曾整层误判（一/10 同批修） |
 | 图片节点（含尺寸私有语法） | ✅ | [`image.ts`](../src/components/Editor/tiptap/extensions/image.ts) + `serializer.ts` `![alt\|WxH](src)` | ⚠️ `\|WxH` 是 **solo 私有扩展**，非标准 Markdown，粘到别家编辑器会暴露（属设计选择，未见台账） |
 | 表格节点（自定义 4 件套） | ✅ | `CustomTable` / `Row` / `Header` / `Cell` | 与 `table.ts` 配套 |

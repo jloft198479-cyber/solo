@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::models::{
     DocumentImageImportResult, DocumentOpenResult, DocumentRenameResult,
-    DocumentSaveResult, ImageAssetAuthorizationResult,
+    DocumentSaveResult, ImageAssetAuthorizationResult, MarkdownFileList,
 };
 use base64::{engine::general_purpose, Engine as _};
 use std::fs;
@@ -26,9 +26,44 @@ const OPEN_EXTENSIONS: [&str; 3] = ["md", "markdown", "txt"];
 // （见 ThemeSelector.vue 的 downloadTemplate），只按 OPEN 白名单卡会让导出功能报无效参数。
 const WRITE_EXTENSIONS: [&str; 4] = ["md", "markdown", "txt", "json"];
 
-// 同目录文档扫描/列举的数量上限：防 node_modules 一类病态目录里有成千上万个 .md
-// 把 IPC 或改名后的链接同步扫描拖垮。list_markdown_files 与 sync_wikilinks_on_rename 共用此上限。
-const SAME_DIR_DOC_LIMIT: usize = 500;
+// 互链作用域的目录层数：当前文档所在目录算第 0 层，向下最多这么多层。
+// 2 层覆盖「一个文件夹一个项目」的常见结构（根索引页 → 项目子目录 → 年份子目录）；
+// 再深就是 node_modules 一类病态树下场，而补全本身也用不上。
+// ⚠️ 三处**必须同值**：列候选（向下递归这么多层）、标红判定（前端 WIKILINK_SCAN_DEPTH，
+// 段数超过就不判）、改名后同步入链（**向上**找这么多层引用方，见 `rename_scan_dirs`）。
+// 范围不对称会造出「拖进来的能点、敲 [[ 找不到」这类两个入口打架的坑。
+const WIKILINK_SCAN_DEPTH: usize = 2;
+
+// 互链相关扫描的数量上限：既是**收集上限**（凑满即停，不问剩余目录），
+// 也是改名后同步入链的**扫描上限**（跨层合计）。防 node_modules 一类病态目录拖垮 IPC。
+const WIKILINK_SCAN_LIMIT: usize = 500;
+
+// 列候选时一次扫描最多访问多少个目录。与文件上限**互补**：只管文件数挡不住
+// 「目录树巨大但 .md 很少」——那种树下每一个空目录都要 read_dir 一次，
+// 而早停在文件计数上永远不触发。
+// 触发时 `MarkdownFileList::truncated` 会置真，前端据此放弃「失效判定」（宁可漏标不误标）。
+const WIKILINK_SCAN_MAX_DIRS: usize = 2000;
+
+/// 一次目录扫描的三个闸门。打包成一个值，让「列候选」和「改名同步」用**同一份**参数，
+/// 不靠各处散落的字面量（范围不对称正是 2026-09 那次两个入口打架的根因）。
+/// `max_dirs` 只作用于列候选的向下递归；改名同步是平铺扫 ≤3 个目录（`depth` 在那边
+/// 表示向上的层数，`max_dirs` 用不上）。
+#[derive(Clone, Copy)]
+struct ScanBudget {
+    depth: usize,
+    max_files: usize,
+    max_dirs: usize,
+}
+
+impl Default for ScanBudget {
+    fn default() -> Self {
+        Self {
+            depth: WIKILINK_SCAN_DEPTH,
+            max_files: WIKILINK_SCAN_LIMIT,
+            max_dirs: WIKILINK_SCAN_MAX_DIRS,
+        }
+    }
+}
 
 /// 校验文件扩展名在白名单内（大小写不敏感）。
 /// 在 IPC 入口把关，避免恶意文档内容诱导前端读写任意类型文件；
@@ -118,37 +153,113 @@ pub async fn get_file_mtime(path: String) -> Result<u64, AppError> {
     .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?
 }
 
-/// 互链 `[[` 补全候选：列出当前文档同目录下的 .md 文件名（不递归子目录）。
-/// 只返回文件名（不含路径），按名称排序（大小写不敏感），上限 500 防
-/// node_modules 类病态目录拖垮 IPC。排除「当前文档自身」由前端做
-/// （Rust 不感知「谁是当前文件」的语义，保持命令可复用）。
+/// 互链 `[[` 补全候选：列出当前文档所在目录**及其下若干层子目录**里的 .md，
+/// 返回**相对路径**（`/` 分隔，如 `sub/B.md`），按「层级浅的先、同层按名字」排序。
+///
+/// - 不递归符号链接 / junction：`DirEntry::file_type()` 不解析链接，`is_dir()` 对链接
+///   返回 false ⇒ 天然不跟进，避免目录环与「扫到目录树之外」。
+/// - **凑满 `max_files` 立即停**，不问剩余目录：上限同时是性能闸门（旧实现整目录 collect
+///   + 全量排序后才截断，1 万文件目录里的开销只被返回值截断、没被工作量截断）。
+/// - 目录数另有闸门（`WIKILINK_SCAN_MAX_DIRS`），任一触发都置 `truncated`。
+/// - 同目录优先：先收当前层再下探，排序键也把层级放在名字之前 ⇒ 菜单前排永远是
+///   最近的文件，跨目录候选只负责补足。
+/// - 排除「当前文档自身」由前端做（Rust 不感知「谁是当前文件」的语义，保持命令可复用）。
 #[tauri::command]
-pub async fn list_markdown_files(path: String) -> Result<Vec<String>, AppError> {
+pub async fn list_markdown_files(path: String) -> Result<MarkdownFileList, AppError> {
     validate_document_extension(&path, &OPEN_EXTENSIONS, "列出")?;
     tauri::async_runtime::spawn_blocking(move || {
         let dir = Path::new(&path)
             .parent()
             .ok_or_else(|| AppError::validation("文档不在任何目录下"))?;
-        let mut names: Vec<String> = fs::read_dir(dir)?
-            .filter_map(|entry| entry.ok())
-            .filter(|entry| entry.file_type().map(|t| t.is_file()).unwrap_or(false))
-            .filter_map(|entry| {
-                let name = entry.file_name().to_string_lossy().to_string();
-                // 只列 .md：互链 target 无扩展名时统一补 .md（resolveWikilinkTarget），
-                // .markdown 等其他可编辑类型无法被互链指向
-                if name.to_ascii_lowercase().ends_with(".md") && name.len() > 3 {
-                    Some(name)
-                } else {
-                    None
-                }
-            })
-            .collect();
-        names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
-        names.truncate(SAME_DIR_DOC_LIMIT);
-        Ok(names)
+        Ok(collect_markdown_files(dir, ScanBudget::default()))
     })
     .await
     .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?
+}
+
+/// 递归收集的游标：已访问目录数 + 已收集文件。抽出来只为让递归函数参数保持可读。
+struct CollectCursor {
+    visited_dirs: usize,
+    files: Vec<String>,
+}
+
+/// 递归收集 `root` 下的 .md，返回相对路径（统一 `/` 分隔）+ 完整性标志。
+/// 同步执行，便于小样本单测（用自定义 `ScanBudget` 验证深度/文件数/目录数三个闸门）。
+fn collect_markdown_files(root: &Path, budget: ScanBudget) -> MarkdownFileList {
+    let mut cursor = CollectCursor {
+        visited_dirs: 0,
+        files: Vec::new(),
+    };
+    collect_markdown_into(root, root, budget.depth, budget, &mut cursor);
+
+    // 完整性必须在排序前判定：排序不改长度，但「第 500 个文件正好是最后一个」与
+    // 「还有目录没扫」是两种截断，任一都要置真
+    let truncated = cursor.files.len() >= budget.max_files
+        || cursor.visited_dirs >= budget.max_dirs;
+
+    let mut files = cursor.files;
+    // 层级浅的排前面（同目录候选稳定占前排），同层按名字大小写不敏感。
+    // sort_by_cached_key 让 key 只算 N 次（旧实现每次比较两次 to_lowercase）。
+    files.sort_by_cached_key(|p| (p.matches('/').count(), p.to_lowercase()));
+    MarkdownFileList { files, truncated }
+}
+
+fn collect_markdown_into(
+    root: &Path,
+    dir: &Path,
+    depth: usize,
+    budget: ScanBudget,
+    cursor: &mut CollectCursor,
+) {
+    if cursor.files.len() >= budget.max_files || cursor.visited_dirs >= budget.max_dirs {
+        return;
+    }
+    cursor.visited_dirs += 1;
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        // 读不了（权限/被删）：跳过这一层，不影响其它目录
+        Err(_) => return,
+    };
+    let mut subdirs: Vec<PathBuf> = Vec::new();
+    for entry in entries.flatten() {
+        if cursor.files.len() >= budget.max_files {
+            break;
+        }
+        let ft = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if ft.is_dir() {
+            // 深度用完就不再收集子目录（仍然跳过，避免变成文件判断）
+            if depth > 0 {
+                subdirs.push(entry.path());
+            }
+            continue;
+        }
+        if !ft.is_file() {
+            continue;
+        }
+        let name = match entry.file_name().to_str() {
+            Some(n) => n.to_string(),
+            None => continue,
+        };
+        // 只列 .md：互链 target 无扩展名时统一补 .md（resolveWikilinkTarget），
+        // .markdown 等其他可编辑类型无法被互链指向
+        if !name.to_ascii_lowercase().ends_with(".md") || name.len() <= 3 {
+            continue;
+        }
+        let rel = match entry.path().strip_prefix(root).ok().and_then(|p| p.to_str()) {
+            Some(rel) => rel.replace('\\', "/"),
+            None => continue,
+        };
+        cursor.files.push(rel);
+    }
+    for sub in subdirs {
+        if cursor.files.len() >= budget.max_files || cursor.visited_dirs >= budget.max_dirs {
+            break;
+        }
+        collect_markdown_into(root, &sub, depth - 1, budget, cursor);
+    }
 }
 
 #[tauri::command]
@@ -260,17 +371,20 @@ pub async fn rename_file(old_path: String, new_name: String) -> Result<DocumentR
     Ok(DocumentRenameResult { path: new_path_str })
 }
 
-/// 把文档正文里指向 `old_stem` 的互链目标改成 `new_stem`；无改动返回 `None`。
+/// 把文档正文里指向被改名文档的互链目标改成新名；无改动返回 `None`。
 ///
-/// 只动 `[[目标]]` 与 `[[目标|别名]]` 的**目标段**（`|` 后的别名原样保留），
-/// 覆盖「裸名」与「带 .md」两种写法。精确整词匹配——`old=笔记` 时不会误伤
-/// `[[笔记本]]`，也不碰普通链接 `[x](y)` 或正文里出现的同名词。
+/// `forms` 是「同一篇目标在这篇文档里的**写法**」列表（旧 → 新），由调用方按引用方所在
+/// 目录层级算好（见 `wikilink_target_forms`）——这里只认字面、不猜目录，才能防住
+/// 「按裸名误改子目录里指向另一篇的链接」（2026-10-20 审核 R-1）。
+///
+/// 只动 `[[目标]]` 与 `[[目标|别名]]` 的**目标段**（`|` 后的别名原样保留）。
+/// 精确整词匹配——目标 `笔记` 时不会误伤 `[[笔记本]]`，也不碰普通链接 `[x](y)`
+/// 或正文里出现的同名词。
 /// **围栏代码块（``` / ~~~）内的 `[[旧名]]` 一律跳过**——那是给人看的示例、不是真链接
 /// （互链目标不含换行，故逐行判定安全）。
 /// 已知限制：缩进式代码块与行内代码（单反引号）不在保护范围（误伤需同时满足
 /// 「代码里恰好举例写了旧名」+「旧名正是被改名文档」，概率极低，见方案文档）。
-/// 预览（dry_run）与真正改写共用本函数，保证「列给用户看的」与「实际改的」完全一致。
-fn rewrite_wikilink_targets(content: &str, old_stem: &str, new_stem: &str) -> Option<String> {
+fn rewrite_wikilink_targets(content: &str, forms: &[(&str, &str)]) -> Option<String> {
     let mut fence: Option<char> = None;
     let mut out = String::with_capacity(content.len());
     for line in content.split_inclusive('\n') {
@@ -296,7 +410,7 @@ fn rewrite_wikilink_targets(content: &str, old_stem: &str, new_stem: &str) -> Op
             // 围栏内普通行：原样保留，绝不替换
             (Some(_), _) => out.push_str(line),
             // 围栏外：做替换
-            (None, None) => out.push_str(&replace_targets_in_line(line, old_stem, new_stem)),
+            (None, None) => out.push_str(&replace_targets_in_line(line, forms)),
         }
     }
     if out == content {
@@ -306,16 +420,14 @@ fn rewrite_wikilink_targets(content: &str, old_stem: &str, new_stem: &str) -> Op
     }
 }
 
-/// 对围栏外的单行做精确目标替换：`[[old]]` / `[[old|..]]` 与 `[[old.md]]` / `[[old.md|..]]`
-/// 的目标段改成新名，别名段（`|` 后）原样保留。
-fn replace_targets_in_line(line: &str, old_stem: &str, new_stem: &str) -> String {
+/// 对围栏外的单行做精确目标替换：把 `forms` 里每个旧写法换成新写法，
+/// 别名段（`|` 后）原样保留。
+///
+/// 只认 `[[目标]]` / `[[目标|` 两种收尾，故裸名形态 `[[B]]` 与带后缀形态 `[[B.md]]`
+/// 字面不重叠（后者 `B` 之后是 `.`，前者要求紧跟 `]]`），一条行里两种都在也不会改错。
+fn replace_targets_in_line(line: &str, forms: &[(&str, &str)]) -> String {
     let mut out = line.to_string();
-    // 先替换裸名不会误伤带 .md 的形态——`[[old]]` 要求 `old` 后紧跟 `]]`，
-    // 而 `[[old.md]]` 里 `old` 后是 `.`，两者字面不重叠。
-    for (old_t, new_t) in [
-        (old_stem.to_string(), new_stem.to_string()),
-        (format!("{}.md", old_stem), format!("{}.md", new_stem)),
-    ] {
+    for (old_t, new_t) in forms {
         out = out
             .replace(&format!("[[{}]]", old_t), &format!("[[{}]]", new_t))
             .replace(&format!("[[{}|", old_t), &format!("[[{}|", new_t));
@@ -323,19 +435,90 @@ fn replace_targets_in_line(line: &str, old_stem: &str, new_stem: &str) -> String
     out
 }
 
-/// 改名后同步「指向本文档」的互链：扫描同目录其它文档，把 `[[旧名]]` 改成 `[[新名]]`。
+/// 「同一篇目标在某个引用方目录里会怎么写」的写法对（旧 → 新）。
 ///
-/// 直接改写并返回**已改动**的文件名，每个文件走 `atomic_write`（整篇写成功才算数，
-/// 绝不出现半篇）。**不再先预览让用户确认**（2026-10-20 改）：改名就是要链接跟着走，
+/// `prefix` 是引用方目录到改名文档所在目录的**相对路径前缀**（`/` 分隔，本层为空串，
+/// 上一层是 `sub/`，上两层是 `a/sub/`）。互链 target 相对引用方文档存，所以同一篇文档
+/// 被不同层级的引用方链接时，字面写法不同，必须逐层算。
+///
+/// 覆盖的两种写法与解析器口径严格对齐（`wikilink.ts::resolveWikilinkTarget`）：
+/// - **带文件全名** `[[B.md]]` / `[[B.markdown]]`：解析器遇带后缀目标原样拼路径 ⇒ 任何
+///   可链接的扩展名都能被这样指到；
+/// - **去后缀裸名** `[[B]]`：解析器**只补 `.md`** ⇒ 仅当被改名的就是 `.md` 时这种写法
+///   才真的指向它。旧实现无条件按裸名匹配，于是 `B.markdown` 改名会把指向
+///   `B.md`（往往根本不存在）的链接一起改掉。
+///
+/// 前提：`rename_file` 保证同目录、同扩展名，只换文件名段 ⇒ 两侧前缀相同。
+fn wikilink_target_forms(old_ref: &Path, new_ref: &Path, prefix: &str) -> Vec<(String, String)> {
+    let (Some(old_name), Some(new_name)) = (
+        old_ref.file_name().and_then(|n| n.to_str()),
+        new_ref.file_name().and_then(|n| n.to_str()),
+    ) else {
+        return Vec::new();
+    };
+    let mut forms = vec![(
+        format!("{prefix}{old_name}"),
+        format!("{prefix}{new_name}"),
+    )];
+    let old_stem = old_ref.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+    let new_stem = new_ref.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+    if !old_stem.is_empty() && !new_stem.is_empty() && old_name.to_ascii_lowercase().ends_with(".md")
+    {
+        forms.push((
+            format!("{prefix}{old_stem}"),
+            format!("{prefix}{new_stem}"),
+        ));
+    }
+    forms
+}
+
+/// 改名同步要扫的目录：改名文档所在目录 + **向上**最多 `depth` 层，各自带上该层的写法前缀。
+///
+/// 为什么只往上、不再向下（2026-10-20 审核 R-1 的根因）：互链 target 一律是「相对引用方
+/// 文档所在目录、**向下**若干层」的写法（补全与拖入都只产这种，见 `wikilink-suggest.ts` /
+/// `wikilink-drop.ts`）。反过来推，能指到 `dir/B.md` 的引用方只可能在 `dir`、`dir` 的父、
+/// `dir` 的祖父目录里（深度 2 = `WIKILINK_SCAN_DEPTH`）；更深目录里的文档要指回来必须写
+/// `../`，而 `../` 在标红侧已明写「判不了不标」（`wikilink-existence.ts`）、补全也产不出来
+/// ⇒ 不属于互链承诺的范围。
+/// 之前的向下递归正是事故来源：子目录文档里的 `[[B]]` 指的是**它自己那层的** `B.md`，
+/// 按裸名整词替换会把这条好链接改成指向不存在文件的 `[[C]]`，还静默落盘。
+fn rename_scan_dirs(dir: &Path, depth: usize) -> Vec<(PathBuf, String)> {
+    let mut roots: Vec<(PathBuf, String)> = vec![(dir.to_path_buf(), String::new())];
+    let mut segments: Vec<String> = Vec::new();
+    let mut current = dir.to_path_buf();
+    for _ in 0..depth {
+        let Some(seg) = current.file_name().and_then(|n| n.to_str()) else { break };
+        let Some(parent) = current.parent() else { break };
+        segments.push(seg.to_string());
+        // 前缀按「从引用方往下看」的顺序拼：越早压栈的目录名越靠前
+        let prefix = segments
+            .iter()
+            .rev()
+            .map(|s| format!("{s}/"))
+            .collect::<String>();
+        roots.push((parent.to_path_buf(), prefix));
+        current = parent.to_path_buf();
+    }
+    roots
+}
+
+/// 改名后同步「指向本文档」的互链：扫描**改名文档所在目录及其上若干层祖先目录**
+/// （引用方只可能在这些层，见 `rename_scan_dirs`），按各层真实写法把 `[[旧名]]` 改成 `[[新名]]`。
+///
+/// 直接改写并返回**已改动文件的绝对路径**（升序；空表示无改动），每个文件走 `atomic_write`
+/// （整篇写成功才算数，绝不出现半篇）。
+/// **不再先预览让用户确认**（2026-10-20 改）：改名就是要链接跟着走，
 /// 弹框问一次用户要么没注意、要么被自动保存打断，答过「先不动」之后就再没有第二次机会，
 /// 链接会一直指着旧名且界面毫无提示 —— 实测踩过。代价是这里会改用户没正眼看过的文件，
 /// 但改的是「指向被改名文档」的互链目标，本就是改名的自然结果。
 ///
-/// 边界与安全：路径解析全在本函数（从 `new_path` 取父目录、从两路径取 `file_stem`）；
-/// **跳过改名后的这篇自身**（`skip_filename`）——不碰用户正在编辑、内存态未刷新的文档；
-/// 只处理同目录、扩展名白名单（`OPEN_EXTENSIONS`）内的文档，按**已扫描文档数**限流
-/// （`SAME_DIR_DOC_LIMIT`，防 node_modules 病态目录）；改写保护围栏代码块（见
-/// `rewrite_wikilink_targets`）。单个文件读/写失败一律静默跳过，**任何情况都不阻断改名主流程**。
+/// 边界与安全：路径解析全在本函数（从 `old_path` 取所在目录、从两路径取文件名与词干）；
+/// **跳过改名后的这篇自身**（按完整路径比对）；只处理扩展名白名单（`OPEN_EXTENSIONS`）内的
+/// 文档，按**已扫描文档数**跨层合计限流（`WIKILINK_SCAN_LIMIT`）；改写保护围栏代码块（见
+/// `rewrite_wikilink_targets`）；不跟进符号链接（用 `file_type()` 判类型，链接既不跟也不读）。
+/// 单个文件读/写失败一律静默跳过，**任何情况都不阻断改名主流程**。
+/// 为什么返回绝对路径而不是相对：跨层之后「相对改名文档所在目录」的路径会带 `..`，前端拼完
+/// 不做归一就对不上接收方窗口的 `docPath` ⇒ 少一处能算错的换算。
 /// 跨窗口若另有窗口正开着被改的文件：前端在改写后广播 `solo:wikilinks-synced`
 /// （携带被改路径），那个窗口收到后自行重载（脏态则改提示），本命令不感知窗口；
 /// 保存侧另有 mtime 乐观锁兜底。
@@ -348,10 +531,6 @@ pub async fn sync_wikilinks_on_rename(
 
     let new_ref = Path::new(&new_path);
     let old_ref = Path::new(&old_path);
-    let dir = new_ref
-        .parent()
-        .ok_or_else(|| AppError::validation("无法获取父目录"))?
-        .to_path_buf();
     let old_stem = old_ref
         .file_stem()
         .and_then(|s| s.to_str())
@@ -362,25 +541,18 @@ pub async fn sync_wikilinks_on_rename(
         .and_then(|s| s.to_str())
         .unwrap_or_default()
         .to_string();
-    let skip_filename = new_ref
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or_default()
-        .to_string();
+    // 跳过自身用的完整路径（跨目录后不能再按文件名判：子目录里的同名文件是另一篇）
+    let self_path = new_ref.to_path_buf();
 
     // 名字为空或没变（如仅大小写、扩展名不同的等价改名）→ 无需同步
     if old_stem.is_empty() || new_stem.is_empty() || old_stem == new_stem {
         return Ok(Vec::new());
     }
 
+    // 链接是按**旧位置**写的 ⇒ 扫描根与写法前缀都从 old_path 推
+    let roots = rename_roots(old_ref, new_ref);
     let affected = tauri::async_runtime::spawn_blocking(move || {
-        scan_and_rewrite_wikilinks(
-            &dir,
-            &old_stem,
-            &new_stem,
-            &skip_filename,
-            SAME_DIR_DOC_LIMIT,
-        )
+        scan_and_rewrite_wikilinks(&roots, &self_path, ScanBudget::default())
     })
     .await
     .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?;
@@ -388,60 +560,107 @@ pub async fn sync_wikilinks_on_rename(
     Ok(affected)
 }
 
-/// 扫描 `dir`（不递归）下的可编辑文档，把 `[[old_stem]]` 改成 `new_stem`，返回受影响文件名（升序）。
-/// 同步执行（由命令包进 `spawn_blocking`）。抽成独立函数便于用 `limit` 做小样本单测。
-/// - `skip_filename`：跳过改名后的当前文档自身（同目录唯一同名文件，不比对路径全等即可）。
-/// - `limit`：最多**扫描**多少个候选文档（已扫描数，非命中数）——真正给病态大目录兜底。
+/// 改名同步的扫描计划单元：一个目录 + 该目录里的文档指向被改名文档时会用的目标字面。
+struct RenameRoot {
+    dir: PathBuf,
+    forms: Vec<(String, String)>,
+}
+
+/// 生成扫描计划（本层 + 向上 `WIKILINK_SCAN_DEPTH` 层）。抽成独立函数便于单测直接拿它跑
+/// 小预算，也让「扫哪几层」与「每层怎么写」两件事各自可验。
+fn rename_roots(old_ref: &Path, new_ref: &Path) -> Vec<RenameRoot> {
+    let Some(dir) = old_ref.parent() else {
+        return Vec::new();
+    };
+    rename_scan_dirs(dir, WIKILINK_SCAN_DEPTH)
+        .into_iter()
+        .map(|(d, prefix)| RenameRoot {
+            forms: wikilink_target_forms(old_ref, new_ref, &prefix),
+            dir: d,
+        })
+        .filter(|root| !root.forms.is_empty())
+        .collect()
+}
+
+/// 按扫描计划逐层改写，返回**被改动文件的绝对路径**（升序）。
+/// 同步执行（由命令包进 `spawn_blocking`）。范围与 `list_markdown_files` 用同一个
+/// `ScanBudget` 常量组 —— 三处口径必须一致，否则又造出「补全看得见、改名改不到」这类不对称。
 fn scan_and_rewrite_wikilinks(
-    dir: &Path,
-    old_stem: &str,
-    new_stem: &str,
-    skip_filename: &str,
-    limit: usize,
+    roots: &[RenameRoot],
+    self_path: &Path,
+    budget: ScanBudget,
 ) -> Vec<String> {
     let mut affected: Vec<String> = Vec::new();
-    let entries = match fs::read_dir(dir) {
-        Ok(entries) => entries,
-        // 目录读不了（被删/权限）：静默返回空，不报错、不阻断改名
-        Err(_) => return affected,
-    };
+    // `scanned` 跨层合计：上限是「这次改名总共读多少篇」，不是「每层多少篇」
     let mut scanned = 0usize;
-    for entry in entries.flatten() {
-        if scanned >= limit {
+    for root in roots {
+        if scanned >= budget.max_files {
             break;
         }
+        scan_and_rewrite_dir(root, self_path, budget.max_files, &mut scanned, &mut affected);
+    }
+    affected.sort();
+    affected
+}
+
+/// 平铺扫一个目录（不递归 —— 递归是 R-1 的来源，见 `rename_scan_dirs`）。
+fn scan_and_rewrite_dir(
+    root: &RenameRoot,
+    self_path: &Path,
+    limit: usize,
+    scanned: &mut usize,
+    affected: &mut Vec<String>,
+) {
+    let entries = match fs::read_dir(&root.dir) {
+        Ok(entries) => entries,
+        // 目录读不了（被删/权限）：静默跳过，不报错、不阻断改名
+        Err(_) => return,
+    };
+    // 写法对取一次 &str 视图，避免每行重建 String
+    let forms: Vec<(&str, &str)> = root
+        .forms
+        .iter()
+        .map(|(old, new)| (old.as_str(), new.as_str()))
+        .collect();
+    for entry in entries.flatten() {
+        if *scanned >= limit {
+            return;
+        }
         let path = entry.path();
-        if !path.is_file() {
+        let ft = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if !ft.is_file() {
+            continue;
+        }
+        // 跳过正在改名的这篇自身：它的内存态/基线此刻正被编辑器持有，改写会被下次保存回写。
+        // 按**完整路径**比而不是文件名——同名文件在别的目录就是另一篇，该处理的处理。
+        if path.as_path() == self_path {
             continue;
         }
         let name = match path.file_name().and_then(|n| n.to_str()) {
             Some(n) => n.to_string(),
             None => continue,
         };
-        // 跳过正在改名的这篇自身：它的内存态/基线此刻正被编辑器持有，改写会被下次保存回写
-        if name == skip_filename {
-            continue;
-        }
         // 只碰可编辑文档类型（扩展名闸门），防越权读写任意文件
         if validate_document_extension(&name, &OPEN_EXTENSIONS, "同步链接").is_err() {
             continue;
         }
-        scanned += 1;
+        *scanned += 1;
         let content = match fs::read_to_string(&path) {
             Ok(c) => c,
             // 非 UTF-8 / 权限等读失败：跳过这一个，继续处理其它文件
             Err(_) => continue,
         };
-        if let Some(updated) = rewrite_wikilink_targets(&content, old_stem, new_stem) {
+        if let Some(updated) = rewrite_wikilink_targets(&content, &forms) {
             // 写失败则跳过（不计入 affected）
             if atomic_write(&path, updated.as_bytes()).is_err() {
                 continue;
             }
-            affected.push(name);
+            affected.push(path.to_string_lossy().to_string());
         }
     }
-    affected.sort();
-    affected
 }
 
 #[tauri::command]
@@ -917,10 +1136,11 @@ fn unique_asset_target(assets_dir: &Path, filename: &str) -> (PathBuf, String) {
 #[cfg(test)]
 mod tests {
     use super::{
-        atomic_write, import_document_image, list_markdown_files, open_document, rename_file,
-        resolve_image_src, rewrite_wikilink_targets, scan_and_rewrite_wikilinks, save_document,
+        atomic_write, collect_markdown_files, import_document_image, list_markdown_files,
+        open_document, rename_file, rename_roots, rename_scan_dirs, resolve_image_src,
+        rewrite_wikilink_targets, save_document, scan_and_rewrite_wikilinks,
         sync_wikilinks_on_rename, validate_document_extension, validate_image_asset_path,
-        OPEN_EXTENSIONS, WRITE_EXTENSIONS,
+        wikilink_target_forms, ScanBudget, OPEN_EXTENSIONS, WRITE_EXTENSIONS,
     };
     use crate::error::AppError;
     use std::fs;
@@ -957,7 +1177,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn list_markdown_files_returns_sorted_md_names_in_same_dir() {
+    async fn list_markdown_files_returns_relative_paths_with_subdirs() {
         let dir = test_dir();
         let doc = dir.join("demo.md");
         atomic_write(&doc, b"# demo").unwrap();
@@ -965,21 +1185,126 @@ mod tests {
         atomic_write(&dir.join("A.md"), b"").unwrap();
         atomic_write(&dir.join("notes.txt"), b"").unwrap();
         atomic_write(&dir.join("image.png"), b"").unwrap();
-        // 子目录里的 .md 不递归列出；恰好名为 ".md" 的文件跳过（target 为空）
+        // 子目录递归列出，路径用 `/` 分隔；恰好名为 ".md" 的文件跳过（target 为空）
         let sub = dir.join("sub");
         fs::create_dir_all(&sub).unwrap();
         atomic_write(&sub.join("c.md"), b"").unwrap();
         atomic_write(&dir.join(".md"), b"").unwrap();
 
-        let names =
-            list_markdown_files(doc.to_string_lossy().to_string()).await.unwrap();
+        let list = list_markdown_files(doc.to_string_lossy().to_string())
+            .await
+            .unwrap();
 
-        // 大小写不敏感排序：A.md 在 b.md 前；.md/子目录文件/非 md 均不在列。
+        // 同层按名字（大小写不敏感）排在前面，子目录候选排在后面（层级浅者优先）。
         // demo.md（当前文档自身）在列——排除自身是前端的职责
         assert_eq!(
-            names,
-            vec!["A.md".to_string(), "b.md".to_string(), "demo.md".to_string()]
+            list.files,
+            vec![
+                "A.md".to_string(),
+                "b.md".to_string(),
+                "demo.md".to_string(),
+                "sub/c.md".to_string(),
+            ]
         );
+        assert!(!list.truncated, "没触发任何闸门时不得报「清单不完整」");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn list_markdown_files_stops_at_depth_limit() {
+        let dir = test_dir();
+        let doc = dir.join("a.md");
+        atomic_write(&doc, b"").unwrap();
+        fs::create_dir_all(dir.join("l1")).unwrap();
+        atomic_write(&dir.join("l1").join("b.md"), b"").unwrap();
+        fs::create_dir_all(dir.join("l1/l2")).unwrap();
+        atomic_write(&dir.join("l1/l2/c.md"), b"").unwrap();
+        // 第 3 层超出 WIKILINK_SCAN_DEPTH(2) —— 不能出现在候选里
+        fs::create_dir_all(dir.join("l1/l2/l3")).unwrap();
+        atomic_write(&dir.join("l1/l2/l3/d.md"), b"").unwrap();
+
+        let list = list_markdown_files(doc.to_string_lossy().to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            list.files,
+            vec![
+                "a.md".to_string(),
+                "l1/b.md".to_string(),
+                "l1/l2/c.md".to_string(),
+            ],
+            "深度上限外的文件不该进入候选（范围必须与前端标红判定同深度）"
+        );
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn collect_markdown_files_stops_at_limit() {
+        let dir = test_dir();
+        for i in 0..5 {
+            atomic_write(&dir.join(format!("f{}.md", i)), b"").unwrap();
+        }
+
+        let list = collect_markdown_files(
+            &dir,
+            ScanBudget {
+                max_files: 3,
+                ..Default::default()
+            },
+        );
+
+        // 凑满上限即停：长度不超上限（早停的意义是「不问剩余目录」，不再是收完再截断）
+        assert_eq!(list.files.len(), 3);
+        assert!(list.truncated, "触发文件闸门必须标「清单不完整」——前端据此不判死链");
+        for name in &list.files {
+            assert!(name.ends_with(".md"));
+        }
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn collect_markdown_files_stops_at_dir_budget() {
+        let dir = test_dir();
+        atomic_write(&dir.join("root.md"), b"").unwrap();
+        for sub in ["a", "b", "c"] {
+            fs::create_dir_all(dir.join(sub)).unwrap();
+            atomic_write(&dir.join(sub).join("x.md"), b"").unwrap();
+        }
+
+        // 只允许访问 1 个目录 → 只收到根目录那一层
+        let list = collect_markdown_files(
+            &dir,
+            ScanBudget {
+                max_dirs: 1,
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(list.files, vec!["root.md".to_string()]);
+        assert!(
+            list.truncated,
+            "目录闸门触发同样是「清单不完整」——只管文件数挡不住空目录树"
+        );
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn collect_markdown_files_prefers_shallow_entries() {
+        let dir = test_dir();
+        fs::create_dir_all(dir.join("aaa")).unwrap();
+        atomic_write(&dir.join("aaa").join("z.md"), b"").unwrap();
+        atomic_write(&dir.join("zzz.md"), b"").unwrap();
+
+        let list = collect_markdown_files(&dir, ScanBudget::default());
+
+        // 子目录名 "aaa" 字母序在前，但层级浅的候选必须排前面 ——
+        // 菜单前 50 条要优先显示离当前文档最近的文件
+        assert_eq!(list.files, vec!["zzz.md".to_string(), "aaa/z.md".to_string()]);
 
         let _ = fs::remove_dir_all(dir);
     }
@@ -1492,59 +1817,224 @@ mod tests {
 
     #[test]
     fn rewrite_wikilink_matches_exact_target_not_prefix() {
-        // old=笔记：[[笔记]] 改，[[笔记本]] 不动（精确整词，不误伤近名）
-        let out = rewrite_wikilink_targets("见 [[笔记]] 与 [[笔记本]]", "笔记", "文章").unwrap();
+        // 目标「笔记」：[[笔记]] 改，[[笔记本]] 不动（精确整词，不误伤近名）
+        let out =
+            rewrite_wikilink_targets("见 [[笔记]] 与 [[笔记本]]", &[("笔记", "文章")]).unwrap();
         assert_eq!(out, "见 [[文章]] 与 [[笔记本]]");
     }
 
     #[test]
     fn rewrite_wikilink_keeps_alias_and_ignores_plain_link() {
         // 别名段（| 后）原样保留；普通 markdown 链接 [x](y) 不碰
-        let out =
-            rewrite_wikilink_targets("[[笔记|我的笔记]] 和 [笔记](笔记.md)", "笔记", "文章").unwrap();
+        let out = rewrite_wikilink_targets(
+            "[[笔记|我的笔记]] 和 [笔记](笔记.md)",
+            &[("笔记", "文章")],
+        )
+        .unwrap();
         assert_eq!(out, "[[文章|我的笔记]] 和 [笔记](笔记.md)");
     }
 
     #[test]
     fn rewrite_wikilink_handles_md_suffix_and_multiple_occurrences() {
-        // 带 .md 的目标形态也覆盖；同一篇多处链接全部改
-        let out = rewrite_wikilink_targets("[[笔记.md]] 见 [[笔记]] 再看 [[笔记]]", "笔记", "文章")
-            .unwrap();
+        // 同一层的两种写法（带全名 + 裸名）一起给：两种形态都改，同一篇多处全改
+        let out = rewrite_wikilink_targets(
+            "[[笔记.md]] 见 [[笔记]] 再看 [[笔记]]",
+            &[("笔记.md", "文章.md"), ("笔记", "文章")],
+        )
+        .unwrap();
         assert_eq!(out, "[[文章.md]] 见 [[文章]] 再看 [[文章]]");
     }
 
     #[test]
     fn rewrite_wikilink_returns_none_when_no_match() {
-        assert!(rewrite_wikilink_targets("正文没有链接", "笔记", "文章").is_none());
+        assert!(rewrite_wikilink_targets("正文没有链接", &[("笔记", "文章")]).is_none());
+    }
+
+    #[test]
+    fn target_forms_only_lists_shapes_the_resolver_accepts() {
+        let old = Path::new("D:/notes/sub/B.md");
+        let new = Path::new("D:/notes/sub/C.md");
+        // 本层：带全名 + 裸名两种
+        assert_eq!(
+            wikilink_target_forms(old, new, ""),
+            vec![
+                ("B.md".to_string(), "C.md".to_string()),
+                ("B".to_string(), "C".to_string()),
+            ]
+        );
+        // 上一层：同一篇文件、两种写法都带目录前缀（`[[` 补全插的就是 sub/B 这种）
+        assert_eq!(
+            wikilink_target_forms(old, new, "sub/"),
+            vec![
+                ("sub/B.md".to_string(), "sub/C.md".to_string()),
+                ("sub/B".to_string(), "sub/C".to_string()),
+            ]
+        );
+        // 非 .md：解析器只给「无后缀目标」补 .md ⇒ 裸名形态压根不成立，不能给。
+        // 给了就会去改 `[[B]]`（那指的是不存在的 B.md），而真正指向本篇的
+        // `[[B.markdown]]` 反而漏掉。
+        assert_eq!(
+            wikilink_target_forms(
+                Path::new("D:/notes/sub/B.markdown"),
+                Path::new("D:/notes/sub/C.markdown"),
+                "sub/",
+            ),
+            vec![(
+                "sub/B.markdown".to_string(),
+                "sub/C.markdown".to_string()
+            )]
+        );
+    }
+
+    #[test]
+    fn rename_scan_dirs_walks_up_only_and_stays_within_depth() {
+        let dir = test_dir();
+        let deep = dir.join("a/b");
+        fs::create_dir_all(&deep).unwrap();
+
+        let roots = rename_scan_dirs(&deep, 2);
+        // 本层 + 上两层，各自的前缀就是「那层的文档会怎么写这条链接」
+        assert_eq!(
+            roots,
+            vec![
+                (deep.clone(), String::new()),
+                (dir.join("a"), "b/".to_string()),
+                (dir.clone(), "a/b/".to_string()),
+            ]
+        );
+        // depth = 0 退化成只看本层
+        assert_eq!(rename_scan_dirs(&deep, 0).len(), 1);
+
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[tokio::test]
     async fn sync_wikilinks_rewrites_matching_links_only() {
         let dir = test_dir();
-        // 模拟改名已落盘：new.md 已存在；link.md 里有指向旧名 old 的链接
-        let new_path = dir.join("new.md");
+        // 被改名的这篇放在 dir/a/b 下：命令扫「本层 + 向上两层」，三层全在测试目录内，
+        // 不会去碰系统临时目录
+        let work = dir.join("a").join("b");
+        fs::create_dir_all(&work).unwrap();
+        let new_path = work.join("new.md");
         atomic_write(&new_path, b"# new").unwrap();
-        let link = dir.join("link.md");
-        atomic_write(&link, b"see [[old]] here").unwrap();
-        // 干扰项：近名 oldbook、普通链接、子目录同名——都不该被动
-        atomic_write(&dir.join("near.md"), b"[[oldbook]] and [old](x)").unwrap();
-        let sub = dir.join("sub");
-        fs::create_dir_all(&sub).unwrap();
-        atomic_write(&sub.join("deep.md"), b"[[old]]").unwrap();
+        // ① 同层引用：裸名与带全名两种写法都要改
+        let link = work.join("link.md");
+        atomic_write(&link, b"see [[old]] and [[old.md]]").unwrap();
+        // ② 干扰项：近名 oldbook、普通链接 —— 都不该被动
+        atomic_write(&work.join("near.md"), b"[[oldbook]] and [old](x)").unwrap();
+        // ③ 上一层、上两层的引用方：写法各带一段前缀（本轮补全产出的主要形态）
+        let upper = dir.join("a").join("上层.md");
+        atomic_write(&upper, "见 [[b/old]]".as_bytes()).unwrap();
+        let top = dir.join("上二层.md");
+        atomic_write(&top, "见 [[a/b/old.md]]".as_bytes()).unwrap();
+        // ④ 出界的两种：子目录文档的 [[old]] 指的是**它自己那层**的 old.md（另一篇）；
+        //    更深目录要指回来必须写 ../，不在互链承诺范围内 ⇒ 都不动
+        let child = work.join("child");
+        fs::create_dir_all(&child).unwrap();
+        atomic_write(&child.join("deep.md"), b"see [[old]]").unwrap();
+        fs::create_dir_all(dir.join("x").join("y")).unwrap();
+        let far = dir.join("x").join("y").join("deep.md");
+        atomic_write(&far, b"see [[../../a/b/old]]").unwrap();
 
-        // 旧文件已被 rename 走，无需真实存在（命令只据路径取 stem + 扫同目录）
-        let old_str = dir.join("old.md").to_string_lossy().to_string();
+        let old_str = work.join("old.md").to_string_lossy().to_string();
         let new_str = new_path.to_string_lossy().to_string();
-
-        // 一次调用即落盘（不再有 dry_run 预览那一步）
         let changed = sync_wikilinks_on_rename(old_str, new_str).await.unwrap();
-        assert_eq!(changed, vec!["link.md".to_string()]);
-        assert_eq!(fs::read_to_string(&link).unwrap(), "see [[new]] here");
+
+        // 返回值是绝对路径（跨层后相对路径会带 `..`，前端比对不上）
+        let mut expected = vec![
+            link.to_string_lossy().to_string(),
+            upper.to_string_lossy().to_string(),
+            top.to_string_lossy().to_string(),
+        ];
+        expected.sort();
+        assert_eq!(changed, expected);
         assert_eq!(
-            fs::read_to_string(dir.join("near.md")).unwrap(),
+            fs::read_to_string(&link).unwrap(),
+            "see [[new]] and [[new.md]]"
+        );
+        assert_eq!(fs::read_to_string(&upper).unwrap(), "见 [[b/new]]");
+        assert_eq!(fs::read_to_string(&top).unwrap(), "见 [[a/b/new.md]]");
+        assert_eq!(
+            fs::read_to_string(work.join("near.md")).unwrap(),
             "[[oldbook]] and [old](x)"
         );
-        assert_eq!(fs::read_to_string(sub.join("deep.md")).unwrap(), "[[old]]");
+        // ⚠️ R-1 守卫：这两条一个字都不许动
+        assert_eq!(fs::read_to_string(&child.join("deep.md")).unwrap(), "see [[old]]");
+        assert_eq!(
+            fs::read_to_string(&far).unwrap(),
+            "see [[../../a/b/old]]"
+        );
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn sync_wikilinks_does_not_touch_same_name_in_subdir() {
+        // 审核 R-1：根目录那篇改名，**不能**顺手改子目录文档里的同名裸名链接。
+        // 上一版把扫描扩成向下递归后，`sub/deep.md` 里指向 `sub/old.md` 的好链接
+        // 会被整词替换成 `[[new]]`（指向不存在的文件）并静默落盘 ——
+        // 而旧测试还把那个错误行为断言成了预期。
+        let dir = test_dir();
+        let work = dir.join("a").join("b");
+        fs::create_dir_all(&work).unwrap();
+        let new_path = work.join("new.md");
+        atomic_write(&new_path, b"# new").unwrap();
+        let sub = work.join("sub");
+        fs::create_dir_all(&sub).unwrap();
+        // 与根目录旧名同名的一篇，和引用它的那篇
+        atomic_write(&sub.join("old.md"), "# 另一篇，与本次改名无关".as_bytes()).unwrap();
+        atomic_write(&sub.join("deep.md"), b"see [[old]]").unwrap();
+
+        let changed = sync_wikilinks_on_rename(
+            work.join("old.md").to_string_lossy().to_string(),
+            new_path.to_string_lossy().to_string(),
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            changed.is_empty(),
+            "子目录的 [[old]] 指的是 sub/old.md，与本篇无关 ⇒ 一篇都不该改"
+        );
+        assert_eq!(fs::read_to_string(sub.join("deep.md")).unwrap(), "see [[old]]");
+        assert_eq!(fs::read_to_string(&new_path).unwrap(), "# new");
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn sync_wikilinks_renames_markdown_explicit_form_only() {
+        // 被改名的是 .markdown：能指到它的写法只有带全名那一种（裸名 [[B]] 指的是
+        // 不存在的 B.md）。同时验证上一层目录里的 [[sub/B.markdown]] 也跟着走。
+        let dir = test_dir();
+        let work = dir.join("a").join("b");
+        fs::create_dir_all(&work).unwrap();
+        let new_path = work.join("C.markdown");
+        atomic_write(&new_path, b"# C").unwrap();
+        let same_dir = work.join("同层.md");
+        atomic_write(&same_dir, "见 [[B.markdown]] 与 [[B]]".as_bytes()).unwrap();
+        let upper = dir.join("a").join("上层.md");
+        atomic_write(&upper, "见 [[b/B.markdown]]".as_bytes()).unwrap();
+
+        let changed = sync_wikilinks_on_rename(
+            work.join("B.markdown").to_string_lossy().to_string(),
+            new_path.to_string_lossy().to_string(),
+        )
+        .await
+        .unwrap();
+
+        let mut expected = vec![
+            same_dir.to_string_lossy().to_string(),
+            upper.to_string_lossy().to_string(),
+        ];
+        expected.sort();
+        assert_eq!(changed, expected);
+        // 裸名那半句原样留着：它不是指向本篇的链接
+        assert_eq!(
+            fs::read_to_string(&same_dir).unwrap(),
+            "见 [[C.markdown]] 与 [[B]]"
+        );
+        assert_eq!(fs::read_to_string(&upper).unwrap(), "见 [[b/C.markdown]]");
 
         let _ = fs::remove_dir_all(dir);
     }
@@ -1567,7 +2057,7 @@ mod tests {
         // 围栏内的 [[笔记]] 是给人看的示例，不该改；围栏外的真链接才改
         let content =
             "见 [[笔记]] 有效。\n```\n示例 [[笔记]] 不该动\n```\n再来 [[笔记]]\n~~~\n[[笔记]] 也不动\n~~~\n";
-        let out = rewrite_wikilink_targets(content, "笔记", "文章").unwrap();
+        let out = rewrite_wikilink_targets(content, &[("笔记", "文章")]).unwrap();
         assert_eq!(
             out,
             "见 [[文章]] 有效。\n```\n示例 [[笔记]] 不该动\n```\n再来 [[文章]]\n~~~\n[[笔记]] 也不动\n~~~\n"
@@ -1577,17 +2067,19 @@ mod tests {
     #[tokio::test]
     async fn sync_wikilinks_skips_the_renamed_file_itself() {
         let dir = test_dir();
-        let new_path = dir.join("new.md");
+        let work = dir.join("a").join("b");
+        fs::create_dir_all(&work).unwrap();
+        let new_path = work.join("new.md");
         // 改名后的当前文档：正文含指向自己旧名的自链，也不该被动（用户正在编辑的这篇）
         atomic_write(&new_path, b"see [[old]] and [[new]] here").unwrap();
-        let link = dir.join("link.md");
+        let link = work.join("link.md");
         atomic_write(&link, b"points [[old]]").unwrap();
 
-        let old_str = dir.join("old.md").to_string_lossy().to_string();
+        let old_str = work.join("old.md").to_string_lossy().to_string();
         let new_str = new_path.to_string_lossy().to_string();
         let changed = sync_wikilinks_on_rename(old_str, new_str).await.unwrap();
 
-        assert_eq!(changed, vec!["link.md".to_string()]);
+        assert_eq!(changed, vec![link.to_string_lossy().to_string()]);
         assert_eq!(
             fs::read_to_string(&new_path).unwrap(),
             "see [[old]] and [[new]] here"
@@ -1599,19 +2091,80 @@ mod tests {
     #[test]
     fn scan_wikilinks_limits_by_scanned_count() {
         let dir = test_dir();
-        atomic_write(&dir.join("new.md"), b"# new").unwrap(); // 当前改名文档，跳过、不计入扫描数
+        let work = dir.join("a").join("b");
+        fs::create_dir_all(&work).unwrap();
+        let self_path = work.join("new.md");
+        atomic_write(&self_path, b"# new").unwrap(); // 当前改名文档，跳过、不计入扫描数
         for f in ["a.md", "b.md", "c.md", "d.md"] {
-            atomic_write(&dir.join(f), b"see [[old]]").unwrap();
+            atomic_write(&work.join(f), b"see [[old]]").unwrap();
         }
-        // limit=2：只处理 2 个候选（读目录顺序不定，仅断言命中数=2）；证明按"已扫描数"而非"命中数"限流
-        let affected = scan_and_rewrite_wikilinks(&dir, "old", "new", "new.md", 2);
+        let old_ref = work.join("old.md");
+        let roots = rename_roots(&old_ref, &self_path);
+
+        // limit=2：只处理 2 个候选（读目录顺序不定，仅断言命中数=2）；
+        // 证明按「已扫描文档数」而非「命中数」限流，且限流是**跨层合计**
+        let affected = scan_and_rewrite_wikilinks(
+            &roots,
+            &self_path,
+            ScanBudget {
+                max_files: 2,
+                ..Default::default()
+            },
+        );
         assert_eq!(affected.len(), 2);
         // 上面那次已把命中的改写成 [[new]]，重置后再跑全量（大 limit）：四个都命中
         for f in ["a.md", "b.md", "c.md", "d.md"] {
-            atomic_write(&dir.join(f), b"see [[old]]").unwrap();
+            atomic_write(&work.join(f), b"see [[old]]").unwrap();
         }
-        let all = scan_and_rewrite_wikilinks(&dir, "old", "new", "new.md", 500);
-        assert_eq!(all, vec!["a.md", "b.md", "c.md", "d.md"].iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        let all = scan_and_rewrite_wikilinks(&roots, &self_path, ScanBudget::default());
+        let mut expected: Vec<String> = ["a.md", "b.md", "c.md", "d.md"]
+            .iter()
+            .map(|s| work.join(s).to_string_lossy().to_string())
+            .collect();
+        expected.sort();
+        assert_eq!(all, expected);
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn scan_wikilinks_covers_ancestors_within_depth_only() {
+        // 引用方只在「本层 + 向上 WIKILINK_SCAN_DEPTH(2) 层」这三层里被扫到；
+        // 上 3 层那篇要指过来只能写 `[[../../..]]` 这类出界路径，而它既不被标红判、
+        // 也不是 `[[` 补全产得出来的写法 ⇒ 不属于互链承诺的范围，与标红侧同一口径。
+        let dir = test_dir();
+        let level2 = dir.join("a");
+        let level1 = level2.join("b");
+        let work = level1.join("c");
+        fs::create_dir_all(&work).unwrap();
+        let self_path = work.join("new.md");
+        atomic_write(&self_path, b"# new").unwrap();
+        // 上 1 层（b）与上 2 层（a）：范围内，各自用本层写法链接
+        let upper1 = level1.join("上层一.md");
+        atomic_write(&upper1, "见 [[c/old]]".as_bytes()).unwrap();
+        let upper2 = level2.join("上层二.md");
+        atomic_write(&upper2, "见 [[b/c/old]]".as_bytes()).unwrap();
+        // 上 3 层（dir）：范围外，且它真写出了出界形态
+        let too_far = dir.join("上层三.md");
+        atomic_write(&too_far, "见 [[../a/b/c/old]]".as_bytes()).unwrap();
+
+        let roots = rename_roots(&work.join("old.md"), &self_path);
+        // 三层计划：c（本层）、b（前缀 c/）、a（前缀 b/c/）—— dir 不在其中
+        assert_eq!(roots.len(), 3);
+
+        let all = scan_and_rewrite_wikilinks(&roots, &self_path, ScanBudget::default());
+        let mut expected = vec![
+            upper1.to_string_lossy().to_string(),
+            upper2.to_string_lossy().to_string(),
+        ];
+        expected.sort();
+        assert_eq!(all, expected);
+        assert_eq!(fs::read_to_string(&upper1).unwrap(), "见 [[c/new]]");
+        assert_eq!(fs::read_to_string(&upper2).unwrap(), "见 [[b/c/new]]");
+        assert_eq!(
+            fs::read_to_string(&too_far).unwrap(),
+            "见 [[../a/b/c/old]]",
+            "超出向上范围的出界写法不该被顺手改（也不该被假装支持）"
+        );
         let _ = fs::remove_dir_all(dir);
     }
 }

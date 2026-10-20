@@ -32,6 +32,20 @@ pub struct DocumentRenameResult {
     pub path: String,
 }
 
+/// 互链 `[[` 补全候选清单。
+///
+/// `truncated` 是**正确性必需**的，不是提示性字段：扫描有「文件数」和「目录数」两个闸门，
+/// 任一触发都意味着清单不完整。前端据此决定「能不能断言某个链接指向的文件不存在」——
+/// 清单不完整时下这个断言就是误标红（实测 602 文件的目录里 `[[zzz]]` 曾被误标成死链）。
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownFileList {
+    /// 相对当前文档所在目录的路径（`/` 分隔，如 `sub/B.md`），浅层优先
+    pub files: Vec<String>,
+    /// 清单是否可能不完整（凑满文件上限或触到目录预算）
+    pub truncated: bool,
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum AppOpenSource {

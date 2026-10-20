@@ -17,10 +17,10 @@
         >
           <span class="mk-wikilink-menu-name">{{ item.target }}</span>
         </div>
-        <!-- 空态分两种：文档已存 = 目录里确实没有匹配；未存 = 互链还没有基准目录。
+        <!-- 空态分两种：文档已存 = 目录树里确实没有匹配；未存 = 互链还没有基准目录。
              后者早前是「菜单整个不弹」，用户敲 [[ 毫无反应，只能以为补全坏了。 -->
         <div v-if="items.length === 0" class="mk-slash-menu-empty">
-          {{ hasDocumentPath ? '无匹配文档' : '存到文件夹后，可链接同目录文档' }}
+          {{ hasDocumentPath ? '无匹配文档' : '存到文件夹后，可链接当前文件夹及子文件夹的文档' }}
         </div>
       </div>
     </div>

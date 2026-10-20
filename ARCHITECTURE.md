@@ -279,9 +279,9 @@ md-editor/
 | `open_document` | document.rs | 读文件内容 + 返回 mtime |
 | `save_document` | document.rs | **原子写** + mtime 冲突检测（见 docs/sensitive-areas.md §11.2） |
 | `get_file_mtime` | document.rs | 读文件 mtime（互链跳转前的存在性检查） |
-| `list_markdown_files` | document.rs | 列同目录 .md 文件名（互链 `[[` 补全候选，排序 + 上限 500） |
+| `list_markdown_files` | document.rs | 列当前文档**目录树**内的 .md 相对路径（互链 `[[` 补全候选；深度 `WIKILINK_SCAN_DEPTH`、上限 500 且凑满即停、浅层优先） |
 | `rename_file` | document.rs | 重命名文件（去后缀、防冲突、大小写敏感） |
-| `sync_wikilinks_on_rename` | document.rs | 改名后同步「指向本文档」的互链：扫同目录，原子改写 `[[旧名]]`→`[[新名]]`（不预览、不询问，见 KNOWN-ISSUES §一 #23） |
+| `sync_wikilinks_on_rename` | document.rs | 改名后同步「指向本文档」的互链：扫**改名文档本层 + 向上两层**目录（引用方只可能在这三层，见 `rename_scan_dirs`），按各层真实写法原子改写 `[[旧名]]`→`[[新名]]`，返回被改动文件的**绝对路径**（不预览、不询问，见 KNOWN-ISSUES §一 #23） |
 | `import_document_image` | document.rs | 图片复制到 `assets/`，同名自动加后缀 |
 | `save_clipboard_image` | document.rs | 解析 data URL → base64 解码 → 写入 assets |
 | `read_clipboard_html` | clipboard.rs | 从系统剪贴板读 HTML 富文本（绕开 webview `clipboardData` 空值问题，外部应用/跨源粘贴保格式） |

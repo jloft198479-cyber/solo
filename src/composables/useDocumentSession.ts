@@ -74,10 +74,11 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     return a.replace(/\\/g, '/').toLowerCase() === b.replace(/\\/g, '/').toLowerCase();
   }
 
-  /** 把同目录文件名拼到某文档路径的目录下（保留原分隔符，不猜平台） */
-  function joinSibling(docPath: string, fileName: string): string {
-    const cut = Math.max(docPath.lastIndexOf('/'), docPath.lastIndexOf('\\'));
-    return cut < 0 ? fileName : `${docPath.slice(0, cut + 1)}${fileName}`;
+  /** 路径所在目录（统一 `/` + 小写），用于判断改名同步是否越出了本篇所在目录。 */
+  function dirOfPath(path: string): string {
+    const norm = path.replace(/\\/g, '/').toLowerCase();
+    const cut = norm.lastIndexOf('/');
+    return cut < 0 ? '' : norm.slice(0, cut);
   }
 
   /**
@@ -420,7 +421,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   }
 
   /**
-   * 改名成功后同步「指向本文档」的互链：直接改写同目录里 `[[旧名]]` 的目标段并返回改动篇数。
+   * 改名成功后同步「指向本文档」的互链：直接改写同一目录树下 `[[旧名]]` 的目标段并返回改动篇数。
    *
    * **不问用户**（2026-10-20 改，原先是「先预览列清单 → 弹框确认 → 再改写」）：
    * 改名就是要链接跟着走；弹框会被自动保存打断、用户随手关掉，答过「先不动」之后
@@ -430,14 +431,34 @@ export function useDocumentSession(options: DocumentSessionOptions) {
    * 那个窗口的内存态还留着旧链接名，只有收到广播才会重载（见 handleWikilinksSynced）。
    */
   async function syncInboundWikilinks(oldPath: string, newPath: string) {
+    let changed: string[];
     try {
-      const changed = await syncWikilinksOnRename(oldPath, newPath);
-      if (changed.length === 0) return;
-
-      updateAutoSaveStatus(`已更新 ${changed.length} 篇文档里的链接`);
-      await emitWikilinksSynced({ paths: changed.map((name) => joinSibling(newPath, name)) });
+      // Rust 返回**绝对路径**（引用方可能在改名文档的上两层目录，相对路径会带 `..`，
+      // 不归一就对不上接收方窗口的 docPath ⇒ 不在这里做第二次换算）
+      changed = await syncWikilinksOnRename(oldPath, newPath);
     } catch (error) {
-      console.warn('[wikilink-sync] failed:', normalizeTauriError(error).message);
+      const msg = normalizeTauriError(error).message;
+      console.warn('[wikilink-sync] failed:', msg);
+      // 改名已成功、只是链接没跟上 —— 必须让用户看见，否则他会以为同步生效了
+      await message(`链接同步失败：${withErrorHint(msg)}`, { title: '互链同步', kind: 'error' });
+      return;
+    }
+    if (changed.length === 0) return;
+
+    // Rust 会向上找两级引用方 ⇒ 改写可能落在本篇所在目录之外。超出时点名篇数，
+    // 否则用户「只改了个名，怎么动了上级目录的文件」无从知晓（不弹框：改名同步不问用户是既定取舍）
+    const selfDir = dirOfPath(newPath);
+    const upstairs = changed.filter((p) => dirOfPath(p) !== selfDir).length;
+    updateAutoSaveStatus(
+      upstairs > 0
+        ? `已更新 ${changed.length} 篇文档里的链接（其中 ${upstairs} 篇在上级目录）`
+        : `已更新 ${changed.length} 篇文档里的链接`,
+    );
+    try {
+      await emitWikilinksSynced({ paths: changed });
+    } catch (error) {
+      // 广播失败只影响「别的窗口不会自动刷新」，盘上已经改好 —— 不能报「同步失败」吓用户
+      console.warn('[wikilink-sync] 广播失败:', normalizeTauriError(error).message);
     }
   }
 

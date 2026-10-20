@@ -13,9 +13,29 @@ import { Plugin, PluginKey } from '@tiptap/pm/state';
 const wikilinkClickKey = new PluginKey('wikilinkClick');
 
 /**
+ * 把互链目标拆成「文件部分」与「锚点部分」（纯函数，便于单测）。
+ *
+ * `[[笔记#小节]]` 的文件部分是 `笔记`，`#小节` 是 Obsidian 风格的标题锚点。
+ * solo 不做锚点跳转（YAGNI），但**必须把锚点从文件名里剥掉**——否则 `#` 会参与
+ * 路径拼接，导致「文件明明在却被标红」以及点开时创建出 `笔记#小节.md` 这种带 `#`
+ * 的垃圾文件（2026-10-20 评估 P0-1；Obsidian 官方也把 `#` 定义为锚点分隔符）。
+ *
+ * 只切**第一个** `#`：Obsidian 的多级锚点 `[[A#一级#二级]]` 整段都算锚点。
+ * 代价：文件名本身含 `#` 时无法被链接到（Windows 允许该字符但 Obsidian 明确禁止，
+ * 且互链语法里天然歧义）——取舍见 docs 台账。
+ */
+export function splitWikilinkAnchor(target: string): { path: string; anchor: string } {
+  const t = target.trim();
+  const hash = t.indexOf('#');
+  if (hash < 0) return { path: t, anchor: '' };
+  return { path: t.slice(0, hash).trim(), anchor: t.slice(hash + 1).trim() };
+}
+
+/**
  * 把互链目标 [[target]] 解析为当前文档同目录下的绝对路径（纯函数，便于单测）。
  * - 兼容 \ 与 / 分隔符，沿用当前文档路径的分隔符
  * - 目标无扩展名时补 .md（[[B]] → B.md，[[sub/B]] → sub/B.md）
+ * - `#` 之后是标题锚点，不参与文件名（[[B#小节]] → B.md；[[#小节]] → null，指向本文档）
  * - 当前文档未保存（currentPath 为空）或无目录信息时返回 null
  */
 export function resolveWikilinkTarget(
@@ -23,7 +43,7 @@ export function resolveWikilinkTarget(
   target: string,
 ): string | null {
   if (!currentPath) return null;
-  const t = target.trim();
+  const { path: t } = splitWikilinkAnchor(target);
   if (!t) return null;
 
   const lastSep = Math.max(currentPath.lastIndexOf('\\'), currentPath.lastIndexOf('/'));

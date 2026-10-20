@@ -33,12 +33,23 @@ export async function getFileMtime(path: string) {
   return invokeCommand<number>(TAURI_COMMANDS.getFileMtime, { path });
 }
 
+export interface MarkdownFileList {
+  /** 相对当前文档所在目录的路径（`/` 分隔，如 `sub/B.md`），浅层优先 */
+  files: string[];
+  /**
+   * 清单是否可能不完整（凑满文件上限 / 触到目录预算）。
+   * **正确性必需**：清单不完整时前端不能断言「某个链接指向的文件不存在」——
+   * 那会误标红（实测 602 文件的目录里 `[[zzz]]` 曾被误标成死链）。
+   */
+  truncated: boolean;
+}
+
 /**
- * 互链 `[[` 补全候选：当前文档同目录下的 .md 文件名列表
- * （Rust 侧已排序、截断 500；排除当前文档自身由前端过滤）。
+ * 互链 `[[` 补全候选：当前文档所在目录**及其下若干层子目录**的 .md，返回**相对路径**。
+ * Rust 侧已按「浅层优先 + 名字」排序、凑满上限即停；排除当前文档自身由前端过滤。
  */
 export async function listMarkdownFiles(path: string) {
-  return invokeCommand<string[]>(TAURI_COMMANDS.listMarkdownFiles, { path });
+  return invokeCommand<MarkdownFileList>(TAURI_COMMANDS.listMarkdownFiles, { path });
 }
 
 export async function saveDocument(
@@ -60,7 +71,8 @@ export async function renameFile(oldPath: string, newName: string) {
 }
 
 /**
- * 改名后同步「指向本文档」的互链：原子改写同目录里 `[[旧名]]` 的目标段，返回已改动的文件名。
+ * 改名后同步「指向本文档」的互链：原子改写**引用方所在目录**（改名文档的本层 + 向上两层，
+ * 与 `[[` 补全同一深度）里指向本篇的目标段，返回**被改动文件的绝对路径**。
  * 路径解析全在 Rust 侧，前端只递旧/新路径。**没有预览模式**——改名即同步，不再询问
  * （问一次用户错过/答「先不动」就永久不同步，界面还不提示，2026-10-20 实测踩过）。
  */

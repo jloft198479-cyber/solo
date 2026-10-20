@@ -82,7 +82,7 @@ import {
   setLocalSrcResolver,
   releaseRemoteImageCache,
 } from './tiptap/extensions/image';
-import { resolveWikilinkTarget } from './tiptap/extensions/wikilink';
+import { resolveWikilinkTarget, splitWikilinkAnchor } from './tiptap/extensions/wikilink';
 import { decideDocumentDrop } from './tiptap/extensions/wikilink-drop';
 import { useEditorAppearance } from './tiptap/useEditorAppearance';
 import { useEditorSearch, pulseJumpTarget } from './tiptap/useEditorSearch';
@@ -208,7 +208,19 @@ const searchShowReplace = ref(false);
 
 /** 互链点击：解析目标路径并请求父组件打开；目标不存在时提供一键创建（KNOWN-ISSUES #10）。 */
 async function handleWikilinkNavigate(target: string) {
-  const resolved = resolveWikilinkTarget(fileStore.currentFile.path, target);
+  // `#` 之后是标题锚点，不参与文件名（见 splitWikilinkAnchor）。
+  // 纯锚点 [[#小节]] 指向本文档自身 —— 没有「打开哪篇」的问题，也没有按标题
+  // 定位的能力，明确说一句，别落到下面的「创建文档」流程里造出 `#小节.md`。
+  const { path: targetPath, anchor } = splitWikilinkAnchor(target);
+  if (!targetPath) {
+    await message(
+      anchor ? '这是指向本文档内标题的锚点，solo 暂不支持按标题跳转。' : '互链目标为空。',
+      { title: '互链跳转', kind: 'info' },
+    );
+    return;
+  }
+
+  const resolved = resolveWikilinkTarget(fileStore.currentFile.path, targetPath);
   if (!resolved) {
     await message('请先保存当前文档，才能跳转到互链的目标文档。', {
       title: '互链跳转',
@@ -228,8 +240,9 @@ async function handleWikilinkNavigate(target: string) {
     );
     if (!okToCreate) return;
 
-    // 标题用互链目标名（[[B|别名]] 场景创建的是 B，别名不落盘），YAML 双引号包裹防特殊字符
-    const title = target.trim() || '无标题';
+    // 标题用互链目标名（[[B|别名]] 场景创建的是 B，别名不落盘；[[B#小节]] 创建的是 B，
+    // 锚点不落盘），YAML 双引号包裹防特殊字符
+    const title = targetPath || '无标题';
     const initialContent = `---\ntitle: "${title.replace(/"/g, '\\"')}"\n---\n`;
 
     try {
@@ -265,6 +278,10 @@ async function handleWikilinkNavigate(target: string) {
     }
   }
 
+  // 目标刚建出来（或竞态下已存在），立刻重算失效标记：否则那条红波浪线要等到
+  // 下次切文档才消失，用户第一反应是「创建失败了」（2026-10-20 评估 P1-1）。
+  // 清单必须重拉而不是只重算——新文件可能落在子目录，旧清单里根本没有它。
+  void refreshWikilinkCandidates(fileStore.currentFile.path).then(markBrokenWikilinks);
   emit('navigate-wikilink', resolved);
 }
 

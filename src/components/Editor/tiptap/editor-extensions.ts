@@ -35,6 +35,7 @@ import { Frontmatter } from './extensions/frontmatter';
 import { FootnoteRef, FootnoteSection, FootnoteDef } from './extensions/footnote';
 import { Wikilink } from './extensions/wikilink';
 import { WikilinkExistence } from './extensions/wikilink-existence';
+import type { MarkdownFileList } from '../../../services/tauri/document';
 import { LinkOpen } from './extensions/link-open';
 import {
   SlashCommands,
@@ -186,10 +187,11 @@ interface EditorExtensionOptions {
    */
   getEmptyDocHint?: () => string;
   /**
-   * 同目录可编辑文档的文件名清单（含扩展名），用来标记指向不存在文件的互链。
-   * 复用 `wikilink-suggest` 的候选缓存，不额外读目录；返回空数组即「还没拿到」，此时不标。
+   * 目录树候选清单（含「完整/不完整」标志），用来标记指向不存在文件的互链。
+   * 复用 `wikilink-suggest` 的候选缓存，不额外读目录；`truncated` 为真（扫描触闸）
+   * 时一律不标红 —— 排在闸门外的文件会被误判成「不存在」。
    */
-  getWikilinkSiblingFiles?: () => readonly string[];
+  getWikilinkSiblingFiles?: () => MarkdownFileList;
 }
 
 export function createEditorExtensions(options: EditorExtensionOptions) {
@@ -372,7 +374,10 @@ export function createEditorExtensions(options: EditorExtensionOptions) {
       onNavigate: options.onWikilinkNavigate,
     }),
     WikilinkExistence.configure({
-      getSiblingFiles: options.getWikilinkSiblingFiles ?? (() => []),
+      // 兜底必须是「完整清单形状」：旧写法返回数组，buildDecorations 一解构就炸
+      getSiblingFiles:
+        options.getWikilinkSiblingFiles ??
+        (() => ({ files: [] as string[], truncated: false })),
     }),
     SlashCommands.configure({
       suggestion: {
