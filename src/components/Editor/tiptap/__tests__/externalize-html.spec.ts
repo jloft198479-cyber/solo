@@ -244,19 +244,26 @@ describe('出站 HTML 归一（CP-20261011-002）', () => {
    * 代码块的「默认等宽」靠不住（2026-10-21 实测）。
    *
    * 公众号会给 `<pre>` 它自己的样式，粘过去是「带边框的普通字体」，代码看起来像散文；
-   * 行内的 `<code>` 更像普通文字。所以 `<pre>` 必须有 `white-space` + `font-family`，
-   * 行内 `code` 必须有 `font-family`——**不带颜色**（跟主题走会把深色主题的黑块带进白底
-   * 文章，写死又违反「不硬编码颜色」）。
+   * 行内的 `<code>` 更像普通文字。所以两者都必须自带等宽 + 换行 + **浅底**——底色是唯一
+   * 能让读者一眼分出「这是代码」的东西（对照 doocs/md 的产物：每个代码块都带
+   * `background-color`）。
+   *
+   * **颜色只能来自 `EXTERNAL_TINT` 那套中性灰**：出站 HTML 不许出现 `var(--…)`（微信会丢弃
+   * CSS 变量，等于没设），也不许把主题色带出去（深色主题的黑底粘进白底文章比不设颜色更糟）。
    */
-  it('1-C+ 代码块：pre 保换行 + 等宽，行内 code 等宽，且都不带颜色', () => {
+  it('1-C+ 代码块：pre 与行内 code 都自带等宽、换行与浅底，且颜色不跟主题', () => {
     expect(out).toMatch(/<pre[^>]*style="[^"]*white-space: pre-wrap/);
     expect(out).toMatch(/<pre[^>]*style="[^"]*font-family/);
-    // 行内 code（不在 pre 里的那些）也要等宽
+    expect(out).toMatch(/<pre[^>]*style="[^"]*background-color/);
+    // 行内 code（不在 pre 里的那些）也要等宽 + 底色
     const inlineCode = out.match(/<code style="[^"]*"[^>]*>/g) ?? [];
     expect(inlineCode.length).toBeGreaterThan(0);
-    for (const tag of inlineCode) expect(tag).toContain('font-family');
-    // 不碰颜色：出站 HTML 里不许出现 color/background（主题相关的视觉由目标平台决定）
-    expect(out).not.toMatch(/style="[^"]*(?:background|(?<!-)color):/);
+    for (const tag of inlineCode) {
+      expect(tag).toContain('font-family');
+      expect(tag).toContain('background-color');
+    }
+    // 硬约束：微信不支持 CSS 变量（var() 会被丢弃 ⇒ 样式等于没写）
+    expect(out).not.toContain('var(--');
   });
 
   // ── #2：唯一出口的边界 ──
@@ -291,7 +298,7 @@ describe('出站 HTML 归一（CP-20261011-002）', () => {
     // 出站侧：属性 + 正文两份 —— 外部消费者不认 data-title，只能靠正文看见标题；
     // 正文那段必须带 `data-solo-injected-title` 来源标记，回读才敢删（判据不是「长得像」）
     expect(out).toContain('data-title="我的标题"');
-    expect(out).toMatch(/<p data-solo-injected-title=""><strong>我的标题<\/strong><\/p>/);
+    expect(out).toMatch(/<p data-solo-injected-title=""[^>]*><strong>我的标题<\/strong><\/p>/);
 
     // 回读侧：过粘贴去重后，正文首段被剥掉，标题回到 attrs（不回退成「正文第一段」）
     const back = pasteParse(out);
@@ -366,6 +373,9 @@ describe('出站 HTML 归一（CP-20261011-002）', () => {
     const wrap = document.createElement('div');
     wrap.innerHTML = '<div data-callout-type="note" class="mk-callout"><p>正文</p></div>';
     externalizeHtml(wrap);
-    expect(wrap.innerHTML).toBe('<div data-callout-type="note" class="mk-callout"><p>正文</p></div>');
+    // 除样式外结构一字不动：不许凭空插一个 <strong>note</strong>（「造字」）
+    expect(wrap.innerHTML).not.toContain('data-solo-injected-title');
+    expect(wrap.querySelectorAll('strong').length).toBe(0);
+    expect(wrap.textContent).toBe('正文');
   });
 });

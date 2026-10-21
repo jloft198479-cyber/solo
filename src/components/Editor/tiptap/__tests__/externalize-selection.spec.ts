@@ -76,7 +76,7 @@ describe('选区出站（Ctrl+C 通道）', () => {
     expect(html).not.toMatch(/min-width/);
     expect(html).toMatch(/<sup[^>]*data-footnote-ref[^>]*>\[1\]<\/sup>/);
     expect(html).not.toContain('[^1]');
-    expect(html).toMatch(/<p data-solo-injected-title=""><strong>框标题<\/strong><\/p>/);
+    expect(html).toMatch(/<p data-solo-injected-title=""[^>]*><strong>框标题<\/strong><\/p>/);
     // data-title 保留（solo 回读的标题载体）；去重由粘贴侧按标记负责
     expect(html).toContain('data-title="框标题"');
   });
@@ -137,8 +137,9 @@ describe('选区出站（Ctrl+C 通道）', () => {
     const userDoc = parseMarkdown(schema, '> [!NOTE] 注意\n>\n> **注意**\n>\n> 正文');
     const { html: userHtml } = selectionHtml(userDoc);
     // 出站侧：注入段带标记，用户段不带 —— 两段并存
-    expect(userHtml).toMatch(/<p data-solo-injected-title=""><strong>注意<\/strong><\/p>/);
-    expect(userHtml).toMatch(/<p><strong>注意<\/strong><\/p>/);
+    expect(userHtml).toMatch(/<p data-solo-injected-title=""[^>]*><strong>注意<\/strong><\/p>/);
+    // 用户段没有来源标记（只有 style），注入段有 —— 两段并存，靠标记区分
+    expect(userHtml).toMatch(/<p style="[^"]*"><strong>注意<\/strong><\/p>/);
 
     const back = serializeMarkdown(pasteParse(userHtml));
     expect(back).toContain('> **注意**');

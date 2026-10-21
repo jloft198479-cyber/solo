@@ -24,12 +24,15 @@
  *  - `selection`（Ctrl+C 选区＝可能粘回 solo）：**不删 frontmatter**（回读要靠它还原元数据）、
  *    **不拆 tableWrapper**（会改变顶层节点身份，`data-pm-slice` 标记会落错对象）。
  *
- * 改写组的其余动作（callout 标题、脚注引用、源码块样式、表格手术）两档都跑——它们要么
+ * 改写组的其余动作（callout 标题、脚注引用、表格手术、内联样式）两档都跑——它们要么
  * 对外补上人话、要么对回读零影响（判据见各函数注释）。原文那句「改写组不能挂到 Ctrl+C」
  * 已被 2026-10-21 的实测推翻：真正不能挂的只有上面那两条。
+ *
+ * 最后一步 `inlineReadingStyles()` 是「层级」的唯一载体：公众号剥掉全部 `class`，屏幕上的
+ * 标题梯度、段间距、代码底色只有写进行内 `style` 才过得去（详见 `external-styles.ts`）。
  */
-import { resolveMonoFontStack } from '../../../utils/fontStack';
 import { stripZwnj } from './zwnj';
+import { inlineReadingStyles } from './external-styles';
 
 /** 幂等标记。只打在承载根节点自身，`innerHTML` 不含它 ⇒ 不会随 HTML 出站 */
 const EXTERNALIZED = 'data-solo-externalized';
@@ -74,8 +77,10 @@ function rewriteForExternal(root: HTMLElement, target: ExternalizeTarget): void 
   else dropLeadingFrontmatter(root);
   surfaceCalloutTitle(root);
   rewriteFootnoteRefs(root);
-  stylePlainSourceBlocks(root);
   cleanTables(root, target);
+  // 顺序有讲究：样式必须最后打。`surfaceCalloutTitle` 会插入标题段、`cleanTables` 会拆壳，
+  // 先打样式就会漏掉这些新生成的节点。
+  inlineReadingStyles(root);
 }
 
 /** 元数据不出站：与回落管道 `sanitizeForExternal` 的 `FRONTMATTER_RE` 剥离语义一致 */
@@ -141,39 +146,6 @@ function rewriteFootnoteRefs(root: HTMLElement): void {
     if (!label) return;
     el.textContent = `[${label}]`;
   });
-}
-
-/**
- * 块公式 / mermaid / 代码块：外壳与内部一字不动，只加内联样式保住换行与等宽。
- *
- * 为什么不是 `<pre>`：见 C-3。为什么样式仍必要：回到 solo 时 `code: true` 让 PM 按 `pre`
- * 处理空白，本来就不塌；**会塌的是浏览器 / Word / 公众号这些按 HTML 规则折叠空白的外部消费者**。
- *
- * 代码块（2026-10-21 复审补）：`<pre>` 的「默认等宽」根本靠不住——公众号会给它自己的
- * 样式，实测粘过去是「带边框的普通字体」，代码看起来像散文。与 math/mermaid 用同一套
- * 内联，只加 `white-space` 与 `font-family`：
- * **不碰颜色**是刻意的——跟主题走会让深色主题的代码块在白底文章里变成一块黑，写死又违反
- * 「不硬编码颜色」，两头都不该做；等宽 + 保换行已经足以让它「看起来像代码」。
- */
-function stylePlainSourceBlocks(root: HTMLElement): void {
-  // 等宽字体与编辑器同源：运行时读 `--font-mono`（真理源在 main.css），不在此硬编码
-  const monoStack = resolveMonoFontStack();
-  root.querySelectorAll('div[data-type="mermaid-block"]').forEach((el) => {
-    (el as HTMLElement).classList.add('language-mermaid');
-    applyPreStyle(el as HTMLElement, monoStack);
-  });
-  root.querySelectorAll('div[data-type="math-block"]').forEach((el) => applyPreStyle(el as HTMLElement, monoStack));
-  root.querySelectorAll('pre').forEach((el) => applyPreStyle(el as HTMLElement, monoStack));
-  // 行内代码只补等宽（`pre code` 继承外层，不重复设）
-  root.querySelectorAll('code').forEach((el) => {
-    if (el.closest('pre')) return;
-    (el as HTMLElement).style.setProperty('font-family', monoStack);
-  });
-}
-
-function applyPreStyle(el: HTMLElement, monoStack: string): void {
-  el.style.setProperty('white-space', 'pre-wrap');
-  el.style.setProperty('font-family', monoStack);
 }
 
 /**

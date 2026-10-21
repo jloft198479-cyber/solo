@@ -52,7 +52,13 @@ describe('字体作用域：正文 / 界面 / 代码 三分', () => {
 
 describe('代码字体栈：单一来源（--font-mono）', () => {
   const mainCss = readSrc('assets/styles/main.css');
-  const externalize = readSrc('components/Editor/tiptap/externalize-html.ts');
+  // 2026-10-21：出站内联样式从 externalize-html.ts 抽到 external-styles.ts，
+  // 锁的靶子必须跟着挪 —— 否则它会「锁着空气」永远变绿（假锁）。两个文件都管着出站，
+  // 所以两个都扫。
+  const OUTBOUND = [
+    'components/Editor/tiptap/external-styles.ts',
+    'components/Editor/tiptap/externalize-html.ts',
+  ];
 
   it('MONO_FALLBACK_STACK 与 main.css 的 --font-mono 逐字一致（防漂移）', () => {
     const matched = mainCss.match(/--font-mono:\s*([^;]+);/);
@@ -60,8 +66,10 @@ describe('代码字体栈：单一来源（--font-mono）', () => {
     expect(matched![1]!.replace(/\s+/g, ' ').trim()).toBe(MONO_FALLBACK_STACK);
   });
 
-  it('出站归一不自带字体栈字面量，走 resolveMonoFontStack()（台账 §二 #67）', () => {
-    expect(externalize).toContain('resolveMonoFontStack');
-    expect(externalize).not.toMatch(/ui-monospace|SFMono/);
+  it('出站链路不自带字体栈字面量，走 resolveMonoFontStack()（台账 §二 #67）', () => {
+    for (const rel of OUTBOUND) {
+      expect(readSrc(rel), `${rel} 写了字体栈字面量`).not.toMatch(/ui-monospace|SFMono/);
+    }
+    expect(readSrc(OUTBOUND[0])).toContain('resolveMonoFontStack');
   });
 });
