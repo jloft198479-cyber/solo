@@ -638,10 +638,10 @@ underline
 > **别混淆**：`serializeClipboardText()`（选区感知 / 轻量转义，见 docs/sensitive-areas.md §11.8）是**编辑器内 `Ctrl+C`** 的路径，**不是**状态栏按钮。
 >
 > **两条通道共用出站归一（2026-10-21）**：`text/html` 有两个入口，都进 `tiptap/externalize-html.ts`，只有档位（`ExternalizeTarget`）不同——
-> - 状态栏按钮：`serializeDocumentHtml()` → 档位 `document`。会删 frontmatter、拆 `div.tableWrapper`（整篇出站、不回读，这样 Word / 公众号拿到的表格不带布局壳）。
-> - 编辑器内 `Ctrl+C`：`editorProps.clipboardSerializer = createSelectionClipboardSerializer()` → 档位 `selection`。**保留** frontmatter 与 tableWrapper：粘回 solo 要靠前者的元数据；拆后者会改变顶层节点身份，而 `data-pm-slice` 是 PM 在归一层返回**之后**才打在「第一个顶层元素」上的，身份一变标记就落错对象、slice 还原错位。
+> - 状态栏按钮：`serializeDocumentHtml()` → 档位 `document`。删**全部** frontmatter、拆 `div.tableWrapper`（整篇出站、不回读，这样 Word / 公众号拿到的表格不带布局壳）。
+> - 编辑器内 `Ctrl+C`：`editorProps.clipboardSerializer = createSelectionClipboardSerializer()` → 档位 `selection`。**只删第一块** frontmatter（Ctrl+A 整篇复制到公众号时 YAML 会显示在顶部；从中间选一段时它不在选区里，规则不误伤）、**永不拆 tableWrapper**（拆了顶层节点身份就变，而 `data-pm-slice` 是 PM 在归一层返回**之后**才打在「第一个顶层元素」上的，标记会落错对象、slice 还原错位）。
 >
-> **标题与图片的两处双向约定**：① callout 标题出站时**同时**写进 `data-title` 属性与正文首段（`<p><strong>…</strong></p>`）——外部消费者只认正文，solo 只认属性；回读时的重复段落由 `markdown-paste.ts::dropInjectedCalloutTitle` 剥掉（条件收窄到「首段唯一 strong 且文本等于 title」）。② 图片 `src` 解析优先取 `data-src`——公众号 / 知乎 / 简书是懒加载图，`src` 常是 1×1 base64 占位甚至不存在，只认 `src` 会写入空白图或整张丢图。
+> **标题与图片的两处双向约定**：① callout 标题出站时**同时**写进 `data-title` 属性与正文首段（`<p data-solo-injected-title=""><strong>…</strong></p>`）——外部消费者只认正文，solo 只认属性；回读时 `markdown-paste.ts::stripInjectedCalloutTitles` 只删**带来源标记**的那一段。**判据必须是标记，不能是「首段加粗且文字等于标题」**：用户自己写的那一段在节点层完全同形，靠内容猜会把合法正文当标题删掉。② 图片 `src` 解析统一走 `image.ts::pickImageSrc`（`data-src` 优先、排除 `data:`/`blob:` 占位、相对/绝对择优、`//` 归一成 `https:`）——公众号 / 知乎 / 简书是懒加载图，只认 `src` 会写入空白占位或整张丢图。
 
 ### 10.3 字体系统
 
