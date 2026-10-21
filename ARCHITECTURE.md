@@ -176,6 +176,7 @@ md-editor/
 │   │   │       ├── editor-metadata.ts    # 大纲/字数/光标提取
 │   │   │       ├── clipboard-html.ts      # 整篇 → 对外 HTML 的唯一出口（DOMSerializer + 归一）
 │   │   │       ├── externalize-html.ts    # 出站 HTML 归一层（剥私有保通用；禁换私有标签/属性）
+│   │   │       ├── external-styles.ts     # 出站内联样式（公众号只认行内 style；读 --mk-* 与屏幕同源）
 │   │   │       ├── composition-freeze.ts # 组字态（IME）真相源：isFrozen / mapFrozenDecorations
 │   │   │       ├── list-demote.ts      # 列表项托孤式降级（子列表上位）
 │   │   │       ├── list-move.ts        # 列表行/子树位移（行897 + moveListItem）
@@ -642,6 +643,8 @@ underline
 > - 编辑器内 `Ctrl+C`：`editorProps.clipboardSerializer = createSelectionClipboardSerializer()` → 档位 `selection`。**只删第一块** frontmatter（Ctrl+A 整篇复制到公众号时 YAML 会显示在顶部；从中间选一段时它不在选区里，规则不误伤）、**永不拆 tableWrapper**（拆了顶层节点身份就变，而 `data-pm-slice` 是 PM 在归一层返回**之后**才打在「第一个顶层元素」上的，标记会落错对象、slice 还原错位）。
 >
 > **标题与图片的两处双向约定**：① callout 标题出站时**同时**写进 `data-title` 属性与正文首段（`<p data-solo-injected-title=""><strong>…</strong></p>`）——外部消费者只认正文，solo 只认属性；回读时 `markdown-paste.ts::stripInjectedCalloutTitles` 只删**带来源标记**的那一段。**判据必须是标记，不能是「首段加粗且文字等于标题」**：用户自己写的那一段在节点层完全同形，靠内容猜会把合法正文当标题删掉。② 图片 `src` 解析统一走 `image.ts::pickImageSrc`（`data-src` 优先、排除 `data:`/`blob:` 占位、相对/绝对择优、`//` 归一成 `https:`）——公众号 / 知乎 / 简书是懒加载图，只认 `src` 会写入空白占位或整张丢图。
+>
+> **内联样式是「层级」的唯一载体（2026-10-21）**：公众号剥掉全部 `class` / `<style>` / `id`，只留白名单内的行内 `style` ⇒ 屏幕上的标题梯度、段间距、代码底色**一条都过不去**，粘出来是一篇「结构完整但全篇同号字」的文章。所以归一层最后一步 `external-styles.ts::inlineReadingStyles()` 把阅读形态逐条内联到元素上（业界同一解法：doocs/md 用打补丁的 juice）。**两把尺子**：字号/行高/间距运行时读 `--mk-*`（主题与设置页写的就是这些，与屏幕同源）；颜色固定为 `EXTERNAL_TINT` 中性灰（外部无主题，跟主题走会把深色底带进白底文章）。**不许出现 `var(--…)`**（微信丢弃 CSS 变量），`external-styles.spec.ts` 锁住这条与「字重必须与 `editor.css` 一致」。
 
 ### 10.3 字体系统
 
