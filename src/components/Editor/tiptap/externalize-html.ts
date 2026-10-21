@@ -144,10 +144,16 @@ function rewriteFootnoteRefs(root: HTMLElement): void {
 }
 
 /**
- * 块公式 / mermaid：外壳与内部一字不动，只加内联样式保住换行与等宽。
+ * 块公式 / mermaid / 代码块：外壳与内部一字不动，只加内联样式保住换行与等宽。
  *
  * 为什么不是 `<pre>`：见 C-3。为什么样式仍必要：回到 solo 时 `code: true` 让 PM 按 `pre`
- * 处理空白，本来就不塌；**会塌的是浏览器 / Word 这些按 HTML 规则折叠空白的外部消费者**。
+ * 处理空白，本来就不塌；**会塌的是浏览器 / Word / 公众号这些按 HTML 规则折叠空白的外部消费者**。
+ *
+ * 代码块（2026-10-21 复审补）：`<pre>` 的「默认等宽」根本靠不住——公众号会给它自己的
+ * 样式，实测粘过去是「带边框的普通字体」，代码看起来像散文。与 math/mermaid 用同一套
+ * 内联，只加 `white-space` 与 `font-family`：
+ * **不碰颜色**是刻意的——跟主题走会让深色主题的代码块在白底文章里变成一块黑，写死又违反
+ * 「不硬编码颜色」，两头都不该做；等宽 + 保换行已经足以让它「看起来像代码」。
  */
 function stylePlainSourceBlocks(root: HTMLElement): void {
   // 等宽字体与编辑器同源：运行时读 `--font-mono`（真理源在 main.css），不在此硬编码
@@ -157,6 +163,12 @@ function stylePlainSourceBlocks(root: HTMLElement): void {
     applyPreStyle(el as HTMLElement, monoStack);
   });
   root.querySelectorAll('div[data-type="math-block"]').forEach((el) => applyPreStyle(el as HTMLElement, monoStack));
+  root.querySelectorAll('pre').forEach((el) => applyPreStyle(el as HTMLElement, monoStack));
+  // 行内代码只补等宽（`pre code` 继承外层，不重复设）
+  root.querySelectorAll('code').forEach((el) => {
+    if (el.closest('pre')) return;
+    (el as HTMLElement).style.setProperty('font-family', monoStack);
+  });
 }
 
 function applyPreStyle(el: HTMLElement, monoStack: string): void {

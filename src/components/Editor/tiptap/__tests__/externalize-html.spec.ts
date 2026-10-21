@@ -230,14 +230,33 @@ describe('出站 HTML 归一（CP-20261011-002）', () => {
     expect(out).toMatch(/<sup[^>]*data-footnote-ref[^>]*>\[1\]<\/sup>/);
   });
 
-  it('1-C+ 图表 / 数学源码块的等宽字体与编辑器同源（--font-mono，台账 §二 #67）', () => {
+  it('1-C+ 图表 / 数学 / 代码块的等宽字体与编辑器同源（--font-mono，台账 §二 #67）', () => {
     // 曾硬编码 'ui-monospace, SFMono-Regular, Menlo, monospace'，与 --font-mono 漂移；
     // 现统一走 resolveMonoFontStack()（运行时读 CSS 变量，读不到回落常量）。
     // 比对前归一引号形态：happy-dom 序列化会把 ' 写成 &quot;
     const unquote = (s: string) => s.replace(/&quot;/g, "'").replace(/"/g, "'");
     expect(unquote(out)).toContain(unquote(resolveMonoFontStack()));
-    // math / mermaid 两类块都要带上（缺一类即半截修复）
-    expect((out.match(/font-family:/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    // math / mermaid / pre / 行内 code 都要带上（缺一类即半截修复）
+    expect((out.match(/font-family:/g) ?? []).length).toBeGreaterThanOrEqual(4);
+  });
+
+  /**
+   * 代码块的「默认等宽」靠不住（2026-10-21 实测）。
+   *
+   * 公众号会给 `<pre>` 它自己的样式，粘过去是「带边框的普通字体」，代码看起来像散文；
+   * 行内的 `<code>` 更像普通文字。所以 `<pre>` 必须有 `white-space` + `font-family`，
+   * 行内 `code` 必须有 `font-family`——**不带颜色**（跟主题走会把深色主题的黑块带进白底
+   * 文章，写死又违反「不硬编码颜色」）。
+   */
+  it('1-C+ 代码块：pre 保换行 + 等宽，行内 code 等宽，且都不带颜色', () => {
+    expect(out).toMatch(/<pre[^>]*style="[^"]*white-space: pre-wrap/);
+    expect(out).toMatch(/<pre[^>]*style="[^"]*font-family/);
+    // 行内 code（不在 pre 里的那些）也要等宽
+    const inlineCode = out.match(/<code style="[^"]*"[^>]*>/g) ?? [];
+    expect(inlineCode.length).toBeGreaterThan(0);
+    for (const tag of inlineCode) expect(tag).toContain('font-family');
+    // 不碰颜色：出站 HTML 里不许出现 color/background（主题相关的视觉由目标平台决定）
+    expect(out).not.toMatch(/style="[^"]*(?:background|(?<!-)color):/);
   });
 
   // ── #2：唯一出口的边界 ──
