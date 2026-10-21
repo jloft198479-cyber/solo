@@ -83,6 +83,10 @@ describe('docs 死链检查', () => {
         const abs = target.startsWith('/')
           ? resolve(ROOT, target.replace(/^\/+/, ''))
           : resolve(dirname(file), target);
+        // 目标落在被忽略 / 非文档目录（outputs/archive/src-tauri/…）内时不查：
+        // 这些目录不进版本库或仅生成物，CI/克隆环境本就不存在，属预期，不应判死链
+        // （SKIP_DIRS 已把它们排除在扫描源之外，这里对「指向它们的链接」做对称处理）。
+        if (SKIP_DIRS.has(relative(ROOT, abs).split(/[\\/]/)[0])) continue;
         if (!existsSync(abs)) dead.push(`${rel}  →  ${raw}`);
       }
     }
