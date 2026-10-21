@@ -56,6 +56,7 @@ import { useSettingsStore } from '../../stores/settings';
 import { useEditorSync } from '../../composables/useEditorSync';
 import { parseMarkdown } from './tiptap/markdown/parser';
 import { serializeMarkdown, serializeClipboardText } from './tiptap/markdown/serializer';
+import { createSelectionClipboardSerializer } from './tiptap/clipboard-html';
 import type { Node as PMNode, Slice } from '@tiptap/pm/model';
 import type { EditorView } from '@tiptap/pm/view';
 import { CellSelection, selectedRect } from '@tiptap/pm/tables';
@@ -392,8 +393,11 @@ function createEditor(content: string) {
       // text/plain 的产出（照 Typora 范式）：选区是文本型内容就给「渲染后的
       // 干净文字」，含 solo 专有语法（公式/图表/互链/脚注/frontmatter/callout/
       // 图片）才回落 Markdown 源码——见 serializeClipboardText。
-      // text/html 由 ProseMirror 默认生成（富格式目标走 HTML），solo 内部粘贴
-      // 也走 HTML + 各扩展的 parseHTML，不受这里影响。
+      // text/html 走**与「复制全文」按钮同一个归一层**（2026-10-21）：默认的
+      // DOMSerializer 直出会带 colgroup 死宽、ZWNJ、脚注 `[^1]` 源码、callout 没标题
+      // ——按钮路径干净、Ctrl+C 路径脏，等于两条通道两个结果。档位用 selection：
+      // 不删 frontmatter、不拆 tableWrapper（粘回 solo 要靠它们），理由见 externalize-html.ts。
+      clipboardSerializer: createSelectionClipboardSerializer(),
       clipboardTextSerializer: (slice: Slice, view: EditorView) => {
         return serializeClipboardText(view.state.doc, slice);
       },

@@ -19,6 +19,8 @@ import { serializeMarkdown } from '../markdown/serializer';
 import { createTestSchema } from '../markdown/__tests__/test-utils';
 import { externalizeHtml } from '../externalize-html';
 import { serializeDocumentHtml } from '../clipboard-html';
+import { dropInjectedCalloutTitle } from '../extensions/markdown-paste';
+import { Slice } from '@tiptap/pm/model';
 import { resolveMonoFontStack } from '../../../../utils/fontStack';
 
 /**
@@ -99,6 +101,18 @@ function docFromHtml(html: string): PMNode {
   return PMDOMParser.fromSchema(schema).parse(wrap);
 }
 
+/**
+ * 回读后的文档 = 真实粘贴链路（HTML 解析 + `transformPasted` 的标题去重）。
+ *
+ * 为什么不能只 `docFromHtml`：出站时标题被同时写进属性与正文，去重**故意**放在读的那一侧
+ * （见 `dropInjectedCalloutTitle` 的理由）。不模拟这一层，就会把「设计内的两份」当回归。
+ */
+function pasteParse(html: string): PMNode {
+  const doc = docFromHtml(html);
+  const deduped = dropInjectedCalloutTitle(new Slice(doc.content, 0, 0));
+  return doc.type.create(null, deduped.content);
+}
+
 const countTag = (html: string, tag: string) => (html.match(new RegExp(`<${tag}[ >]`, 'g')) ?? []).length;
 const ZWNJ_COUNT = (s: string) => (s.match(/\u200C/g) ?? []).length;
 
@@ -168,8 +182,10 @@ describe('出站 HTML 归一（CP-20261011-002）', () => {
     expect(out).not.toContain('tableWrapper');
     expect(out).not.toMatch(/class=""/);
     expect(out).not.toContain('[^1]');
-    // data-title 已提升成正文段落；幂等标记只存在于承载 div 自身，不许随 HTML 出站
-    expect(out).not.toContain('data-title');
+    // 标题同时写进属性与正文：属性给 solo 回读，正文给只认正文的外部消费者（公众号 / Word）。
+    // 去重放在读的那一侧（dropInjectedCalloutTitle），不牺牲任何一头。
+    expect(out).toContain('data-title="我的标题"');
+    // 幂等标记只存在于承载 div 自身，不许随 HTML 出站
     expect(out).not.toContain('data-solo-externalized');
   });
 
@@ -255,21 +271,23 @@ describe('出站 HTML 归一（CP-20261011-002）', () => {
     expect(diff, `签名差异（两侧已同施比对清洗）:\n${diff.join('\n')}`).toEqual([]);
   });
 
-  it('#3 callout 专项：标题只有一份，且正文没有编造的类型词', () => {
-    const back = docFromHtml(out);
+  it('#3 callout 专项：出站带两份标题，回读去重后只剩 attrs 一份', () => {
+    // 出站侧：属性 + 正文两份 —— 外部消费者不认 data-title，只能靠正文看见标题
+    expect(out).toContain('data-title="我的标题"');
+    expect(out).toContain('<p><strong>我的标题</strong></p>');
+
+    // 回读侧：过粘贴去重后，正文首段被剥掉，标题回到 attrs（不回退成「正文第一段」）
+    const back = pasteParse(out);
     const titles: string[] = [];
     back.descendants((n) => {
       if (n.type.name === 'callout') {
         titles.push(String(n.attrs.title ?? ''));
-        const first = n.firstChild;
-        const firstText = first ? first.textContent : '';
-        // 标题要么在 attrs、要么在正文首段，不许同时存在（那才是「重复一遍」）
-        expect(String(n.attrs.title ?? '') === '' || !firstText.includes('我的标题')).toBe(true);
+        const firstText = n.firstChild ? n.firstChild.textContent : '';
+        expect(firstText).not.toBe('我的标题');
       }
       return true;
     });
-    expect(titles.length).toBe(2);
-    expect(out).toContain('我的标题');
+    expect(titles).toEqual(['我的标题', '']);
   });
 
   it('#3 关键属性守恒：图片尺寸 / 任务勾选 / 脚注 label', () => {
@@ -290,16 +308,16 @@ describe('出站 HTML 归一（CP-20261011-002）', () => {
   });
 
   it('#3 落盘语法都回来了', () => {
-    const text = serializeMarkdown(docFromHtml(out));
+    const text = serializeMarkdown(pasteParse(out));
     expect(text).toMatch(/- \[ \] 未完成/);
     expect(text).toMatch(/- \[x\] 已完成/);
     expect(text).toContain('[^1]:');
     expect(text).toContain('$E=mc^2$');
     expect(text).toContain('```mermaid');
     expect(text).toContain('[[我的页面|别名]]');
-    // callout 标题按设计降级为正文首段（规则 2 删 data-title 以防「属性 + 正文」两份标题），
-    // 所以期望是「标记仍在 + 标题文字仍在且只出现一次」，而不是原来的 `> [!NOTE] 我的标题` 一行
-    expect(text).toContain('> [!NOTE]');
+    // callout 标题经「出站注入 + 回读去重」后仍是 attrs 里的标题，落盘回到 `> [!NOTE] 我的标题`
+    // 一行；标题文字全文只许出现一次（注入段已被剥掉）
+    expect(text).toContain('> [!NOTE] 我的标题');
     expect(text.split('我的标题').length - 1).toBe(1);
     expect(text).toContain('> [!WARNING]');
   });

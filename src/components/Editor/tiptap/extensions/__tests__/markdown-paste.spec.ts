@@ -8,6 +8,7 @@ import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model';
 
 import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import {
+  dropInjectedCalloutTitle,
   hasInlineMarkdownSyntax,
   hasMarkdownOnlySyntax,
   hasMsoHtml,
@@ -885,6 +886,100 @@ describe('handlePaste 逃生舱（Layer 3：仅图片处理）', () => {
 });
 
 // ── Word HTML 清理 + 体积熔断 ────────────────────────────────────
+
+// ────────────────────────────────────────────────────────────
+// callout 注入标题段的去重（2026-10-21）
+// ────────────────────────────────────────────────────────────
+
+describe('dropInjectedCalloutTitle（出站注入的标题段回读去重）', () => {
+  const schema = createTestSchema();
+
+  /** 构造一个 callout 段落（title 为空串表示带标题） */
+  function callout(title: string, paragraphs: string[], opts?: { boldFirst?: boolean }) {
+    const p = (text: string, bold = false) =>
+      schema.nodes.paragraph.create(
+        null,
+        schema.text(text, bold ? [schema.marks.bold.create()] : []),
+      );
+    return schema.nodes.callout.create(
+      { calloutType: 'note', title },
+      paragraphs.map((t, i) => p(t, Boolean(opts?.boldFirst) && i === 0)),
+    );
+  }
+
+  function sliceOf(...nodes: PMNode[]) {
+    return new Slice(schema.nodes.doc.create(null, nodes).content, 0, 0);
+  }
+
+  const firstBlock = (slice: Slice) => slice.content.firstChild!;
+
+  it('注入段在首位 → 剥掉，标题只剩 attrs', () => {
+    const slice = sliceOf(callout('框标题', ['框标题', '框正文。'], { boldFirst: true }));
+    const out = dropInjectedCalloutTitle(slice);
+    const calloutOut = firstBlock(out);
+    expect(calloutOut.attrs.title).toBe('框标题');
+    expect(calloutOut.childCount).toBe(1);
+    expect(calloutOut.textContent).toBe('框正文。');
+  });
+
+  it('只有注入段（callout 无正文）→ 补空段落，不违反 block+ 规格', () => {
+    const slice = sliceOf(callout('框标题', ['框标题'], { boldFirst: true }));
+    const out = dropInjectedCalloutTitle(slice);
+    const calloutOut = firstBlock(out);
+    expect(calloutOut.attrs.title).toBe('框标题');
+    expect(calloutOut.childCount).toBe(1);
+    expect(calloutOut.textContent).toBe('');
+  });
+
+  it('正文首段只是「刚好同名但没加粗」→ 不动（不是注入段）', () => {
+    const slice = sliceOf(callout('框标题', ['框标题', '框正文。']));
+    const out = dropInjectedCalloutTitle(slice);
+    expect(firstBlock(out).childCount).toBe(2);
+  });
+
+  it('首段加粗但文本与标题不同 → 不动（用户自己的强调）', () => {
+    const slice = sliceOf(callout('框标题', ['别的重点', '框正文。'], { boldFirst: true }));
+    const out = dropInjectedCalloutTitle(slice);
+    expect(firstBlock(out).childCount).toBe(2);
+  });
+
+  it('callout 无标题 → 一律不动', () => {
+    const slice = sliceOf(callout('', ['框标题', '框正文。'], { boldFirst: true }));
+    const out = dropInjectedCalloutTitle(slice);
+    expect(out).toBe(slice);
+    expect(firstBlock(out).childCount).toBe(2);
+  });
+
+  it('注入段不在首位 → 不动（只剥首段）', () => {
+    const slice = sliceOf(callout('框标题', ['框正文。', '框标题'], { boldFirst: true }));
+    const out = dropInjectedCalloutTitle(slice);
+    expect(firstBlock(out).childCount).toBe(2);
+  });
+
+  it('接线：transformPasted 里真的调了去重（不是只导出了函数）', () => {
+    const mount = document.createElement('div');
+    document.body.appendChild(mount);
+    const plugin = markdownPastePlugin();
+    const fn = plugin.spec.props!.transformPasted as (slice: Slice, view: EditorView) => Slice;
+    const doc = schema.nodes.doc.create(null, [schema.nodes.paragraph.create()]);
+    const view = new EditorView(mount, {
+      state: EditorState.create({
+        schema,
+        doc,
+        selection: TextSelection.create(doc, 1),
+        plugins: [plugin],
+      }),
+    });
+    try {
+      const injected = sliceOf(callout('框标题', ['框标题', '框正文。'], { boldFirst: true }));
+      const out = fn(injected, view);
+      expect(firstBlock(out).childCount).toBe(1);
+    } finally {
+      view.destroy();
+      mount.remove();
+    }
+  });
+});
 
 describe('hasMsoHtml（Word HTML 嗅探）', () => {
   it('含 mso- 样式 → 命', () => {

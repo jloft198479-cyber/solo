@@ -298,6 +298,24 @@ export const CustomImage = Image.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
+      /**
+       * 懒加载图的真地址（2026-10-21 入站保真）。
+       *
+       * 公众号 / 知乎 / 简书 / 多数 CMS 的正文图是懒加载的：真地址在 `data-src`，
+       * 而 `src` 只是 1×1 base64 占位（有的干脆不给 `src`）。基类规则是
+       * `img[src]:not([src^="data:"])` ⇒ 两种情况都保不住图：
+       * 带占位 src 的会把「空白 SVG」写进文档（落盘是一坨 base64），没 src 的直接丢。
+       * 这里让 `data-src` 优先，并允许完全没有 `src` 的图进入 schema。
+       */
+      src: {
+        // 完整覆盖基类的 `{ default: null }`（基类没有自定义 parseHTML）
+        default: null,
+        parseHTML: (el) => {
+          const lazy = (el as HTMLImageElement).getAttribute('data-src')?.trim();
+          if (lazy) return lazy;
+          return (el as HTMLImageElement).getAttribute('src') ?? null;
+        },
+      },
       width: {
         default: null,
         parseHTML: (el) =>
@@ -315,6 +333,10 @@ export const CustomImage = Image.extend({
         renderHTML: (attrs) => (attrs.height != null ? { height: attrs.height } : {}),
       },
     };
+  },
+  parseHTML() {
+    // data-src 变体必须自带一条规则：基类那条要求存在 `src`，仅有 data-src 的图匹配不到
+    return [{ tag: 'img[data-src]', priority: 60 }, ...(this.parent?.() ?? [])];
   },
   addNodeView() {
     return ({ node, getPos, editor }) => {

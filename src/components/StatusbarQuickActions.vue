@@ -108,7 +108,7 @@ useClickOutside(wrapRef, closePopover);
     <button
       class="ghost-icon-btn"
       :class="{ 'is-copied': copied, 'is-failed': copyFailed }"
-      :title="copied ? '已复制全文' : copyFailed ? '复制失败' : '复制全文为 Markdown'"
+      :title="copied ? '已复制全文' : copyFailed ? '复制失败' : '复制全文（富文本 + Markdown 源码）'"
       @click="copyMarkdown"
     >
       <Icon v-if="!copied" name="copy" :size="14" />

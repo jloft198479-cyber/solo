@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __resetRemoteImageCacheForTests,
@@ -7,9 +8,53 @@ import {
   parseImageMarkdown,
   REMOTE_IMAGE_PLACEHOLDER,
 } from '../image';
+import { createTestSchema } from '../../markdown/__tests__/test-utils';
+import { parseHtmlSlice } from '../markdown-paste';
 
 beforeEach(() => {
   __resetRemoteImageCacheForTests();
+});
+
+/**
+ * 懒加载图入站（2026-10-21）。
+ *
+ * 公众号 / 知乎 / 简书 / 多数 CMS 的正文图把真地址放在 `data-src`，`src` 是 1×1 base64 占位
+ * 甚至干脆没有。基类规则是 `img[src]:not([src^="data:"])` ⇒ 占位版会把「空白 SVG」写进文档
+ * （落盘是一坨 base64），无 src 版直接丢图。三条用例各锁一种形态。
+ */
+describe('懒加载图片入站（data-src 优先）', () => {
+  const schema = createTestSchema();
+
+  const imagesOf = (html: string) => {
+    const slice = parseHtmlSlice(schema, html);
+    expect(slice).not.toBeNull();
+    const doc = schema.nodes.doc.create(null, slice!.content);
+    const out: { src: unknown; alt: unknown }[] = [];
+    doc.descendants((n) => {
+      if (n.type.name === 'image') out.push({ src: n.attrs.src, alt: n.attrs.alt });
+      return true;
+    });
+    return out;
+  };
+
+  it('src 是 base64 占位、真地址在 data-src → 取 data-src', () => {
+    const html =
+      '<p><img class="rich_pages" data-src="https://mmbiz.qpic.cn/a/640" ' +
+      'data-ratio="0.66" src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="></p>';
+    expect(imagesOf(html)).toEqual([{ src: 'https://mmbiz.qpic.cn/a/640', alt: null }]);
+  });
+
+  it('只有 data-src、完全没有 src → 也要接住（默认规则会整张丢掉）', () => {
+    expect(imagesOf('<p><img data-src="https://cdn.example.com/b.png"></p>')).toEqual([
+      { src: 'https://cdn.example.com/b.png', alt: null },
+    ]);
+  });
+
+  it('普通网络图与 alt 不受影响（回归：别把正常路径改坏）', () => {
+    expect(imagesOf('<p><img src="https://example.com/c.png" alt="图注"></p>')).toEqual([
+      { src: 'https://example.com/c.png', alt: '图注' },
+    ]);
+  });
 });
 
 describe('formatImageMarkdown', () => {

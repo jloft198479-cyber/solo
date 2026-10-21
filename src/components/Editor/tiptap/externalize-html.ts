@@ -17,8 +17,16 @@
  *    空壳、把塞的东西丢到正文顶层（`findPlace` 上爬 + `closeExtra`）。⇒ 块级私有节点内部一字
  *    不动，对外表现只靠内联样式与类名。
  *
- * 清洗组（本文件最后一步）与改写组分开的意义：清洗组不改语义，将来可单独挂到 Ctrl+C 的
- * `editorProps.clipboardSerializer` 上；改写组不行——那条 HTML 正是 solo→solo 的语义载体。
+ * 两个档位（`ExternalizeTarget`）共用同一套动作，只有三处按档位分叉，判据都是
+ * 「这份 HTML 会不会被 solo 自己读回去」：
+ *  - `document`（状态栏复制全文＝整篇出站，不会再回读）：可以删 frontmatter、可以拆
+ *    `div.tableWrapper`（顶层节点身份会变，见 `cleanTables`）。
+ *  - `selection`（Ctrl+C 选区＝可能粘回 solo）：**不删 frontmatter**（回读要靠它还原元数据）、
+ *    **不拆 tableWrapper**（会改变顶层节点身份，`data-pm-slice` 标记会落错对象）。
+ *
+ * 改写组的其余动作（callout 标题、脚注引用、源码块样式、表格手术）两档都跑——它们要么
+ * 对外补上人话、要么对回读零影响（判据见各函数注释）。原文那句「改写组不能挂到 Ctrl+C」
+ * 已被 2026-10-21 的实测推翻：真正不能挂的只有上面那两条。
  */
 import { resolveMonoFontStack } from '../../../utils/fontStack';
 import { stripZwnj } from './zwnj';
@@ -26,21 +34,30 @@ import { stripZwnj } from './zwnj';
 /** 幂等标记。只打在承载根节点自身，`innerHTML` 不含它 ⇒ 不会随 HTML 出站 */
 const EXTERNALIZED = 'data-solo-externalized';
 
-export function externalizeHtml(root: HTMLElement): void {
+/**
+ * 出站目标：
+ * - `document` 整篇（状态栏按钮）
+ * - `selection` 选区（Ctrl+C / 右键复制）
+ */
+export type ExternalizeTarget = 'document' | 'selection';
+
+export function externalizeHtml(root: HTMLElement, target: ExternalizeTarget = 'document'): void {
   if (root.hasAttribute(EXTERNALIZED)) return;
-  rewriteForExternal(root);
+  rewriteForExternal(root, target);
   stripInvisibleChars(root);
   root.setAttribute(EXTERNALIZED, '');
 }
 
 // ── 改写组（仅对外，会动语义）──────────────────────────────────
 
-function rewriteForExternal(root: HTMLElement): void {
-  dropFrontmatter(root);
+function rewriteForExternal(root: HTMLElement, target: ExternalizeTarget): void {
+  // frontmatter 是「只在 solo 内部有语义」的元数据：整篇出站时删掉（对外无从表达），
+  // 选区出站时保留——粘回 solo 要靠它还原，删了等于静默丢元数据。
+  if (target === 'document') dropFrontmatter(root);
   surfaceCalloutTitle(root);
   rewriteFootnoteRefs(root);
   stylePlainSourceBlocks(root);
-  cleanTables(root);
+  cleanTables(root, target);
 }
 
 /** 元数据不出站：与回落管道 `sanitizeForExternal` 的 `FRONTMATTER_RE` 剥离语义一致 */
@@ -50,8 +67,13 @@ function dropFrontmatter(root: HTMLElement): void {
 
 /**
  * callout 的标题活在 `data-title` 属性里，DOMSerializer 的产出正文没有它（可见标题是 NodeView
- * 现算的）。⇒ 把标题提成正文首个段落；同时删掉 `data-title`，否则粘回 solo 时「属性 + 正文」
- * 两份标题并存。
+ * 现算的）。⇒ 把标题提成正文首个段落。
+ *
+ * **`data-title` 保留不删**（2026-10-21 改）：这条属性是 solo→solo 的标题载体，删掉就等于
+ * 把「框标题」降级成「正文第一段」。保留后「属性 + 正文两份」并存，去重交给**读的那一侧**
+ * ——`markdown-paste.ts` 的 `dropInjectedCalloutTitle`：回读时若首段是纯 `<strong>` 且文本
+ * 等于 `attrs.title`，就剥掉该段。这样同一份 HTML 两头都对：
+ * 外部消费者只认正文（看到标题），solo 只认属性（标题回到原位）。
  *
  * `Callout.content = 'block+'` ⇒ 注入段落是内容规格允许的，这是全案唯一的结构注入点。
  * 没标题时**什么都不加**：编一个类型词（`note`/`warning`）等于往用户文档里塞我方造的字。
@@ -60,13 +82,23 @@ function surfaceCalloutTitle(root: HTMLElement): void {
   root.querySelectorAll('div.mk-callout').forEach((el) => {
     const title = stripZwnj((el as HTMLElement).getAttribute('data-title') ?? '').trim();
     if (!title) return;
-    el.removeAttribute('data-title');
+    // 幂等：首段已经是「同名加粗独占一段」就不再插第二遍。
+    // 保留 data-title 之后，幂等不能再靠「删属性」实现——产物被重新解析再出站
+    // （用户粘回 solo 再复制、或对外 HTML 二次处理）会重复注入标题。
+    if (isInjectedTitleParagraph(el.firstElementChild, title)) return;
     const p = el.ownerDocument.createElement('p');
     const strong = el.ownerDocument.createElement('strong');
     strong.textContent = title;
     p.appendChild(strong);
     el.insertBefore(p, el.firstChild);
   });
+}
+
+/** 首段是否为「标题段」：唯一元素是 `<strong>`，且整段文本等于标题 */
+function isInjectedTitleParagraph(el: Element | null, title: string): boolean {
+  if (!el || el.nodeName !== 'P' || el.children.length !== 1) return false;
+  if (el.firstElementChild?.nodeName !== 'STRONG') return false;
+  return (el.textContent ?? '').trim() === title;
 }
 
 /** `<sup data-footnote-ref label="1">[^1]</sup>` → 文本改成 `[1]`；标签与属性一个不动（C-1） */
@@ -104,10 +136,16 @@ function applyPreStyle(el: HTMLElement, monoStack: string): void {
  *  - `<colgroup>` 与 `style` 里的 `min-width`/`width` 是**布局壳**，Word 会照做 ⇒ 删；
  *  - `colwidth` 是 solo 的非标准属性，Word 忽略、`parseHTML` 认 ⇒ **留**（拖过列宽的文档靠它还原）。
  * `text-align` 也必须留：GFM 的 `:---:` 对齐就住在这个声明里（`parser.ts` 读进 `align` attrs）。
+ *
+ * 两个例外只对 `document` 生效：
+ *  - **拆 `div.tableWrapper`** —— 拆完顶层节点从 `div` 变成 `table`，而 PM 是在本层返回 HTML
+ *    **之后**才把 `data-pm-slice` 打在「第一个顶层元素」上（`serializeForClipboard`）⇒ 标记
+ *    会落到 table 上、打开深度对不上，粘回 solo 的 slice 还原会错位。选区路径不拆。
+ *  - 其余（colgroup / 宽度 / thead 提升）在 table **内部**动手，顶层节点身份不变，两档都跑。
  */
-function cleanTables(root: HTMLElement): void {
+function cleanTables(root: HTMLElement, target: ExternalizeTarget): void {
   root.querySelectorAll('colgroup').forEach((el) => el.remove());
-  root.querySelectorAll('div.tableWrapper').forEach(unwrap);
+  if (target === 'document') root.querySelectorAll('div.tableWrapper').forEach(unwrap);
 
   root.querySelectorAll('td, th').forEach((el) => {
     if (el.getAttribute('colspan') === '1') el.removeAttribute('colspan');
@@ -167,7 +205,10 @@ function promoteHeaderRow(table: Element): void {
 // ── 清洗组（不改语义，最后一步做，覆盖改写过程中从属性新写出的文本与全部保留属性值）──
 
 function stripInvisibleChars(root: HTMLElement): void {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  // 用 root.ownerDocument 而非全局 document：Ctrl+C 通道里 PM 传进来的是一个**游离 document**
+  // （`serializeForClipboard` 的 detachedDoc），跨 document 建 TreeWalker 在 WebKit/Chromium
+  // 上会抛 WrongDocumentError。
+  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   // walker 只收 SHOW_TEXT，故 nextNode() 的静态类型是 Node，这里按 Text 用
   let current = walker.nextNode() as Text | null;
   while (current) {
