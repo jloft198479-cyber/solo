@@ -8,7 +8,6 @@ import type { Node as PMNode, ResolvedPos } from '@tiptap/pm/model';
 
 import { createTestSchema } from '../../markdown/__tests__/test-utils';
 import {
-  dropInjectedCalloutTitle,
   hasInlineMarkdownSyntax,
   hasMarkdownOnlySyntax,
   hasMsoHtml,
@@ -20,6 +19,7 @@ import {
   parseMarkdownTablePaste,
   parseProprietaryMarkdownPaste,
   parseUrlPaste,
+  stripInjectedCalloutTitles,
 } from '../markdown-paste';
 
 // 图片落盘依赖 Tauri runtime，测试环境整体 mock。
@@ -888,99 +888,83 @@ describe('handlePaste 逃生舱（Layer 3：仅图片处理）', () => {
 // ── Word HTML 清理 + 体积熔断 ────────────────────────────────────
 
 // ────────────────────────────────────────────────────────────
-// callout 注入标题段的去重（2026-10-21）
+// 出站注入的 callout 标题段：回读时按「来源标记」剥离（2026-10-21 复审改）
 // ────────────────────────────────────────────────────────────
 
-describe('dropInjectedCalloutTitle（出站注入的标题段回读去重）', () => {
-  const schema = createTestSchema();
+describe('stripInjectedCalloutTitles（按来源标记剥离，不靠内容猜）', () => {
+  const MARK = 'data-solo-injected-title=""';
 
-  /** 构造一个 callout 段落（title 为空串表示带标题） */
-  function callout(title: string, paragraphs: string[], opts?: { boldFirst?: boolean }) {
-    const p = (text: string, bold = false) =>
-      schema.nodes.paragraph.create(
-        null,
-        schema.text(text, bold ? [schema.marks.bold.create()] : []),
-      );
-    return schema.nodes.callout.create(
-      { calloutType: 'note', title },
-      paragraphs.map((t, i) => p(t, Boolean(opts?.boldFirst) && i === 0)),
-    );
-  }
-
-  function sliceOf(...nodes: PMNode[]) {
-    return new Slice(schema.nodes.doc.create(null, nodes).content, 0, 0);
-  }
-
-  const firstBlock = (slice: Slice) => slice.content.firstChild!;
-
-  it('注入段在首位 → 剥掉，标题只剩 attrs', () => {
-    const slice = sliceOf(callout('框标题', ['框标题', '框正文。'], { boldFirst: true }));
-    const out = dropInjectedCalloutTitle(slice);
-    const calloutOut = firstBlock(out);
-    expect(calloutOut.attrs.title).toBe('框标题');
-    expect(calloutOut.childCount).toBe(1);
-    expect(calloutOut.textContent).toBe('框正文。');
+  it('带标记的标题段被剥掉，正文保留', () => {
+    const html =
+      '<div data-callout-type="note" class="mk-callout" data-title="注意">' +
+      `<p ${MARK}><strong>注意</strong></p><p>正文</p></div>`;
+    const out = stripInjectedCalloutTitles(html);
+    expect(out).not.toContain('注意</strong>');
+    expect(out).toContain('<p>正文</p>');
+    // data-title 与 callout 本体不动（solo 回读的标题载体）
+    expect(out).toContain('data-title="注意"');
   });
 
-  it('只有注入段（callout 无正文）→ 补空段落，不违反 block+ 规格', () => {
-    const slice = sliceOf(callout('框标题', ['框标题'], { boldFirst: true }));
-    const out = dropInjectedCalloutTitle(slice);
-    const calloutOut = firstBlock(out);
-    expect(calloutOut.attrs.title).toBe('框标题');
-    expect(calloutOut.childCount).toBe(1);
-    expect(calloutOut.textContent).toBe('');
+  /**
+   * Critical 回归锁（复审 §二）：初版判据是「首段是加粗且文字等于标题」，
+   * 于是用户自己写的同名加粗段被当成注入段删掉 —— 静默丢内容。
+   * 现在判据是「我带过标记没有」，同形正文必须原样留着。
+   */
+  it('用户自己写的同名加粗首段必须保留（同形但不是注入的）', () => {
+    const html =
+      '<div data-callout-type="note" class="mk-callout" data-title="注意">' +
+      '<p><strong>注意</strong></p><p>正文</p></div>';
+    expect(stripInjectedCalloutTitles(html)).toBe(html);
   });
 
-  it('正文首段只是「刚好同名但没加粗」→ 不动（不是注入段）', () => {
-    const slice = sliceOf(callout('框标题', ['框标题', '框正文。']));
-    const out = dropInjectedCalloutTitle(slice);
-    expect(firstBlock(out).childCount).toBe(2);
+  it('嵌套 callout：内层带标记的注入段一起剥（querySelectorAll 天然覆盖）', () => {
+    const html =
+      '<div data-callout-type="note" class="mk-callout">' +
+      '<p>外层正文</p>' +
+      '<div data-callout-type="tip" class="mk-callout" data-title="内标题">' +
+      `<p ${MARK}><strong>内标题</strong></p><p>内正文</p></div></div>`;
+    const out = stripInjectedCalloutTitles(html);
+    expect(out).toContain('<p>外层正文</p>');
+    expect(out).toContain('<p>内正文</p>');
+    expect(out).not.toContain('内标题</strong>');
   });
 
-  it('首段加粗但文本与标题不同 → 不动（用户自己的强调）', () => {
-    const slice = sliceOf(callout('框标题', ['别的重点', '框正文。'], { boldFirst: true }));
-    const out = dropInjectedCalloutTitle(slice);
-    expect(firstBlock(out).childCount).toBe(2);
+  it('不含标记时原样返回（廉价前置判断，不重建 DOM）', () => {
+    const html = '<p>a</p><div class="mk-callout"><p>b</p></div>';
+    expect(stripInjectedCalloutTitles(html)).toBe(html);
   });
 
-  it('callout 无标题 → 一律不动', () => {
-    const slice = sliceOf(callout('', ['框标题', '框正文。'], { boldFirst: true }));
-    const out = dropInjectedCalloutTitle(slice);
-    expect(out).toBe(slice);
-    expect(firstBlock(out).childCount).toBe(2);
-  });
-
-  it('注入段不在首位 → 不动（只剥首段）', () => {
-    const slice = sliceOf(callout('框标题', ['框正文。', '框标题'], { boldFirst: true }));
-    const out = dropInjectedCalloutTitle(slice);
-    expect(firstBlock(out).childCount).toBe(2);
-  });
-
-  it('接线：transformPasted 里真的调了去重（不是只导出了函数）', () => {
-    const mount = document.createElement('div');
-    document.body.appendChild(mount);
+  it('接线：transformPastedHTML 真的调了它（HTML 粘贴主路径）', () => {
     const plugin = markdownPastePlugin();
-    const fn = plugin.spec.props!.transformPasted as (slice: Slice, view: EditorView) => Slice;
-    const doc = schema.nodes.doc.create(null, [schema.nodes.paragraph.create()]);
-    const view = new EditorView(mount, {
-      state: EditorState.create({
-        schema,
-        doc,
-        selection: TextSelection.create(doc, 1),
-        plugins: [plugin],
-      }),
+    const fn = plugin.spec.props!.transformPastedHTML as (html: string) => string;
+    const html =
+      '<div data-callout-type="note" class="mk-callout" data-title="注意">' +
+      `<p ${MARK}><strong>注意</strong></p><p>正文</p></div>`;
+    expect(fn(html)).toContain('<p>正文</p>');
+    expect(fn(html)).not.toContain('注意</strong>');
+  });
+
+  it('接线：parseHtmlSlice 也调了它（Layer 4 占位升级不走 transformPastedHTML）', () => {
+    const schema = createTestSchema();
+    const html =
+      '<div data-callout-type="note" class="mk-callout" data-title="注意">' +
+      `<p ${MARK}><strong>注意</strong></p><p>正文</p></div>`;
+    const slice = parseHtmlSlice(schema, html);
+    expect(slice).not.toBeNull();
+    const doc = schema.nodes.doc.create(null, slice!.content);
+    let calloutFirstText = '';
+    doc.descendants((n) => {
+      if (n.type.name === 'callout') {
+        calloutFirstText = n.firstChild?.textContent ?? '';
+        return false;
+      }
+      return true;
     });
-    try {
-      const injected = sliceOf(callout('框标题', ['框标题', '框正文。'], { boldFirst: true }));
-      const out = fn(injected, view);
-      expect(firstBlock(out).childCount).toBe(1);
-    } finally {
-      view.destroy();
-      mount.remove();
-    }
+    expect(calloutFirstText).toBe('正文');
   });
 });
 
+// ────────────────────────────────────────────────────────────
 describe('hasMsoHtml（Word HTML 嗅探）', () => {
   it('含 mso- 样式 → 命', () => {
     expect(hasMsoHtml('<p style="mso-spacerun: yes">x</p>')).toBe(true);

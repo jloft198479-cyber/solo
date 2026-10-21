@@ -6,6 +6,8 @@ import FontPopover from './FontPopover.vue';
 import { useClickOutside } from '../composables/useClickOutside';
 import { useFileStore } from '../stores/file';
 import { renderMarkdown } from '../utils/markdown-to-html';
+import { countLocalImages } from '../utils/localImages';
+import { message } from '../services/tauri/dialog';
 import type { AppEditorExpose } from '../composables/useAppEditorState';
 
 type PopoverType = 'theme' | 'font' | null;
@@ -30,6 +32,14 @@ function closePopover() {
 }
 
 /**
+ * 本地图片提醒：同一文档一个会话只提示一次（2026-10-21 复审 P1）。
+ *
+ * 为什么只提示一次：每次复制都弹等于噪音；而裂图一旦发生，用户会以为是软件坏了。
+ * 用文件路径做键 —— 换文档才会再提醒，同一篇反复复制不再打扰。
+ */
+const warnedLocalImageFiles = new Set<string>();
+
+/**
  * 复制**整篇**文档（双槽：text/plain 源码 + text/html 富文本）。
  * 注意与命令面板的「复制为 Markdown」区分：那条复制的是**选区源码**，同名不同事（M-35）。
  */
@@ -51,6 +61,7 @@ async function copyMarkdown() {
     copyTimer = setTimeout(() => {
       copied.value = false;
     }, 1500);
+    void warnLocalImages(content);
   } catch {
     // 失败必须给反馈：此前静默吞掉，用户会以为「已经复制成功」而丢掉内容（M-22）
     copied.value = false;
@@ -84,6 +95,28 @@ async function buildExternalHtml(
     // 落回旧管道，不额外报错过（外层 catch 只兜真正的写入失败）
   }
   return renderMarkdown(markdown);
+}
+
+/**
+ * 复制成功后的一次性提醒：文档里有本地图片时，告诉用户它们在外部目标里显示不出来。
+ *
+ * 只看数量，不判断目标平台（判断不了，也不该判断）——「本地图片在外部目标里拿不到」
+ * 这个事实对所有目标都成立，所以不是误报。
+ */
+async function warnLocalImages(markdown: string): Promise<void> {
+  const count = countLocalImages(markdown);
+  if (count === 0) return;
+  const key = useFileStore().currentFile.path ?? '__untitled__';
+  if (warnedLocalImageFiles.has(key)) return;
+  warnedLocalImageFiles.add(key);
+  try {
+    await message(
+      `已复制。文档里有 ${count} 张本地图片，粘到公众号 / 网页编辑器时需要在目标平台重新上传。`,
+      { title: '本地图片', kind: 'warning', okLabel: '我知道了' },
+    );
+  } catch {
+    // 提示失败不影响复制结果
+  }
 }
 
 onUnmounted(() => {

@@ -27,8 +27,9 @@ describe('懒加载图片入站（data-src 优先）', () => {
 
   const imagesOf = (html: string) => {
     const slice = parseHtmlSlice(schema, html);
-    expect(slice).not.toBeNull();
-    const doc = schema.nodes.doc.create(null, slice!.content);
+    // 整段没有任何可解析内容时返回 null（例如全是占位图，被整张丢弃）
+    if (!slice) return [];
+    const doc = schema.nodes.doc.create(null, slice.content);
     const out: { src: unknown; alt: unknown }[] = [];
     doc.descendants((n) => {
       if (n.type.name === 'image') out.push({ src: n.attrs.src, alt: n.attrs.alt });
@@ -54,6 +55,45 @@ describe('懒加载图片入站（data-src 优先）', () => {
     expect(imagesOf('<p><img src="https://example.com/c.png" alt="图注"></p>')).toEqual([
       { src: 'https://example.com/c.png', alt: '图注' },
     ]);
+  });
+
+  // ── 边界（2026-10-21 复审 §五，5 条全是真实粘贴形态）──
+  it('data-src 是 data: 占位、src 有真地址 → 取 src（占位不许顶掉真图）', () => {
+    expect(
+      imagesOf(
+        '<p><img data-src="data:image/png;base64,AAAA" src="https://cdn.example.com/a.png"></p>',
+      ),
+    ).toEqual([{ src: 'https://cdn.example.com/a.png', alt: null }]);
+  });
+
+  it('data-src 是相对路径、src 是绝对地址 → 取绝对（相对路径跨文档必然失效）', () => {
+    expect(imagesOf('<p><img data-src="./a.png" src="https://cdn.example.com/a.png"></p>')).toEqual([
+      { src: 'https://cdn.example.com/a.png', alt: null },
+    ]);
+  });
+
+  /**
+   * 安全：协议相对地址必须归一成 https。
+   * 不归一的后果不是显示问题——`isRemoteImageSrc` 只认 http(s)，`//` 会被判成本地地址、
+   * 原始串直接交给 `<img>`，WebView2 按当前源补全并自行请求，绕过 Rust 抓取的 SSRF
+   * 白名单（M-16，见 `syncView` 注释）。
+   */
+  it('data-src="//…" 归一成 https:（堵 M-16 的旁路）', () => {
+    expect(imagesOf('<p><img data-src="//cdn.example.com/a.png"></p>')).toEqual([
+      { src: 'https://cdn.example.com/a.png', alt: null },
+    ]);
+  });
+
+  it('data-src 为空且没有 src → 不造空图片节点（否则落盘是 ![]()）', () => {
+    expect(imagesOf('<p><img data-src=""></p>')).toEqual([]);
+    expect(imagesOf('<p><img data-src="   "></p>')).toEqual([]);
+  });
+
+  it('只剩 data: 占位、没有可用地址 → 整张丢弃（不把 base64 写进文档）', () => {
+    expect(imagesOf('<p><img src="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="></p>')).toEqual([]);
+    expect(
+      imagesOf('<p><img data-src="data:image/png;base64,AAAA" src="blob:https://x/y"></p>'),
+    ).toEqual([]);
   });
 });
 

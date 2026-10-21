@@ -35,6 +35,18 @@ import { stripZwnj } from './zwnj';
 const EXTERNALIZED = 'data-solo-externalized';
 
 /**
+ * 注入标题段的来源标记（2026-10-21 复审改）。
+ *
+ * 为什么必须有它：注入段 `<p><strong>注意</strong></p>` 与用户自己写的「加粗且文字等于标题」
+ * 的首段在 PM 节点层**完全同形**，靠内容猜来源会把合法正文当标题删掉（静默丢内容）。
+ * 打标记后，回读只删带标记的那一个 —— 判据从「长得像」变成「我盖过章」。
+ *
+ * 出站时外部平台会把这个属性连同 class 一起剥掉（无所谓，它们只看正文）；
+ * 若被第三方编辑器洗掉再粘回 solo，标题会以正文段落形式重复一次（**可见降级**，不是丢内容）。
+ */
+export const INJECTED_TITLE_ATTR = 'data-solo-injected-title';
+
+/**
  * 出站目标：
  * - `document` 整篇（状态栏按钮）
  * - `selection` 选区（Ctrl+C / 右键复制）
@@ -51,9 +63,15 @@ export function externalizeHtml(root: HTMLElement, target: ExternalizeTarget = '
 // ── 改写组（仅对外，会动语义）──────────────────────────────────
 
 function rewriteForExternal(root: HTMLElement, target: ExternalizeTarget): void {
-  // frontmatter 是「只在 solo 内部有语义」的元数据：整篇出站时删掉（对外无从表达），
-  // 选区出站时保留——粘回 solo 要靠它还原，删了等于静默丢元数据。
+  // frontmatter 是「只在 solo 内部有语义」的元数据，两档都要让它别出现在对外正文里，
+  // 但做法不同（判据都是「这份 HTML 会不会被 solo 自己读回去」）：
+  //  - 整篇出站：全删。
+  //  - 选区出站：**只删第一个顶层元素**。用户复制整篇去公众号的动作是 Ctrl+A → Ctrl+C，
+  //    frontmatter 必然被选中，不删就会在文章顶部显示一段 YAML；而从中间选一段时它本就
+  //    不在选区里，这条规则不会误伤。代价：从文档开头整篇复制再粘回 solo 会丢元数据——
+  //    该场景有更合适的出口（状态栏按钮 / text/plain 槽始终带完整 Markdown 源码）。
   if (target === 'document') dropFrontmatter(root);
+  else dropLeadingFrontmatter(root);
   surfaceCalloutTitle(root);
   rewriteFootnoteRefs(root);
   stylePlainSourceBlocks(root);
@@ -65,15 +83,24 @@ function dropFrontmatter(root: HTMLElement): void {
   root.querySelectorAll('div[data-type="frontmatter"]').forEach((el) => el.remove());
 }
 
+/** 选区档位：只处理「选区第一个块就是 frontmatter」的情况（见 rewriteForExternal 的注释） */
+function dropLeadingFrontmatter(root: HTMLElement): void {
+  const first = root.firstElementChild;
+  if (first?.matches('div[data-type="frontmatter"]')) first.remove();
+}
+
 /**
  * callout 的标题活在 `data-title` 属性里，DOMSerializer 的产出正文没有它（可见标题是 NodeView
  * 现算的）。⇒ 把标题提成正文首个段落。
  *
  * **`data-title` 保留不删**（2026-10-21 改）：这条属性是 solo→solo 的标题载体，删掉就等于
  * 把「框标题」降级成「正文第一段」。保留后「属性 + 正文两份」并存，去重交给**读的那一侧**
- * ——`markdown-paste.ts` 的 `dropInjectedCalloutTitle`：回读时若首段是纯 `<strong>` 且文本
- * 等于 `attrs.title`，就剥掉该段。这样同一份 HTML 两头都对：
- * 外部消费者只认正文（看到标题），solo 只认属性（标题回到原位）。
+ * ——`markdown-paste.ts` 的 `stripInjectedCalloutTitles`：只删**带 `data-solo-injected-title`
+ * 标记**的那一段。这样同一份 HTML 两头都对：外部消费者只认正文（看到标题），solo 只认属性
+ * （标题回到原位）。
+ *
+ * 标记是这套方案的关键（复审推翻过「靠内容猜」的写法）：注入段与用户自己写的同名加粗段在
+ * PM 节点层完全同形，只有来源标记能把两者分开。
  *
  * `Callout.content = 'block+'` ⇒ 注入段落是内容规格允许的，这是全案唯一的结构注入点。
  * 没标题时**什么都不加**：编一个类型词（`note`/`warning`）等于往用户文档里塞我方造的字。
@@ -82,11 +109,12 @@ function surfaceCalloutTitle(root: HTMLElement): void {
   root.querySelectorAll('div.mk-callout').forEach((el) => {
     const title = stripZwnj((el as HTMLElement).getAttribute('data-title') ?? '').trim();
     if (!title) return;
-    // 幂等：首段已经是「同名加粗独占一段」就不再插第二遍。
+    // 幂等：首段已经是「带标记的同名标题段」就不再插第二遍。
     // 保留 data-title 之后，幂等不能再靠「删属性」实现——产物被重新解析再出站
     // （用户粘回 solo 再复制、或对外 HTML 二次处理）会重复注入标题。
     if (isInjectedTitleParagraph(el.firstElementChild, title)) return;
     const p = el.ownerDocument.createElement('p');
+    p.setAttribute(INJECTED_TITLE_ATTR, '');
     const strong = el.ownerDocument.createElement('strong');
     strong.textContent = title;
     p.appendChild(strong);
@@ -94,10 +122,15 @@ function surfaceCalloutTitle(root: HTMLElement): void {
   });
 }
 
-/** 首段是否为「标题段」：唯一元素是 `<strong>`，且整段文本等于标题 */
+/**
+ * 首段是否为「已注入的标题段」：带来源标记、唯一元素是 `<strong>`、整段文本等于标题。
+ *
+ * 三个条件都要（标记单独不够：产物被第三方改过内容后，标记还在但文本变了，此时宁可
+ * 再插一段让人看见重复，也不要留下一个内容不对的标题）。
+ */
 function isInjectedTitleParagraph(el: Element | null, title: string): boolean {
-  if (!el || el.nodeName !== 'P' || el.children.length !== 1) return false;
-  if (el.firstElementChild?.nodeName !== 'STRONG') return false;
+  if (!el || el.nodeName !== 'P' || !el.hasAttribute(INJECTED_TITLE_ATTR)) return false;
+  if (el.children.length !== 1 || el.firstElementChild?.nodeName !== 'STRONG') return false;
   return (el.textContent ?? '').trim() === title;
 }
 

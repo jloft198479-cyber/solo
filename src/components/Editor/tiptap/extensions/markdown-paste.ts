@@ -32,10 +32,11 @@
  */
 import { Extension } from '@tiptap/vue-3';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
-import { DOMParser as PMDOMParser, Fragment, Slice } from '@tiptap/pm/model';
-import type { Node as PMNode, Schema } from '@tiptap/pm/model';
+import { DOMParser as PMDOMParser, Slice } from '@tiptap/pm/model';
+import type { Schema } from '@tiptap/pm/model';
 
 import { parseMarkdown } from '../markdown/parser';
+import { INJECTED_TITLE_ATTR } from '../externalize-html';
 import { authorizeImageAsset, saveClipboardImage } from '../../../../services/tauri/document';
 import { confirm, message } from '../../../../services/tauri/dialog';
 import { readClipboardHtml } from '../../../../services/tauri/clipboard';
@@ -419,7 +420,10 @@ export function parseHtmlSlice(schema: Schema, htmlString: string): Slice | null
   if (!htmlString || !htmlString.trim()) return null;
   if (htmlString.length > HTML_VOLUME_LIMIT) return null; // 体积熔断
 
-  const cleaned = hasMsoHtml(htmlString) ? stripMsoMarkup(htmlString) : htmlString;
+  // 与 transformPastedHTML 同一条链：注入标题段的剥离在 HTML 层做（Layer 4 不走 PM 的
+  // transformPastedHTML，必须在这里再调一次，否则「占位升级」的成功路径会漏掉去重）
+  const deduped = stripInjectedCalloutTitles(htmlString);
+  const cleaned = hasMsoHtml(deduped) ? stripMsoMarkup(deduped) : deduped;
   try {
     const dom = new DOMParser().parseFromString(cleaned, 'text/html');
     const doc = PMDOMParser.fromSchema(schema).parse(dom.body);
@@ -548,31 +552,31 @@ export function markdownPastePlugin(opts?: {
       // ── Layer 2b: transformPastedHTML 钩子 ────────────────────────
       // PM 默认的 HTML 粘贴路径**不经过** parseHtmlSlice（那只在 Layer 4 的占位升级里跑），
       // 于是 Word 带 mso-* 的 HTML 直接进 DOMParser 时，stripMsoMarkup 一行都没跑（M-07）。
-      // 这里补一道闸：命中 Word 特征才清理，非 Word HTML 原样返回（零副作用）。
+      // 这里补两道闸：① 剥出站注入的 callout 标题段（判据是来源标记，不是内容）② 命中
+      // Word 特征才清理，非 Word HTML 原样返回（零副作用）。
       transformPastedHTML(html: string) {
-        return hasMsoHtml(html) ? stripMsoMarkup(html) : html;
+        const withoutInjected = stripInjectedCalloutTitles(html);
+        return hasMsoHtml(withoutInjected) ? stripMsoMarkup(withoutInjected) : withoutInjected;
       },
 
       // ── Layer 2: transformPasted 钩子 ─────────────────────────────
       // 触发：所有粘贴路径（HTML 和纯文本都会过）
-      // 职责一：出站时注入的 callout 标题段落去重（见 dropInjectedCalloutTitle）
-      // 职责二：装饰性 HTML 塌方时，从 slice.content 反查 Markdown 源救回
+      // 职责：装饰性 HTML 塌方时，从 slice.content 反查 Markdown 源救回
       // 双重闸门：isLowQualityParse + looksLikeMarkdownSource，绝不误伤正常路径
       transformPasted(slice, view) {
-        const deduped = dropInjectedCalloutTitle(slice);
-        if (!isLowQualityParse(deduped)) return deduped;
+        if (!isLowQualityParse(slice)) return slice;
 
         // 装饰性 HTML 塌方：遍历 slice.content 子节点取 textContent 拼接，反查原 Markdown 源
         // （千问/豆包文档典型路径：div/span+CSS 被 DOMParser 拍平成纯段落，textContent 保留原 markdown 字符）
         const parts: string[] = [];
-        deduped.content.forEach((node) => {
+        slice.content.forEach((node) => {
           parts.push(node.textContent);
         });
         const md = parts.join('\n');
-        if (!md || !looksLikeMarkdownSource(md)) return deduped;
+        if (!md || !looksLikeMarkdownSource(md)) return slice;
 
         const rescued = parseGeneralMarkdownPaste(view.state.schema, md);
-        return rescued ?? deduped;
+        return rescued ?? slice;
       },
     },
   });
@@ -631,69 +635,21 @@ function handleClipboardImagePaste(
 }
 
 /**
- * 剥掉「出站时注入的 callout 标题段落」。
+ * 剥掉出站时注入的 callout 标题段（`externalize-html.ts` 打 `data-solo-injected-title`）。
  *
- * 为什么需要（2026-10-21）：`externalizeHtml` 会把 `data-title` 里的标题**同时**注入正文首段
- * （`<p><strong>标题</strong></p>`），因为外部消费者（公众号 / Word）只认正文、不认属性。
- * 但 solo 自己读回来时标题已经在 `attrs.title` 里 ⇒ 不剥就是「正文多一段重复标题」，
- * 落盘成 Markdown 会变成 `> [!NOTE] 框标题` + 正文首行同名。
+ * 为什么在 **HTML 层**而不是 slice 层做（2026-10-21 复审推翻初版）：
+ * 注入段与用户自己写的「加粗且文字等于标题」的首段，在 PM 节点层**完全同形**，
+ * 靠内容猜来源会把合法正文当标题删掉——那是静默丢内容，本项目最贵的事故类型。
+ * 判据必须是「我盖过章」而不是「长得像」。放在 HTML 层还有两个附带好处：
+ * `querySelectorAll` 天然覆盖嵌套 callout；纯文本 Markdown 路径从未注入，不必参与。
  *
- * 去重放在**读的那一侧**而不是产生侧，才能让同一份 HTML 两头都对：外部看到标题，
- * 内部回到原位。放在产生侧（删正文或删属性）必然牺牲一头。
- *
- * 命中条件收得极窄，避免误伤用户真的写了两遍的文档：
- * - 节点是 callout 且 `attrs.title` 非空
- * - 首个子节点是段落、**只有一个**子节点、是文本、带 `bold` mark
- * - 该文本 trim 后与 title **完全相等**
- *
- * 纯文本粘贴路径（走 parseMarkdown）产出的 callout 标题只在 attrs、正文无 strong ⇒ 天然不命中。
+ * 廉价前置判断：绝大多数粘贴的 HTML 不含这个标记，`includes` 后直接原样返回。
  */
-export function dropInjectedCalloutTitle(slice: Slice): Slice {
-  if (slice.content.size === 0) return slice;
-  let changed = false;
-
-  const rewrite = (node: PMNode): PMNode => {
-    if (node.type.name === 'callout') {
-      const title = String(node.attrs.title ?? '').trim();
-      if (!title || !isInjectedTitleParagraph(node.firstChild, title)) return node;
-      // content 规格是 `block+`：标题是唯一一段时补空段落，不然 create() 会抛
-      const rest: PMNode[] = [];
-      node.forEach((child, _offset, index) => {
-        if (index > 0) rest.push(child);
-      });
-      const fallback = node.type.schema.nodes.paragraph?.create();
-      const children = rest.length > 0 ? rest : fallback ? [fallback] : [];
-      return node.type.create(node.attrs, Fragment.from(children), node.marks);
-    }
-    if (node.isLeaf || node.childCount === 0) return node;
-
-    let childChanged = false;
-    const children: PMNode[] = [];
-    node.forEach((child) => {
-      const next = rewrite(child);
-      if (next !== child) childChanged = true;
-      children.push(next);
-    });
-    return childChanged ? node.copy(Fragment.from(children)) : node;
-  };
-
-  const blocks: PMNode[] = [];
-  slice.content.forEach((block) => {
-    const next = rewrite(block);
-    if (next !== block) changed = true;
-    blocks.push(next);
-  });
-
-  return changed ? new Slice(Fragment.from(blocks), slice.openStart, slice.openEnd) : slice;
-}
-
-/** 首段是否为「注入的标题段」：单文本节点 + bold mark + 文本等于 title */
-function isInjectedTitleParagraph(first: PMNode | null | undefined, title: string): boolean {
-  if (!first || first.type.name !== 'paragraph' || first.childCount !== 1) return false;
-  const text = first.firstChild;
-  if (!text || !text.isText || !text.text) return false;
-  if (!text.marks.some((mark) => mark.type.name === 'bold')) return false;
-  return text.text.trim() === title;
+export function stripInjectedCalloutTitles(html: string): string {
+  if (!html.includes(INJECTED_TITLE_ATTR)) return html;
+  const dom = new DOMParser().parseFromString(html, 'text/html');
+  dom.querySelectorAll(`[${INJECTED_TITLE_ATTR}]`).forEach((el) => el.remove());
+  return dom.body.innerHTML;
 }
 
 /**

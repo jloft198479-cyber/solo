@@ -294,6 +294,41 @@ export function resetLocalSrcResolver() {
   _localSrcResolver = null;
 }
 
+/** 占位图地址（懒加载用的 1×1 base64 / blob）：不能当图片地址用，否则落盘是一大串 base64 */
+const PLACEHOLDER_SRC_RE = /^(?:data|blob):/i;
+/** 带 scheme 或以 `//` 开头的绝对地址 */
+const ABSOLUTE_SRC_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
+
+/**
+ * 从 `<img>` 上选一个可用的图片地址。入站唯一判据，`parseHTML` 与 `src` 属性共用。
+ *
+ * 规则（2026-10-21 复审逐条加的边界）：
+ * 1. `data-src` 优先——公众号 / 知乎 / 简书 / 多数 CMS 的懒加载真地址在这里；
+ * 2. `data:` / `blob:` 一律不算地址（那是占位图，用它等于把空白图写进文档）；
+ * 3. `data-src` 是相对路径、`src` 是绝对地址 ⇒ 取 `src`（相对路径跨文档必然失效）；
+ * 4. `//cdn/x.png` 归一成 `https:` —— 不归一的后果不是显示问题：`isRemoteImageSrc` 只认
+ *    `http(s)`，`//` 会被判成本地地址、原始串直接交给 `<img>`，WebView2 按当前源补全并自行
+ *    请求 ⇒ 绕过 Rust 远程图抓取的 SSRF 白名单（M-16，见 `syncView` 的注释）；
+ * 5. 两个都没有可用地址 ⇒ 返回 null，调用方据此丢弃这个 `<img>`（不造空图片节点）。
+ */
+export function pickImageSrc(el: HTMLImageElement): string | null {
+  const lazy = el.getAttribute('data-src')?.trim() ?? '';
+  const plain = el.getAttribute('src')?.trim() ?? '';
+
+  const lazyUsable = lazy && !PLACEHOLDER_SRC_RE.test(lazy) ? lazy : '';
+  const plainUsable = plain && !PLACEHOLDER_SRC_RE.test(plain) ? plain : '';
+
+  if (lazyUsable && plainUsable && !ABSOLUTE_SRC_RE.test(lazyUsable) && ABSOLUTE_SRC_RE.test(plainUsable)) {
+    return normalizeImageSrc(plainUsable);
+  }
+  const picked = lazyUsable || plainUsable;
+  return picked ? normalizeImageSrc(picked) : null;
+}
+
+function normalizeImageSrc(src: string): string {
+  return src.startsWith('//') ? `https:${src}` : src;
+}
+
 export const CustomImage = Image.extend({
   addAttributes() {
     return {
@@ -305,16 +340,12 @@ export const CustomImage = Image.extend({
        * 而 `src` 只是 1×1 base64 占位（有的干脆不给 `src`）。基类规则是
        * `img[src]:not([src^="data:"])` ⇒ 两种情况都保不住图：
        * 带占位 src 的会把「空白 SVG」写进文档（落盘是一坨 base64），没 src 的直接丢。
-       * 这里让 `data-src` 优先，并允许完全没有 `src` 的图进入 schema。
+       * 取舍边界统一收进 `pickImageSrc`（相对/绝对、占位图、协议相对地址）。
        */
       src: {
         // 完整覆盖基类的 `{ default: null }`（基类没有自定义 parseHTML）
         default: null,
-        parseHTML: (el) => {
-          const lazy = (el as HTMLImageElement).getAttribute('data-src')?.trim();
-          if (lazy) return lazy;
-          return (el as HTMLImageElement).getAttribute('src') ?? null;
-        },
+        parseHTML: (el) => pickImageSrc(el as HTMLImageElement),
       },
       width: {
         default: null,
@@ -335,8 +366,17 @@ export const CustomImage = Image.extend({
     };
   },
   parseHTML() {
-    // data-src 变体必须自带一条规则：基类那条要求存在 `src`，仅有 data-src 的图匹配不到
-    return [{ tag: 'img[data-src]', priority: 60 }, ...(this.parent?.() ?? [])];
+    // 自己接管全部 `<img>`，**不继承**基类那条 `img[src]:not([src^="data:"])`：
+    // 判据已经全部收进 `pickImageSrc`（含占位图排除），保留基类规则等于两处判据并存、
+    // 且 `:not([src^="data:"])` 依赖选择器引擎对 `^=` 的支持（happy-dom 就不支持，
+    // 会得出与真机相反的结论）。`getAttrs` 返回 false ⇒ 整个元素丢弃，不造空图片节点。
+    return [
+      {
+        tag: 'img',
+        priority: 60,
+        getAttrs: (el: HTMLElement) => (pickImageSrc(el as HTMLImageElement) ? null : false),
+      },
+    ];
   },
   addNodeView() {
     return ({ node, getPos, editor }) => {

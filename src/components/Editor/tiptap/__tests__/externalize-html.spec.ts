@@ -19,8 +19,7 @@ import { serializeMarkdown } from '../markdown/serializer';
 import { createTestSchema } from '../markdown/__tests__/test-utils';
 import { externalizeHtml } from '../externalize-html';
 import { serializeDocumentHtml } from '../clipboard-html';
-import { dropInjectedCalloutTitle } from '../extensions/markdown-paste';
-import { Slice } from '@tiptap/pm/model';
+import { stripInjectedCalloutTitles } from '../extensions/markdown-paste';
 import { resolveMonoFontStack } from '../../../../utils/fontStack';
 
 /**
@@ -102,15 +101,13 @@ function docFromHtml(html: string): PMNode {
 }
 
 /**
- * 回读后的文档 = 真实粘贴链路（HTML 解析 + `transformPasted` 的标题去重）。
+ * 回读后的文档 = 真实粘贴链路（HTML 字符串层剥掉注入标题段，再由 PM 解析）。
  *
  * 为什么不能只 `docFromHtml`：出站时标题被同时写进属性与正文，去重**故意**放在读的那一侧
- * （见 `dropInjectedCalloutTitle` 的理由）。不模拟这一层，就会把「设计内的两份」当回归。
+ * （见 `stripInjectedCalloutTitles` 的理由）。不模拟这一层，就会把「设计内的两份」当回归。
  */
 function pasteParse(html: string): PMNode {
-  const doc = docFromHtml(html);
-  const deduped = dropInjectedCalloutTitle(new Slice(doc.content, 0, 0));
-  return doc.type.create(null, deduped.content);
+  return docFromHtml(stripInjectedCalloutTitles(html));
 }
 
 const countTag = (html: string, tag: string) => (html.match(new RegExp(`<${tag}[ >]`, 'g')) ?? []).length;
@@ -272,9 +269,10 @@ describe('出站 HTML 归一（CP-20261011-002）', () => {
   });
 
   it('#3 callout 专项：出站带两份标题，回读去重后只剩 attrs 一份', () => {
-    // 出站侧：属性 + 正文两份 —— 外部消费者不认 data-title，只能靠正文看见标题
+    // 出站侧：属性 + 正文两份 —— 外部消费者不认 data-title，只能靠正文看见标题；
+    // 正文那段必须带 `data-solo-injected-title` 来源标记，回读才敢删（判据不是「长得像」）
     expect(out).toContain('data-title="我的标题"');
-    expect(out).toContain('<p><strong>我的标题</strong></p>');
+    expect(out).toMatch(/<p data-solo-injected-title=""><strong>我的标题<\/strong><\/p>/);
 
     // 回读侧：过粘贴去重后，正文首段被剥掉，标题回到 attrs（不回退成「正文第一段」）
     const back = pasteParse(out);
