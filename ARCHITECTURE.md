@@ -636,6 +636,12 @@ underline
 > 原导出系统（HTML/PDF/微信，独立 IR 层 `buildExportTree` + HTML/Wechat 渲染器 + `wechat-themes.ts`）已于 v1.2.18 删除（净删 ~2500 行）。现以状态栏 Copy 按钮（`StatusbarQuickActions.vue`）替代，写**双槽**剪贴板：`text/plain` = **全量** Markdown 源码（`editorRef.getContent()` → `serializeMarkdown()`，即**文件模式严格转义**），`text/html` = 富文本（`tiptap/clipboard-html.ts` 直出 → `tiptap/externalize-html.ts` 归一；**编辑器不在时**（图片预览模式）回落到 `utils/markdown-to-html.ts::renderMarkdown`）。字体栈仍走 `buildFontStack` 与编辑器共享。
 >
 > **别混淆**：`serializeClipboardText()`（选区感知 / 轻量转义，见 docs/sensitive-areas.md §11.8）是**编辑器内 `Ctrl+C`** 的路径，**不是**状态栏按钮。
+>
+> **两条通道共用出站归一（2026-10-21）**：`text/html` 有两个入口，都进 `tiptap/externalize-html.ts`，只有档位（`ExternalizeTarget`）不同——
+> - 状态栏按钮：`serializeDocumentHtml()` → 档位 `document`。会删 frontmatter、拆 `div.tableWrapper`（整篇出站、不回读，这样 Word / 公众号拿到的表格不带布局壳）。
+> - 编辑器内 `Ctrl+C`：`editorProps.clipboardSerializer = createSelectionClipboardSerializer()` → 档位 `selection`。**保留** frontmatter 与 tableWrapper：粘回 solo 要靠前者的元数据；拆后者会改变顶层节点身份，而 `data-pm-slice` 是 PM 在归一层返回**之后**才打在「第一个顶层元素」上的，身份一变标记就落错对象、slice 还原错位。
+>
+> **标题与图片的两处双向约定**：① callout 标题出站时**同时**写进 `data-title` 属性与正文首段（`<p><strong>…</strong></p>`）——外部消费者只认正文，solo 只认属性；回读时的重复段落由 `markdown-paste.ts::dropInjectedCalloutTitle` 剥掉（条件收窄到「首段唯一 strong 且文本等于 title」）。② 图片 `src` 解析优先取 `data-src`——公众号 / 知乎 / 简书是懒加载图，`src` 常是 1×1 base64 占位甚至不存在，只认 `src` 会写入空白图或整张丢图。
 
 ### 10.3 字体系统
 

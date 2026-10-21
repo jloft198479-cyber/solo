@@ -166,7 +166,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | `Ctrl+C` 默认给干净纯文本 | ✅ | `serializer.ts` `serializeClipboardText` + `PLAIN_TEXT_SAFE_NODES` 白名单 | 一/24 已修（曾是单向棘轮式加转义）；白名单=退化安全，新节点默认回落 |
 | 选区含专有节点 → 回落 Markdown 源码 | ✅ | 同上（公式/图表/互链/脚注/frontmatter/callout/图片） | 链接**不**回落（mark 有合格纯文本替身） |
 | 「复制为 Markdown」显式入口 | ✅ | `registry.ts` `edit.copyAsMarkdown`（`Mod+Shift+M`，app scope） | scope 必须 app，标 editor 会彻底按不动 |
-| 状态栏复制按钮 | ✅ | [`StatusbarQuickActions.vue`](../src/components/StatusbarQuickActions.vue) | 实际写**双槽**：`text/plain` = Markdown 源码、`text/html` = 渲染富文本。UI `title` 却写「复制 Markdown」，ARCHITECTURE 称「复制为 HTML」→ 口径不一（附录 B-4） |
+| 状态栏复制按钮 | ✅ | [`StatusbarQuickActions.vue`](../src/components/StatusbarQuickActions.vue) | 实际写**双槽**：`text/plain` = Markdown 源码、`text/html` = 渲染富文本。UI `title` 原写「复制全文为 Markdown」、与行为口径不一，2026-10-21 已改为「复制全文（富文本 + Markdown 源码）」 |
 | 表格跨格 / 单元格复制 | ✅ | `MarkdownEditor.vue` `onEditorCopy` + `serializer.ts` `stripOpenLayers` | 一/16 已修：压平为 TSV + 逐行 `<p>` |
 | solo → solo 粘贴保真 | ✅ | 走各扩展 `parseHTML` + `text/html`，**不依赖 text/plain** | — |
 | 文件落盘 vs 剪贴板两套转义 | ✅ | `serializer.ts` `escapeInline` 按 `clipboard` 标记分流 | **故意不同，别互相「修正」**；嵌套序列化必须 `state.createChild()`（敏感区 §11.8） |

@@ -129,7 +129,12 @@ destroy() {
 
 白名单是**退化安全**方向：将来新增扩展节点默认回落，绝不会因为忘了登记而在纯文本槽静默丢内容。
 
-- `text/html` 有**两个产出者，各管一件事**：**Ctrl+C（选区）**由 ProseMirror 默认生成；**整篇（「复制全文」按钮）**由 [`clipboard-html.ts`](../src/components/Editor/tiptap/clipboard-html.ts) 生成——它同样走 `DOMSerializer`（与 Ctrl+C 同一个生产者），再经 [`externalize-html.ts`](../src/components/Editor/tiptap/externalize-html.ts) 归一。[`utils/markdown-to-html.ts`](../src/utils/markdown-to-html.ts) 已降为**无编辑器时的回落**（图片预览模式下编辑器被卸载），回落产出仍带 callout / 互链 / 数学的裸标记失真。**solo→solo 粘贴走 HTML + 各扩展的 `parseHTML`，不依赖 text/plain**。
+- `text/html` 有**两个入口，共用同一个出站归一层**（2026-10-21 起）：
+  - **整篇（「复制全文」按钮）**：`clipboard-html.ts::serializeDocumentHtml()` → `DOMSerializer` → `externalize-html.ts` 档位 `document`（会删 frontmatter、拆 `div.tableWrapper`——整篇出站不回读）。
+  - **选区（`Ctrl+C` / 右键复制）**：`editorProps.clipboardSerializer = createSelectionClipboardSerializer()` → 同一个 `DOMSerializer` → 同一个归一层，档位 `selection`（**保留** frontmatter 与 tableWrapper：粘回 solo 要靠前者；拆后者会改变顶层节点身份，而 `data-pm-slice` 是 PM 在归一层返回之后才打在第一个顶层元素上的，身份一变标记就落错）。
+  - 两个入口都**不改变顶层节点数量与身份**，这是「粘回 solo 不走形」的硬约束（`externalize-selection.spec.ts` C 组锁）。
+  - [`utils/markdown-to-html.ts`](../src/utils/markdown-to-html.ts) 已降为**无编辑器时的回落**（图片预览模式下编辑器被卸载），回落产出仍带 callout / 互链 / 数学的裸标记失真。**solo→solo 粘贴走 HTML + 各扩展的 `parseHTML`，不依赖 text/plain**。
+  - callout 标题出站时**属性与正文双写**，回读由 `markdown-paste.ts::dropInjectedCalloutTitle` 去重；图片 `src` 解析优先取 `data-src`（懒加载图）。
 - ⚠️ 归一层的三条铁律（CP-20261011-002）：**不换私有节点的标签名、不删私有属性**（`li[data-type="taskItem"]`、`sup[data-footnote-ref]`、`span.mk-dim` 等正是 `parseHTML` 的命中面，删了「复制出去再粘回来」就降级）；**空串属性不删**（`footnote.ts` 把 `data-footnote-ref` 渲染成空串，判据只看「在不在」）；**不往内容规格装不下的壳里塞元素**（`FootnoteSection.content = 'footnoteDef+'`、`MermaidBlock.content = 'text*'`，塞进去 PM **不报错**而是把外壳静默闭成空壳）。⇒ 新增扩展节点时，除了验 `renderHTML` 的产出，还要问一句「归一层要不要加规则」。
 - 需要主动拿 Markdown 源码时用命令 `edit.copyAsMarkdown`（Mod+Shift+M / 命令面板），它复用下面的剪贴板轻量转义。
 
