@@ -19,6 +19,8 @@ updates: [README.md, README.ja-JP.md, README.ko-KR.md, docs/solo产品精神.md]
 </p>
 
 <p align="center">
+  <a href="https://solo.weimabbs.com/">🌐 官方网站</a>
+  ·
   <a href="./README.md">English</a>
   ·
   <a href="./README.zh-CN.md">简体中文</a>
@@ -28,9 +30,34 @@ updates: [README.md, README.ja-JP.md, README.ko-KR.md, docs/solo产品精神.md]
   <a href="./README.ko-KR.md">한국어</a>
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="开源协议：Apache 2.0" />
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2B-0078D6.svg" alt="支持平台：Windows 10 及以上" />
+  <img src="https://img.shields.io/github/v/release/jloft198479-cyber/solo.svg" alt="最新版本" />
+  <img src="https://img.shields.io/github/stars/jloft198479-cyber/solo.svg" alt="GitHub Stars" />
+</p>
+
+## 界面截图
+
+<p align="center">
+  <img src="./docs/screenshots/screenshot-main.png" width="860" alt="solo 主编辑界面 — 书卷气主题" />
+</p>
+
+<table align="center">
+  <tr>
+    <td><img src="./docs/screenshots/theme-night.png" width="270" alt="solo 夜读墨色暗色主题" /></td>
+    <td><img src="./docs/screenshots/theme-elegant.png" width="270" alt="solo 素笺浅色主题" /></td>
+    <td><img src="./docs/screenshots/theme-jade.png" width="270" alt="solo 黛青主题" /></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="./docs/screenshots/compact-window.png" width="240" alt="solo 窄窗竖屏形态" />
+</p>
+
 ## 产品定位
 
-solo 是一把「专为文字而生的手术刀」——秒开秒关、书卷气质、本地文件、不作生态。不是笔记软件，不是知识库。
+solo 是一款免费、开源的 Windows Markdown 编辑器，一把「专为文字而生的手术刀」——秒开秒关、书卷气质、本地文件、不作生态。不是笔记软件，不是知识库。
 
 ## 核心特性
 
@@ -73,6 +100,7 @@ bun run test         # 运行测试
 
 ## 联系方式
 
+- 官方网站：<https://solo.weimabbs.com/>
 - 微信：fzz198479
 
 ## License

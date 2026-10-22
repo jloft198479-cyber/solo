@@ -19,6 +19,8 @@ updates: [README.zh-CN.md, README.ja-JP.md, README.ko-KR.md, docs/solo产品精�
 </p>
 
 <p align="center">
+  <a href="https://solo.weimabbs.com/">🌐 Official Website</a>
+  ·
   <a href="./README.md">English</a>
   ·
   <a href="./README.zh-CN.md">简体中文</a>
@@ -28,9 +30,34 @@ updates: [README.zh-CN.md, README.ja-JP.md, README.ko-KR.md, docs/solo产品精�
   <a href="./README.ko-KR.md">한국어</a>
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache 2.0" />
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2B-0078D6.svg" alt="Platform: Windows 10 or later" />
+  <img src="https://img.shields.io/github/v/release/jloft198479-cyber/solo.svg" alt="Latest release" />
+  <img src="https://img.shields.io/github/stars/jloft198479-cyber/solo.svg" alt="GitHub stars" />
+</p>
+
+## Screenshots
+
+<p align="center">
+  <img src="./docs/screenshots/screenshot-main.png" width="860" alt="solo main editor window — Scholar theme" />
+</p>
+
+<table align="center">
+  <tr>
+    <td><img src="./docs/screenshots/theme-night.png" width="270" alt="solo Night Reading dark theme" /></td>
+    <td><img src="./docs/screenshots/theme-elegant.png" width="270" alt="solo Elegant light theme" /></td>
+    <td><img src="./docs/screenshots/theme-jade.png" width="270" alt="solo Jade theme" /></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="./docs/screenshots/compact-window.png" width="240" alt="solo in a compact window" />
+</p>
+
 ## What is solo?
 
-solo is a "scalpel for words" — launches instantly, stays out of your way, and works directly on local `.md` files. It is not a note-taking app, not a knowledge base, and not a platform.
+solo is a free, open-source Markdown editor for Windows. A "scalpel for words" — launches instantly, stays out of your way, and works directly on local `.md` files. It is not a note-taking app, not a knowledge base, and not a platform.
 
 ## Features
 
@@ -69,6 +96,7 @@ Requires Rust 1.96+ and MSVC Build Tools.
 
 ## Contact
 
+- Official website: <https://solo.weimabbs.com/>
 - WeChat: fzz198479
 
 ## License

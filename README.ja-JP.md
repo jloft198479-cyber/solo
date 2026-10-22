@@ -19,6 +19,8 @@ updates: [README.md, README.zh-CN.md, README.ko-KR.md, docs/solo产品精神.md]
 </p>
 
 <p align="center">
+  <a href="https://solo.weimabbs.com/">🌐 公式サイト</a>
+  ·
   <a href="./README.md">English</a>
   ·
   <a href="./README.zh-CN.md">简体中文</a>
@@ -26,6 +28,31 @@ updates: [README.md, README.zh-CN.md, README.ko-KR.md, docs/solo产品精神.md]
   <a href="./README.ja-JP.md">日本語</a>
   ·
   <a href="./README.ko-KR.md">한국어</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="ライセンス: Apache 2.0" />
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2B-0078D6.svg" alt="対応プラットフォーム: Windows 10 以降" />
+  <img src="https://img.shields.io/github/v/release/jloft198479-cyber/solo.svg" alt="最新リリース" />
+  <img src="https://img.shields.io/github/stars/jloft198479-cyber/solo.svg" alt="GitHub stars" />
+</p>
+
+## スクリーンショット
+
+<p align="center">
+  <img src="./docs/screenshots/screenshot-main.png" width="860" alt="solo メインエディタ画面 — 書巻気テーマ" />
+</p>
+
+<table align="center">
+  <tr>
+    <td><img src="./docs/screenshots/theme-night.png" width="270" alt="solo 夜読墨色ダークテーマ" /></td>
+    <td><img src="./docs/screenshots/theme-elegant.png" width="270" alt="solo 素笺ライトテーマ" /></td>
+    <td><img src="./docs/screenshots/theme-jade.png" width="270" alt="solo 黛青テーマ" /></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="./docs/screenshots/compact-window.png" width="240" alt="solo コンパクトウィンドウ" />
 </p>
 
 ## 概要
@@ -67,6 +94,7 @@ Rust 1.96+ と MSVC Build Tools が必要。
 
 ## 連絡先
 
+- 公式サイト: <https://solo.weimabbs.com/>
 - WeChat: fzz198479
 
 ## License
