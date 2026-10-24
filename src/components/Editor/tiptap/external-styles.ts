@@ -88,12 +88,40 @@ function readVar(name: string, fallback: string): string {
   }
 }
 
-/** `16px` / `1rem` / `1.6em` → 数值（em、rem 相对正文字号换算；解析不出就用兜底） */
+/**
+ * 字号 token → 数值。`16px` / `1rem` / `1.6em` / `120%` / `clamp(1.5em, 2vw, 2.2em)`。
+ *
+ * ⚠️ 读的是 CSS **自定义属性**（`readVar`），getComputedStyle 对变量返回原始 token、
+ * 不做折算，而主题把 heading 尺寸**原样**写进变量（`manager.ts::injectTypography`
+ * 无格式校验）——clamp()/百分比/视口单位都是合法字号、编辑器里正常渲染，会原样
+ * 到达这里。parseFloat 只会咬住第一个数字：`clamp(1.5em,…)` 当 px 会产出 **1.5px
+ * 的肉眼隐形标题**、`120%` 产出 120px 巨型字（审计 P2-4）。折算规则：
+ *  - em / rem：相对 base 换算（rem 无根字号上下文，按 base 近似）
+ *  - %：按字号语义 × base / 100
+ *  - px / 无单位数字：原值
+ *  - clamp()/min()/max()/calc()：提取其中的 em/px 参数取**上界**（视口项静态折算
+ *    不了；取上界保证不小于用户的可读意图）
+ *  - 其余单位（vw/vh 等）：回落 base——宁可平庸字号，不出隐形/巨型字
+ * 解析不出同样回落 base。
+ */
 function toPx(value: string, base: number): number {
-  const n = Number.parseFloat(value);
+  const v = value.trim().toLowerCase();
+  // 函数形态必须先于 parseFloat 判：'clamp(…' 开头 parseFloat 是 NaN，
+  // 放后面会被「解析不出」早退吞掉、永远走不到提取分支（实测踩过）
+  if (/^(?:clamp|min|max|calc)\(/.test(v)) {
+    const candidates: number[] = [];
+    for (const m of v.matchAll(/(\d*\.?\d+)(em|px)\b/g)) {
+      candidates.push(m[2] === 'em' ? Number(m[1]) * base : Number(m[1]));
+    }
+    if (candidates.length > 0) return Math.max(...candidates);
+    return base;
+  }
+  const n = Number.parseFloat(v);
   if (!Number.isFinite(n)) return base;
-  if (value.endsWith('em')) return n * base;
-  return n;
+  if (v.endsWith('em')) return n * base;
+  if (v.endsWith('%')) return (n / 100) * base;
+  if (v.endsWith('px') || /^-?[\d.]+$/.test(v)) return n;
+  return base;
 }
 
 /** 26.400000000000002 → 26.4；整数不带小数点 */

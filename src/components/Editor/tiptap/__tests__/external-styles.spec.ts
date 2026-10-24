@@ -187,3 +187,40 @@ describe('出站内联样式：公众号视角', () => {
     expect(h1).toBeCloseTo(32, 1);
   });
 });
+
+describe('P2-4：字号 token 静态折算（clamp() / 百分比 / 未知单位）', () => {
+  // 我防的事故：自定义主题的 heading1~6Size 被 manager.ts::injectTypography **原样**
+  // 写入 CSS 变量（无格式校验），clamp()/百分比/视口单位都是合法字号、编辑器里正常
+  // 渲染；但出站读的是 CSS 变量的**原始 token**，旧 toPx 的 parseFloat 只会咬住第一
+  // 个数字当 px —— clamp(1.5em, 2vw, 2.2em) 复制出去是 1.5px 的肉眼隐形标题、
+  // 120% 是 120px 巨型字（审计 P2-4，新功能 cbcf1e5 引入）。
+  afterEach(() => {
+    document.documentElement.style.removeProperty('--mk-heading1-size');
+  });
+
+  it('clamp()：折算落在 [min em, max em] 区间，绝不产出 1.5px 隐形标题', () => {
+    document.documentElement.style.setProperty('--mk-heading1-size', 'clamp(1.5em, 2vw, 2.2em)');
+    const washed = washForWechat(externalHtml().innerHTML);
+    const size = fontSizeOf(washed.querySelector('h1'));
+    expect(size, `clamp 被折算成了 ${size}px`).toBeGreaterThanOrEqual(1.5 * 16);
+    expect(size).toBeLessThanOrEqual(2.2 * 16 + 0.1);
+  });
+
+  it('百分比：120% = 正文字号 × 1.2（字号语义，不是 120px）', () => {
+    document.documentElement.style.setProperty('--mk-heading1-size', '120%');
+    const washed = washForWechat(externalHtml().innerHTML);
+    expect(fontSizeOf(washed.querySelector('h1'))).toBeCloseTo(16 * 1.2, 1);
+  });
+
+  it('未知单位（2vw）：回落数字号，不产出 2px 微型字', () => {
+    document.documentElement.style.setProperty('--mk-heading1-size', '2vw');
+    const washed = washForWechat(externalHtml().innerHTML);
+    expect(fontSizeOf(washed.querySelector('h1'))).toBe(16);
+  });
+
+  it('em 语义不变（回归防误伤）', () => {
+    document.documentElement.style.setProperty('--mk-heading1-size', '1.4em');
+    const washed = washForWechat(externalHtml().innerHTML);
+    expect(fontSizeOf(washed.querySelector('h1'))).toBeCloseTo(16 * 1.4, 1);
+  });
+});
