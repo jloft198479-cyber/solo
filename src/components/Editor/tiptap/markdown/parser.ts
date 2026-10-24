@@ -115,6 +115,14 @@ function createMarkdownIt(): MarkdownIt {
     'strikethrough',
   ]);
 
+  // file: 目的地放行（审计 P2-5b）：markdown-it 默认 validateLink 连 file: 一起拒，
+  // 磁盘上已有的 `![](file:///D:/x.png)` 打开时被当字面文本，serializer 又把 `[`
+  // 恒转义 ⇒ 每存一次坏一层、二次不可逆。放行成节点后 src/href 原样往返（字节
+  // 稳定），跳转仍被 link-open 的 http/https/mailto 白名单挡住，图片在编辑器里是
+  // 「破图占位」而非内容损坏。javascript:/vbscript: 维持默认拒绝。
+  const defaultValidateLink = md.validateLink;
+  md.validateLink = (url: string) => /^file:/i.test(url.trim()) || defaultValidateLink(url);
+
   md.use(markdownItTaskLists, { enabled: true, label: false });
   md.use(markdownItMark);
   md.use(markdownItSub);

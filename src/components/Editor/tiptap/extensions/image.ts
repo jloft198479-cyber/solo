@@ -276,11 +276,13 @@ function extractPathFromAssetUrl(assetUrl: string): string | null {
   }
 }
 
-/** 判断是否为本地相对路径（非 http/data/blob/asset/绝对路径） */
+/** 判断是否为本地相对路径：任何带 scheme / `//` 的绝对地址都不是。
+ * 旧表只排除 http(s)/data/blob/asset，`file:///D:/x.png` 被当相对路径 join 文档
+ * 目录、永远解析不出（审计 P2-5）；file: 由 BLOCKED_SRC_RE 在入站整图丢弃，
+ * 这里兜住其余带 scheme 的串不再进相对路径解析器。 */
 function isLocalRelativePath(src: string): boolean {
-  if (/^(https?:\/\/|data:|blob:|asset:\/\/)/i.test(src)) return false;
   if (/^[A-Z]:\\/i.test(src)) return false; // Windows 绝对路径
-  return true;
+  return !ABSOLUTE_SRC_RE.test(src);
 }
 
 /** 本地图片路径解析器：相对路径 → 显示用 URL */
@@ -298,6 +300,15 @@ export function resetLocalSrcResolver() {
 const PLACEHOLDER_SRC_RE = /^(?:data|blob):/i;
 /** 带 scheme 或以 `//` 开头的绝对地址 */
 const ABSOLUTE_SRC_RE = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
+/**
+ * 显示不了也存不得的 scheme（审计 P2-5）：`file://` 图（Outlook / 本地网页复制）
+ * 被 CSP img-src 拦下必是破图，当相对路径 join 文档目录又永远解析不出，落盘后
+ * 重开还会被 markdown-it 的 validateLink 退化成字面文本；`javascript:` /
+ * `vbscript:` 是注入面。入站（粘贴 / 解析 HTML）整图丢弃——pickImageSrc 返回
+ * null ⇒ getAttrs 给 false，连空节点都不建。磁盘上**已有**的 `![](file:///…)`
+ * 走 markdown 管线（parser 侧放行 file: 保往返），不经这里。
+ */
+const BLOCKED_SRC_RE = /^(?:file|javascript|vbscript):/i;
 
 /**
  * 从 `<img>` 上选一个可用的图片地址。入站唯一判据，`parseHTML` 与 `src` 属性共用。
@@ -322,7 +333,10 @@ export function pickImageSrc(el: HTMLImageElement): string | null {
     return normalizeImageSrc(plainUsable);
   }
   const picked = lazyUsable || plainUsable;
-  return picked ? normalizeImageSrc(picked) : null;
+  if (!picked) return null;
+  const normalized = normalizeImageSrc(picked);
+  // 协议黑名单：见 BLOCKED_SRC_RE 注释——返回 null ⇒ getAttrs false ⇒ 整图丢弃
+  return BLOCKED_SRC_RE.test(normalized) ? null : normalized;
 }
 
 function normalizeImageSrc(src: string): string {
