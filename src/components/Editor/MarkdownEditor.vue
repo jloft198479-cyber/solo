@@ -539,9 +539,9 @@ watch(
   // 不直接 watch content：编辑期 syncEditedContent 也写 content，
   // 会在 store 滞后于编辑器时把正在编辑的内容回退成旧基线。
   // immediate：启动恢复场景（文档在挂载前已进 store）也要恢复阅读位置。
-  () => [fileStore.currentFile.path, fileStore.reloadToken] as const,
+  () => [fileStore.currentFile.path, fileStore.reloadToken, fileStore.pathFollowToken] as const,
   // immediate 首次触发无旧值，oldVal 可能是 undefined——安全解构
-  ([path], prev) => {
+  ([path, , pathFollowToken], prev) => {
     const prevPath = prev?.[0];
     // 跨文件切换：先把旧文档的阅读位置落盘。此时 DOM 尚未替换（flush:'pre'），
     // editorWrapRef.scrollTop 还是旧文档的；防抖窗口里挂起的旧保存一并作废。
@@ -556,6 +556,12 @@ watch(
     // 预取互链 [[ 补全候选：切文档即后台刷新，首次敲 [[ 时直接命中缓存；
     // 拿到清单后顺手重算「失效互链」标记（同一份缓存，不额外读目录）
     void refreshWikilinkCandidates(path).then(markBrokenWikilinks);
+    // 改名路径跟随（renamePath 专用信号，跨窗口改名跟随 / 改名保存失败回退两条
+    // 路径）：只换路径，**绝不回灌内容**。旧实现在「跨文件切换 + 序列化缓存过期」
+    // 时无条件用 store 旧基线整体替换 doc，还 cancelPending() 作废挂起的序列化——
+    // 编辑器里最近 0.5~2.5s 未落 store 的编辑被静默清掉（审计 P1-4）。跟随路径下
+    // 编辑器内容与脏态原样保留，空闲序列化 / 自动保存按新路径自然收口。
+    if (prev && pathFollowToken > (prev[2] ?? -1)) return;
     if (!editor.value || editor.value.isDestroyed) return;
     const content = fileStore.currentFile.content;
     // 比较当前 editor 序列化结果与目标内容，相同则跳过（如另存为场景）。

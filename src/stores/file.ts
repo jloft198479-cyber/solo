@@ -25,6 +25,13 @@ interface FileStoreState {
    * 同路径外部修改重载（path 不变）靠本 token 触发刷新。
    */
   reloadToken: number;
+  /**
+   * 「路径跟随」代号：仅 renamePath（改名只换路径、不换文档）递增，与
+   * reloadToken 互斥。编辑器 watch 见到本信号只做路径相关刷新、**绝不回灌
+   * 内容**——否则防抖窗口内未落 store 的编辑会被旧基线洗掉（审计 P1-4，
+   * 跨窗口改名跟随 / 改名保存失败两条路径）。
+   */
+  pathFollowToken: number;
 }
 
 function createEmptyFileState(): FileState {
@@ -43,6 +50,7 @@ export const useFileStore = defineStore('file', {
     currentFile: createEmptyFileState(),
     isLoading: false,
     reloadToken: 0,
+    pathFollowToken: 0,
   }),
 
   actions: {
@@ -104,6 +112,10 @@ export const useFileStore = defineStore('file', {
       this.currentFile.path = newPath;
       this.currentFile.displayName = baseName;
       this.currentFile.originalBaseName = baseName;
+      // 路径跟随专用信号（区别于 setFile 的 reloadToken）：告诉编辑器 watch
+      // 「这是同一篇文档换了名字」，只更新路径相关派生物，绝不回灌内容——
+      // 否则防抖窗口内未落 store 的编辑会被旧基线洗掉（审计 P1-4）。
+      this.pathFollowToken += 1;
     },
 
     /**
