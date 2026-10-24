@@ -215,7 +215,9 @@ function normalizeMathContent(raw: string): string {
 
 export const mathNodeSerializers: Record<string, NodeSerializer> = {
   mathInline(state: MarkdownSerializerState, node) {
-    state.write(`$${node.attrs.latex || ''}$`);
+    // escapeCellPipe：单元格内 latex 的 `|`（如绝对值 `$|x|$`）必须写 `\|`，否则
+    // 首存即切列、公式被劈成两半（审计 P1-1；文本/alt/code 通道已有同款转义）
+    state.write(`$${state.escapeCellPipe(node.attrs.latex || '')}$`);
   },
 
   mathBlock(state: MarkdownSerializerState, node) {

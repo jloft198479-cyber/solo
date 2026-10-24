@@ -40,7 +40,8 @@ export const footnoteNodeSerializers: Record<string, NodeSerializer> = {
   footnoteRef(state: MarkdownSerializerState, node) {
     // stripZwnj：label 是**引用与定义的配对键**，还会进 HTML 的 id / href
     // ⇒ 属性通道必须剥（台账 §二 #32 / 敏感区 #23④）
-    state.write(`[^${stripZwnj(node.attrs.label || '')}]`);
+    // escapeCellPipe：单元格内 label 的 `|` 会切列（审计 P1-1）
+    state.write(`[^${state.escapeCellPipe(stripZwnj(node.attrs.label || ''))}]`);
   },
 
   footnoteSection(state: MarkdownSerializerState, node) {

@@ -19,28 +19,65 @@ import { escapeImageAlt } from '../extensions/image';
 const LIST_NODE_NAMES = new Set(['bulletList', 'orderedList', 'taskList']);
 
 /**
- * 本块文本里哪些「成对触发」的字符必须转义。
+ * 本块里哪些「成对触发」的字符必须转义——按**序列化后写出的形态**计数。
  *
  * 判据来自实测（markdown-it commonmark + sub/sup/mark/texmath，html:false）：
  *  - `x^2`（单个 ^）→ 纯文本；`a^b^c`（成对）→ 上标 ⇒ 计数 ≥2 才需转义
  *  - `价格 $5`（单个 $）→ 纯文本；`$x$`（成对）→ 行内公式 ⇒ 计数 ≥2 才需转义
- *  - `a == b`（一处 `==`）→ 纯文本；两处 `==` 才会被读成高亮 ⇒ `==` 出现 ≥2 次才需转义
+ *  - `a == b`（一处 `==`）→ 纯文本；两处 `==` 才会被读成高亮 ⇒ ≥2 才需转义
  *
+ * 计数来源（三缺一都会误判，审计 P2-1）：
+ *  ① 文本节点的字面字符——**行内 code 的内容除外**（落在反引号里，重开不参与
+ *     配对；计入反而平白转义、首存即改字节）；
+ *  ② **序列化器自己写出的定界符**：每个 mathInline 记 2 个 `$`、每段连续的
+ *     superscript 记 2 个 `^`、highlight 记 2 处 `==`——它们不在 textContent 里，
+ *     漏记会把「一个字面 `$` + 一个行内公式」判成单个 ⇒ 不转义 ⇒ 重开时定界符
+ *     与字面量重新配对：`价格\$5 对比 $x$ 公式` 整段「$5 对比 $x」被吞成一个
+ *     公式（真跑复现，见 2026-10-25 核实报告）；
+ *  ③ 其余行内原子（wikilink/图片/脚注引用/硬换行）语法不含这三类字符，不计。
+ *
+ * mark 范围的开/合按**渲染侧的真实写法**建模（renderMarks）：任何携带者都能
+ * 开启范围，但**只有文本节点**能终止——不携带 mark 的原子（如图片）并不触发
+ * 关闭，若按「逐节点比对」多计定界符，会平白转义、首存即改字节。
  * 单块内计算一次（renderInline 入口），供该块所有文本节点共用。
  */
-function computePairEscape(text: string): { caret: boolean; equals: boolean; dollar: boolean } {
+function computePairEscapeFromNodes(parent: PMNode): { caret: boolean; equals: boolean; dollar: boolean } {
   let caret = 0;
   let dollar = 0;
   let eqRuns = 0;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (c === '^') caret++;
-    else if (c === '$') dollar++;
-    else if (c === '=' && text[i + 1] === '=') {
-      eqRuns++;
-      i++;
+  let inSup = false;
+  let inHighlight = false;
+  parent.forEach((child) => {
+    const marks = child.marks;
+    const sup = marks.some((m) => m.type.name === 'superscript');
+    const highlight = marks.some((m) => m.type.name === 'highlight');
+    if (sup && !inSup) {
+      caret += 2;
+      inSup = true;
     }
-  }
+    if (highlight && !inHighlight) {
+      eqRuns += 2;
+      inHighlight = true;
+    }
+    if (child.isText) {
+      // 文本节点才真正终止 mark 范围（见上：原子不触发关闭）
+      if (!sup) inSup = false;
+      if (!highlight) inHighlight = false;
+      if (!marks.some((m) => m.type.name === 'code')) {
+        const text = child.text ?? '';
+        for (let i = 0; i < text.length; i++) {
+          const c = text[i];
+          if (c === '^') caret++;
+          else if (c === '$') dollar++;
+          else if (c === '=' && text[i + 1] === '=') {
+            eqRuns++;
+            i++;
+          }
+        }
+      }
+    }
+    if (child.type.name === 'mathInline') dollar += 2;
+  });
   return { caret: caret >= 2, equals: eqRuns >= 2, dollar: dollar >= 2 };
 }
 
@@ -194,6 +231,17 @@ export class MarkdownSerializerState {
   }
 
   /**
+   * 表格单元格内的 `|` 一律写成 `\|` —— **含 href / title / latex / 互链别名 /
+   * 脚注 label 这些不经 escapeInline 的属性与定界符通道**（文本 / code / alt
+   * 通道另有各自的转义点）：GFM 切列时才还原 `\|`，裸 `|` 会把该行切出多余列，
+   * 公式 / 互链 / 链接当场劈开且不可逆（审计 P1-1）。读侧零改动——markdown-it
+   * 的 escapedSplit 会把 `\|` 还原成 `|` 再交给行内解析。
+   */
+  escapeCellPipe(text: string): string {
+    return this.inTableCell ? text.replace(/\|/g, '\\|') : text;
+  }
+
+  /**
    * 写入文本。行首自动补 `lineIndent` 缩进（文本内含换行时**每行**都补）——
    * 这是「列表项内的块留在项内」的唯一机制，块序列化器无需各自关心缩进。
    *
@@ -253,9 +301,11 @@ export class MarkdownSerializerState {
   /** 序列化 inline 内容 */
   renderInline(parent: PMNode) {
     const codeDelims = this._precomputeCodeDelims(parent);
-    // 成对触发的转义判定按**整块文本**算（文本节点边界会切碎一对符号，
-    // 只看单节点会漏判），故在入口算一次供本块共用
-    this.pairNeeded = computePairEscape(parent.textContent);
+    // 成对触发的转义判定按**整块**算（文本节点边界会切碎一对符号，只看单节点会
+    // 漏判），且必须按**写出的形态**计数：文本字面量 + 序列化器将写出的定界符
+    // （mathInline 的 `$`、sup/highlight 的 `^`/`==`）——只数 textContent 会把
+    // 「字面 $ + 行内公式」判成单个而不转义，重开配对错位、内容被吞（P2-1）
+    this.pairNeeded = computePairEscapeFromNodes(parent);
     parent.forEach((child, _offset, index) => {
       if (child.isText) {
         this.renderMarks(child, parent, index, true, codeDelims);
@@ -519,10 +569,11 @@ export class MarkdownSerializerState {
         if (_opening) return '[';
         // stripZwnj：href 是属性通道（不经过 escapeInline）——解析期插的 ZWNJ 会落进
         // attrs 并原样写进用户文件的地址里（`[标题](https://x.com/a，**b**.md)` 实测中招）
-        const href = escapeLinkDestination(stripZwnj(mark.attrs.href as string));
+        // escapeCellPipe：单元格内 href 的 `|` 会切列（P1-1，与文本/code 的 `\|` 同口径）
+        const href = this.escapeCellPipe(escapeLinkDestination(stripZwnj(mark.attrs.href as string)));
         // stripZwnj：link 的 title 同样走属性通道（不经过 escapeInline）
         const title = mark.attrs.title ? stripZwnj(mark.attrs.title as string) : '';
-        return `](${href}${title ? ` "${escapeLinkTitle(title)}"` : ''})`;
+        return `](${href}${title ? ` "${this.escapeCellPipe(escapeLinkTitle(title))}"` : ''})`;
       }
       // ⚠️ default 分支是**数据损失出口**，不是「未知类型兜底」：
       // mark 无 case ⇒ 开闭都不写 ⇒ 文本在、格式静默消失（用户看不出已丢）。
@@ -559,6 +610,8 @@ export class MarkdownSerializerState {
       // 剪贴板模式：轻量转义。核心语法 + `_~[]<>`（出站粘到 Obsidian/Typora
       // 不被重新解释为斜体/删除线/链接样式/HTML）；`_` 由 escapeUnderscores 处理
       result = result.replace(/([`*~[\]<>])/g, '\\$1');
+      // 单元格内 `|` 照样切列（GFM 语义与粘贴目标无关），轻量转义不等于裸奔
+      if (this.inTableCell) result = result.replace(/\|/g, '\\|');
       if (atLineStart) {
         result = result.replace(/^([#+\-.>=])/, '\\$1');
       }
@@ -824,8 +877,10 @@ const nodeSerializers: Record<string, NodeSerializer> = {
     // 重开整张图退化成字面文本（台账 §二 #38）
     const alt = escapeImageAlt(stripZwnj(node.attrs.alt || ''));
     const title = node.attrs.title ? stripZwnj(node.attrs.title as string) : undefined;
-    // stripZwnj：src 同走属性通道，漏剥则隐形字符落进用户文件的路径里
-    const src = escapeLinkDestination(stripZwnj(node.attrs.src || ''));
+    // stripZwnj：src 同走属性通道，漏剥则隐形字符落进用户文件的路径里；
+    // escapeCellPipe：单元格内 src / title / alt 的 `|` 都会切列（P1-1，
+    // alt 含 `|WxH` 尺寸后缀，原先只有 alt 一条通道转义）
+    const src = state.escapeCellPipe(escapeLinkDestination(stripZwnj(node.attrs.src || '')));
     const width = node.attrs.width;
     const height = node.attrs.height;
     // 有尺寸时输出 `![alt|WxH](src)`，无尺寸时输出 `![alt](src)`
@@ -835,9 +890,9 @@ const nodeSerializers: Record<string, NodeSerializer> = {
         : alt;
     // 表格单元格内：`|`（含 `|WxH` 的分隔符本身）会切列，必须转义 —— 重开时
     // markdown-it 的表格规则把 `\|` 还原成 `|`，alt 与尺寸后缀都能正确读回
-    if (state.isInTableCell) altWithDims = altWithDims.replace(/\|/g, '\\|');
+    altWithDims = state.escapeCellPipe(altWithDims);
     if (title) {
-      state.write(`![${altWithDims}](${src} "${escapeLinkTitle(title as string)}")`);
+      state.write(`![${altWithDims}](${src} "${state.escapeCellPipe(escapeLinkTitle(title as string))}")`);
     } else {
       state.write(`![${altWithDims}](${src})`);
     }

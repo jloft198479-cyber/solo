@@ -325,7 +325,12 @@ export class MarkdownParseState {
   }
 
   addNode(type: NodeType, attrs: Record<string, unknown> = {}, content?: PMNode[]) {
-    const node = type.createAndFill(attrs, content);
+    // 行内节点必须带上当前 marks（closeNode 一直在传，这里曾漏第三参）：
+    // `[![alt](img)](url)` 的 image 落在 link 语境里，不带 link mark ⇒ 写出时
+    // 外层 `[…](url)` 整条静默消失；`**![a](i)**` / `**$x$**` 同族丢加粗
+    // （审计 P1-2）。块级节点不传——块不携带行内 marks，传了 createAndFill
+    // 反而可能失败。
+    const node = type.createAndFill(attrs, content, type.isInline ? this.marks : undefined);
     if (!node) return null;
     // ⚠️ `createAndFill` 只校验「新节点装不装得下自己的 content」，**不校验它能否
     // 放进父节点**。两类错位都必须在这里挡住，否则容器内容非法会**逐层放大**，

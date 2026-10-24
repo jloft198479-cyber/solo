@@ -48,10 +48,14 @@ export const wikilinkNodeSerializers: Record<string, NodeSerializer> = {
     // wikilink 且 target="a，\u200C**b"，落盘带 ZWNJ（第三方 F-1 补充 + 我方直接构造实测）
     const target = stripZwnj(node.attrs.target as string);
     const alias = stripZwnj(node.attrs.alias as string);
+    // escapeCellPipe：单元格内 target/alias 里的 `|` 会切列；**分隔符本身也必须
+    // 写成 `\|`**——它是裸 `|`，在单元格里照样切列（重开时 escapedSplit 还原成
+    // `|`，互链语法不受影响）——审计 P1-1
     if (alias) {
-      state.write(`[[${target}|${alias}]]`);
+      const sep = state.isInTableCell ? '\\|' : '|';
+      state.write(`[[${state.escapeCellPipe(target)}${sep}${state.escapeCellPipe(alias)}]]`);
     } else {
-      state.write(`[[${target}]]`);
+      state.write(`[[${state.escapeCellPipe(target)}]]`);
     }
   },
 };
