@@ -60,19 +60,21 @@ export const Subscript = Mark.create({
         find: /(?<!~)~([^~]+)~$/,
         handler: ({ state, range, match }) => {
           const { tr } = state;
-          const captureStart = range.from + match.index!;
           const markType = this.type;
           const text = match[1];
           if (!text) return;
-
-          const fullStart = captureStart;
-          const innerStart = fullStart + 1; // skip opening ~
-          const innerEnd = innerStart + text.length;
-          const closingEnd = innerEnd + 1; // skip closing ~
-
-          tr.delete(innerEnd, closingEnd);
-          tr.delete(fullStart, innerStart);
-          tr.addMark(fullStart, fullStart + text.length, markType.create());
+          // range.from 已是 fullMatch 起点的文档坐标（TipTap runner：
+          // `from - (match[0].length - text.length)`）。match 内偏移必须用
+          // indexOf 求出——match.index 是「匹配在 textBefore 里的下标」，加上它
+          // = 双重计入 ⇒ 越界 RangeError，段中根本做不出下标（审计 P1-3）。
+          const fullMatch = match[0];
+          const start = range.from + fullMatch.indexOf(text);
+          const end = start + text.length;
+          tr.addMark(start, end, markType.create());
+          // 从高位删到低位（先闭合定界符后开启定界符），坐标不漂移；删除只到
+          // range.to（＝刚敲的闭合符），不越过匹配区吃掉后续内容
+          if (end < range.to) tr.delete(end, range.to);
+          if (range.from < start) tr.delete(range.from, start);
           tr.removeStoredMark(markType);
         },
       }),
@@ -98,18 +100,16 @@ function markInputRuleCompat(config: { find: RegExp; type: MarkType }) {
     find: config.find,
     handler: ({ state, range, match }) => {
       const { tr } = state;
-      const captureStart = range.from + match.index!;
       const text = match[1];
       if (!text) return;
-
-      const fullStart = captureStart;
-      const innerStart = fullStart + match[0].indexOf(text);
-      const innerEnd = innerStart + text.length;
-      const closingEnd = fullStart + match[0].length;
-
-      tr.delete(innerEnd, closingEnd);
-      tr.delete(fullStart, innerStart);
-      tr.addMark(fullStart, fullStart + text.length, config.type.create());
+      // 位置数学与上面的 Subscript handler 同源（对齐上游 markInputRule）：
+      // range.from 已是匹配起点，match 内偏移用 indexOf 求，不得加 match.index
+      const fullMatch = match[0];
+      const start = range.from + fullMatch.indexOf(text);
+      const end = start + text.length;
+      tr.addMark(start, end, config.type.create());
+      if (end < range.to) tr.delete(end, range.to);
+      if (range.from < start) tr.delete(range.from, start);
       tr.removeStoredMark(config.type);
     },
   });

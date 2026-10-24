@@ -1,19 +1,73 @@
 import type { Editor as TiptapEditor } from '@tiptap/vue-3';
+import type { Node as PMNode } from '@tiptap/pm/model';
+import { AllSelection, TextSelection } from '@tiptap/pm/state';
 import { serializeClipboardSlice } from './markdown/serializer';
 import { moveListItem } from './list-move';
-import { demoteListItemToBlock, isInsideListOf } from './list-demote';
+import { demoteListItemToBlock, shouldDemoteOnListToggle } from './list-demote';
 
 export interface BubbleMenuActionData {
   href?: string;
 }
 
 /**
- * toggle 家族的「第二次按 = 退出」：只在**已经在同类型列表里**且目标含子列表时接管。
- *
- * 叶子项交回 toggle —— 它自己就能正确退出列表，不必惊动托孤。
+ * 全选（AllSelection）时原生 toggle 会把整篇 wrap 进新列表——实测 v3.31.3，
+ * `- A/- B/- C` 全选点无序 → `- - A\n  - B\n  - C`（#50 要防的空壳嵌套）——
+ * 因为 AllSelection 的 from=0 落在列表外，toggleList 的「已在列表里」分支失配。
+ * 把选区归一为**等价覆盖的文本选区**（起点挪进首块内容、终点进末块内容），
+ * 原生即走正确的「整块退出 / 原地换标记」分支（诊断实测，2026-10-25）。
  */
-function exitList(editor: TiptapEditor, listType: string): boolean {
-  return isInsideListOf(editor.view, listType) && demoteListItemToBlock(editor.view);
+/**
+ * 全选（AllSelection）时原生 toggle 会把整篇 wrap 进新列表——实测 v3.31.3，
+ * `- A/- B/- C` 全选点无序 → `- - A\n  - B\n  - C`（#50 要防的空壳嵌套）——
+ * 因为 AllSelection 的 from=0 落在列表外，toggleList 的「已在列表里」分支失配。
+ * 把选区归一为**等价覆盖的文本选区**后，原生即走正确的「整块退出 / 原地换标记」
+ * 分支（诊断实测，2026-10-25）。
+ *
+ * 端点必须取**真实文本节点**：TrailingNode 会在任何事务后给「以列表结尾的文档」
+ * 补一个空段，按几何下沉取最右叶子会落进空段（无行内内容）⇒ TextSelection 端点
+ * 非法 ⇒ 归一静默失效（实测），所以这里只能扫到末个文本节点为止。
+ */
+function lastTextRange(doc: PMNode): { from: number; to: number } | null {
+  let from: number | null = null;
+  let to = 0;
+  doc.descendants((n, pos) => {
+    // perf-allow: 一次性用户命令（列表按钮/快捷键）触发，每次点击至多一次 O(n)，
+    // 不在每键路径上；且端点必须是真实文本节点（见上），无法用几何下沉替代
+    if (!n.isText) return true;
+    if (from === null) from = pos;
+    to = pos + n.nodeSize;
+    return true;
+  });
+  if (from === null || from >= to) return null;
+  return { from, to };
+}
+
+function normalizeAllSelectionForToggle(editor: TiptapEditor): void {
+  const view = editor.view;
+  const { selection } = view.state;
+  if (!(selection instanceof AllSelection)) return;
+  // 不能 create(doc, 1, size-1)——from 会落在项内块边界（不在 textblock 里），
+  // 原生分支照样不认；TextSelection.between 对块边界还会抛错（诊断实测
+  // 2026-10-25）。无文本的空文档跳过，原生自行处理。
+  const range = lastTextRange(view.state.doc);
+  if (!range) return;
+  view.dispatch(
+    view.state.tr.setSelection(TextSelection.create(view.state.doc, range.from, range.to)),
+  );
+}
+
+/**
+ * toggle 家族的「第二次按 = 退出」：只在**同型容器 + 单项内**（含子列表）时由
+ * 托孤路径接管，其余交回原生 toggleList——多选跨项 / 跨型切换原生本来就能整块
+ * 退出 / 原地换标记，接管反而把结构改坏（审计 P2-2 升 P1，判据见 list-demote）。
+ */
+function exitList(editor: TiptapEditor, itemType: string, containerType: string | null): boolean {
+  const view = editor.view;
+  if (shouldDemoteOnListToggle(view, itemType, containerType)) {
+    return demoteListItemToBlock(view);
+  }
+  normalizeAllSelectionForToggle(editor);
+  return false;
 }
 
 export function runBubbleMenuAction(
@@ -52,8 +106,12 @@ export function runBubbleMenuAction(
       chain.toggleHeading({ level: 2 }).run();
       break;
     case 'bulletList':
-      // 「第二次按 = 退出列表」：已经在无序列表里再按一次 ⇒ 走托孤，不许重排出 `- - 乙`
-      if (!exitList(editor, 'listItem')) chain.toggleBulletList().run();
+      // 「第二次按 = 退出列表」：同型容器 + 单项内才走托孤，不许重排出 `- - 乙`。
+      // 注意 fresh chain：顶部那个 chain 在 exitList 派发「全选归一」事务之前就
+      // 捕获了 state，复用它会把归一前的 AllSelection 又带回来
+      if (!exitList(editor, 'listItem', 'bulletList')) {
+        editor.chain().focus().toggleBulletList().run();
+      }
       break;
     case 'clearFormat':
       // 「清除格式」= 洗澡，不换身份：只去掉装饰（粗体/斜体/高亮/链接…），
@@ -118,14 +176,15 @@ export function executeEditorCommand(editor: TiptapEditor | null, commandId: str
       if (demoteListItemToBlock(editor.view)) return true;
       return chain.setParagraph().run();
     case 'editor.bulletList':
-      if (exitList(editor, 'listItem')) return true;
-      return chain.toggleBulletList().run();
+      if (exitList(editor, 'listItem', 'bulletList')) return true;
+      return editor.chain().focus().toggleBulletList().run();
     case 'editor.orderedList':
-      if (exitList(editor, 'listItem')) return true;
-      return chain.toggleOrderedList().run();
+      if (exitList(editor, 'listItem', 'orderedList')) return true;
+      return editor.chain().focus().toggleOrderedList().run();
     case 'editor.taskList':
-      if (exitList(editor, 'taskItem')) return true;
-      return chain.toggleTaskList().run();
+      // taskItem 不比容器（混编 bulletList 是常态），只判项类型与单项内
+      if (exitList(editor, 'taskItem', null)) return true;
+      return editor.chain().focus().toggleTaskList().run();
     case 'editor.blockquote':
       return chain.toggleBlockquote().run();
     case 'editor.codeBlock':

@@ -5,7 +5,7 @@ import type { Editor, Range } from '@tiptap/core';
 import { PluginKey } from '@tiptap/pm/state';
 
 import { guardedFindSuggestionMatch } from './suggestion-guard';
-import { demoteListItemToBlock, hasListItemToDemote, isInsideListOf } from '../list-demote';
+import { demoteListItemToBlock, hasListItemToDemote, shouldDemoteOnListToggle } from '../list-demote';
 import type { IconName } from '../../../icons/svg';
 
 const slashPluginKey = new PluginKey('slashCommands');
@@ -104,8 +104,9 @@ export const slashCommandItems: SlashCommandItem[] = [
     category: '列表',
     alias: 'wxxb ul lb',
     command: ({ editor, range }) => {
-      // isInsideListOf 已含「在列表项内」的判定，无需再叠 hasListItemToDemote
-      if (isInsideListOf(editor.view, 'listItem')) {
+      // 接管判据收窄（审计 P2-2 升 P1）：同型容器 + 单项内才托孤，
+      // 多选跨项 / 跨型切换交回原生 toggle（判据见 list-demote）
+      if (shouldDemoteOnListToggle(editor.view, 'listItem', 'bulletList')) {
         demoteAfterDelete(editor, range);
         return;
       }
@@ -119,8 +120,9 @@ export const slashCommandItems: SlashCommandItem[] = [
     category: '列表',
     alias: 'yxxb ol lb',
     command: ({ editor, range }) => {
-      // isInsideListOf 已含「在列表项内」的判定，无需再叠 hasListItemToDemote
-      if (isInsideListOf(editor.view, 'listItem')) {
+      // 接管判据收窄（审计 P2-2 升 P1）：同型容器 + 单项内才托孤，
+      // 多选跨项 / 跨型切换交回原生 toggle（判据见 list-demote）
+      if (shouldDemoteOnListToggle(editor.view, 'listItem', 'orderedList')) {
         demoteAfterDelete(editor, range);
         return;
       }
@@ -134,8 +136,8 @@ export const slashCommandItems: SlashCommandItem[] = [
     category: '列表',
     alias: 'rwlb task todo lb',
     command: ({ editor, range }) => {
-      // isInsideListOf 已含「在列表项内」的判定，无需再叠 hasListItemToDemote
-      if (isInsideListOf(editor.view, 'taskItem')) {
+      // taskItem 不比容器（混编 bulletList 是常态），只判项类型与单项内
+      if (shouldDemoteOnListToggle(editor.view, 'taskItem', null)) {
         demoteAfterDelete(editor, range);
         return;
       }

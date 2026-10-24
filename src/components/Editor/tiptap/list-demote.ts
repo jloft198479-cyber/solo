@@ -292,6 +292,35 @@ export function isInsideListOf(view: EditorView, itemType: string): boolean {
 }
 
 /**
+ * toggle 家族「第二次按 = 退出」是否应由托孤路径接管（审计 2026-10-25 P2-2 升 P1）。
+ *
+ * 三条判据全过才接管：
+ *  ① 选区两端（from/to）在**同一个**列表项内——跨项选区只托孤 from 那一项，
+ *     B/C 原地不动（简乐真机报「选中 A/B/C 点列表按钮只退了 A」，实测产物还是
+ *     `- - A` 空壳嵌套）；原生 toggleList 本来就能整块退出，交回它。
+ *  ② 光标所在项类型与目标一致（listItem / taskItem）。
+ *  ③ 该项所在**列表容器**与目标一致——有序/无序的项同为 listItem，只比项类型
+ *     会把「有序切无序」误判成同型二次按，整项被脱出成正文（原生本可原地换标记）。
+ *     taskItem 刻意**不比容器**：待办项混编在 bulletList 里是常态（见上方
+ *     isInsideListOf 的注释），比了会让任务列表的二次按失去托孤保护。
+ * 交回原生 ≠ 放弃 #50：单项内的二次按（含子列表托孤）仍由 demoteListItemToBlock 接管。
+ */
+export function shouldDemoteOnListToggle(
+  view: EditorView,
+  itemType: string,
+  containerType: string | null,
+): boolean {
+  if (isFrozen(view)) return false;
+  const { doc, selection } = view.state;
+  const itemPos = innermostItemAt(doc, selection.from);
+  if (itemPos == null) return false;
+  if (doc.nodeAt(itemPos)?.type.name !== itemType) return false;
+  if (innermostItemAt(doc, selection.to) !== itemPos) return false;
+  if (containerType && doc.resolve(itemPos).parent.type.name !== containerType) return false;
+  return true;
+}
+
+/**
  * 光标是否落在需要接管的列表项上（任意列表项：listItem / taskItem）——
  * 「该不该接管」的闸门。斜杠命令「正文 / 各类列表」用它决定要不要走托孤路径。
  *
