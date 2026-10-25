@@ -5,6 +5,7 @@ import { applyTheme, generateThemeId, getAllPresetThemes, getTheme } from '../th
 import {
   readStoredFocusMode,
   readStoredSettings,
+  reloadStoredSettings,
   writeStoredFocusMode,
   writeStoredSettings,
 } from '../services/tauri/store';
@@ -73,6 +74,42 @@ let _pendingSettings: Settings | null = null;
 let _stopSettingsWatcher: WatchStopHandle | null = null;
 let _stopActiveThemeIdWatcher: WatchStopHandle | null = null;
 let _stopFocusModeWatcher: WatchStopHandle | null = null;
+/**
+ * 载入时的设置基线（本窗口视角的「已知值」），合并写的 diff 参照。
+ * 多窗口下磁盘会被他窗改写，本基线刻意**不**跟进他窗的字段——那正是
+ * 「哪些字段是我改的」的判定依据（审计 P2-3）。
+ */
+let _lastKnownSettings: Settings | null = null;
+/** 显式脏标记：customThemes 是原地 push/splice（引用不变），diff 抓不住 */
+const _explicitDirtyFields = new Set<keyof Settings>();
+
+/**
+ * 合并落盘：reload 重读磁盘 → 只把**本窗口改过的字段**（与基线逐字段 diff ∪
+ * 显式脏标记）合并上去 → 写回。修的是多窗口 last-writer-wins（审计 P2-3）：
+ * 旧实现整快照写回，他窗已落盘的改动会被本窗启动时的旧值静默洗掉。
+ * 写失败不动基线、不清脏标记，下次保存自然重试。
+ */
+async function persistMergedSettings(pending: Settings): Promise<void> {
+  const baseline = _lastKnownSettings ?? pending;
+  const dirty = new Set<keyof Settings>(_explicitDirtyFields);
+  for (const key of Object.keys(pending) as Array<keyof Settings>) {
+    if (!Object.is(pending[key], baseline[key])) dirty.add(key);
+  }
+  try {
+    await reloadStoredSettings();
+    const stored = await readStoredSettings<Partial<Settings>>();
+    const merged: Record<string, unknown> = { ...(stored ?? {}) };
+    for (const key of dirty) merged[key] = pending[key];
+    merged.configVersion = CURRENT_CONFIG_VERSION;
+    await writeStoredSettings(merged);
+    const nextBaseline: Record<string, unknown> = { ...baseline };
+    for (const key of dirty) nextBaseline[key] = pending[key];
+    _lastKnownSettings = nextBaseline as unknown as Settings;
+    _explicitDirtyFields.clear();
+  } catch (error) {
+    console.error('[Settings] 保存配置失败:', error);
+  }
+}
 
 export function normalizeSettings(storedSettings?: Partial<Settings> | null): Settings {
   const merged = { ...DEFAULT_SETTINGS, ...storedSettings };
@@ -141,14 +178,7 @@ export const useSettingsStore = defineStore('settings', {
         _saveTimeout = null;
         const pending = _pendingSettings;
         _pendingSettings = null;
-        try {
-          await writeStoredSettings({
-            ...pending,
-            configVersion: CURRENT_CONFIG_VERSION,
-          });
-        } catch (error) {
-          console.error('[Settings] 保存配置失败:', error);
-        }
+        if (pending) await persistMergedSettings(pending);
       }, 300);
     },
 
@@ -164,14 +194,7 @@ export const useSettingsStore = defineStore('settings', {
       const pending = _pendingSettings;
       _pendingSettings = null;
       if (!pending || !this.isLoaded) return;
-      try {
-        await writeStoredSettings({
-          ...pending,
-          configVersion: CURRENT_CONFIG_VERSION,
-        });
-      } catch (error) {
-        console.error('[Settings] 保存配置失败:', error);
-      }
+      await persistMergedSettings(pending);
     },
 
     /**
@@ -242,6 +265,9 @@ export const useSettingsStore = defineStore('settings', {
       }
 
       this.isLoaded = true;
+      // 合并写的 diff 基线：以「本窗口此刻知道的值」为参照（他窗后续的磁盘改动
+      // 刻意不跟进，见 _lastKnownSettings 注释）
+      _lastKnownSettings = { ...this.settings };
     },
 
     updateAllThemes() {
@@ -298,6 +324,8 @@ export const useSettingsStore = defineStore('settings', {
       };
       this.settings.customThemes.push(nextTheme);
       this.updateAllThemes();
+      // 原地 push 引用不变，diff 抓不住，显式标记脏
+      _explicitDirtyFields.add('customThemes');
       void this.saveSettingsToStore(this.settings);
     },
 
@@ -309,6 +337,8 @@ export const useSettingsStore = defineStore('settings', {
 
       this.settings.customThemes.splice(index, 1);
       this.updateAllThemes();
+      // 原地 splice 引用不变，diff 抓不住，显式标记脏
+      _explicitDirtyFields.add('customThemes');
       void this.saveSettingsToStore(this.settings);
 
       if (this.settings.activeThemeId === themeId) {
