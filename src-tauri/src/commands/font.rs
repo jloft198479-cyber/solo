@@ -6,6 +6,10 @@ use url::Url;
 
 static FONT_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
+/// 字体下载/缓存体积上限。合法中文字体最大 ~20MB（8-15MB 常见），留足余量；
+/// 无上限时恶意/异常响应可把内存与磁盘吃穿（image.rs 的远程图有同款上限，审计 R-4）。
+const MAX_FONT_BYTES: usize = 32 * 1024 * 1024;
+
 /// 校验字体下载 URL：只允许 https。
 /// 当前唯一调用方 fontLoader.ts 用的是硬编码 https 常量，此校验不改变正常行为，
 /// 只堵住命令被传入任意 URL（file:// / http:// 明文）时的读取与降级风险。
@@ -22,6 +26,23 @@ fn validate_font_url(raw: &str) -> Result<String, AppError> {
     Ok(String::from(url))
 }
 
+/// 校验缓存文件名/族名必须是「单段、非路径」形态：拒绝空串、路径分隔符、`..`
+/// 与盘符冒号。此前 save/read/get_cached 三族命令把 IPC 入参直接 `join` 进
+/// font-cache 目录——`file_name="../..x"` 可把读写锚点挪出缓存目录（`read_font_bytes`
+/// 更是整文件读出经 IPC 回传，等于任意文件读取）。与 document/image 命令族的
+/// #9 治理对齐（审计 R-4，两个独立审计分区交叉命中）。
+fn validate_font_file_name(name: &str) -> Result<(), AppError> {
+    if name.is_empty()
+        || name.contains('/')
+        || name.contains('\\')
+        || name.contains("..")
+        || name.contains(':')
+    {
+        return Err(AppError::validation("非法的字体缓存文件名"));
+    }
+    Ok(())
+}
+
 fn font_client() -> Result<reqwest::Client, AppError> {
     if let Some(client) = FONT_CLIENT.get() {
         return Ok(client.clone());
@@ -30,8 +51,21 @@ fn font_client() -> Result<reqwest::Client, AppError> {
     // reqwest 配 rustls-tls（不读系统证书库），但开启 system-proxy feature 后
     // 会自动读环境变量（HTTP_PROXY/HTTPS_PROXY）+ Windows 注册表系统代理，
     // 让 rustls-tls 也能走系统代理下载字体，网络受限环境下不再失败。
+    //
+    // 重定向策略：GitHub release 依赖 302（见 validate_font_url 注释），不能禁；
+    // 但只许 https 跳转——默认策略会跟到任何协议，`https://x` 302 到
+    // `http://y` 时「仅 https」校验被静默打穿成明文（审计 R-4）。
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.url().scheme() != "https" {
+                attempt.error("字体重定向必须保持 https")
+            } else if attempt.previous().len() > 10 {
+                attempt.error("字体重定向次数过多")
+            } else {
+                attempt.follow()
+            }
+        }))
         .build()
         .map_err(|error| AppError::Network(format!("创建客户端失败: {}", error)))?;
 
@@ -86,8 +120,19 @@ pub async fn fetch_font_data(
     app: AppHandle,
 ) -> Result<String, AppError> {
     let url = validate_font_url(&url)?;
-    let response = font_client()?.get(&url).send().await?;
-    let bytes = response.bytes().await?;
+    let mut response = font_client()?.get(&url).send().await?;
+    // 流式接收并设上限（见 MAX_FONT_BYTES）：一次性 bytes() 会先全量落内存，
+    // 上限形同虚设（审计 R-4）
+    let mut bytes: Vec<u8> = Vec::with_capacity(1024 * 1024);
+    while let Some(chunk) = response.chunk().await? {
+        if bytes.len() + chunk.len() > MAX_FONT_BYTES {
+            return Err(AppError::Network(format!(
+                "字体文件超过 {}MB 上限，拒绝下载",
+                MAX_FONT_BYTES / 1024 / 1024
+            )));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
 
     // 下载后立即校验完整性，拒绝截断/损坏文件（不写入缓存）
     validate_font_bytes(&bytes)?;
@@ -114,6 +159,9 @@ pub async fn fetch_font_data(
             .filter(|s| !s.is_empty())
             .unwrap_or(&family)
             .to_string();
+        // URL 末段与 family 兜底都是「会被 join 进缓存目录」的名字，双双校验
+        validate_font_file_name(&file_name)?;
+        validate_font_file_name(&family)?;
         let cached = cache_dir.join(&file_name);
         let tmp = cache_dir.join(format!("{}.tmp", file_name));
         fs::write(&tmp, &bytes)?;
@@ -138,6 +186,8 @@ pub async fn get_cached_font_path(
     file_name: String,
     app: AppHandle,
 ) -> Result<Option<String>, AppError> {
+    validate_font_file_name(&family)?;
+    validate_font_file_name(&file_name)?;
     let cache_dir = app
         .path()
         .app_local_data_dir()
@@ -177,6 +227,8 @@ pub async fn save_font_cache(
     data: Vec<u8>,
     app: AppHandle,
 ) -> Result<(), AppError> {
+    validate_font_file_name(&family)?;
+    validate_font_file_name(&file_name)?;
     let _ = &family; // family 保留用于日志/将来扩展；缓存定位用 file_name（含扩展名）
     // 校验字体完整性，拒绝截断/损坏数据
     validate_font_bytes(&data)?;
@@ -216,6 +268,8 @@ pub async fn read_font_bytes(
     file_name: String,
     app: AppHandle,
 ) -> Result<Vec<u8>, AppError> {
+    validate_font_file_name(&family)?;
+    validate_font_file_name(&file_name)?;
     // 磁盘 IO（读 8-15MB 字体 ×2 路径探测）放 spawn_blocking（对齐 #2 标准）
     tauri::async_runtime::spawn_blocking(move || -> Result<Vec<u8>, AppError> {
         let cache_dir = app
@@ -247,7 +301,7 @@ pub async fn read_font_bytes(
 
 #[cfg(test)]
 mod tests {
-    use super::validate_font_url;
+    use super::{validate_font_file_name, validate_font_url};
 
     #[test]
     fn validate_font_url_accepts_https_release_url() {
@@ -265,6 +319,30 @@ mod tests {
         ] {
             assert!(
                 validate_font_url(bad).is_err(),
+                "expected rejection for {bad}"
+            );
+        }
+    }
+
+    // 审计 R-4：缓存名必须是「单段、非路径」形态，防 IPC 入参把读写锚点挪出
+    // font-cache 目录（read_font_bytes 曾可整文件读出任意路径经 IPC 回传）
+    #[test]
+    fn validate_font_file_name_rejects_path_shapes() {
+        for ok in ["NotoSerifSC-Regular.otf", "LXGWWenKaiLite.ttf", "a"] {
+            assert!(validate_font_file_name(ok).is_ok(), "expected accept for {ok}");
+        }
+        for bad in [
+            "",
+            "..",
+            "../evil.otf",
+            "..\\..\\evil.otf",
+            "sub/dir/font.otf",
+            "C:\\Windows\\evil.otf",
+            "C:/Windows/evil.otf",
+            "a:b.otf",
+        ] {
+            assert!(
+                validate_font_file_name(bad).is_err(),
                 "expected rejection for {bad}"
             );
         }
