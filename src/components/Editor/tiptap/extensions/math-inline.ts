@@ -70,6 +70,11 @@ export const MathInline = Node.create({
         ignoreMutation() {
           return true;
         },
+        // 异步渲染的唯一在途闸门：销毁时 bump 版本号，已发出的 KaTeX 回调全部作废
+        // （对齐 math-block 的 destroy；防销毁后回写已脱离文档的 DOM，审计 C-9）
+        destroy() {
+          renderVersion += 1;
+        },
       };
     };
   },

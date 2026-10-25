@@ -162,7 +162,11 @@ function onKeydown(event: KeyboardEvent) {
     event.preventDefault();
     void onEnter();
   } else if (event.key === 'Escape') {
+    // stopPropagation 必须有：preventDefault 拦不住冒泡，事件会继续到达 window 上的
+    // 全局 Esc 链（useAppDomEvents）——关面板的同时顺手退出了焦点模式/图片视图
+    // （对照 SettingsModal 同场景有显式 stop，审计 D-3）
     event.preventDefault();
+    event.stopPropagation();
     emit('close');
   }
 }

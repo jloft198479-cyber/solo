@@ -532,8 +532,9 @@ export const MermaidBlock = Node.create({
           renderVersion += 1;
           // 从全局 Set 移除，防止主题切换时对已销毁实例重渲
           mermaidNodeViews.delete(handle);
-          // 若 lightbox 正显示本块的 SVG，先关掉，防止悬挂
-          if (lightboxState) closeMermaidLightbox();
+          // 刻意**不**关全局 lightbox：它展示的是本块 SVG 的克隆、不持有本块 DOM，
+          // 无悬挂风险；而全局单例一关，删除/撤销 A 块会误关掉正在看的 B 块预览
+          // （审计 C-4）。lightbox 自身的关闭按钮/层级由它自己的生命周期管理。
           // 清理所有事件监听器，防止内存泄漏
           eventController.abort();
         },

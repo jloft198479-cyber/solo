@@ -324,9 +324,19 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       }
     })();
 
-    const result = await _savePromise;
-    isSaving = false;
-    _savePromise = null;
+    let result: boolean;
+    try {
+      result = await _savePromise;
+    } catch (error) {
+      // 兜住「catch 分支里的确认框/错误框自身 reject」：旧实现这里一抛，
+      // isSaving/_savePromise 永不复位 ⇒ 之后的每次保存（含自动保存）全部
+      // 静默失败，保存功能死到重启窗口（审计 D-1）
+      console.error('[save] 保存链异常（含确认/错误弹窗失败）:', error);
+      result = false;
+    } finally {
+      isSaving = false;
+      _savePromise = null;
+    }
     return result;
   }
 

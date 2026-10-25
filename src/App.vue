@@ -435,9 +435,7 @@ onUnmounted(() => {
             class="statusbar-save-btn"
             :class="{ 'is-dirty': fileStore.currentFile.isDirty }"
             :title="saveButtonHint"
-            @click="
-              fileStore.currentFile.isDirty && documentSession.saveCurrentDocument(false, true)
-            "
+            @click="documentSession.saveCurrentDocument(false, true)"
           >
             <span class="statusbar-save-dot" />
             {{ fileStore.currentFile.isDirty ? '未保存' : '已保存' }}

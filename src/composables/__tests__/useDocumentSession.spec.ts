@@ -902,4 +902,32 @@ describe('useDocumentSession 大文档档位闸门（阈值分层 + 自动降级
     expect(confirmMock).not.toHaveBeenCalled();
     expect(documentTier.value).toBe('normal');
   });
+
+  it('保存失败的错误弹窗自身 reject 也不得卡死保存链（isSaving 必须复位，审计 D-1）', async () => {
+    fileStoreState.currentFile = {
+      path: '/t/a.md',
+      content: '基线\n',
+      isDirty: true,
+      lastModifiedTime: 1000,
+      displayName: 'a',
+      originalBaseName: 'a',
+    };
+    saveDocumentMock.mockRejectedValue(new Error('disk full'));
+    // 弹窗插件自身也坏掉（旧实现：catch 里 await message 抛错 ⇒ isSaving/_savePromise
+    // 永不复位 ⇒ 之后的每次保存都静默失败，保存功能死到重启窗口）
+    messageMock.mockRejectedValue(new Error('dialog broken'));
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: vi.fn(() => '编辑后\n'),
+    });
+
+    const first = await session.saveCurrentDocument(false, true);
+    expect(first).toBe(false);
+
+    // 锁必须已复位：第二次保存能再次真正发起
+    saveDocumentMock.mockClear();
+    await session.saveCurrentDocument(false, true);
+    expect(saveDocumentMock).toHaveBeenCalled();
+  });
 });

@@ -39,7 +39,7 @@ const activeDragDropHandlers = new Set<DragDropHandler>();
  */
 export async function subscribeDragDrop(handler: DragDropHandler): Promise<UnlistenFn> {
   if (!sharedUnlisten) {
-    sharedUnlisten = getCurrentWindow().onDragDropEvent((event) => {
+    const registration = getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type === 'drop' && activeDragDropHandlers.size > 0) {
         const payload: DragDropPayload = {
           type: 'drop',
@@ -64,6 +64,14 @@ export async function subscribeDragDrop(handler: DragDropHandler): Promise<Unlis
         }
       }
     });
+    // 注册失败（启动早期事件系统瞬时不可用）不能把 rejected promise 当「已注册」
+    // 缓存：那会让本窗口的拖拽订阅**永久失效**且无告警（还多一条 unhandled
+    // rejection）。失败置回 null，下次订阅自然重试（审计 D-7）。
+    registration.catch((err) => {
+      console.warn('[drag-drop] 事件注册失败，将在下次订阅时重试:', err);
+      sharedUnlisten = null;
+    });
+    sharedUnlisten = registration;
   }
   activeDragDropHandlers.add(handler);
   return () => {
