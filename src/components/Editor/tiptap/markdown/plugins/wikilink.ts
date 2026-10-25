@@ -5,7 +5,9 @@ import type { MarkdownSyntaxPlugin } from './index';
 import { stripZwnj } from '../../zwnj';
 
 function parseWikilinkText(state: MarkdownParseState, content: string) {
-  const regex = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g;
+  // target 段排除 `[`：贪吃 `[` 再逐起点回溯是 O(n²)，单行数万 `[` 的特制文件
+  // 能把「打开文档」卡住数秒；`[[` 只可能作为整体前缀出现，排除不影响正常互链
+  const regex = /\[\[([^\][|]+)(?:\|([^\]]*))?\]\]/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 

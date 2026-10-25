@@ -109,6 +109,12 @@ export const Wikilink = Node.create<{
           const target = match[1]?.trim() || '';
           const alias = match[2]?.trim() || '';
           if (!target) return;
+          // `![[foo]]` 是嵌入语法（solo 不支持，suggestion-guard 早为 `![[` 加过同款
+          // 守卫）：不带 `!` 判别会把 `!` 留在原地 + 尾部转互链，产出语义错误的
+          // 「伪嵌入」——对齐 convertPendingLink 对 `![` 的 #22 修法（审计 C-7）
+          if (range.from > 0 && state.doc.textBetween(range.from - 1, range.from) === '!') {
+            return;
+          }
 
           const node = this.type.create({ target, alias });
           state.tr.replaceWith(range.from, range.to, node);

@@ -38,7 +38,8 @@ const KNOWN_FIDELITY_GAPS: Record<string, { kind: 'LOSS' | 'FORMAT'; note: strin
     kind: 'FORMAT',
     note: 'mark 顺序按 PM schema 归一（~~**x**~~ → **~~x~~**）。原「上标语境 `=` 过逃逸」已于 2026-09-15 修复',
   },
-  'blockquotes.md': { kind: 'FORMAT', note: '空引用行 `>` 补尾随空格（渲染等价）' },
+  // 'blockquotes.md' 的登记已删：空引用行 `>` 补尾随空格于 2026-10-25 修复（B-2），
+  // 双向锁确认该文件已字节保真
   'edge-cases.md': {
     kind: 'FORMAT',
     note: '方括号 `[` 保守转义（防字面 `[label]` 与文内参考式定义意外配对成链接）。原「`( ) $ | < > . =` 过逃逸」已于 2026-09-15 修复',

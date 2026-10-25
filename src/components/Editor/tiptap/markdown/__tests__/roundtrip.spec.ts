@@ -596,7 +596,8 @@ describe('Round-trip: parse → serialize', () => {
       // 同上：F2 治的是「整块消失」；容器内的**续行缩进逐轮加深**是 qoder 复核 #5
       // 的独立缺陷（写出侧外层 write() 又补一次 lineIndent，而块内容自带前导空格），
       // 归批次 2 的 F8。此处只锁「内容不丢」。
-      expect(roundTrip('> 正文\n> $$b$$\n')).toBe('> 正文\n> \n> $$\n> b\n> $$\n');
+      // 空引用行输出干净的 `>`（2026-10-25 B-2 修复，与下方 callout 行为一致）
+      expect(roundTrip('> 正文\n> $$b$$\n')).toBe('> 正文\n>\n> $$\n> b\n> $$\n');
       expect(roundTrip('> [!NOTE]\n> $$c$$\n')).toBe('> [!NOTE]\n>\n> $$\n> c\n> $$\n');
       expect(roundTrip('- 项\n$$a$$\n')).toBe('- 项\n\n  $$\n  a\n  $$\n');
     });
@@ -834,7 +835,8 @@ describe('Round-trip: parse → serialize', () => {
         schema.nodes.paragraph.create(null, [schema.text('乙')]),
       ]);
       const doc = schema.nodes.doc.create(null, [quote]);
-      expect(serializeMarkdown(doc)).toBe('> 甲\n> \n> 乙\n');
+      // 空行输出干净的 `>` 不带尾随空格（2026-10-25 B-2：旧断言钉的就是那个尾随空格）
+      expect(serializeMarkdown(doc)).toBe('> 甲\n>\n> 乙\n');
     });
 
     it('multiple paragraphs', () => {

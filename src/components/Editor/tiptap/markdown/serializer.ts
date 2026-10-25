@@ -791,7 +791,9 @@ const nodeSerializers: Record<string, NodeSerializer> = {
     const text = inner.output.replace(/\n$/, '');
     const lines = text.split('\n');
     for (const line of lines) {
-      state.writeLine(`> ${line}`);
+      // 空行输出干净的 ">"（不带尾随空格）——callout 序列化器同款（B10）；
+      // 尾随空白是首存字节漂移与 git diff 噪音源（审计 B-2）
+      state.writeLine(line ? `> ${line}` : '>');
     }
     state.closeBlock(node);
   },

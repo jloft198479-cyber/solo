@@ -478,7 +478,13 @@ export function markdownPastePlugin(opts?: {
         // 解析块）会把代码块整个替换掉，故 code 内一律放行。
         if (!hasImage && (clipboard.types?.includes('text/html') ?? false)) {
           const text = clipboard.getData('text/plain');
-          const inCode = Boolean(view.state.selection.$from.parent.type.spec.code);
+          // 代码上下文判**两半**（对齐上游 InputRule runner：parent.spec.code ∥ nodeBefore
+          // 的 code mark）：只判块级会漏行内代码——光标在 `说明` 中间时 replaceSelection
+          // 会把 wikilink/数学原子节点插进 code span，行内代码语法当场劈开（审计 C-3）
+          const $from = view.state.selection.$from;
+          const inCode =
+            Boolean($from.parent.type.spec.code) ||
+            Boolean($from.nodeBefore?.marks.some((m) => m.type.spec.code));
           if (text && !inCode && hasMarkdownOnlySyntax(text)) {
             const mdSlice = parseProprietaryMarkdownPaste(view.state.schema, text);
             if (mdSlice) {
@@ -555,6 +561,16 @@ export function markdownPastePlugin(opts?: {
       // 这里补两道闸：① 剥出站注入的 callout 标题段（判据是来源标记，不是内容）② 命中
       // Word 特征才清理，非 Word HTML 原样返回（零副作用）。
       transformPastedHTML(html: string) {
+        // 体积熔断与 parseHtmlSlice 同一条（Layer 4 有、主粘贴路径曾漏）：超大 HTML
+        // 全量过 DOMParser + PM 解析会卡 UI 数秒；降级为「剥标签的纯文本」而非丢弃，
+        // 内容还在、只是没了格式（审计 R-12）
+        if (html.length > HTML_VOLUME_LIMIT) {
+          const text =
+            new DOMParser().parseFromString(html, 'text/html').body.textContent ?? '';
+          return text.replace(/[&<>]/g, (c) =>
+            c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;',
+          );
+        }
         const withoutInjected = stripInjectedCalloutTitles(html);
         return hasMsoHtml(withoutInjected) ? stripMsoMarkup(withoutInjected) : withoutInjected;
       },
