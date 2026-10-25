@@ -223,4 +223,22 @@ describe('P2-4：字号 token 静态折算（clamp() / 百分比 / 未知单位�
     const washed = washForWechat(externalHtml().innerHTML);
     expect(fontSizeOf(washed.querySelector('h1'))).toBeCloseTo(16 * 1.4, 1);
   });
+
+  it('min()：取最小参数（min(2em,3em) → 2×正文），不被 clamp 的上界语义带偏（第二轮审核①）', () => {
+    document.documentElement.style.setProperty('--mk-heading1-size', 'min(2em, 3em)');
+    const washed = washForWechat(externalHtml().innerHTML);
+    expect(fontSizeOf(washed.querySelector('h1'))).toBeCloseTo(2 * 16, 1);
+  });
+
+  it('max()：取最大参数（守卫上界语义不回退）', () => {
+    document.documentElement.style.setProperty('--mk-heading1-size', 'max(2em, 3em)');
+    const washed = washForWechat(externalHtml().innerHTML);
+    expect(fontSizeOf(washed.querySelector('h1'))).toBeCloseTo(3 * 16, 1);
+  });
+
+  it('无单位数字是非法字号：回落正文字号，不产出 1.5px 隐形字（第二轮审核②）', () => {
+    document.documentElement.style.setProperty('--mk-heading1-size', '1.5');
+    const washed = washForWechat(externalHtml().innerHTML);
+    expect(fontSizeOf(washed.querySelector('h1'))).toBe(16);
+  });
 });

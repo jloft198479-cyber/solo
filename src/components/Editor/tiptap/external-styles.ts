@@ -107,20 +107,32 @@ function readVar(name: string, fallback: string): string {
 function toPx(value: string, base: number): number {
   const v = value.trim().toLowerCase();
   // 函数形态必须先于 parseFloat 判：'clamp(…' 开头 parseFloat 是 NaN，
-  // 放后面会被「解析不出」早退吞掉、永远走不到提取分支（实测踩过）
+  // 放后面会被「解析不出」早退吞掉、永远走不到提取分支（实测踩过）。
+  // 逐个顶层参数取其内 em/px 的最大值（calc 的加法项只能近似）；min() 跨参数
+  // 取最小、clamp()/max()/calc() 取最大——视口项静态折算不了，取上界保证不
+  // 小于可读意图，min 取小才是它自己的语义（第二轮审核①）。嵌套函数不再展开。
   if (/^(?:clamp|min|max|calc)\(/.test(v)) {
-    const candidates: number[] = [];
-    for (const m of v.matchAll(/(\d*\.?\d+)(em|px)\b/g)) {
-      candidates.push(m[2] === 'em' ? Number(m[1]) * base : Number(m[1]));
+    const args = v.slice(v.indexOf('(') + 1, v.lastIndexOf(')')).split(',');
+    const perArg = args
+      .map((arg) => {
+        const nums = [...arg.matchAll(/(\d*\.?\d+)(em|px)\b/g)].map((m) =>
+          m[2] === 'em' ? Number(m[1]) * base : Number(m[1]),
+        );
+        return nums.length > 0 ? Math.max(...nums) : null;
+      })
+      .filter((n): n is number => n != null);
+    if (perArg.length > 0) {
+      return v.startsWith('min(') ? Math.min(...perArg) : Math.max(...perArg);
     }
-    if (candidates.length > 0) return Math.max(...candidates);
     return base;
   }
   const n = Number.parseFloat(v);
   if (!Number.isFinite(n)) return base;
   if (v.endsWith('em')) return n * base;
   if (v.endsWith('%')) return (n / 100) * base;
-  if (v.endsWith('px') || /^-?[\d.]+$/.test(v)) return n;
+  if (v.endsWith('px')) return n;
+  // 无单位数字（手搓主题写 "1.5"）在 CSS 里是非法字号：编辑器回落默认显示正常，
+  // 当 px 用却会产出 1.5px 隐形标题（第二轮审核②）——一并回落 base
   return base;
 }
 
