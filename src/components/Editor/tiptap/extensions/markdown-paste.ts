@@ -561,9 +561,9 @@ export function markdownPastePlugin(opts?: {
       // 这里补两道闸：① 剥出站注入的 callout 标题段（判据是来源标记，不是内容）② 命中
       // Word 特征才清理，非 Word HTML 原样返回（零副作用）。
       transformPastedHTML(html: string) {
-        // 体积熔断与 parseHtmlSlice 同一条（Layer 4 有、主粘贴路径曾漏）：超大 HTML
-        // 全量过 DOMParser + PM 解析会卡 UI 数秒；降级为「剥标签的纯文本」而非丢弃，
-        // 内容还在、只是没了格式（审计 R-12）
+        // 体积熔断与 parseHtmlSlice 同一条（Layer 4 有、主粘贴路径曾漏）：超大 HTML 若
+        // 交给 PM 解析建文档会卡 UI 数秒，这里只做一次 DOM 解析（2MB 约 50-200ms，可接受）
+        // 就降级为「剥标签的纯文本」而非丢弃——文字都在，段落分隔与格式没了（审计 R-12）
         if (html.length > HTML_VOLUME_LIMIT) {
           const text =
             new DOMParser().parseFromString(html, 'text/html').body.textContent ?? '';

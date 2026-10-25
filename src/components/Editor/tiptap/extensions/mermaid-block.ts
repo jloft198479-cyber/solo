@@ -24,6 +24,8 @@ const mermaidNodeViews = new Set<{ rerender: () => void }>();
 let lightboxState: {
   overlay: HTMLDivElement;
   svgWrap: HTMLDivElement;
+  /** 被克隆的源 SVG（仍留在发起方 NodeView 的 dom 内）：销毁方据此判断「这个预览是不是我开的」 */
+  sourceSvg: SVGSVGElement;
   scale: number;
   tx: number;
   ty: number;
@@ -159,6 +161,7 @@ function openMermaidLightbox(sourceSvg: SVGSVGElement | null) {
   lightboxState = {
     overlay,
     svgWrap,
+    sourceSvg,
     scale,
     tx,
     ty,
@@ -532,9 +535,12 @@ export const MermaidBlock = Node.create({
           renderVersion += 1;
           // 从全局 Set 移除，防止主题切换时对已销毁实例重渲
           mermaidNodeViews.delete(handle);
-          // 刻意**不**关全局 lightbox：它展示的是本块 SVG 的克隆、不持有本块 DOM，
-          // 无悬挂风险；而全局单例一关，删除/撤销 A 块会误关掉正在看的 B 块预览
-          // （审计 C-4）。lightbox 自身的关闭按钮/层级由它自己的生命周期管理。
+          // lightbox 是全局单例，只关「本块开的那一个」：删/撤销自己（以及切文档时
+          // 自己先销毁）预览跟着走；删别的块不误关正在看的预览（审计 C-4 的原意）。
+          // 判据用 DOM 归属而非实例标记——源 SVG 仍挂在本 NodeView 的 dom 里。
+          if (lightboxState && dom.contains(lightboxState.sourceSvg)) {
+            closeMermaidLightbox();
+          }
           // 清理所有事件监听器，防止内存泄漏
           eventController.abort();
         },
