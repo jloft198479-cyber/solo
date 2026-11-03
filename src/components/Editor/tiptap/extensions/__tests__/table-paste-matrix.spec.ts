@@ -55,6 +55,15 @@ function hasBold(doc: PMNode): boolean {
   return found;
 }
 
+function hasLink(doc: PMNode): boolean {
+  let found = false;
+  doc.descendants((node) => {
+    if (node.isText && node.marks.some((m) => m.type.name === 'link')) found = true;
+    return !found;
+  });
+  return found;
+}
+
 /** 每个表格的「行数 × 首行列数」—— 用来区分「表格在」和「表格对」 */
 function tableShape(doc: PMNode): Array<{ rows: number; cols: number }> {
   const shapes: Array<{ rows: number; cols: number }> = [];
@@ -263,7 +272,7 @@ describe('表格进站矩阵（来源 → 管道 → 结果）', () => {
   });
 
   // ── D. 空行归一化的副作用回归：块外的东西一个字都不许改 ──────────
-  describe('D. 归一化不得越界（N1–N4，复审实测复现）', () => {
+  describe('D. 归一化不得越界（N1–N7，复审实测复现）', () => {
     it('N1 CRLF / 空行含空格（Windows 来源）→ 表格照样成立', () => {
       expect(
         tableShape(paste({ 'text/plain': '| 甲 | 乙 |\r\n\r\n| --- | --- |\r\n\r\n| 1 | 2 |' })),
@@ -304,6 +313,37 @@ describe('表格进站矩阵（来源 → 管道 → 结果）', () => {
         return true;
       });
       expect(code).toBe('a | b\n\n--- | ---\n\nx');
+    });
+
+    it('N5 爆炸形态 + 后文带竖线句子（有无空行两种）→ 句子必须留在表格外（#82 ①）', () => {
+      const withBlank = paste({
+        'text/plain': '| a | b |\n\n| --- | --- |\n\n| 1 | 2 |\n\n我选 A | B 都行',
+      });
+      expect(tableShape(withBlank)).toEqual([{ rows: 2, cols: 2 }]);
+      expect(withBlank.lastChild?.type.name).toBe('paragraph');
+      expect(withBlank.lastChild?.textContent).toBe('我选 A | B 都行');
+
+      const adjacent = paste({
+        'text/plain': '| a | b |\n\n| --- | --- |\n\n| 1 | 2 |\n我选 A | B 都行',
+      });
+      expect(tableShape(adjacent)).toEqual([{ rows: 2, cols: 2 }]);
+      expect(adjacent.lastChild?.textContent).toBe('我选 A | B 都行');
+    });
+
+    it('N6 表头/分隔行连续 + 数据行夹空行 → 整表成立，不许只剩表头（#82 ②）', () => {
+      const doc = paste({
+        'text/plain': '| a | b |\n| --- | --- |\n\n| 1 | 2 |\n\n| 3 | 4 |',
+      });
+      expect(tableShape(doc)).toEqual([{ rows: 3, cols: 2 }]);
+    });
+
+    it('N7 代码式 arr[0](x) → 不许单独触发链化；正常链接不受牵连（#82 ③）', () => {
+      const code = paste({ 'text/plain': 'arr[0](x) 是数组取值' });
+      expect(hasLink(code)).toBe(false);
+      expect(code.textContent).toContain('arr[0](x)');
+
+      const legit = paste({ 'text/plain': '看 [文档](notes) 了解' });
+      expect(hasLink(legit)).toBe(true);
     });
   });
 

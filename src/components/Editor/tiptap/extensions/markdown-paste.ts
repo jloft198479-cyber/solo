@@ -137,14 +137,14 @@ const FENCE_CLOSE_RE = /^\s{0,3}(`{3,}|~{3,})\s*$/;
  *
  * 越界防护（复审 N1–N4，均已实测复现）：
  * - 空行按 `isBlankLine` 判（CRLF、只含空格/制表符都算），不能拿字面量 `\n\n` 当短路；
- * - **只有「爆炸形态」才跨空行续行**——表头与分隔行之间本来就夹着空行（聊天软件复制）。
- *   连续写的普通表格，空行就是表格结束：否则表格后紧跟的「我选 A | B 都行」会被吞成
- *   末行、相邻两张表会被并成一张；
+ * - **跨空行续行、或爆炸形态（表头与分隔行之间夹空行）的续行，只认行首 `|`**——
+ *   数据行满足；「我选 A | B 都行」这类带竖线散文不满足，不会被吞成末行；
  * - 空行后若出现「含 `|` 的行 + 合法分隔行」，那是下一张表的表头，本表到此结束；
  * - 围栏代码内的内容不是 markdown，整段逐字保留，不参与表格判定与空行合并。
  *
- * 已知取舍：表头与分隔行连续、只有表体行之间夹空行的形态不归一化（宁可少认，
- * 不冒吞掉后文的风险）。块内空行丢弃；块**外**的空行原样保留。
+ * 已知取舍：无首尾竖线、且行间夹空行（或爆炸形态）的表格不归一化（宁可少认，
+ * 不冒吞掉后文的风险）。块内空行丢弃；块**外**的空行原样保留；表格后紧邻
+ * 带竖线但不以 `|` 开头的句子时补一个空行，防止解析器把它当表体行。
  */
 export function joinTableBlankLines(text: string): string {
   // 廉价短路：不含竖线，或全文没有「空行」（含 CRLF / 空格空行）⇒ 无需归一化
@@ -201,18 +201,24 @@ export function joinTableBlankLines(text: string): string {
             let nextSep = j + 1;
             while (nextSep < lines.length && isBlankLine(lines[nextSep])) nextSep += 1;
             if (nextSep < lines.length && isTableSepRow(lines[nextSep])) break;
-            // 普通连续表格：空行就是表格结束，不许跨空行继续吃含 `|` 的句子
-            if (!exploded) break;
           }
 
+          // 爆炸形态与跨空行续行只认行首 `|`；「我选 A | B 都行」这类带竖线散文不是表体
+          if ((exploded || trailingBlanks > 0) && !row.trimStart().startsWith('|')) break;
+
           block.push(row);
-          trailingBlanks = 0; // 爆炸形态下，行间空行属于表格内部 ⇒ 丢弃
+          trailingBlanks = 0; // 跨空行续行/爆炸形态下，行间空行属于表格内部 ⇒ 丢弃
           j += 1;
         }
 
         out.push(...block);
         // 表格与后文之间的空行不属于表格，还回去（避免把段落黏在一起）
         for (let k = 0; k < trailingBlanks; k += 1) out.push('');
+        // 后文是「带竖线但非表体」的句子且原本没有空行时补一个空行：
+        // 否则 markdown-it 仍会把紧邻的「我选 A | B 都行」当表体行
+        if (trailingBlanks === 0 && j < lines.length && lines[j].includes('|')) {
+          out.push('');
+        }
         i = j;
         continue;
       }
@@ -387,11 +393,12 @@ export function parseProprietaryMarkdownPaste(schema: Schema, text: string): Sli
  * ==高亮== / ^上标^ / ~下标~ / ![](图片)）。
  * 单 `*` 仍排除（`a*b*c`、`5 * 3` 等不误判）；`=` / `^` / `~` 的成对形态交给
  * parseInlineMarkdownPaste 的「解析结果必须真有 mark」二次校验，误判只会多解析一次。
+ * 链接/图片要求 `[` 前不是标识符字符，避免 `arr[0](x)` 这类代码写法单独触发链化。
  * 用于 clipboardTextParser 兜底前的「单段落行内标记转换」，弥补纯文本路径不保留
  * 行内格式的缺口（从 Markdown 编辑器复制单段落、HTML 缺失时）。
  */
 export function hasInlineMarkdownSyntax(text: string): boolean {
-  return /(\*\*[^*]+\*\*|`[^`\n]+`|~~[^~]+~~|!?\[[^\]\n]*\]\([^)\n]+\)|==[^=\n]+==|\^[^^\n]+\^|~[^~\n]+~)/.test(
+  return /(\*\*[^*]+\*\*|`[^`\n]+`|~~[^~]+~~|(?<![\w$])!?\[[^\]\n]*\]\([^)\n]+\)|==[^=\n]+==|\^[^^\n]+\^|~[^~\n]+~)/.test(
     text,
   );
 }
