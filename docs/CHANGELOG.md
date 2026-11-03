@@ -22,6 +22,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.67] - 2026-11-03
+
+### Fixed
+- **表格粘贴保真（#80–#83）**：修复从聊天软件 / AI 回答 / Obsidian / Typora 等来源复制 markdown 表格时，因剪贴板表格行间夹空行、或表格前有说明文字而整段塌成普通文字的问题；并修补上一轮修复引入的副作用——Windows CRLF 空行失效、表格后竖线句被吞、相邻两表被合并、围栏代码被改写、`arr[0](x)` 代码写法被误判成链接。新增 `table-paste-matrix.spec.ts` 进站矩阵验收，全量测试通过。
+
 ## [1.2.66] - 2026-10-25
 
 ### Fixed
