@@ -159,6 +159,14 @@ describe('hasInlineMarkdownSyntax（单段落行内标记识别 + 误判防护�
     expect(hasInlineMarkdownSyntax('这段 ~~已废弃~~ 了')).toBe(true);
   });
 
+  it('识别 [链接](url) / ==高亮== / ^上标^ / ~下标~ / ![](图片)', () => {
+    expect(hasInlineMarkdownSyntax('看 [solo](https://example.com) 的说明')).toBe(true);
+    expect(hasInlineMarkdownSyntax('这是 ==高亮== 文本')).toBe(true);
+    expect(hasInlineMarkdownSyntax('E = mc^2^')).toBe(true);
+    expect(hasInlineMarkdownSyntax('H~2~O')).toBe(true);
+    expect(hasInlineMarkdownSyntax('![](a.png)')).toBe(true);
+  });
+
   it('单星号 *斜体* 不触发（避免 a*b*c / 5 * 3 误判）', () => {
     expect(hasInlineMarkdownSyntax('用 a*b*c 计算')).toBe(false);
     expect(hasInlineMarkdownSyntax('5 * 3 = 15')).toBe(false);
@@ -432,6 +440,36 @@ describe('clipboardTextParser 钩子（Layer 1：纯文本 Markdown 识别）', 
       return true;
     });
     expect(hasBold).toBe(true);
+  });
+
+  it('单段落链接 / 高亮 / 上标 / 下标 → 保留对应 mark（P1 行内门）', () => {
+    const cases: Array<[string, string]> = [
+      ['去 [solo](https://example.com) 看看', 'link'],
+      ['这是 ==高亮== 文本', 'highlight'],
+      ['E = mc^2^', 'superscript'],
+      ['H~2~O', 'subscript'],
+    ];
+    for (const [text, mark] of cases) {
+      const slice = callHook(text);
+      expect(slice, text).not.toBeNull();
+      let hasMark = false;
+      slice!.content.descendants((node) => {
+        if (node.isText && node.marks.some((m) => m.type.name === mark)) hasMark = true;
+        return !hasMark;
+      });
+      expect(hasMark, text).toBe(true);
+    }
+  });
+
+  it('只含图片语法 ![](a.png) → 返回含 image 节点的 Slice（无文本 mark 也算有格式）', () => {
+    const slice = callHook('![](a.png)');
+    expect(slice).not.toBeNull();
+    let hasImage = false;
+    slice!.content.descendants((node) => {
+      if (node.type.name === 'image') hasImage = true;
+      return !hasImage;
+    });
+    expect(hasImage).toBe(true);
   });
 
   it('纯文本（无 markdown 语法）→ 返回 null（让默认流程逐行成段）', () => {

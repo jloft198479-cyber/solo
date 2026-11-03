@@ -83,24 +83,145 @@ function insertImageNode(editorView: any, src: string, alt: string) {
   editorView.dispatch(tr);
 }
 
+const isBlankLine = (line: string): boolean => line.trim() === '';
+
 /**
- * 粗判一段文本是否为 GFM 表格：第一行是表头（含 `|`），第二行是分隔行
- * （每个单元格形如 `---` / `:--` / `--:` / `:-:`）。普通文本几乎不会出现这种
- * 第二行模式，足以作为「是否尝试转换」的门槛；真正的解析交给 parseMarkdown。
+ * 分隔行判据：每个单元格形如 `---` / `:--` / `--:` / `:-:`。
+ *
+ * 额外要求**本行含 `|`**：单独一行的 `---` 在 markdown 里是 setext 标题下划线或分隔线
+ * （`我选 A | B 都行` + `---` ⇒ 会被读成一整行标题），不是表格的第二行。单列表格
+ * 也一定写成 `| --- |`，所以这条门槛不误伤任何真实表格。
  */
-export function looksLikeMarkdownTable(text: string): boolean {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return false;
-
-  if (!lines[0].includes('|')) return false;
-
-  const sepCells = lines[1]
+function isTableSepRow(line: string): boolean {
+  if (!line.includes('|')) return false;
+  const cells = line
     .trim()
     .replace(/^\|/, '')
     .replace(/\|$/, '')
     .split('|');
-  if (sepCells.length === 0) return false;
-  return sepCells.every((cell) => /^\s*:?-+:?\s*$/.test(cell));
+  if (cells.length === 0) return false;
+  return cells.every((cell) => /^\s*:?-+:?\s*$/.test(cell));
+}
+
+/**
+ * 粗判文本里是否存在 GFM 表格（**任意位置**，不要求从第一行开始）。
+ *
+ * 为什么不再只看「第一行 / 第二行」：真实的粘贴几乎不会以表格开头——前面总有一句
+ * 「逐条对上：」。旧版只认第一行是表头 ⇒ 带说明文字的表格全部落空。现在扫全文找
+ * 「含 `|` 的行 + 其后（跳过空行）第一行是分隔行」这一对。
+ *
+ * 只在门槛上做粗判，真正的解析仍交给 parseMarkdown（且解析结果必须含 table 节点才算数）。
+ */
+export function looksLikeMarkdownTable(text: string): boolean {
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!lines[i].includes('|')) continue;
+    let sep = i + 1;
+    while (sep < lines.length && isBlankLine(lines[sep])) sep += 1;
+    if (sep < lines.length && isTableSepRow(lines[sep])) return true;
+  }
+  return false;
+}
+
+/** 代码围栏开/闭（CommonMark：最多 3 格缩进，≥3 个同种标记） */
+const FENCE_OPEN_RE = /^\s{0,3}(`{3,}|~{3,})/;
+const FENCE_CLOSE_RE = /^\s{0,3}(`{3,}|~{3,})\s*$/;
+
+/**
+ * 把「表格块内部的空行」合掉，返回可直接交给 parseMarkdown 的文本。
+ *
+ * 为什么必须改文本、而不是在本侧加启发式：GFM 规定分隔行必须**紧接**表头行，中间夹
+ * 一个空行，整块就不是表格了（markdown-it 实测同口径）。而聊天软件 / 部分编辑器的
+ * 「复制」会在每个块级元素之间插空行，粘进来正是这种形态 ⇒ **解析器自己认不出表格**，
+ * 本侧再猜也救不回来。所以这里是「补回上游缺的那条约束」，而不是打补丁。
+ *
+ * 越界防护（复审 N1–N4，均已实测复现）：
+ * - 空行按 `isBlankLine` 判（CRLF、只含空格/制表符都算），不能拿字面量 `\n\n` 当短路；
+ * - **只有「爆炸形态」才跨空行续行**——表头与分隔行之间本来就夹着空行（聊天软件复制）。
+ *   连续写的普通表格，空行就是表格结束：否则表格后紧跟的「我选 A | B 都行」会被吞成
+ *   末行、相邻两张表会被并成一张；
+ * - 空行后若出现「含 `|` 的行 + 合法分隔行」，那是下一张表的表头，本表到此结束；
+ * - 围栏代码内的内容不是 markdown，整段逐字保留，不参与表格判定与空行合并。
+ *
+ * 已知取舍：表头与分隔行连续、只有表体行之间夹空行的形态不归一化（宁可少认，
+ * 不冒吞掉后文的风险）。块内空行丢弃；块**外**的空行原样保留。
+ */
+export function joinTableBlankLines(text: string): string {
+  // 廉价短路：不含竖线，或全文没有「空行」（含 CRLF / 空格空行）⇒ 无需归一化
+  if (!text.includes('|') || !/\r?\n[^\S\r\n]*\r?\n/.test(text)) return text;
+
+  const lines = text.split(/\r?\n/);
+  const out: string[] = [];
+  let i = 0;
+  let fence: { marker: string; length: number } | null = null;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // 围栏内（含闭合行）逐字复制，直到同种标记、长度不短于开启行的闭合行
+    if (fence) {
+      out.push(line);
+      const close = line.match(FENCE_CLOSE_RE);
+      if (close && close[1][0] === fence.marker && close[1].length >= fence.length) {
+        fence = null;
+      }
+      i += 1;
+      continue;
+    }
+    const open = line.match(FENCE_OPEN_RE);
+    if (open) {
+      fence = { marker: open[1][0], length: open[1].length };
+      out.push(line);
+      i += 1;
+      continue;
+    }
+
+    if (line.includes('|')) {
+      let sep = i + 1;
+      while (sep < lines.length && isBlankLine(lines[sep])) sep += 1;
+
+      if (sep < lines.length && isTableSepRow(lines[sep])) {
+        // 表头与分隔行之间夹了空行 ⇒ 爆炸形态，表体也允许跨空行续行
+        const exploded = sep > i + 1;
+        const block: string[] = [line, lines[sep]]; // 表头 + 分隔行（之间的空行丢弃）
+        let j = sep + 1;
+        let trailingBlanks = 0;
+
+        while (j < lines.length) {
+          const row = lines[j];
+          if (isBlankLine(row)) {
+            trailingBlanks += 1;
+            j += 1;
+            continue;
+          }
+          if (!row.includes('|')) break; // 表格块到此结束
+
+          if (trailingBlanks > 0) {
+            // 空行后这行 + 其后（跳过空行）是分隔行 ⇒ 下一张表的表头，本表结束
+            let nextSep = j + 1;
+            while (nextSep < lines.length && isBlankLine(lines[nextSep])) nextSep += 1;
+            if (nextSep < lines.length && isTableSepRow(lines[nextSep])) break;
+            // 普通连续表格：空行就是表格结束，不许跨空行继续吃含 `|` 的句子
+            if (!exploded) break;
+          }
+
+          block.push(row);
+          trailingBlanks = 0; // 爆炸形态下，行间空行属于表格内部 ⇒ 丢弃
+          j += 1;
+        }
+
+        out.push(...block);
+        // 表格与后文之间的空行不属于表格，还回去（避免把段落黏在一起）
+        for (let k = 0; k < trailingBlanks; k += 1) out.push('');
+        i = j;
+        continue;
+      }
+    }
+    out.push(lines[i]);
+    i += 1;
+  }
+
+  return out.join('\n');
 }
 
 /**
@@ -262,13 +383,17 @@ export function parseProprietaryMarkdownPaste(schema: Schema, text: string): Sli
 }
 
 /**
- * 粗判文本是否含行内 Markdown 标记（**加粗** / `代码` / ~~删除线~~）。
- * 仅匹配双字符包裹的标记，排除单 `*`（`a*b*c`、`5 * 3` 等不误判）。
+ * 粗判文本是否含行内 Markdown 标记（**加粗** / `代码` / ~~删除线~~ / [链接](url) /
+ * ==高亮== / ^上标^ / ~下标~ / ![](图片)）。
+ * 单 `*` 仍排除（`a*b*c`、`5 * 3` 等不误判）；`=` / `^` / `~` 的成对形态交给
+ * parseInlineMarkdownPaste 的「解析结果必须真有 mark」二次校验，误判只会多解析一次。
  * 用于 clipboardTextParser 兜底前的「单段落行内标记转换」，弥补纯文本路径不保留
  * 行内格式的缺口（从 Markdown 编辑器复制单段落、HTML 缺失时）。
  */
 export function hasInlineMarkdownSyntax(text: string): boolean {
-  return /(\*\*[^*]+\*\*|`[^`\n]+`|~~[^~]+~~)/.test(text);
+  return /(\*\*[^*]+\*\*|`[^`\n]+`|~~[^~]+~~|!?\[[^\]\n]*\]\([^)\n]+\)|==[^=\n]+==|\^[^^\n]+\^|~[^~\n]+~)/.test(
+    text,
+  );
 }
 
 /**
@@ -278,22 +403,27 @@ export function hasInlineMarkdownSyntax(text: string): boolean {
  * 返回 null 表示纯文本，交给默认流程 / Layer 4 占位升级。
  */
 function tryParseClipboardMarkdown(schema: Schema, text: string): Slice | null {
+  // 表格块内的空行先合掉：聊天软件复制出来的 markdown 表格行间常夹空行，
+  // 不归一化则 markdown 解析器自己就不认表格（细节见 joinTableBlankLines）。
+  // 后续所有分支都用归一化后的文本，保证「散文 + 表格 + 标题」混排时口径一致。
+  const mdText = joinTableBlankLines(text);
+
   // GFM 表格识别
-  if (looksLikeMarkdownTable(text)) {
-    const tableSlice = parseMarkdownTablePaste(schema, text);
+  if (looksLikeMarkdownTable(mdText)) {
+    const tableSlice = parseMarkdownTablePaste(schema, mdText);
     if (tableSlice) return tableSlice;
   }
 
   // 结构化 Markdown 识别（标题/引用/代码围栏/列表/frontmatter）
-  if (looksLikeMarkdownSource(text)) {
-    const generalSlice = parseGeneralMarkdownPaste(schema, text);
+  if (looksLikeMarkdownSource(mdText)) {
+    const generalSlice = parseGeneralMarkdownPaste(schema, mdText);
     if (generalSlice) return generalSlice;
   }
 
   // 专有语法识别（数学块 / wikilink / callout / frontmatter）——
   // 允许单行（如 `[[wikilink]]`、单独 `$$x$$`）无块级语法也走 markdown 解析
-  if (hasMarkdownOnlySyntax(text)) {
-    const proprietarySlice = parseProprietaryMarkdownPaste(schema, text);
+  if (hasMarkdownOnlySyntax(mdText)) {
+    const proprietarySlice = parseProprietaryMarkdownPaste(schema, mdText);
     if (proprietarySlice) return proprietarySlice;
   }
 
@@ -302,8 +432,8 @@ function tryParseClipboardMarkdown(schema: Schema, text: string): Slice | null {
   if (urlSlice) return urlSlice;
 
   // 单段落行内标记（**bold** / `code` / ~~strike~~）→ 走 markdown 解析保留格式
-  if (hasInlineMarkdownSyntax(text)) {
-    const inlineSlice = parseInlineMarkdownPaste(schema, text);
+  if (hasInlineMarkdownSyntax(mdText)) {
+    const inlineSlice = parseInlineMarkdownPaste(schema, mdText);
     if (inlineSlice) return inlineSlice;
   }
 
@@ -312,8 +442,9 @@ function tryParseClipboardMarkdown(schema: Schema, text: string): Slice | null {
 
 /**
  * 将「含行内标记、但无块级语法」的纯文本解析为 Slice。
- * 校验：解析结果必须全部是段落，且至少一个段落含行内 mark（否则说明上层块级
- * 启发式漏了块级语法，或标记是误判——两种情况都返回 null 交给默认流程）。
+ * 校验：解析结果必须全部是段落，且至少一个段落含行内 mark 或图片节点（否则说明上层
+ * 块级启发式漏了块级语法，或标记是误判——两种情况都返回 null 交给默认流程）。
+ * 图片是 inline 节点、没有文本 mark，必须单独计数：只数 mark 会让 `![](a.png)` 落空。
  * openStart/openEnd 用 1，让 ProseMirror 把结果合并进当前段落。
  */
 function parseInlineMarkdownPaste(schema: Schema, text: string): Slice | null {
@@ -334,6 +465,7 @@ function parseInlineMarkdownPaste(schema: Schema, text: string): Slice | null {
     }
     block.descendants((node) => {
       if (node.isText && node.marks.length > 0) hasMark = true;
+      if (node.type.name === 'image') hasMark = true;
       return !hasMark;
     });
   });
@@ -578,7 +710,7 @@ export function markdownPastePlugin(opts?: {
       // ── Layer 2: transformPasted 钩子 ─────────────────────────────
       // 触发：所有粘贴路径（HTML 和纯文本都会过）
       // 职责：装饰性 HTML 塌方时，从 slice.content 反查 Markdown 源救回
-      // 双重闸门：isLowQualityParse + looksLikeMarkdownSource，绝不误伤正常路径
+      // 双重闸门：isLowQualityParse + 结构化/表格判据，绝不误伤正常路径
       transformPasted(slice, view) {
         if (!isLowQualityParse(slice)) return slice;
 
@@ -588,10 +720,16 @@ export function markdownPastePlugin(opts?: {
         slice.content.forEach((node) => {
           parts.push(node.textContent);
         });
-        const md = parts.join('\n');
-        if (!md || !looksLikeMarkdownSource(md)) return slice;
+        const md = joinTableBlankLines(parts.join('\n'));
+        if (!md) return slice;
+        const tableLike = looksLikeMarkdownTable(md);
+        if (!tableLike && !looksLikeMarkdownSource(md)) return slice;
 
-        const rescued = parseGeneralMarkdownPaste(view.state.schema, md);
+        // 表格单走 parseMarkdownTablePaste：parseGeneralMarkdownPaste 内部还有一道
+        // looksLikeMarkdownSource（只认块级语法），纯表格文本会被它二次拦回（复审 #9）。
+        const rescued =
+          (tableLike ? parseMarkdownTablePaste(view.state.schema, md) : null) ??
+          parseGeneralMarkdownPaste(view.state.schema, md);
         return rescued ?? slice;
       },
     },
