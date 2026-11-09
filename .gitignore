@@ -94,3 +94,7 @@ outputs/
 
 # Windows 系统文件
 desktop.ini
+
+# 官网草稿（服务器最新版为准，本地仅存档，不进 git）
+solo-web-v2/
+website/
