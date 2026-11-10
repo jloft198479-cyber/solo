@@ -71,17 +71,30 @@ export function blankClickFallbackPos(
  * （`updateSelection`）来，故本事务对下游插件与原生点击不可区分。
  * `near` 找最近合法光标位（末块是表格 / 图片等非 textblock 时，`size` 处本身
  * 不是合法光标位），末尾向文档前找（-1）、开头向文档后找（1）。
+ *
+ * ⚠️ 顺序契约（2026-11-10 RangeError 回归）：`view.focus()` 会让 NodeView 的
+ * textarea（mermaid / math / callout 标题）失焦回写，派发事务后 **doc 换版**。
+ * Selection 绑定创建它的 doc，拿换版前造好的 selection 去 `tr.setSelection` 会抛
+ * "Selection passed to setSelection must point at the current document"。
+ * 故位置与选区一律在 focus **之后**、用「当前事务自己的 doc」构造 —— 与全仓其余
+ * `setSelection` 调用点的 `tr.doc.resolve(...)` 范式对齐（本处原是唯一例外）。
+ *
+ * `resolvePos` 在 focus 后重算：`posOutsideContent` 返回「当前文档首/末」，不是某个
+ * 需要 mapping 的内容位置；doc 换版后旧 size 会漂移，重算才贴得准。
  */
-function applyBlankClickFocus(view: EditorView, pos: number): void {
-  const selection = TextSelection.near(
-    view.state.doc.resolve(pos),
-    pos === DOC_START ? 1 : -1,
-  );
+function applyBlankClickFocus(view: EditorView, resolvePos: () => number | null): boolean {
   // preventDefault 会吞掉浏览器原生聚焦，必须手动 focus
   view.focus();
-  const tr = view.state.tr.setSelection(selection);
+
+  const pos = resolvePos();
+  if (pos === null) return false;
+
+  const tr = view.state.tr;
+  const selection = TextSelection.near(tr.doc.resolve(pos), pos === DOC_START ? 1 : -1);
+  tr.setSelection(selection);
   tr.setMeta('pointer', true);
   view.dispatch(tr);
+  return true;
 }
 
 /**
@@ -93,10 +106,11 @@ export function handleBlankAreaMousedown(view: EditorView, event: MouseEvent): b
   const paper = event.currentTarget;
   if (!(paper instanceof HTMLElement)) return false;
 
-  const pos = blankClickFallbackPos(view, event, paper);
-  if (pos === null) return false;
+  // 先判据（决定是否接管）；focus 后位置可能因 doc 换版而漂移，故交给
+  // applyBlankClickFocus 在 focus 之后重算一次，两处共用同一份判据。
+  if (blankClickFallbackPos(view, event, paper) === null) return false;
 
-  applyBlankClickFocus(view, pos);
-  event.preventDefault();
-  return true;
+  const handled = applyBlankClickFocus(view, () => blankClickFallbackPos(view, event, paper));
+  if (handled) event.preventDefault();
+  return handled;
 }

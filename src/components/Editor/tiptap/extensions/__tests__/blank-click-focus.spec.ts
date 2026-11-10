@@ -181,4 +181,20 @@ describe('handleBlankAreaMousedown 端到端（监听挂在纸面上）', () => 
     expect(view.state.selection.head).toBe(6);
     expect(ev.defaultPrevented).toBe(false);
   });
+
+  it('focus 期间 doc 换版（NodeView 失焦回写）→ 不抛 RangeError，落点贴准新文档末尾', () => {
+    const sizeBefore = view.state.doc.content.size;
+    // 复现真实链路：点留白 → view.focus() → mermaid textarea blur → exitEdit()
+    // dispatch 回写内容 ⇒ view.state.doc 换版。修前拿「换版前」造好的 selection 去
+    // tr.setSelection ⇒ "Selection passed to setSelection must point at the current document"。
+    vi.spyOn(view, 'focus').mockImplementation(() => {
+      view.dispatch(view.state.tr.insertText('x', sizeBefore - 1));
+    });
+
+    const ev = mouse({ clientY: 500 });
+    expect(() => paper.dispatchEvent(ev)).not.toThrow();
+    expect(ev.defaultPrevented).toBe(true);
+    // 修后：focus 之后重算位置 + 用当前 tr 的 doc 构造 ⇒ 贴准换版后的文档末尾
+    expect(view.state.selection.head).toBe(view.state.doc.content.size - 1);
+  });
 });
