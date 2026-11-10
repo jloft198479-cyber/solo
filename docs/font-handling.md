@@ -149,7 +149,7 @@ updates: [src/services/fontLoader.ts, src-tauri/src/commands/font.rs, ARCHITECTU
 # 配齐 Rust + MSVC 环境（普通 PowerShell 默认缺，Trae 终端通常自带，可跳过）
 $env:PATH="M:\rust\.cargo\bin;M:\VS\BuildTools\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64;C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64;"+$env:PATH
 
-cd F:\fzz-Project\md-editor
+cd "$(git rev-parse --show-toplevel)"
 bun run dev:tauri:inspect   # :inspect 会设 SOLO_OPEN_DEVTOOLS=1 自动开开发者工具
 ```
 

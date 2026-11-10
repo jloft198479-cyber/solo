@@ -132,7 +132,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables +
 ## 3. 目录结构
 
 ```
-md-editor/
+<仓库根目录>/
 ├── src/                          # 前端
 │   ├── main.ts                   #   入口：createApp + Pinia + main.css（极简，仅此）
 │   ├── App.vue                   #   协调层：接线 composables + 视图模式切换

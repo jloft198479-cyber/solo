@@ -1,5 +1,6 @@
 import fs from 'node:fs';
-const h = fs.readFileSync('F:/fzz-Project/03-solo/solo-web-v2/index.html', 'utf8');
+import { INDEX_HTML, OG_PNG } from './paths.mjs';
+const h = fs.readFileSync(INDEX_HTML, 'utf8');
 
 const ids = [...h.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
 const dupIds = ids.filter((v, i) => ids.indexOf(v) !== i);
@@ -33,7 +34,7 @@ const httpInsecure = (h.match(/http:\/\//g) || []).length;
 const title = (h.match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1] || '';
 const desc = (h.match(/<meta name="description" content="([^"]*)"/) || [])[1] || '';
 
-const png = fs.readFileSync('F:/fzz-Project/03-solo/solo-web-v2/og.png').subarray(0, 33);
+const png = fs.readFileSync(OG_PNG).subarray(0, 33);
 const ogW = png.readUInt32BE(16), ogH = png.readUInt32BE(20);
 
 console.log(JSON.stringify({

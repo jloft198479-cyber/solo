@@ -1,6 +1,6 @@
 # solo-web 站点优化建议书
 
-> **范围**：`F:\fzz-Project\solo-web` 全站（`index.html` / `styles.css` / `main.js` / `DESIGN.md` / `README.md`）。**只评不改**，本文件是唯一新增物。
+> **范围**：`solo-web` 全站副本（`index.html` / `styles.css` / `main.js` / `DESIGN.md` / `README.md`）。**只评不改**，本文件是唯一新增物。
 > **判据来源**：① 站点自身规范 `DESIGN.md`；② solo 仓库真理源 `docs/FEATURE-MATRIX.md`、`src/themes/presets/*.json`、`src/components/Editor/tiptap/extensions/callout.ts`；③ 本机实算的 WCAG 2.1 对比度。
 > **文中所有对比度数字为公式实算**，不引用 `DESIGN.md` 里写的值。
 
@@ -144,7 +144,7 @@
 1. **暗色缺 `color-scheme`**：全文没有 `color-scheme` 声明 → 暗色主题下浏览器滚动条/表单控件仍是亮色，右侧一条白边很跳。`:root[data-theme="dark"] { color-scheme: dark }`（亮色同理），一行。
 2. **锚点被吸顶页头压住**：`.site-header` sticky（`styles.css:141`）、`min-height:64px`（`:155`），而区块 `padding-block` 最小也是 64px（`:211`）→ 小屏点导航后标题正好贴在页头下沿。加 `--header-h: 64px` token + `section[id] { scroll-margin-top: calc(var(--header-h) + var(--sp-2)) }`（走 token，不撒魔法数字，按 `AGENTS.md §1.2`）。
 3. **`transition: all`**（`styles.css:410`）违反 `DESIGN.md:126`「不动画化布局属性」→ 明确列出 `color, border-color, background-color`。
-4. **品牌位用的是 favicon**：`index.html:27`、`:561` 的 logo 是 `favicon.svg`（小尺寸方章），而 `md-editor/public/icon.png` 才是产品正式图标。另建议补 `apple-touch-icon` 和 PNG 兜底。
+4. **品牌位用的是 favicon**：`index.html:27`、`:561` 的 logo 是 `favicon.svg`（小尺寸方章），而 `public/icon.png` 才是产品正式图标。另建议补 `apple-touch-icon` 和 PNG 兜底。
 5. **衬线"书卷气"依赖本机装了什么**：非中文 Windows 上大概率只剩 `SimSun` 或不确定的 `serif` 兜底，主视觉气质随机。**建议在 `DESIGN §1` 的"零外链"前提下自托管一个标题字子集**——全站标题只用到约 60 个汉字，子集化后是几 KB 量级，既不破"无外部请求"，又能保证 `h1` 在每台机器上都是同一张脸。
 6. **导航无当前区块高亮**：10 个区块 6 个入口，滚到中间就不知道自己在哪。复用已有的 IntersectionObserver 加 8–10 行。
 7. **mermaid 示意图两处待真机确认**：`index.html:306` 用 `font-family="var(--font-sans)"`（表现属性里放 `var()`，SVG 1.1 文法不合法，现代浏览器一般可解析，但没兜底）；`:313` 一条 `path` 里放两个子路径再挂 `marker-end`，箭头是否两支都出得来取决于实现。建议：`var()` 改写到 `style` 或 `<style>` 里，两个子路径拆成两条 `path`。

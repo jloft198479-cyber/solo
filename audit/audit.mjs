@@ -4,10 +4,10 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { spawn } from 'node:child_process';
 
-const ROOT = path.resolve('F:/fzz-Project/03-solo/solo-web-v2');
+import { SITE_ROOT as ROOT, CHROME } from './paths.mjs';
+
 const PORT = 8099;
 const CDP = 9333;
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',

@@ -21,10 +21,10 @@ updates: [docs/RELEASE_PROCESS.md]
 打开 PowerShell（Win + R → 输入 `powershell` → 回车），然后**复制粘贴**下面这行命令：
 
 ```powershell
-cd F:\fzz-Project\md-editor
+Set-Location (git rev-parse --show-toplevel)
 ```
 
-> 这行命令的意思是：告诉电脑"我要在这个项目文件夹里干活"。
+> 这行命令的意思是：告诉电脑"我要在这个项目文件夹里干活"。它会自动找到当前仓库的根目录，所以项目文件夹改名、换盘都不用改这行。
 
 ---
 

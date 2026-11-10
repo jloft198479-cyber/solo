@@ -45,7 +45,11 @@ if (Test-Path $vcvars) {
 }
 
 # --- 进入项目目录并构建 ---
-Set-Location "F:\fzz-Project\md-editor"
+# 项目根 = 本脚本所在 scripts/ 的上一级；改名 / 换盘后无需改这里。
+# $PSScriptRoot 只在「以脚本文件运行」时有值；若把内容复制粘贴到终端里跑则为空，
+# 此时退回当前目录（粘贴前先 cd 到仓库根即可）。直接裸用会报「Path 为 null」。
+$repoRoot = if ($PSScriptRoot) { Split-Path $PSScriptRoot -Parent } else { (Get-Location).Path }
+Set-Location $repoRoot
 Write-Host ""
 Write-Host "=== MD编辑器 Debug 构建 ===" -ForegroundColor Green
 Write-Host "Rust: $(rustc --version)" -ForegroundColor Cyan

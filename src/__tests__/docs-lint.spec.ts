@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { resolve, dirname, relative } from 'node:path';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 function findRepoRoot(from: string): string {
@@ -91,5 +92,62 @@ describe('docs 死链检查', () => {
       }
     }
     expect(dead, `发现 ${dead.length} 处死链：\n` + dead.join('\n')).toEqual([]);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * 项目位置硬编码检查（2026-11-10 加）
+ *
+ * 起因：项目文件夹从 `md-editor` 改名为 `03-solo` 后，一批启动/构建脚本因写死
+ *      绝对路径而失效（`cd` 到不存在的目录）。
+ * 判据：**不**扫工具链路径（`M:\rust` / `M:\VS` / `D:\nodejs` 属本机环境事实，
+ *      见 BUILD_GUIDE.md）；只盯「项目所在目录」这一个前缀，且该前缀从仓库实际
+ *      位置动态推导 —— 本 spec 自身也不写死具体路径。
+ * 范围：git 跟踪的脚本 / 源码 / 文档；跳过历史归档与 agent 生成物。
+ * 边界：仓库若直接放在盘符根（如 `F:\`），前缀过宽会误伤，此时跳过并告警。
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** 只看这些扩展名，避免把图片 / 锁文件当文本读 */
+const GUARD_EXT = /\.(md|markdown|bat|cmd|ps1|py|mjs|cjs|js|ts|vue|json|jsonc|toml|ya?ml)$/i;
+/** 历史归档 / 生成物：归档即免责，不参与检查 */
+const GUARD_SKIP = /^(docs\/archive\/|\.archive-档案室\/|outputs\/)/;
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+describe('项目位置硬编码检查', () => {
+  it('被 git 跟踪的脚本/源码/文档不应写死项目所在目录的绝对路径', () => {
+    const parentSegs = dirname(ROOT).split(/[\\/]/).filter(Boolean);
+    if (parentSegs.length <= 1) {
+      console.warn('[docs-lint] 仓库位于盘符根，项目位置前缀过宽，跳过硬编码检查');
+      return;
+    }
+    const prefix = escapeRe(parentSegs.join('/')).replace(/\//g, '[\\\\/]+');
+    const hardcoded = new RegExp(`${prefix}[\\\\/]`, 'i');
+
+    let tracked: string[];
+    try {
+      tracked = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' })
+        .split('\0')
+        .filter(Boolean);
+    } catch {
+      console.warn('[docs-lint] 取不到 git 跟踪清单（非 git 环境），跳过硬编码检查');
+      return;
+    }
+
+    const hits: string[] = [];
+    for (const rel of tracked) {
+      if (GUARD_SKIP.test(rel) || !GUARD_EXT.test(rel)) continue;
+      const text = readFileSync(resolve(ROOT, rel), 'utf8');
+      text.split(/\r?\n/).forEach((line, i) => {
+        if (hardcoded.test(line)) hits.push(`${rel}:${i + 1}  ${line.trim().slice(0, 120)}`);
+      });
+    }
+
+    expect(
+      hits,
+      `发现 ${hits.length} 处项目位置硬编码（改名 / 挪位即失效）。\n` +
+        `改成自定位：.bat 用 %~dp0、PowerShell 用 $PSScriptRoot、Node 用 import.meta.url、Python 用 __file__。\n` +
+        hits.join('\n'),
+    ).toEqual([]);
   });
 });

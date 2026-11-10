@@ -1,10 +1,9 @@
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 
-const OUT = 'F:/fzz-Project/03-solo/audit/shots';
+import { SHOTS_DIR as OUT, CHROME, INDEX_URL as URL } from './paths.mjs';
+
 const CDP = 9335;
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const URL = 'file:///F:/fzz-Project/03-solo/solo-web-v2/index.html';
 const profile = process.env.TEMP + '/sect-' + Date.now();
 
 const chrome = spawn(CHROME, ['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--remote-debugging-port='+CDP,'--remote-allow-origins=*','--user-data-dir='+profile,'--hide-scrollbars','about:blank'], { stdio: 'ignore' });

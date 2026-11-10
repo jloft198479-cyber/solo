@@ -19,7 +19,10 @@ if (Test-Path $vcvars) {
     }
 }
 
-Set-Location "F:\fzz-Project\md-editor"
+# Project root = parent of this script's scripts/ dir; survives renames / moves.
+# $PSScriptRoot is empty when the body is pasted into a terminal; fall back to CWD.
+$repoRoot = if ($PSScriptRoot) { Split-Path $PSScriptRoot -Parent } else { (Get-Location).Path }
+Set-Location $repoRoot
 Write-Host ""
 Write-Host "=== Solo Build ===" -ForegroundColor Green
 Write-Host "Rust: $(rustc --version)" -ForegroundColor Cyan

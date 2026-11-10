@@ -28,7 +28,8 @@ import sys
 import time
 import urllib.request
 
-ROOT = r"F:\fzz-Project\md-editor"
+# 项目根 = 本脚本所在 scripts/ 的上一级；改名 / 换盘后无需改这里
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_PORT = 9222
 
 

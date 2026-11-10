@@ -222,7 +222,7 @@ $env:PATH = "$msvcBin;M:\rust\.cargo\bin;" + $env:PATH
 $env:INCLUDE = "$msvcRoot\include;$sdkInc\ucrt;$sdkInc\um;$sdkInc\shared"
 $env:LIB = "$msvcRoot\lib\x64;$sdkLib\ucrt\x64;$sdkLib\um\x64"
 $env:CARGO_HOME = "M:\rust\.cargo"; $env:RUSTUP_HOME = "M:\rust\.rustup"
-Set-Location "F:\fzz-Project\md-editor\src-tauri"
+Set-Location (Join-Path (git rev-parse --show-toplevel) 'src-tauri')
 cargo check 2>&1   # 只类型检查、不调 link.exe，故无 Git Bash 下 link 抢占问题
 ```
 

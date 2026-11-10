@@ -308,8 +308,8 @@ gh release download v1.x.x -D .sandbox-cnb/assets --clobber
 export CNB_TOKEN=$(cat ~/.cnb/personal-token)
 node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
   --repo fzz198479/solo --tag v1.x.x \
-  --assets-dir "F:/fzz-Project/md-editor/.sandbox-cnb/assets" \
-  --body-file "F:/fzz-Project/md-editor/.sandbox-cnb/body.md" --target-commitish main
+  --assets-dir ".sandbox-cnb/assets" \
+  --body-file ".sandbox-cnb/body.md" --target-commitish main
 
 # 3. 完整性校验：自算 sha256 与从 CNB 下载回来的文件比对，必须一致
 ```
@@ -533,14 +533,14 @@ node node_modules/vue-tsc/bin/vue-tsc.js --noEmit && node node_modules/vite/bin/
 2. **SDK 路径含空格**（`C:\Program Files (x86)\...`）⇒ 塞进 `RUSTFLAGS` 会被 rustc 拆成多个文件名参数（`Files` / `(x2)` / `Kits/...` 各成一个）。`PROGRA~2` 短路径也救不了（`Windows Kits` 仍有空格）。
 3. **Rust 装在 M盘**，不设 `CARGO_HOME` / `RUSTUP_HOME` 会报 `could not write settings file: M:\rust\.rustup \settings.toml`（注意路径尾部那个空格——是 bash 传参搞的）。
 
-**对策（唯一正解，照 [BUILD_GUIDE §4.3](./../BUILD_GUIDE.md) 官方方式，写成 `.bat` 跑）**：
+**对策（唯一正解，照 [BUILD_GUIDE §4.3](./../BUILD_GUIDE.md) 官方方式，写成 `.bat` 跑）**：把 `.bat` 放在仓库根目录，`%~dp0` 即仓库根，改名 / 换盘都不用改脚本。
 ```bat
 @echo off
 call M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat >nul 2>&1
 set CARGO_HOME=M:\rust\.cargo
 set RUSTUP_HOME=M:\rust\.rustup
 set PATH=M:\rust\.cargo\bin;%PATH%
-cd /d F:\fzz-Project\md-editor\src-tauri
+cd /d "%~dp0src-tauri"
 cargo check --message-format=short
 ```
 - **为什么 bat 里天然解决**：vcvars64 会把 MSVC 的 `bin` 放到 PATH **最前** ⇒ 假 `link` 被顶掉；`LIB` / `INCLUDE`（含带空格的 SDK 路径）由 vcvars 设好，**不需要手工传** ⇒ 绕开拆参问题。
@@ -565,8 +565,8 @@ cargo check --message-format=short
 export CNB_TOKEN=$(cat ~/.cnb/personal-token)   # 个人令牌，勿入库
 node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
   --repo fzz198479/solo --tag v1.x.x \
-  --assets-dir "F:/fzz-Project/md-editor/.sandbox-cnb/assets" \
-  --body-file "F:/fzz-Project/md-editor/.sandbox-cnb/body.md" --target-commitish main
+  --assets-dir ".sandbox-cnb/assets" \
+  --body-file ".sandbox-cnb/body.md" --target-commitish main
 ```
 - **完整性校验**：CNB 上传确认里**没有 sha256**，自算 `sha256sum` 与从 CNB 下载回来的文件比对，三方一致才算妥（本地原文件 = CNB 下载 = `get-release-by-tag` 返回的 `hash_value`）。
 - 令牌权限探针：403 = 无写权限（换个人令牌）；409 = 权限正常仅 tag 重复。

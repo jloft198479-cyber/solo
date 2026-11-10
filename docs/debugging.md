@@ -23,7 +23,10 @@ updates: [TROUBLESHOOTING.md, BUILD_GUIDE.md, src-tauri/src]
    ```js
    // .sandbox-dev/vite-dev.mjs
    import { createServer } from 'vite';
-   const ROOT = 'F:/fzz-Project/md-editor';
+   import path from 'node:path';
+   import { fileURLToPath } from 'node:url';
+   // 项目根从本文件位置推（.sandbox-dev/ 的上一级），改名 / 换盘不用改这里
+   const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
    const server = await createServer({ root: ROOT, configFile: `${ROOT}/vite.config.ts`, cacheDir: `${ROOT}/.sandbox-dev/.vite-cache` });
    await server.listen(); server.printUrls();
    ```

@@ -1,11 +1,10 @@
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 
-const OUT = 'F:/fzz-Project/03-solo/audit/shots';
+import { SHOTS_DIR as OUT, CHROME, INDEX_URL as URL } from './paths.mjs';
+
 fs.mkdirSync(OUT, { recursive: true });
 const CDP = 9334;
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const URL = 'file:///F:/fzz-Project/03-solo/solo-web-v2/index.html';
 const profile = process.env.TEMP + '/shots-' + Date.now();
 
 const chrome = spawn(CHROME, [

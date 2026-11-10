@@ -4,10 +4,9 @@ import path from 'node:path';
 import zlib from 'node:zlib';
 import { spawn } from 'node:child_process';
 
-const ROOT = path.resolve('F:/fzz-Project/03-solo/solo-web-v2');
-const ALT = path.resolve('F:/fzz-Project/03-solo/audit');
+import { SITE_ROOT as ROOT, AUDIT_DIR as ALT, CHROME } from './paths.mjs';
+
 const PORT = 8101, CDP = 9336;
-const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const RATE = Number(process.env.RATE || 4);
 const LOADS = Number(process.env.LOADS || 3);
 const PAGE = process.env.PAGE || 'index.html';
