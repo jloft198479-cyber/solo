@@ -177,7 +177,7 @@ view.dispatch(tr);
 | **#13 时序 / UI / IME 必须真机验证** | 收尾必做真机手感验收（人工），不靠单测交差 |
 | **#14 不许文档硬编码计数** | 本文不写精确行数 |
 
-**改动后必跑**：`vue-tsc --noEmit` + `bun run test` + `bun run build`，**外加真机手感验收**。
+**改动后必跑**：`vue-tsc --noEmit` + `bun run test`，**外加真机手感验收**（构建交给 CI）。
 
 ---
 

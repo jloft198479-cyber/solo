@@ -54,8 +54,8 @@ bun install                 # 安装 JS 依赖
 bun run dev                 # 仅前端（Vite）
 bun run dev:tauri           # 全栈（Rust + Vue）
 bun run dev:tauri:inspect   # 启动时自动开 DevTools（SOLO_OPEN_DEVTOOLS=1）
-bun run build               # vue-tsc --noEmit && vite build
-bun run build:tauri         # 打包安装器
+bun run build               # vue-tsc --noEmit && vite build（CI 也会跑；本地非必需）
+bun run build:tauri         # 打包安装器（默认交给 CI，仅排障时本地跑）
 bun run test                # 全量 Vitest（happy-dom），必须 0 失败
 bun run lint                # 静态检查
 ```
@@ -79,7 +79,7 @@ bun run lint                # 静态检查
 
 ### 3.3 提交前强制检查
 1. 跑 `bun run test` — **全量 0 失败**。
-2. 跑 `bun run build` — 类型 + 构建通过。
+2. 跑 `bunx vue-tsc --noEmit` — 类型通过（`vite build` 与打包交给 CI，本地不跑）。
 3. 改了 Rust：本地 `cargo check`（按 §1.2 加载环境）必须过。
 4. 确认没有 `replaceAll` / `replaceAllAsync`（TS target = ES2020，用 `.split().join()` 替代）。检查：`rg "replaceAll|replaceAllAsync" src/`
 5. 先看 `git status` 再提交；**不提交 secrets、不提交 `node_modules` / `target`**。
@@ -92,8 +92,7 @@ bun run lint                # 静态检查
 2. **确认影响范围**：改了一个文件，还有哪些文件受影响？逐个检查。
 3. **改 parser / serializer 后必须**：
    - `bun run test` 所有 roundtrip 测试通过；
-   - `vue-tsc --noEmit` 通过；
-   - `bun run build` 通过。
+   - `vue-tsc --noEmit` 通过。
 4. **动「真理源」文件要格外小心**（见 `HANDOVER.md` 真理源表）：命令名只在 `command-names.ts`、命令定义只在 `registry.ts`、字体清单 `fonts.ts`、字体栈 `fontStack.ts`、主题映射 `types.ts::CSS_VAR_MAP`、Rust 命令总数 `lib.rs::generate_handler!`。
 5. **宁可少改，不要过度工程**（决策阶梯：YAGNI 优先）。
 

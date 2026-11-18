@@ -61,7 +61,7 @@ bun run dev                      # 纯前端 dev
 bun run dev:tauri                # 全栈（含 Rust）
 bun run dev:tauri:inspect        # 全栈 + 打开 DevTools（SOLO_OPEN_DEVTOOLS=1）
 bun run test                     # Vitest 全量（当前 32 spec 文件，以实际输出为准）
-bun run build:tauri              # 打安装包
+bun run build:tauri              # 打安装包（默认交给 CI；本地仅排障且经同意时跑）
 ```
 
 > [警告] **测试陷阱（本机 bun/Windows 实测）**：`bun run test` 子集过滤会 segfault，且 `bun run build` 在本机 bun 下也 segfault。完整现象与 node 兜底命令见 [CONTRIBUTING.md §1.1](./CONTRIBUTING.md)。

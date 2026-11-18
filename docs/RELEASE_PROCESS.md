@@ -42,7 +42,7 @@ updates: [docs/PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从
 [ ] 3. 确认没有 replaceAll / replaceAllAsync（TS target ES2020）
 [ ] 4. 提交版本号变更 → git push
 [ ] 5. 本地全量测试：bun run test ✅
-[ ] 6. 本地前端构建：bun run build ✅
+[ ] 6. 前端类型检查：vue-tsc --noEmit ✅（构建与打包交给 CI，本地不跑）
 [ ] 7. 创建并推送 tag：git tag v1.x.x && git push origin v1.x.x
 [ ] 8. 等待 CI 完成（~15min，Rust 编译）
 [ ] 9. 验证 release assets：版本号正确、3 个资产齐全
@@ -63,8 +63,7 @@ updates: [docs/PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从
 - 所有 feature 代码已合并到 `master`
 - 测试覆盖：`bun run test` 全量通过（测试数量以命令实际输出为准，必须 0 失败）
 - 类型检查：`vue-tsc --noEmit` 无错误
-- 前端构建：`bun run build` 通过
-- **构建检查**：每次代码变更后、commit **前**，必须先跑 `bun run build` 通过（`vue-tsc --noEmit` 会捕获未使用变量、类型错误等低级问题，防止流入 CI）
+- **构建检查**：构建与打包由 CI 负责，本地**不跑** `bun run build` / `tauri build`（见 [AGENTS.md §1 第 6 条](../AGENTS.md)）；本地只需 `vue-tsc --noEmit` 拦住类型问题
 
 ### 2.2 类型兼容性检查（🚨 重要）
 
@@ -129,17 +128,19 @@ bun run test
 
 预期：`ALL TESTS PASS`（测试数量以 `bun run test` 实际输出为准，必须 0 失败）。
 
-### 4.2 前端构建
+### 4.2 前端类型检查（本地唯一必跑项）
 
 ```bash
-bun run build
+bunx vue-tsc --noEmit
 ```
 
-等价于 `vue-tsc --noEmit && vite build`。不报错即通过。
+`vite build` 与打包由 CI 完成，本地不跑（见 [AGENTS.md §1 第 6 条](../AGENTS.md)）。
 
-### 4.3 （可选）本地完整打包验证
+### 4.3 打包验证（默认不做）
 
-如果 Rust 代码有变更，建议本地打一次包确保 NSIS 安装器正常：
+打包交给 CI：push + tag 后由 CI 产出安装包并签名，下载 CI 产物验证即可。
+
+只有怀疑打包配置本身有问题、且需要在本机快速迭代时，才在**取得明确同意后**本地执行：
 
 ```batch
 call M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat
@@ -148,6 +149,8 @@ set RUSTUP_HOME=M:\rust\.rustup
 set PATH=M:\rust\.cargo\bin;%PATH%
 bunx tauri build
 ```
+
+用完主动清理 `src-tauri\target\release`（约 1 GB）。
 
 ---
 
@@ -342,7 +345,7 @@ node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
 CI 失败时 **不要重新打 tag**。先排查原因，修完代码后再重新打 tag：
 1. 删除远程 tag：`git push origin --delete v1.x.x`
 2. 删除本地 tag：`git tag -d v1.x.x`
-3. 本地修代码 → `bun run build` 确认通过 → 提交 → push（版本号不变）
+3. 本地修代码 → `vue-tsc --noEmit` 确认通过 → 提交 → push（版本号不变；构建交给 CI）
 4. 重新 tag：`git tag v1.x.x && git push origin v1.x.x`
 
 ### 8.2 Release 已发布但发现 Bug
@@ -445,9 +448,9 @@ error: Type 'X' is not assignable to type 'Y'.
 
 **原因**：Tauri 构建（`bun run build`）第一步就是 `vue-tsc --noEmit`。任何 TS 类型错误或未使用变量都会直接终止构建，不会进入 vite 和 cargo 阶段。
 
-**根因**：代码变更后没有在本地跑 `vue-tsc --noEmit` 或 `bun run build`，直接 push 了。
+**根因**：代码变更后没有在本地跑 `vue-tsc --noEmit`，直接 push 了。
 
-**预防**：**代码变更后、commit 前必须跑 `bun run build`**（见 Phase 0 构建检查）。
+**预防**：**代码变更后、commit 前必须跑 `vue-tsc --noEmit`**（构建由 CI 兜底，见 Phase 0 构建检查）。
 
 ### 9.8 🟡 本地 `bun run build` 被 safe-delete 守卫拦截（仅 WorkBuddy 托管 shell）
 
@@ -630,8 +633,8 @@ node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
 # 版本号同步验证
 Select-String -Path package.json,src-tauri\Cargo.toml,src-tauri\tauri.conf.json -Pattern '"version"|version = "'
 
-# 本地测试
-bun run test && bun run build
+# 本地测试与类型检查（构建打包交给 CI）
+bun run test && bunx vue-tsc --noEmit
 
 # 打 tag + 推送
 git tag v1.x.x && git push origin v1.x.x
@@ -675,7 +678,7 @@ rg "replaceAll|replaceAllAsync" src/
 
 ### 10.4 发版前手动回归清单（功能验证）
 
-> 原 `RELEASE-CHECKLIST.md` 已并入此处（2026-07-21 文档规范化），避免发版清单与流程脱节。在 `bun run test && bun run build` 通过后，发版前逐项手动过一遍，约 5 分钟，堵住 80% 的漏网 Bug。
+> 原 `RELEASE-CHECKLIST.md` 已并入此处（2026-07-21 文档规范化），避免发版清单与流程脱节。在 `bun run test && bunx vue-tsc --noEmit` 通过后，发版前逐项手动过一遍，约 5 分钟，堵住 80% 的漏网 Bug。
 
 **基础**
 

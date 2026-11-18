@@ -92,7 +92,7 @@ bun install
 bun run dev:tauri     # 完整桌面开发
 bun run test          # 单元/契约/roundtrip 测试
 bun run lint          # ESLint
-bun run build:tauri   # 构建安装包
+bunx vue-tsc --noEmit # 类型检查（构建/打包交给 CI，不在本地跑）
 ```
 
 环境要求、工具链路径、Windows 特有问题见 [BUILD_GUIDE.md](../../BUILD_GUIDE.md) 与 [07-构建运行与测试.md](./07-构建运行与测试.md)。

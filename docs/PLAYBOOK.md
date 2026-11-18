@@ -73,7 +73,7 @@ A 文档梳理 ──▶ B 问题盘点 ──▶ C 优化提案 ──▶ D 提
 
 1. **写提案文档**（`docs/<主题>-proposal.md`）：目标、方案、影响面、分步计划。
 2. **用户批准后才动手**（共识前置，见 SOUL.md 工作纪律）。
-3. **分步执行**，每步后自检：`vue-tsc --noEmit` → `bun run test` → `bun run build`。
+3. **分步执行**，每步后自检：`vue-tsc --noEmit` → `bun run test`（构建交给 CI）。
 4. 每步可独立验证，**不一次全量**。
 - **出口关卡**：✅ 提案已批准 + 每步自检通过 + 未提交改动停在暂存区外待命（等 D）。
 - **偏好边界**：保存状态指示器必须反映真实落盘，不引入「乐观保存提前报喜」（7-20 用户明确否决，记入 `MEMORY.md`）。
@@ -110,7 +110,7 @@ pwsh scripts/release-gate.ps1 -Stage PreTag
 脚本自动完成：
 1. 版本三处一致校验（`package.json` / `Cargo.toml` / `tauri.conf.json`）。
 2. `replaceAll` / `replaceAllAsync` 扫描（TS target ES2020 禁用）。
-3. `bun run test` + `bun run build` 门禁（一键，失败即停）。
+3. `bun run test` + `vue-tsc --noEmit` 门禁（一键，失败即停；构建打包交给 CI）。
 
 ### PostCI 闸门（tag 推送触发 CI 后）
 

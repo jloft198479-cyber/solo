@@ -72,4 +72,4 @@ updates: [package.json, docs/sensitive-areas.md §11.4]
 
 ## 5. 第三方依赖
 
-solo 依赖 Tauri 2、Vue 3、TipTap/ProseMirror、Tailwind 等。依赖漏洞请先确认是否影响 solo 的实际攻击面（多数 Web 框架 CVE 不影响本地桌面壳），再决定是否升级。升级前先跑 `bun run test` + `bun run build`。
+solo 依赖 Tauri 2、Vue 3、TipTap/ProseMirror、Tailwind 等。依赖漏洞请先确认是否影响 solo 的实际攻击面（多数 Web 框架 CVE 不影响本地桌面壳），再决定是否升级。升级前先跑 `bun run test` + `vue-tsc --noEmit`（构建打包交给 CI）。

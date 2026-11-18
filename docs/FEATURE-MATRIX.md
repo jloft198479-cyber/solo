@@ -239,7 +239,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 脏态基线回归锁 | ✅ | [`baseline-dirty.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/baseline-dirty.spec.ts) + [`file.spec.ts`](../src/stores/__tests__/file.spec.ts) | A1 语义比对的护栏 |
 | 测试策略（免责声明 + 覆盖缺口） | ⚠️ | — | **§二 #12**：机制层已修（fixtures 补「重开等价」、fuzz 补结构块），但 GFM 扩展语法仍缺规范级用例 |
 | 命令注册表自检 | ✅ | [`registry.spec.ts`](../src/commands/__tests__/registry.spec.ts) | 快捷键冲突检测 |
-| 改 parser/serializer 三步闸门 | ✅ | 纪律见 [`AGENTS.md`](../AGENTS.md) | `bun run test` + `vue-tsc --noEmit` + `bun run build` |
+| 改 parser/serializer 三步闸门 | ✅ | 纪律见 [`AGENTS.md`](../AGENTS.md) | `bun run test` + `vue-tsc --noEmit`（`vite build` / 打包交给 CI） |
 | Rust 改动闸门 | ✅ | 纪律见 [`BUILD_GUIDE.md`](../BUILD_GUIDE.md) | 本机缺 MSVC 时 `cargo check` 不能跳，**CI 是最终闸门** |
 
 > **核查要点**：任何「改 X 必查 Y」的联动矩阵见 [`AGENTS.md`](../AGENTS.md) §5；bug 易发区见 [`docs/sensitive-areas.md`](./sensitive-areas.md)（条目数以该表实际为准）。
@@ -292,8 +292,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 bun run test                          # 全量测试（含 markdown 保真四网）
 bun run test src/.../roundtrip.spec.ts  # 单跑某张网
 FUZZ_SEED=123 bun run test src/.../fuzz.spec.ts   # 复现随机失败
-npx vue-tsc --noEmit                  # 类型闸门
-bun run build                         # 前端构建闸门
+npx vue-tsc --noEmit                  # 类型闸门（本地唯一构建类检查；构建/打包交给 CI）
 bun run dev:tauri                     # 行为层核查（起真应用）
 ```
 

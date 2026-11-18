@@ -70,10 +70,10 @@ updates: [AGENTS.md, ARCHITECTURE.md, docs/sensitive-areas.md, docs/KNOWN-ISSUES
 | 任意 Rust | `cargo check`（本机缺 MSVC 也不许跳过，CI 是最终闸门） | — |
 | **动 parser / serializer / schema**（共享内核） | `vue-tsc` + `bun run test`（**全量**）+ **全仓保真体检**（命令见下） | ~14s + 体检 |
 | 时序 / UI / IME / 异步 | 上述 + **真机手感**（人工或 CDP 探针） | — |
-| **发版前 / 大规模重构 / 跨模块改动** | `bun run test:full`（全量 + 体检）+ `bun run build` | — |
+| **发版前 / 大规模重构 / 跨模块改动** | `bun run test:full`（全量 + 体检）；**打包交给 CI**，不在本机 `tauri build` | — |
 | 新增 / 改名 / 删除 Rust 命令 | `command-names.ts` → `commands/mod.rs` → `lib.rs` → **`ARCHITECTURE.md` §4.2 命令表**（四处同步） | — |
 
-> ⚠️ **`vite build` 不在日常门禁里**：只在**发版前、动构建配置、跨模块重构**时才跑。日常改动 `vue-tsc`（类型）+ 相关测试已够。
+> ⚠️ **`vite build` 不必本地跑**：CI 构建做的是同一件事；只有动构建配置、且需要在本地看分包结果时才跑（日常 `vue-tsc` + 相关测试已够）。
 > ⚠️ **`test:changed` 省的是"信号聚焦"，不是时间**：实测全量 13.6s vs 只跑相关 8.9s，**只差 4.7 秒**——因为本项目核心模块被依赖太广，依赖图一算还是一大片。它的真正价值是"红的那条就是你的锅"，不是提速。
 > ⚠️ **动文档（搬家 / 改名 / 删文件）后必须跑一次 `bun run test:full` 或单独 `bun run vitest run src/__tests__/docs-lint.spec.ts`** —— `test:changed` 只跑代码相关测试，**不查死链**，纯文档改动会漏。
 
@@ -122,7 +122,7 @@ bun run test:full          # 全量 + 体检，跨平台安全（不再用 SOLO_
 
 硬禁令的**浓缩版在 [AGENTS.md §1](../AGENTS.md)**，这里是「为什么」和补充的软性纪律。**不确定某条为什么要这么干时，看这里。**
 
-### D1. AGENTS §1 五条硬禁令的理由
+### D1. AGENTS §1 硬禁令的理由
 
 - **禁直接 `invoke`** —— 曾复发两次（v1.2.27 `read_clipboard_html`、v1.2.30 `detect_proxy_for_update`）。新增 Rust 命令后立即全库 grep `invoke('`（日常由 lint 拦）。
 - **禁硬编码计数** —— 命令数 / 扩展数 / 测试数一律写「以 `generate_handler!` / `bun run test` 实际为准」，否则文档与代码必漂。
@@ -139,7 +139,7 @@ bun run test:full          # 全量 + 体检，跨平台安全（不再用 SOLO_
 
 **补充软性纪律（不是禁令，但违反会返工）**
 
-1. 不许用 `tauri dev` 验证 **CSP / prod-only** 问题 —— dev 不附加 CSP，必须 `tauri build` 后跑 release 二进制。
+1. 不许用 `tauri dev` 验证 **CSP / prod-only** 问题 —— dev 不附加 CSP。要验证就用 **CI 产出的 release 包**；本地打包仅在你明确同意后做（见 [AGENTS.md §1 第 6 条](../AGENTS.md)）。
 2. 不许**猜**失败原因 —— 先看真实报错（DevTools Console / Network / 日志）再定方向。
 3. 不许用**加守卫**掩盖根因 —— 在 N 处各塞判断是加法、会扩散复杂度；优先**减 / 门控**惹祸特性。
 4. 不许手抄库函数重写 —— 先 profiling 证明热点，重写必附**等价性对照测试**；重构类改动要交「旧版 vs 新版」逐字节 diff。
@@ -226,7 +226,7 @@ Set-Location (Join-Path (git rev-parse --show-toplevel) 'src-tauri')
 cargo check 2>&1   # 只类型检查、不调 link.exe，故无 Git Bash 下 link 抢占问题
 ```
 
-> `cargo check` 不触发最终链接 ⇒ 不要 `link.exe`，纯 PowerShell 注入 MSVC 的 INCLUDE/LIB/PATH 即够（已实测 `Finished` exit 0）。真要 `tauri build`（含 link），仍建议在本机裸 `launch-dev.bat`（vcvars64）跑，别在沙箱硬刚。
+> `cargo check` 不触发最终链接 ⇒ 不要 `link.exe`，纯 PowerShell 注入 MSVC 的 INCLUDE/LIB/PATH 即够（已实测 `Finished` exit 0）。`tauri build`（含 link）**默认不在本机跑**：发版构建交给 CI，仅排障且取得同意时才本地打包。
 
 ---
 

@@ -10,6 +10,8 @@ updates: [ARCHITECTURE.md, package.json, src-tauri/Cargo.toml]
 
 # solo 系统编译说明书
 
+> ⚠️ **本文是「需要时查阅」的构建手册，不是日常流程。** 日常改动只跑 `bun run test` / `vue-tsc --noEmit` / `lint` / `cargo check`；构建与打包交给 CI。本地执行 `tauri build` 前必须取得明确同意（见 [AGENTS.md](./AGENTS.md) §1 第 6 条），用完清理 `src-tauri/target/release`（约 1 GB）。
+
 > **目标**：任何开发者（人或 AI）按此文档操作，均可在干净 Windows 环境下成功编译 solo。
 > **适用范围**：Windows 10+ x64，Tauri v2.11.2，Rust 1.96.0，Bun 1.3.14。
 > **最后验证**：2026-06-29，`vue-tsc --noEmit` ✅ → `vite build` ✅ → `cargo build --release` ✅ → `makensis` ✅

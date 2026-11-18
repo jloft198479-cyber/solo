@@ -44,7 +44,8 @@ solo = 本地优先的桌面 Markdown 编辑器（Tauri v2 + Vue 3 + TipTap + Ru
 3. **NodeView** 监听器挂 `AbortController`；`destroy()` 里 `abort()`，异步回写查 `signal.aborted`
 4. 改 **parser / serializer / schema** 前**必跑 5 套契约锁**（见 playbook §C）—— 这里静默丢内容是本项目最贵的事故类型
 5. **环境与仓库**：不许擅自装软件 / 依赖 —— 工具链位置**以 [`BUILD_GUIDE.md`](./BUILD_GUIDE.md) 为准**（本机工具链跨多个盘，**别照抄本文档或别处的路径**）；不提交 secrets / `node_modules` / `target`
-6. **⚠️ 动手前先架安全网**（**每次改动，不分大小**，solo 已入成熟期：新功能收益在变小，一次回归的代价在变大）：① **回滚锚点** —— 起步前 `git status` 必须干净，脏就先 `git stash -u`；跨模块 / 重构 / 动内核前打 tag 锚点 ② **副作用盘点** —— 先答「谁在用它 / 真理源在哪 / 落哪条敏感区 / 下游谁会塌」 ③ **结构把关** —— 归属层对不对、真理源是不是唯一、依赖方向有没有反向。细则与命令见 [playbook §G](./docs/agent-playbook.md)
+6. **未经允许不许本地构建 / 大体积落盘** —— `bunx tauri build`、`cargo build --release`、下载大依赖或模型等，会占数百 MB～GB 磁盘与数分钟 CPU，**默认一律不跑**。发版构建交给 GitHub CI（push + tag 触发）；本地只跑 `bun run test` / `test:full` / `lint` / `vue-tsc` 这类轻量校验。确需本地构建（如排查打包配置）**必须先说明原因并取得同意**，用完主动清理 `src-tauri/target/release`
+7. **⚠️ 动手前先架安全网**（**每次改动，不分大小**，solo 已入成熟期：新功能收益在变小，一次回归的代价在变大）：① **回滚锚点** —— 起步前 `git status` 必须干净，脏就先 `git stash -u`；跨模块 / 重构 / 动内核前打 tag 锚点 ② **副作用盘点** —— 先答「谁在用它 / 真理源在哪 / 落哪条敏感区 / 下游谁会塌」 ③ **结构把关** —— 归属层对不对、真理源是不是唯一、依赖方向有没有反向。细则与命令见 [playbook §G](./docs/agent-playbook.md)
 
 > 🤖 **已由 lint 自动拦住，不必记**：直接 `invoke(` · `String.replaceAll` —— 跑 `bun run lint` 即查，违反即 error。
 

@@ -23,7 +23,7 @@
 <!-- 勾选你实际跑过的。测试数量以 `bun run test` 实际输出为准，不要硬编码数字 -->
 
 - [ ] `bun run test` 全量通过（0 失败）
-- [ ] `bun run build` 通过（vue-tsc --noEmit + vite build）
+- [ ] `bunx vue-tsc --noEmit` 通过（构建与打包由 CI 负责，本地不跑）
 - [ ] 改了 Rust：`cargo check` 通过（按 CONTRIBUTING.md §1.2 加载 MSVC 环境）
 - [ ] 无 `replaceAll` / `replaceAllAsync`（TS target ES2020，用 `.split().join()` 替代）
 - [ ] 若触及 docs/sensitive-areas.md 的敏感区，已额外说明影响评估
