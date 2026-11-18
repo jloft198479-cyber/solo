@@ -66,6 +66,14 @@ export async function saveDocument(
   });
 }
 
+/**
+ * 在系统文件管理器中定位当前文档（选中该文件）。
+ * 未保存的新文档没有路径，调用方应先置灰按钮，不要拿空串调这里。
+ */
+export async function revealDocumentInFolder(path: string) {
+  return invokeCommand<void>(TAURI_COMMANDS.revealDocumentInFolder, { path });
+}
+
 export async function renameFile(oldPath: string, newName: string) {
   return invokeCommand<DocumentRenameResult>(TAURI_COMMANDS.renameFile, { oldPath, newName });
 }

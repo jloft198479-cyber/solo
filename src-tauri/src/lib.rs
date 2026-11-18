@@ -423,6 +423,7 @@ pub fn run() {
             open_document,
             save_document,
             get_file_mtime,
+            reveal_document_in_folder,
             list_markdown_files,
             rename_file,
             sync_wikilinks_on_rename,

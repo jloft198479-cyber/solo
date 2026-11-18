@@ -12,7 +12,7 @@ describe('图标图源（svg.ts）', () => {
   it('图标清单齐全且键名稳定', () => {
     const names = Object.keys(ICONS) as IconName[];
     // 加图标时同步改这个数 —— 这行故意不写成「≥」，就是为了让误删也红一次
-    expect(names.length).toBe(38);
+    expect(names.length).toBe(39);
     for (const required of [
       'settings',
       'search',
@@ -45,6 +45,8 @@ describe('图标图源（svg.ts）', () => {
       // 批 3 第 3 步换 `.ts` / 菜单时新增
       'lightbulb',
       'zoomIn',
+      // 状态栏「在文件夹中显示」
+      'folder',
     ] as const) {
       expect(names).toContain(required);
     }

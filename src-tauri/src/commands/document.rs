@@ -153,6 +153,26 @@ pub async fn get_file_mtime(path: String) -> Result<u64, AppError> {
     .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))?
 }
 
+/// 在系统文件管理器中定位当前文档（Windows 资源管理器 / macOS Finder 选中该文件）。
+///
+/// 路径来自前端 `currentFile.path`；未保存的新文档没有路径，前端直接置灰，不进这里。
+/// 先做存在性检查：文件被外部移动/删除时给出可读文案，而不是把插件错误原样甩给用户。
+#[tauri::command]
+pub fn reveal_document_in_folder(app: AppHandle, path: String) -> Result<(), AppError> {
+    use tauri_plugin_opener::OpenerExt;
+
+    if path.trim().is_empty() {
+        return Err(AppError::validation("当前文档还没有保存路径"));
+    }
+    if !Path::new(&path).exists() {
+        return Err(AppError::Io("文件已不存在，可能已被移动或删除".into()));
+    }
+    app.opener()
+        .reveal_item_in_dir(path)
+        .map_err(|error| AppError::Native(format!("打开文件管理器失败: {error}")))?;
+    Ok(())
+}
+
 /// 互链 `[[` 补全候选：列出当前文档所在目录**及其下若干层子目录**里的 .md，
 /// 返回**相对路径**（`/` 分隔，如 `sub/B.md`），按「层级浅的先、同层按名字」排序。
 ///

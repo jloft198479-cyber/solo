@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onUnmounted, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 import Icon from './icons/Icon';
 import ThemePopover from './ThemePopover.vue';
 import FontPopover from './FontPopover.vue';
@@ -8,6 +8,8 @@ import { useFileStore } from '../stores/file';
 import { renderMarkdown } from '../utils/markdown-to-html';
 import { countLocalImages } from '../utils/localImages';
 import { message } from '../services/tauri/dialog';
+import { normalizeTauriError } from '../services/tauri/client';
+import { revealDocumentInFolder } from '../services/tauri/document';
 import type { AppEditorExpose } from '../composables/useAppEditorState';
 
 type PopoverType = 'theme' | 'font' | null;
@@ -22,6 +24,25 @@ const wrapRef = ref<HTMLElement | null>(null);
 const copied = ref(false);
 const copyFailed = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
+
+// 「在文件夹中显示」只对已落盘的文档有意义：未保存的新文档没有路径，按钮置灰。
+const fileStore = useFileStore();
+const canRevealInFolder = computed(() => Boolean(fileStore.currentFile.path));
+
+async function revealInFolder() {
+  const path = fileStore.currentFile.path;
+  if (!path) return;
+  try {
+    await revealDocumentInFolder(path);
+  } catch (error) {
+    // 文件被外部移动/删除是真实场景，失败必须说出来，不能静默
+    await message(`无法在文件夹中显示：${normalizeTauriError(error).message}`, {
+      title: '定位文件失败',
+      kind: 'warning',
+      okLabel: '我知道了',
+    });
+  }
+}
 
 function togglePopover(type: PopoverType) {
   activePopover.value = activePopover.value === type ? null : type;
@@ -147,6 +168,14 @@ useClickOutside(wrapRef, closePopover);
       <Icon v-if="!copied" name="copy" :size="14" />
       <Icon v-else name="check" :size="14" />
     </button>
+    <button
+      class="ghost-icon-btn"
+      :title="canRevealInFolder ? '在文件夹中显示' : '当前文档尚未保存，无法定位'"
+      :disabled="!canRevealInFolder"
+      @click="revealInFolder"
+    >
+      <Icon name="folder" :size="14" />
+    </button>
   </div>
 </template>
 
@@ -169,5 +198,17 @@ useClickOutside(wrapRef, closePopover);
 .ghost-icon-btn.is-failed {
   color: var(--error-color);
   opacity: 1;
+}
+
+/* 未保存文档没有路径：置灰且不可点，避免点了没反应 */
+.ghost-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ghost-icon-btn:disabled:hover {
+  background-color: transparent;
+  color: var(--text-secondary);
+  opacity: 0.35;
 }
 </style>

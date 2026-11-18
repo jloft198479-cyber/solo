@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>solo · 在文件夹中显示 · 位置方案示意</title>
+<style>
+  :root {
+    --paper: #f6f1e8;
+    --paper-raised: #fffdf8;
+    --ink: #2a2218;
+    --ink-soft: #6f6251;
+    --muted: #9b8d7a;
+    --border: #e3d9c8;
+    --border-strong: #d3c5ae;
+    --accent: #b5472e;
+    --accent-soft: #f3e2db;
+    --success: #4f7a52;
+    --shadow-lg: 0 28px 80px rgba(55, 42, 24, 0.22), 0 6px 20px rgba(55, 42, 24, 0.10);
+    --ui: "Microsoft YaHei UI", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+    --serif: "Songti SC", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; min-height: 100%; }
+
+  body {
+    font-family: var(--ui);
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 620px at 18% 0%, #f7f1e5 0%, rgba(247, 241, 229, 0) 62%),
+      radial-gradient(900px 500px at 92% 8%, #e8ddcc 0%, rgba(232, 221, 204, 0) 58%),
+      #e9e1d4;
+    padding: 44px 28px 64px;
+  }
+
+  .page { max-width: 1180px; margin: 0 auto; }
+
+  .page-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 28px;
+    margin-bottom: 22px;
+  }
+
+  .eyebrow {
+    margin: 0 0 8px;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  h1 {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: clamp(26px, 3.2vw, 38px);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .sub {
+    margin: 10px 0 0;
+    max-width: 620px;
+    font-size: 13px;
+    line-height: 1.75;
+    color: var(--ink-soft);
+  }
+
+  .mode-switch {
+    display: inline-flex;
+    padding: 4px;
+    gap: 2px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    background: rgba(255, 253, 248, 0.72);
+    box-shadow: 0 2px 8px rgba(55, 42, 24, 0.06);
+    flex: none;
+  }
+
+  .mode-switch button {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--ink-soft);
+    font-family: var(--ui);
+    font-size: 12.5px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+  }
+
+  .mode-switch button:hover { color: var(--ink); }
+
+  .mode-switch button.is-active {
+    background: var(--ink);
+    color: #fbf7ef;
+  }
+
+  .stage { position: relative; }
+
+  .app-window {
+    position: relative;
+    height: 720px;
+    border: 1px solid #cfc3b0;
+    border-radius: 13px;
+    overflow: hidden;
+    background: var(--paper);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── 标题栏 ───────────────────────────────── */
+  .titlebar {
+    height: 46px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 8px 0 16px;
+    border-bottom: 1px solid rgba(211, 197, 174, 0.65);
+    background: rgba(250, 246, 238, 0.92);
+  }
+
+  .titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    position: relative;
+  }
+
+  .brand {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+  }
+
+  .brand-sep {
+    width: 1px;
+    height: 14px;
+    background: var(--border-strong);
+  }
+
+  .doc-title {
+    font-size: 13px;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .title-folder {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin-left: 2px;
+    border: 1px dashed transparent;
+    border-radius: 6px;
+    color: var(--ink-soft);
+    background: transparent;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateX(-3px);
+    transition: opacity 150ms ease, transform 150ms ease, background 150ms ease;
+    position: relative;
+  }
+
+  .mode-c .title-folder { opacity: 1; transform: none; }
+
+  .title-folder:hover { background: rgba(181, 71, 46, 0.09); color: var(--accent); }
+
+  .mode-c .title-folder { border-color: rgba(181, 71, 46, 0.38); }
+
+  .titlebar-buttons { display: flex; align-items: center; }
+
+  .tb-btn {
+    width: 34px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: var(--ink-soft);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .tb-btn:hover { background: rgba(42, 34, 24, 0.06); color: var(--ink); }
+  .tb-btn.close:hover { background: #c9463c; color: #fff; }
+
+  /* ── 原生菜单栏 ───────────────────────────── */
+  .menubar {
+    height: 30px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 10px;
+    border-bottom: 1px solid rgba(211, 197, 174, 0.5);
+    background: rgba(250, 246, 238, 0.75);
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+
+  .menubar span { padding: 4px 9px; border-radius: 4px; }
+  .menubar .is-open { background: rgba(42, 34, 24, 0.08); color: var(--ink); }
+
+  .menu-popover {
+    position: absolute;
+    z-index: 20;
+    top: 78px;
+    left: 10px;
+    width: 244px;
+    padding: 6px;
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    background: var(--paper-raised);
+    box-shadow: 0 16px 40px rgba(55, 42, 24, 0.18), 0 2px 8px rgba(55, 42, 24, 0.08);
+    display: none;
+  }
+
+  .mode-a .menu-popover,
+  .mode-rec .menu-popover { display: block; }
+
+  .menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 10px;
+    border-radius: 5px;
+    font-size: 12.5px;
+    color: var(--ink);
+    cursor: default;
+  }
+
+  .menu-item .shortcut { color: var(--muted); font-size: 11.5px; }
+  .menu-item:hover { background: rgba(42, 34, 24, 0.055); }
+
+  .menu-item.is-feature {
+    background: var(--accent-soft);
+    color: #8a2f1c;
+    font-weight: 600;
+  }
+
+  .menu-item.is-feature:hover { background: #ecd5cb; }
+
+  .menu-sep { height: 1px; margin: 5px 8px; background: var(--border); }
+
+  .menu-note {
+    padding: 6px 10px 3px;
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+
+  /* ── 正文 ─────────────────────────────────── */
+  .editor {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    background:
+      linear-gradient(180deg, rgba(255, 253, 248, 0.35), rgba(255, 253, 248, 0)),
+      var(--paper);
+  }
+
+  .article {
+    width: min(700px, 78%);
+    margin: 0 auto;
+    padding: 54px 0 30px;
+  }
+
+  .article h2 {
+    margin: 0 0 6px;
+    font-family: var(--serif);
+    font-size: 40px;
+    line-height: 1.3;
+    letter-spacing: 0.01em;
+  }
+
+  .article .meta {
+    margin: 0 0 30px;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .article p {
+    margin: 0 0 17px;
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.95;
+    color: #352b1f;
+    text-align: justify;
+  }
+
+  .article blockquote {
+    margin: 26px 0;
+    padding: 4px 0 4px 18px;
+    border-left: 3px solid var(--accent);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.9;
+    color: #6b4a3b;
+  }
+
+  .article h3 {
+    margin: 30px 0 12px;
+    font-family: var(--serif);
+    font-size: 21px;
+    font-weight: 700;
+  }
+
+  /* ── 状态栏 ───────────────────────────────── */
+  .statusbar {
+    height: 34px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px 0 16px;
+    border-top: 1px solid var(--border);
+    background: rgba(250, 246, 238, 0.9);
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+
+  .status-left { display: flex; align-items: center; gap: 10px; }
+  .status-right { display: flex; align-items: center; gap: 1px; }
+
+  .save-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    height: 26px;
+    color: var(--success);
+    font-size: 11.5px;
+  }
+
+  .save-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+  }
+
+  .sb-btn {
+    position: relative;
+    width: 30px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+
+  .sb-btn:hover { background: rgba(42, 34, 24, 0.06); color: var(--ink); }
+  .sb-btn .aa { font-size: 12px; font-weight: 600; letter-spacing: -0.02em; }
+
+  .sb-folder { transition: opacity 180ms ease, background 180ms ease; }
+
+  .mode-a .sb-folder { opacity: 0.45; }
+
+  /* ── 角标 ─────────────────────────────────── */
+  .badge {
+    position: absolute;
+    z-index: 30;
+    width: 23px;
+    height: 23px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11.5px;
+    font-weight: 700;
+    box-shadow: 0 0 0 4px rgba(181, 71, 46, 0.16);
+    pointer-events: none;
+  }
+
+  .badge::after {
+    content: "";
+    position: absolute;
+    inset: -7px;
+    border: 1px solid rgba(181, 71, 46, 0.38);
+    border-radius: 50%;
+    animation: pulse 2.2s ease-out infinite;
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(0.82); opacity: 0.9; }
+    70% { transform: scale(1.25); opacity: 0; }
+    100% { transform: scale(1.25); opacity: 0; }
+  }
+
+  .badge-a { top: 234px; left: 212px; }
+  .badge-b { right: 47px; bottom: 46px; }
+  .badge-c { top: 52px; left: 154px; }
+
+  .mode-a .badge-a,
+  .mode-b .badge-b,
+  .mode-c .badge-c,
+  .mode-rec .badge-a,
+  .mode-rec .badge-b { display: flex; }
+
+  /* ── 命令面板（A 的补充说明，不遮挡主界面） ── */
+  .palette-preview {
+    position: absolute;
+    z-index: 18;
+    right: 18px;
+    top: 112px;
+    width: 322px;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: rgba(255, 253, 248, 0.96);
+    box-shadow: 0 16px 44px rgba(55, 42, 24, 0.16);
+    padding: 8px;
+    display: none;
+  }
+
+  .mode-a .palette-preview,
+  .mode-rec .palette-preview { display: block; }
+
+  .palette-title {
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    padding: 5px 8px 7px;
+  }
+
+  .palette-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 9px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    color: var(--ink);
+  }
+
+  .palette-row.is-active { background: var(--accent-soft); color: #8a2f1c; }
+
+  .palette-row .key {
+    margin-left: auto;
+    font-size: 10.5px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  /* ── toast ────────────────────────────────── */
+  .toast {
+    position: absolute;
+    z-index: 50;
+    left: 50%;
+    bottom: 52px;
+    transform: translate(-50%, 12px);
+    padding: 9px 14px;
+    border-radius: 8px;
+    background: rgba(42, 34, 24, 0.92);
+    color: #fbf7ef;
+    font-size: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease, transform 180ms ease;
+    white-space: nowrap;
+  }
+
+  .toast.is-show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ── 方案卡片 ─────────────────────────────── */
+  .notes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 24px;
+  }
+
+  .note-card {
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: rgba(255, 253, 248, 0.78);
+    padding: 16px 17px 15px;
+    transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
+  }
+
+  .note-card.is-active {
+    border-color: rgba(181, 71, 46, 0.5);
+    background: #fffaf3;
+    transform: translateY(-2px);
+  }
+
+  .note-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-bottom: 9px;
+  }
+
+  .note-letter {
+    width: 22px;
+    height: 22px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(42, 34, 24, 0.08);
+    color: var(--ink);
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+
+  .note-card.is-active .note-letter { background: var(--accent); color: #fff; }
+
+  .note-title { font-size: 13.5px; font-weight: 600; }
+  .note-tag {
+    margin-left: auto;
+    font-size: 10.5px;
+    color: var(--accent);
+    border: 1px solid rgba(181, 71, 46, 0.32);
+    border-radius: 999px;
+    padding: 2px 7px;
+  }
+
+  .note-card p { margin: 0 0 7px; font-size: 12px; line-height: 1.75; color: var(--ink-soft); }
+  .note-card p:last-child { margin-bottom: 0; }
+  .note-card .good { color: #3f6842; }
+  .note-card .bad { color: #9a4a35; }
+
+  .verdict {
+    margin-top: 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 15px 17px;
+    border: 1px solid rgba(181, 71, 46, 0.26);
+    border-radius: 10px;
+    background: linear-gradient(180deg, #fff8f1, #f9eee5);
+  }
+
+  .verdict-mark {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .verdict strong { display: block; margin-bottom: 3px; font-size: 13px; }
+  .verdict p { margin: 0; font-size: 12px; line-height: 1.75; color: var(--ink-soft); }
+
+  .edge-note {
+    margin-top: 11px;
+    font-size: 11.5px;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+
+  @media (max-width: 900px) {
+    .page-head { flex-direction: column; align-items: flex-start; }
+    .app-window { height: 640px; }
+    .article { width: 86%; padding-top: 36px; }
+    .article h2 { font-size: 31px; }
+    .notes { grid-template-columns: 1fr; }
+    .palette-preview { display: none !important; }
+    .badge-c { left: 150px; }
+  }
+</style>
+</head>
+<body data-mode="rec">
+  <div class="page">
+    <header class="page-head">
+      <div>
+        <p class="eyebrow">solo / 功能位置示意</p>
+        <h1>「在文件夹中显示」放在哪儿？</h1>
+        <p class="sub">
+          三个候选落点，点击右上角切换高亮。界面配色与字号取自当前 scholar-light 主题，
+          只示意位置与手感，不代表最终实现。
+        </p>
+      </div>
+      <div class="mode-switch" role="tablist" aria-label="方案切换">
+        <button type="button" data-mode-btn="a">A 文件菜单</button>
+        <button type="button" data-mode-btn="b">B 状态栏</button>
+        <button type="button" data-mode-btn="c">C 标题栏</button>
+        <button type="button" data-mode-btn="rec" class="is-active">推荐组合</button>
+      </div>
+    </header>
+
+    <div class="stage">
+      <div class="app-window mode-rec" id="appWindow">
+        <!-- 标题栏 -->
+        <div class="titlebar">
+          <div class="titlebar-left">
+            <span class="brand">solo</span>
+            <span class="brand-sep"></span>
+            <span class="doc-title-wrap" style="display:inline-flex;align-items:center;gap:2px;min-width:0;">
+              <span class="doc-title">深山里的邮差</span>
+              <button class="title-folder js-reveal" type="button" title="在文件夹中显示">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1.8 4.2h4l1.4 1.6h7v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1V4.2Z"/>
+                  <path d="M1.8 4.2V3a1 1 0 0 1 1-1h3l1.4 1.6"/>
+                </svg>
+              </button>
+            </span>
+          </div>
+          <div class="titlebar-buttons">
+            <button class="tb-btn" title="焦点模式">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path d="M1.8 8s2.3-3.7 6.2-3.7S14.2 8 14.2 8s-2.3 3.7-6.2 3.7S1.8 8 1.8 8Z"/>
+                <circle cx="8" cy="8" r="1.7"/>
+              </svg>
+            </button>
+            <button class="tb-btn" title="大纲">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                <path d="M2.5 3.2h1.2M2.5 8h1.2M2.5 12.8h1.2M6 3.2h7.5M6 8h7.5M6 12.8h7.5"/>
+              </svg>
+            </button>
+            <button class="tb-btn" title="置顶">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                <path d="M6 2.5h4l-.6 4 2.1 2.1v1.2H4.5v-1.2L6.6 6.5 6 2.5Z"/>
+                <path d="M8 9.8v3.7"/>
+              </svg>
+            </button>
+            <button class="tb-btn" title="最小化">
+              <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+            </button>
+            <button class="tb-btn" title="最大化">
+              <svg width="10" height="10" viewBox="0 0 10 10"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.15"/></svg>
+            </button>
+            <button class="tb-btn close" title="关闭">
+              <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 1l8 8M9 1L1 9" stroke="currentColor" stroke-width="1.2"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 原生菜单栏 -->
+        <div class="menubar">
+          <span class="is-open">文件</span>
+          <span>编辑</span>
+          <span>查看</span>
+          <span>帮助</span>
+        </div>
+
+        <!-- 文件菜单 -->
+        <div class="menu-popover" role="menu" aria-label="文件菜单示意">
+          <div class="menu-item"><span>新建</span><span class="shortcut">Ctrl+N</span></div>
+          <div class="menu-item"><span>打开...</span><span class="shortcut">Ctrl+O</span></div>
+          <div class="menu-sep"></div>
+          <div class="menu-item"><span>保存</span><span class="shortcut">Ctrl+S</span></div>
+          <div class="menu-item"><span>另存为...</span><span class="shortcut">Ctrl+Shift+S</span></div>
+          <div class="menu-sep"></div>
+          <div class="menu-item is-feature js-reveal" role="menuitem">
+            <span>在文件夹中显示</span>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1.8 4.2h4l1.4 1.6h7v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1V4.2Z"/>
+            </svg>
+          </div>
+          <div class="menu-note">原生菜单布局以实际平台为准</div>
+        </div>
+
+        <!-- 命令面板预览 -->
+        <div class="palette-preview" aria-label="命令面板示意">
+          <div class="palette-title">命令面板 · Ctrl+K</div>
+          <div class="palette-row is-active">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1.8 4.2h4l1.4 1.6h7v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1V4.2Z"/>
+            </svg>
+            <span>在文件夹中显示</span>
+            <span class="key">Enter</span>
+          </div>
+          <div class="palette-row"><span>打开文件...</span><span class="key">Ctrl+O</span></div>
+          <div class="palette-row"><span>另存为...</span><span class="key">Ctrl+Shift+S</span></div>
+        </div>
+
+        <!-- 正文 -->
+        <div class="editor">
+          <article class="article">
+            <h2>深山里的邮差</h2>
+            <p class="meta">2026-11-18 · 随笔</p>
+            <p>清晨五点，雾还没散。老周把最后一封信塞进帆布包，顺手把门带上。山路在脚下往前铺，像一条被雨水洗过的旧绳子。</p>
+            <p>他认得这条路。哪块石头松，哪段坡陡，哪户人家的狗只在陌生人面前叫，他都记得。可他记不住信里的字——他不识几个字，只知道把信送到。</p>
+            <blockquote>“信到了，人就到了。”他常这么说。</blockquote>
+            <h3>一、山路</h3>
+            <p>走到半山腰，天光才从树缝里漏下来。老周停下来，摸了摸包里的信，确认它们还在。</p>
+          </article>
+        </div>
+
+        <!-- 状态栏 -->
+        <div class="statusbar">
+          <div class="status-left">
+            <span>≈ 1,842 字</span>
+          </div>
+          <div class="status-right">
+            <span class="save-state"><span class="save-dot"></span>已保存</span>
+            <button class="sb-btn" title="主题">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                <circle cx="8" cy="8" r="2.7"/>
+                <path d="M8 1.4v1.5M8 13.1v1.5M1.4 8h1.5M13.1 8h1.5M3.3 3.3l1 1M11.7 11.7l1 1M12.7 3.3l-1 1M4.3 11.7l-1 1"/>
+              </svg>
+            </button>
+            <button class="sb-btn" title="字体"><span class="aa">Aa</span></button>
+            <button class="sb-btn" title="复制全文">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+                <rect x="5.2" y="5.2" width="8" height="8.2" rx="1"/>
+                <path d="M10.8 5.2V3.6a1 1 0 0 0-1-1H3.6a1 1 0 0 0-1 1v6.2a1 1 0 0 0 1 1h1.6"/>
+              </svg>
+            </button>
+            <button class="sb-btn sb-folder js-reveal" title="在文件夹中显示">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1.8 4.2h4l1.4 1.6h7v6.9a1 1 0 0 1-1 1H2.8a1 1 0 0 1-1-1V4.2Z"/>
+                <path d="M1.8 4.2V3a1 1 0 0 1 1-1h3l1.4 1.6"/>
+              </svg>
+            </button>
+            <button class="sb-btn" title="设置">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round">
+                <circle cx="8" cy="8" r="2.1"/>
+                <path d="M8 1.9v1.4M8 12.7v1.4M1.9 8h1.4M12.7 8h1.4M3.7 3.7l1 1M11.3 11.3l1 1M12.3 3.7l-1 1M4.7 11.3l-1 1"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 角标 -->
+        <span class="badge badge-a">A</span>
+        <span class="badge badge-b">B</span>
+        <span class="badge badge-c">C</span>
+
+        <div class="toast" id="toast">已在资源管理器中定位：D:\写作\随笔\深山里的邮差.md</div>
+      </div>
+    </div>
+
+    <section class="notes">
+      <article class="note-card" data-note="a">
+        <div class="note-head">
+          <span class="note-letter">A</span>
+          <span class="note-title">文件菜单 + 命令面板</span>
+          <span class="note-tag">必做兜底</span>
+        </div>
+        <p class="good">符合桌面软件习惯；不占常驻界面；命令面板可搜索，键盘用户友好。</p>
+        <p class="bad">藏得深，新用户不主动翻菜单就发现不了；Windows 无边框窗口下菜单栏是否常驻需按实机确认。</p>
+        <p>建议菜单放在「另存为...」下方加一条分隔线，命令面板同名条目同步注册。</p>
+      </article>
+
+      <article class="note-card" data-note="b">
+        <div class="note-head">
+          <span class="note-letter">B</span>
+          <span class="note-title">状态栏文件夹图标</span>
+          <span class="note-tag">推荐主入口</span>
+        </div>
+        <p class="good">一键直达；与主题/字体/复制/设置同构，用户已经习惯在这排找文档级动作；图标 + tooltip 成本低。</p>
+        <p class="bad">属于低频动作，会增加一个常驻图标；窄窗口下右侧图标略挤。</p>
+        <p>放在「复制全文」右侧、「设置」左侧；未保存的新文档没有路径时置灰，tooltip 提示「先保存到磁盘」。</p>
+      </article>
+
+      <article class="note-card" data-note="c">
+        <div class="note-head">
+          <span class="note-letter">C</span>
+          <span class="note-title">标题栏标题旁</span>
+          <span class="note-tag">首版暂缓</span>
+        </div>
+        <p class="good">上下文最强：文件身份就在旁边，悬停即现，不占状态栏。</p>
+        <p class="bad">标题点击已经用于重命名；再加 hover 按钮容易误触，也让标题栏拖拽区域更碎；触屏/键盘可达性差。</p>
+        <p>如果以后做「文档操作菜单」，可以把重命名、复制路径、在文件夹中显示收进一个入口，再考虑放在这里。</p>
+      </article>
+    </section>
+
+    <div class="verdict">
+      <span class="verdict-mark">✓</span>
+      <div>
+        <strong>建议：B 主入口 + A 兜底，C 首版不做</strong>
+        <p>
+          solo 没有标签页和文件树，状态栏是唯一常驻的「文档级操作区」，把高频可达性放在这里最顺；
+          文件菜单与命令面板负责可发现性和键盘路径。这样既不破坏极简界面，也不会让功能只能靠记忆找到。
+        </p>
+        <p class="edge-note">
+          边界：无路径的新文档禁用；文件被移动/删除时给出中文错误提示；多窗口只作用于当前窗口的文档；
+          点击后在系统文件管理器中定位并选中该文件，而不是只打开父目录。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const appWindow = document.getElementById('appWindow');
+    const toast = document.getElementById('toast');
+    const buttons = Array.from(document.querySelectorAll('[data-mode-btn]'));
+    const notes = Array.from(document.querySelectorAll('[data-note]'));
+    let toastTimer = null;
+
+    function setMode(mode) {
+      appWindow.classList.remove('mode-a', 'mode-b', 'mode-c', 'mode-rec');
+      appWindow.classList.add('mode-' + mode);
+      document.body.dataset.mode = mode;
+
+      buttons.forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.modeBtn === mode);
+      });
+
+      notes.forEach((card) => {
+        const key = card.dataset.note;
+        const active = mode === key || (mode === 'rec' && (key === 'a' || key === 'b'));
+        card.classList.toggle('is-active', active);
+      });
+    }
+
+    buttons.forEach((btn) => {
+      btn.addEventListener('click', () => setMode(btn.dataset.modeBtn));
+    });
+
+    document.querySelectorAll('.js-reveal').forEach((el) => {
+      el.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toast.classList.add('is-show');
+        if (toastTimer) clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('is-show'), 2600);
+      });
+    });
+
+    setMode('rec');
+  </script>
+</body>
+</html>

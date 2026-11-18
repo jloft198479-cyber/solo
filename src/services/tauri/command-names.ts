@@ -16,6 +16,7 @@ export const TAURI_COMMANDS = {
   recordDocumentSession: 'record_document_session',
   refreshNativeMenuShortcuts: 'refresh_native_menu_shortcuts',
   renameFile: 'rename_file',
+  revealDocumentInFolder: 'reveal_document_in_folder',
   registerShellNew: 'register_shell_new',
   reportWindowClose: 'report_window_close',
   requestAppQuit: 'request_app_quit',
