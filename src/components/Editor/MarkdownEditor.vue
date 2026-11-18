@@ -105,6 +105,12 @@ import EmojiMenu from './views/EmojiMenu.vue';
 import WikilinkMenu from './views/WikilinkMenu.vue';
 import SearchPanel from './views/SearchPanel.vue';
 import { shortcutHint } from '../../commands/registry';
+import { Extension } from '@tiptap/core';
+import {
+  createPerfProbePlugin,
+  installScrollFpsProbe,
+  markInputReady,
+} from '../../services/perf-diagnostics';
 import './tiptap/editor.css';
 
 type EditorUpdatePayload = EditorSyncPayload;
@@ -360,27 +366,34 @@ function createEditor(content: string) {
     editor.value.destroy();
   }
 
+  const perfProbe = createPerfProbePlugin();
   const e = new TiptapEditor({
-    extensions: createEditorExtensions({
-      slashMenuRef,
-      slashMenuItems,
-      slashMenuCommand,
-      emojiMenuRef,
-      emojiMenuItems,
-      emojiMenuCommand,
-      wikilinkMenuRef,
-      wikilinkMenuItems,
-      wikilinkMenuCommand,
-      searchHighlightOptions: {
-        getMatches: () => currentMatches.value,
-        getActiveIndex: () => searchCurrentIndex.value - 1,
-      },
-      getDocumentPath: () => fileStore.currentFile.path,
-      getStoragePath: () => settingsStore.settings.imageStoragePath || null,
-      onWikilinkNavigate: handleWikilinkNavigate,
-      getWikilinkSiblingFiles: () => getWikilinkCandidates(fileStore.currentFile.path),
-      getEmptyDocHint: buildEmptyDocHint,
-    }),
+    extensions: [
+      ...createEditorExtensions({
+        slashMenuRef,
+        slashMenuItems,
+        slashMenuCommand,
+        emojiMenuRef,
+        emojiMenuItems,
+        emojiMenuCommand,
+        wikilinkMenuRef,
+        wikilinkMenuItems,
+        wikilinkMenuCommand,
+        searchHighlightOptions: {
+          getMatches: () => currentMatches.value,
+          getActiveIndex: () => searchCurrentIndex.value - 1,
+        },
+        getDocumentPath: () => fileStore.currentFile.path,
+        getStoragePath: () => settingsStore.settings.imageStoragePath || null,
+        onWikilinkNavigate: handleWikilinkNavigate,
+        getWikilinkSiblingFiles: () => getWikilinkCandidates(fileStore.currentFile.path),
+        getEmptyDocHint: buildEmptyDocHint,
+      }),
+      // 性能探针只在诊断模式下存在（关闭态为 null，不注册任何监听）
+      ...(perfProbe
+        ? [Extension.create({ name: 'perfProbe', addProseMirrorPlugins: () => [perfProbe] })]
+        : []),
+    ],
     editorProps: {
       attributes: {
         class: 'tiptap-editor',
@@ -439,6 +452,8 @@ function createEditor(content: string) {
 
   // 触发初始字数统计
   emitImmediateStats(e);
+  // 性能诊断：编辑器就绪（收口冷启动 / 打开文件两条时延）
+  markInputReady();
 
   // 编辑器就绪信号：编辑器是 rAF 懒建的，消费方（大纲 scroll-spy 等）若在此前取
   // view 只能拿到 null。用事件明确告知「现在可以安全取 view」，不赌 nextTick（微任务）
@@ -598,6 +613,8 @@ watch(
     // preventUpdate 事务不触发 onUpdate → 手动补发字数和大纲
     emitImmediateStats(editor.value);
     editor.value.commands.focus('start');
+    // 性能诊断：切文档后就绪
+    markInputReady();
     // 跨文件切换（含首次挂载即有文档）：恢复该文档的阅读位置。
     // 异步执行，天然晚于上面的 focus('start')（滚到顶），不会被它覆盖。
     if (path && path !== prevPath) void restoreReadingPosition(path);
@@ -836,6 +853,8 @@ async function setupWindowFocusHandlers() {
 
 // IME 候选窗失锚护栏（仅 Windows）：窗口缩放后重锚编辑焦点，卸载时清理
 let disposeImeAnchor: (() => void) | null = null;
+// 性能诊断：滚动帧率探针（关闭态为空清理函数）
+let disposeScrollFpsProbe: (() => void) | null = null;
 
 onMounted(async () => {
   setupDragDrop();
@@ -875,6 +894,9 @@ onMounted(async () => {
 
   // 阅读位置：滚动停稳后防抖落盘（切换/关窗另有直接保存兜底）
   editorWrapRef.value?.addEventListener('scroll', scheduleReadingPositionSave, { passive: true });
+
+  // 性能诊断：诊断模式下采集滚动帧率（关闭态不挂监听）
+  disposeScrollFpsProbe = installScrollFpsProbe(editorWrapRef.value);
 
   // IME 候选窗失锚护栏（仅 Windows/WebView2）：窗口缩放后把编辑焦点重锚一次。
   // 详见 docs/IME-ANCHOR-GUARD-2026-10-09.md
@@ -920,6 +942,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', repositionBubbleMenu);
   disposeImeAnchor?.();
   disposeImeAnchor = null;
+  disposeScrollFpsProbe?.();
+  disposeScrollFpsProbe = null;
   if (_bubbleMenuRafId != null) {
     cancelAnimationFrame(_bubbleMenuRafId);
     _bubbleMenuRafId = null;
