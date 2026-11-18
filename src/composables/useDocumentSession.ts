@@ -29,7 +29,6 @@ import {
   isHeavyDocument,
   HEAVY_DOC_CHARS,
 } from '../components/Editor/document-scale';
-import { markOpenBegin } from '../services/perf-diagnostics';
 
 export interface AutoSaveStatus {
   message: string;
@@ -104,7 +103,6 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   async function loadDocumentFromPath(path: string, silent = false): Promise<boolean> {
     if (isOpeningFile) return false;
     isOpeningFile = true;
-    markOpenBegin();
     try {
       fileStore.setLoading(true);
       const document = await openDocument(path);

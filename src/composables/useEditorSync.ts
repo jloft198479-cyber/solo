@@ -10,7 +10,6 @@ import {
 import { serializeMarkdown } from '../components/Editor/tiptap/markdown/serializer';
 import { isHeavyDocument } from '../components/Editor/document-scale';
 import { useFileStore } from '../stores/file';
-import { measureSerialize } from '../services/perf-diagnostics';
 import type { Node as PMNode } from '@tiptap/pm/model';
 
 export interface EditorSyncPayload {
@@ -118,7 +117,7 @@ export function useEditorSync(options: EditorSyncOptions) {
           scheduleSerialize(target);
           return;
         }
-        const markdown = measureSerialize(() => serializeMarkdown(target.state.doc));
+        const markdown = serializeMarkdown(target.state.doc);
         fileStore.syncEditedContent(markdown);
         // 空闲回调执行时才读 doc，此刻的 editGeneration 已含之前所有编辑
         syncedGeneration = editGeneration;
@@ -197,7 +196,7 @@ export function useEditorSync(options: EditorSyncOptions) {
   function flushPendingSerialize(ed: TiptapEditor) {
     if (ed.isDestroyed) return;
     if (editGeneration === syncedGeneration) return;
-    const markdown = measureSerialize(() => serializeMarkdown(ed.state.doc));
+    const markdown = serializeMarkdown(ed.state.doc);
     fileStore.syncEditedContent(markdown);
     syncedGeneration = editGeneration;
     options.onSerialize?.(markdown, ed.state.doc);
