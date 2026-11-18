@@ -33,11 +33,6 @@ export default defineConfig(async () => ({
     rollupOptions: {
       output: {
         manualChunks: (id: string) => {
-          // Vue 运行时必须独立于 tiptap-core：否则被 hoist 进 426KB 的 tiptap-core，
-          // 入口在前首帧就被迫解析整个编辑器内核，懒加载形同虚设。
-          if (id.includes('node_modules/vue/') || id.includes('node_modules/@vue/')) {
-            return 'vue';
-          }
           if (id.includes('@tiptap/vue-3') || id.includes('@tiptap/pm') || id.includes('@tiptap/core')) {
             return 'tiptap-core';
           }

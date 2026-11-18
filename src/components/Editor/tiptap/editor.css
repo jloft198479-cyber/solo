@@ -85,6 +85,7 @@
   /* CJK 排版优化 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   line-break: strict;
 }
 
