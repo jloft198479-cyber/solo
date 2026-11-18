@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.68] - 2026-11-18
+
+### Added
+
+- 状态栏新增「在文件夹中显示」：一键在系统文件管理器中定位并选中当前文档。未保存的新文档按钮置灰；文件被外部移动或删除时给出明确提示，不静默失败。
+
+### Changed
+
+- 新增开发者代码维基（`docs/code-wiki/`），并修正 `ARCHITECTURE.md` 中 composables 数量、定向事件发送方式与 `pathFollowToken` 的描述漂移。
+
 ## [1.2.67] - 2026-11-03
 
 ### Fixed
