@@ -69,6 +69,22 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`adr/ADR-0001-列表转段落夹心形状.md`](./adr/ADR-0001-列表转段落夹心形状.md) | adr | agent | accepted | 决策：顶层项「转普通段落」把列表切成「两张夹一行段落」是**批准产物**（不修）；误操作产生的才是缺陷 |
 | [`adr/ADR-0002-表格单元格拍平.md`](./adr/ADR-0002-表格单元格拍平.md) | adr | agent | accepted | 决策：GFM 单元格只能表达行内文本 ⇒ `cellToText` 一律拍平；`atBlockStart()` 在格内恒 false |
 
+### docs/code-wiki/ 代码维基（开发者导览）
+
+> 面向开发者的结构化代码导览：架构分层、模块职责、关键类/函数、依赖边界、数据流、构建运行。**不替代真理源**：架构事实以 `ARCHITECTURE.md` 为准，构建以 `BUILD_GUIDE.md` 为准。
+
+| 路径 | type | 受众 | 状态 | tag / 摘要 |
+| --- | --- | --- | --- | --- |
+| [`code-wiki/README.md`](./code-wiki/README.md) | guide | dev | active | 维基入口：十分钟心智模型 + 页面地图 + 阅读路线 |
+| [`code-wiki/01-系统架构.md`](./code-wiki/01-系统架构.md) | guide | dev | active | 三层架构、技术栈、目录地图、启动顺序、多窗口、持久化、横切机制 |
+| [`code-wiki/02-Rust-后端.md`](./code-wiki/02-Rust-后端.md) | guide | dev | active | Rust 模块、命令清单、managed state、错误/DTO、关窗链、关键常量 |
+| [`code-wiki/03-前端外壳.md`](./code-wiki/03-前端外壳.md) | guide | dev | active | main/App、composables、file/settings store、命令系统、IPC 封装 |
+| [`code-wiki/04-编辑器内核.md`](./code-wiki/04-编辑器内核.md) | guide | dev | active | MarkdownEditor 契约、扩展分类、parser/serializer、剪贴板、主题字体、分档 |
+| [`code-wiki/05-关键数据流.md`](./code-wiki/05-关键数据流.md) | guide | dev | active | 启动/打开/编辑/保存/改名/关窗/退出/多窗口/图片/字体/会话完整链路 |
+| [`code-wiki/06-依赖关系与边界.md`](./code-wiki/06-依赖关系与边界.md) | guide | dev | active | 依赖方向、允许/禁止矩阵、第三方依赖、机器锁、真理源地图 |
+| [`code-wiki/07-构建运行与测试.md`](./code-wiki/07-构建运行与测试.md) | guide | dev | active | 环境、命令表、验证等级、测试网、调试入口、发版前检查 |
+| [`code-wiki/08-关键符号索引.md`](./code-wiki/08-关键符号索引.md) | reference | dev | active | 类/函数/Store/命令 → 文件 → 职责速查表 |
+
 ### docs/ 原则、提案、归档
 
 | 路径                                                                         | type      | 受众             | 状态     | tag / 摘要                                                               |

@@ -42,7 +42,7 @@ Rust 核心 (src-tauri/)   ──命令 + 事件──▶  文件/图片/窗口/
         ▲ invoke / emit
 IPC 服务层 (src/services/tauri/)  ──契约封装，前端不直接碰 invoke
         ▲
-Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables + 2 个 Pinia store + TipTap 编辑器
+Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 13 个 composables + 2 个 Pinia store + TipTap 编辑器
 ```
 
 > 除上述三层纵向结构外，还有**三条横切机制**不属于任何一层、又影响多层行为：**会话记忆（最近文件 + 阅读位置）**、**大文档分档降级**、**Windows 原生窗口缩放** —— 见 §12。
@@ -88,7 +88,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables +
 │              ┌───────────────┼───────────────┐                  │
 │              ▼               ▼               ▼                  │
 │         composables      Pinia stores     组件树                │
-│         (12 个，按       ┌─ file.ts       App ▸ Editor           │
+│         (13 个，按       ┌─ file.ts       App ▸ Editor           │
 │          关注点拆分)     └─ settings.ts   ▸ Settings(13)         │
 │                                                ▸ Layout 等       │
 └──────────────────────┬──────────────────────────────────────────┘
@@ -111,7 +111,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables +
 │ commands/ ── document/font/clipboard/window/desktop/image（§4.2） │
 │   models.rs ── DTO（camelCase 序列化）                            │
 │   error.rs ── AppError 枚举（5 变体 + 结构化序列化）              │
-│   events.rs ── 2 个事件常量                                      │
+│   events.rs ── 定向事件常量 + emit 辅助                          │
 │   menu.rs / state.rs ── 菜单构建 / 启动开打竞态处理              │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -141,7 +141,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables +
 │   │   ├── file.ts               #     文档状态：path/content/脏标记/displayName
 │   │   └── settings.ts           #     全局设置：主题/字体/快捷键/迁移/防抖持久化
 │   │
-│   ├── composables/              #   业务逻辑封装（12 个）
+│   ├── composables/              #   业务逻辑封装（13 个）
 │   │   ├── useDocumentSession.ts #     新建/打开/保存/自动保存（含互斥锁）
 │   │   ├── useCommandDispatcher.ts #   命令分发：菜单/快捷键/UI → 动作
 │   │   ├── useAppDomEvents.ts    #     全局键盘事件 → 命令
@@ -153,6 +153,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables +
 │   │   ├── useFloatingListMenu.ts#     SlashMenu/EmojiMenu 共享的浮动菜单
 │   │   ├── useOutline.ts         #     大纲提取/导航
 │   │   ├── useEditorSync.ts      #     编辑器↔store 同步（脏态 A1 核心，4 档防抖）
+│   │   ├── useFontStatus.ts      #     字体下载/可用/失败状态（按 family 索引）
 │   │   └── useClickOutside.ts    #     点击外部检测（通用）
 │   │
 │   ├── commands/
@@ -230,7 +231,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables +
 │   │   ├── state.rs              #   StartupOpenRequests / LoadedWindows
 │   │   ├── models.rs             #   所有 DTO
 │   │   ├── error.rs              #   AppError + 结构化序列化
-│   │   ├── events.rs             #   2 个事件常量 + emit 函数
+│   │   ├── events.rs             #   定向事件常量 + emit 辅助（只许 emit_to）
 │   │   ├── menu.rs               #   原生菜单构建 + attach_menu_events
 │   │   ├── updater.rs            #   更新代理检测（detect_github_proxy）
 │   │   ├── native_resize.rs      #   Windows 原生边缘缩放（Win32 子窗，见 §12.3）
@@ -280,6 +281,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables +
 | `open_document` | document.rs | 读文件内容 + 返回 mtime |
 | `save_document` | document.rs | **原子写** + mtime 冲突检测（见 docs/sensitive-areas.md §11.2） |
 | `get_file_mtime` | document.rs | 读文件 mtime（互链跳转前的存在性检查） |
+| `reveal_document_in_folder` | document.rs | 在系统文件管理器中定位当前文档（存在性检查 → `opener.reveal_item_in_dir`；未保存文档由前端置灰） |
 | `list_markdown_files` | document.rs | 列当前文档**目录树**内的 .md 相对路径（互链 `[[` 补全候选；深度 `WIKILINK_SCAN_DEPTH`、上限 500 且凑满即停、浅层优先） |
 | `rename_file` | document.rs | 重命名文件（去后缀、防冲突、大小写敏感） |
 | `sync_wikilinks_on_rename` | document.rs | 改名后同步「指向本文档」的互链：扫**改名文档本层 + 向上两层**目录（引用方只可能在这三层，见 `rename_scan_dirs`），按各层真实写法原子改写 `[[旧名]]`→`[[新名]]`，返回被改动文件的**绝对路径**（不预览、不询问，见 KNOWN-ISSUES §一 #23） |
@@ -309,14 +311,17 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 12 个 composables +
 > **命令数量以 `lib.rs::generate_handler!` 为唯一真相源，此处不硬编码**（曾三处数字漂移，见 KNOWN-ISSUES §二 #3）。
 > 🤖 **本表与代码的同步有机器锁**：`src/__tests__/arch-drift.spec.ts` 断言上表集合 == `generate_handler!` 集合（双向：少一个/多一个都红），防止再次只同步代码不同步文档。
 
-### 4.3 事件（2 个）
+### 4.3 事件
 
 | 事件名 | 方向 | 载荷 |
 |---|---|---|
-| `menu-event` | Rust→前端（**定向到当前焦点窗口**） | 菜单项 id 字符串 |
-| `window-close-requested` | Rust→前端 | `()`（关闭被拦截，交前端确认） |
+| `menu-event` | Rust→前端（`emit_to` **定向到当前焦点窗口**） | 菜单项 id 字符串 |
+| `window-close-requested` | Rust→前端（`emit_to` 定向到被关窗口） | `()`（关闭被拦截，交前端确认） |
+| `solo:editor-focus` | Rust→前端（`emit_to` 定向到当前窗口） | `()`（窗口获得焦点） |
+| `solo:editor-blur` | Rust→前端（`emit_to` 定向到当前窗口） | `()`（窗口失去焦点） |
 
-> `menu-event` 由 `menu.rs` 经 `app.emit(MENU_EVENT, id)` 广播，但**仅当前 `FocusedWindow` 对应窗口的前端会消费**——前端侧按窗口各自监听，避免多窗口重复执行同一菜单动作（见 §4.5 的 `FocusedWindow`）。
+> **只能用 `emit_to(window.label(), ...)`**。Tauri 2 的 `Emitter::emit` 是全局广播，`window.emit(...)` 名字像定向、行为却是全广播；曾导致「关 B 窗口把 A 一起关掉」。`menu.rs` 先取 `FocusedWindow` 对应窗口，再 `emit_to` 定向发送；`commands/window.rs` 的焦点/关闭链同理。回归锁：`src/__tests__/event-dispatch-target-lock.spec.ts`。
+> 前端另有两条**跨窗口 JS 广播**（不经过 Rust）：`solo:wikilinks-synced`（别的窗口改名后改写了本窗正开的文件）与 `solo:file-renamed`（只换路径，不重载内容），见 §12 与 `useDocumentSession`。
 
 ### 4.4 错误模型 `AppError`
 
@@ -396,7 +401,7 @@ app.mount('#app');
 
 视图模式 `activeViewMode`：`'editor'` | `'image'`，外加独立的 `isFullscreenPreview`。
 
-### 6.3 Composables 职责表（12 个）
+### 6.3 Composables 职责表（13 个）
 
 | composable | 职责 | 关键点 |
 |---|---|---|
@@ -411,6 +416,7 @@ app.mount('#app');
 | `useFloatingListMenu` | 浮动菜单 | SlashMenu/EmojiMenu 共享逻辑 |
 | `useOutline` | 大纲 | 大纲提取与导航（OutlinePanel） |
 | `useEditorSync` | 编辑器↔store 同步 | **脏态 A1 核心**，4 档防抖（字数150/大纲500/序列化500/光标100），`onUpdate` 单出口 → `fileStore.syncEditedContent`；heavy 档且大纲面板关闭时跳过全文大纲提取（面板打开时补算）；空闲序列化超时兜底撞上续打时推迟回防抖，不在输入中途硬跑大序列化 |
+| `useFontStatus` | 字体状态 | 下载中/可用/失败三态，按 family 索引，带竞态防护 |
 | `useClickOutside` | 点击外部 | 通用 composable |
 
 > 旧文档提到的 `utils/shortcuts.ts` **已删除**：registry 内联 `getShortcut`/`getShortcutCommands`，全仓无 `shortcuts` 引用。命令源 `CommandSource` = `shortcut` | `menu` | `palette`（**3 个**），`CommandScope` = `app` | `editor`。
@@ -425,6 +431,7 @@ app.mount('#app');
 currentFile: { path, content, isDirty, lastModifiedTime, displayName, originalBaseName }
 isLoading: boolean                  // 读盘/解析期间的状态栏加载条
 reloadToken: number                 // 仅 setFile() 递增，编辑器据此换文档（见下）
+pathFollowToken: number             // 仅 renamePath() 递增：同一文档换路径，只更新派生物，不回灌内容
 ```
 
 **核心机制：脏态以"语义比对"为唯一真相源（A1 改造，详见 docs/sensitive-areas.md §11.1）**：
@@ -434,10 +441,10 @@ reloadToken: number                 // 仅 setFile() 递增，编辑器据此换
   - 不再区分"程序性写回 vs 用户编辑"——通过语义比对判定，消除 `hasUserEdit` 标志的歧义。
 - `setDisplayName(name)` —— 置脏（标题被改）。
 - `markSaved(lastModifiedTime = null, content?)` —— 清脏，`displayName` 重置回 `originalBaseName`；传 `content` 时**基线同步为实际落盘内容**（基线的唯一安全更新时机：只在保存成功后，否则失败/冲突取消会把未保存编辑洗白）。
-- `renamePath(newPath)` —— 重置 `displayName` 与 `originalBaseName`（实际文件重命名在保存时经 save-as 流程完成，见 `useDocumentSession.handleRename`）。
+- `renamePath(newPath)` —— 只换路径、保留内存编辑，递增 `pathFollowToken`；`displayName` 与 `originalBaseName` 重置（实际文件重命名在保存时经 save-as 流程完成，见 `useDocumentSession.handleRename`）。
 - `reset()` —— 回到空文件状态。
 
-> **`reloadToken` 是「编辑器何时换文档」的唯一触发器**（`MarkdownEditor.vue` watch `[path, reloadToken]`）：只看 `path` 时，同路径的外部修改重载会被漏掉（旧 doc 的延迟序列化还会把旧内容写回 store）；直接 watch `content` 更不行——编辑期 `syncEditedContent` 也在写 `content`，store 一滞后就会把正在编辑的内容回退成旧基线。动编辑器换文档逻辑前先理解这个 token。
+> **两个 token 语义不同，不能混用**：`reloadToken` 是「磁盘内容已载入，编辑器必须换文档」的唯一触发器（`MarkdownEditor.vue` watch `[path, reloadToken, pathFollowToken]`）；`pathFollowToken` 是「同一文档换路径，只更新标题/面包屑等派生物」，**绝不能回灌内容**，否则会抹掉未保存编辑。只看 `path` 时，同路径的外部修改重载会被漏掉；直接 watch `content` 更不行——编辑期 `syncEditedContent` 也在写 `content`，store 一滞后就会把正在编辑的内容回退成旧基线。
 
 > 旧文档的 `markUserEdit()` + `hasUserEdit` 双函数模型**已于 A1 重构中废弃**，切勿再按旧模型理解或改动。
 
@@ -777,7 +784,7 @@ underline
 | Rust 命令 ~20 个 | 旧数量已过时；**当前命令数以 `lib.rs::generate_handler!` 为唯一真相源，勿在文档硬编码**（§4.2） |
 | 快捷键表 / 发布清单列有「导出 HTML / PDF / 微信」 | **已移除**（v1.2.18）。复制走状态栏按钮（双槽：`text/plain` = Markdown 源码 + `text/html` = 富文本，见 §10.2），无导出命令；`utils/export/` 整个目录已删除 |
 | 脏态用 `setContent` + `markUserEdit` 双函数（按 hasUserEdit 标志判定） | **A1 重构**：改为 `setContent`（仅基线）+ `syncEditedContent`（语义比对唯一真相源），`hasUserEdit`/`markUserEdit` 已废弃，见 §7.1 / docs/sensitive-areas.md §11.1 |
-| composables 10 个 / `utils/shortcuts.ts` 存在 | **实际 12 个**；`utils/shortcuts.ts` **已删除**（registry 内联 `getShortcut`/`getShortcutCommands`） |
+| composables 10 个 / `utils/shortcuts.ts` 存在 | **实际 13 个**；`utils/shortcuts.ts` **已删除**（registry 内联 `getShortcut`/`getShortcutCommands`） |
 | `services/tauri/` 含 `event-names.ts`/`webview.ts`/`opener.ts`/`os.ts`/`window-state.ts` | **均不存在**。当前 12 个文件（数量以 `ls` 为准）：`client`/`command-names`/`document`/`session`/`window`/`dialog`/`clipboard`/`events`/`font`/`asset`/`update`/`store`，见 §3 / §5.3 |
 | 窗口缩放靠前端透明 div（`WindowResizeHandles`） | **Windows 已改走原生子窗**（`src-tauri/src/native_resize.rs`），前端组件仅 macOS / 其他平台生效，见 §12.3 |
 | 无「最近文件 / 阅读位置」 | **已实现**（`commands/session.rs` + `services/tauri/session.ts` + 2 条命令），见 §12.1 |
