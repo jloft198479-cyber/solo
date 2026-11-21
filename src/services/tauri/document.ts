@@ -1,10 +1,32 @@
 import { invokeCommand } from './client';
 import { TAURI_COMMANDS } from './command-names';
 
+/**
+ * 原文件的编码族。三分而非「有没有 BOM」：Rust 侧会把 UTF-16 解码成普通字符串，
+ * 只按 bool 回写 UTF-8 BOM 会让 UTF-16 另存的 .md 静默换族。
+ */
+export type TextEncoding = 'utf8' | 'utf8Bom' | 'utf16';
+
+/** 换行方式（`lineEnding` 与 Rust 的 `LineEnding` 一一对应）。 */
+export type LineEnding = 'lf' | 'crlf' | 'cr';
+
+/**
+ * 磁盘原文的「排版习惯」。编辑器内部恒为 `\n` 无 BOM，这些信息只能靠它保存时还原。
+ * 见 docs/PROPOSAL-file-fidelity.md §2.1。
+ */
+export interface DocumentLayout {
+  encoding: TextEncoding;
+  /** 主导换行；混合换行文件保存时统一为它 */
+  ending: LineEnding;
+  /** 两种及以上换行并存（仅作诊断，保存时不逐行保留） */
+  mixed: boolean;
+}
+
 export interface DocumentOpenResult {
   path: string;
   content: string;
   lastModifiedMs: number;
+  layout: DocumentLayout;
 }
 
 export interface DocumentSaveResult {
@@ -52,17 +74,23 @@ export async function listMarkdownFiles(path: string) {
   return invokeCommand<MarkdownFileList>(TAURI_COMMANDS.listMarkdownFiles, { path });
 }
 
+/**
+ * 保存文档。`layout` 是打开时记下的排版习惯（BOM / 换行）——
+ * 不传 = 历史行为（UTF-8 无 BOM、LF），新建文档与不理解布局的调用方走这条。
+ */
 export async function saveDocument(
   path: string,
   content: string,
   expectedLastModifiedMs?: number | null,
   force = false,
+  layout?: DocumentLayout | null,
 ) {
   return invokeCommand<DocumentSaveResult>(TAURI_COMMANDS.saveDocument, {
     path,
     content,
     expectedLastModifiedMs,
     force,
+    layout: layout ?? null,
   });
 }
 

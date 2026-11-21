@@ -171,6 +171,8 @@ describe('useDocumentSession', () => {
       path: '/tmp/demo.md',
       content: '# title',
       lastModifiedMs: 123,
+      // W1：打开即带回排版习惯，随 setFile 落到 store，保存时原样传回
+      layout: { encoding: 'utf8', ending: 'crlf', mixed: false },
     });
 
     const { useDocumentSession } = await import('../useDocumentSession');
@@ -181,7 +183,11 @@ describe('useDocumentSession', () => {
     await expect(session.loadDocumentFromPath('/tmp/demo.md')).resolves.toBe(true);
     expect(fileStoreState.setLoading).toHaveBeenNthCalledWith(1, true);
     expect(fileStoreState.setLoading).toHaveBeenLastCalledWith(false);
-    expect(fileStoreState.setFile).toHaveBeenCalledWith('# title', '/tmp/demo.md', 123);
+    expect(fileStoreState.setFile).toHaveBeenCalledWith('# title', '/tmp/demo.md', 123, {
+      encoding: 'utf8',
+      ending: 'crlf',
+      mixed: false,
+    });
   });
 
   it('未修改时不写盘：Ctrl+S 不再把 CRLF 文件静默改成 LF（M-03 回归锁）', async () => {
@@ -199,6 +205,68 @@ describe('useDocumentSession', () => {
 
     await expect(session.saveCurrentDocument(false, true)).resolves.toBe(true);
     expect(saveDocumentMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ⚠️ 上面那条是**弱锁**（2026-11-22 阶段 0 发现）：它既没给 `getContent` 也没给
+   * `isSyncedWithStore` ⇒ `evaluateDirtyFromEditor` 走 `live == null` 分支直接返回
+   * `isDirty`。短路成立的原因是「拿不到编辑器内容」，不是「基线与编辑器一致」——
+   * 把基线换回磁盘原文它照样绿。留作历史留痕，不删。
+   *
+   * 下面两条才是承重的：显式给 `getContent`（模拟编辑器实时序列化）+ 故意关掉
+   * `isSyncedWithStore` 快路径，逼它走真实的内容比对。
+   */
+  it('承重版：基线=序列化产物时，代际未锚定也不写盘（CRLF 文件不被归一）', async () => {
+    // CRLF 文件 '# a\r\n\r\nb\r\n' 经 parser 后的产物（映射由 eol-fidelity.spec.ts 钉住）
+    const baseline = '# a\n\nb\n';
+    fileStoreState.currentFile = {
+      path: '/tmp/demo.md',
+      content: baseline,
+      isDirty: false,
+      lastModifiedTime: 1000,
+      displayName: 'demo',
+      originalBaseName: 'demo',
+    };
+    withFaithfulSyncEditedContent();
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => baseline, // 编辑器实时序列化 == 基线
+      isSyncedWithStore: () => false, // 关掉快路径，逼出内容比对
+    });
+
+    await expect(session.saveCurrentDocument(false, true)).resolves.toBe(true);
+    expect(saveDocumentMock).not.toHaveBeenCalled();
+  });
+
+  it('反证：基线存磁盘原文（CRLF）时同一短路失效 → 判脏并落盘（= 归一事故现场）', async () => {
+    // 证明上一条不是空转：只要基线是原文，CRLF 文件光按一次保存就被全文重写。
+    // 这也正是 W1 必须单独记录 layout、而不是「靠不回写换行」的根本原因。
+    const diskText = '# a\r\n\r\nb\r\n';
+    const live = '# a\n\nb\n';
+    fileStoreState.currentFile = {
+      path: '/tmp/demo.md',
+      content: diskText,
+      isDirty: false,
+      lastModifiedTime: 1000,
+      displayName: 'demo',
+      originalBaseName: 'demo',
+    };
+    withFaithfulSyncEditedContent();
+    saveDocumentMock.mockResolvedValueOnce({ path: '/tmp/demo.md', lastModifiedMs: 2000 });
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => live,
+      isSyncedWithStore: () => false,
+    });
+
+    await expect(session.saveCurrentDocument(false, true)).resolves.toBe(true);
+    expect(saveDocumentMock).toHaveBeenCalledTimes(1);
+    // 写下去的是 LF 全文，原文的 \r 一个都不剩
+    expect(saveDocumentMock.mock.calls[0][1]).not.toContain('\r');
   });
 
   it('有未保存修改时 Ctrl+S 仍然写盘（门控不误伤正常保存）', async () => {
@@ -372,8 +440,8 @@ describe('useDocumentSession', () => {
     });
 
     await expect(session.saveCurrentDocument()).resolves.toBe(true);
-    expect(saveDocumentMock).toHaveBeenNthCalledWith(1, '/tmp/demo.md', 'draft', 1000, false);
-    expect(saveDocumentMock).toHaveBeenNthCalledWith(2, '/tmp/demo.md', 'draft', 1000, true);
+    expect(saveDocumentMock).toHaveBeenNthCalledWith(1, '/tmp/demo.md', 'draft', 1000, false, undefined);
+    expect(saveDocumentMock).toHaveBeenNthCalledWith(2, '/tmp/demo.md', 'draft', 1000, true, undefined);
     expect(fileStoreState.markSaved).toHaveBeenCalledWith(1500, 'draft');
     // 普通「外部修改」冲突：正文取 Rust 消息，按钮仍是「强制覆盖」
     expect(confirmMock).toHaveBeenCalledWith(
@@ -465,7 +533,9 @@ describe('useDocumentSession', () => {
     });
 
     await expect(session.saveCurrentDocument()).resolves.toBe(true);
-    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/demo.md', '编辑器新内容', 1000, false);
+    // 第 5 参 = 当前文档的 layout。本文件的 currentFile 字面量都不带 layout 字段
+    // ⇒ 实参是 undefined（真实链路里是 DocumentLayout 或 null）。
+    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/demo.md', '编辑器新内容', 1000, false, undefined);
     expect(fileStoreState.currentFile.content).toBe('编辑器新内容');
     expect(fileStoreState.currentFile.isDirty).toBe(false);
   });
@@ -491,8 +561,8 @@ describe('useDocumentSession', () => {
     });
 
     await expect(session.saveCurrentDocument()).resolves.toBe(true);
-    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/demo.md', 'draft', null, true);
-    expect(fileStoreState.setFile).toHaveBeenCalledWith('draft', '/tmp/demo.md', 2000);
+    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/demo.md', 'draft', null, true, undefined);
+    expect(fileStoreState.setFile).toHaveBeenCalledWith('draft', '/tmp/demo.md', 2000, undefined);
     // setFile 已经将 isDirty 置为 false，无需再调 markSaved
     expect(fileStoreState.markSaved).not.toHaveBeenCalled();
   });
@@ -604,7 +674,7 @@ describe('useDocumentSession', () => {
     await session.saveCurrentDocument();
     // 走 rename 路径：renameFile 被调，saveDocument 在新路径上被调，不弹保存对话框
     expect(renameFileMock).toHaveBeenCalledWith('/tmp/original.md', '新标题');
-    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/新标题.md', 'draft', null, true);
+    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/新标题.md', 'draft', null, true, undefined);
     expect(saveMock).not.toHaveBeenCalled();
     // 原文件 /tmp/original.md 未被静默写回
     expect(saveDocumentMock).not.toHaveBeenCalledWith(
@@ -717,7 +787,7 @@ describe('useDocumentSession', () => {
 
     await session.saveCurrentDocument();
     expect(saveMock).not.toHaveBeenCalled();
-    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/original.md', 'draft', 1000, false);
+    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/original.md', 'draft', 1000, false, undefined);
   });
 
   it('recovers to the renamed path when persisting content fails after rename', async () => {
@@ -754,7 +824,7 @@ describe('useDocumentSession', () => {
     const retry = await session.saveCurrentDocument();
     expect(retry).toBe(true);
     expect(renameFileMock).toHaveBeenCalledTimes(1);
-    expect(saveDocumentMock).toHaveBeenNthCalledWith(2, '/tmp/新标题.md', 'draft', 1000, false);
+    expect(saveDocumentMock).toHaveBeenNthCalledWith(2, '/tmp/新标题.md', 'draft', 1000, false, undefined);
   });
 
   it('passes displayName to renameFile for save-after-rename flow', async () => {
@@ -783,7 +853,7 @@ describe('useDocumentSession', () => {
     await session.saveCurrentDocument();
     // rename 路径：displayName 直接传给 renameFile，不弹保存对话框
     expect(renameFileMock).toHaveBeenCalledWith('/tmp/original.md', 'a/b:c*d?e');
-    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/a_b_c_d_e.md', 'draft', null, true);
+    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/a_b_c_d_e.md', 'draft', null, true, undefined);
     expect(saveMock).not.toHaveBeenCalled();
   });
 });

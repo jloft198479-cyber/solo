@@ -1,7 +1,7 @@
 use crate::error::AppError;
 use crate::models::{
-    DocumentImageImportResult, DocumentOpenResult, DocumentRenameResult,
-    DocumentSaveResult, ImageAssetAuthorizationResult, MarkdownFileList,
+    DocumentImageImportResult, DocumentLayout, DocumentOpenResult, DocumentRenameResult,
+    DocumentSaveResult, ImageAssetAuthorizationResult, LineEnding, MarkdownFileList, TextEncoding,
 };
 use base64::{engine::general_purpose, Engine as _};
 use std::fs;
@@ -74,17 +74,19 @@ impl Default for ScanBudget {
 /// 且只抛裸 IO 错误，用户不知道是编码问题。此处把「打不开」变成「为什么打不开」。
 const ENCODING_ERROR_MSG: &str = "该文件不是 UTF-8 / UTF-16 编码（常见于用记事本以「ANSI」另存的文件）。solo 暂不支持该编码，请先用其它编辑器另存为 UTF-8 后重试";
 
-/// 读取文本并尽量解码（M-01）：
-/// - UTF-8 BOM（EF BB BF）→ 去 BOM 后按 UTF-8 解码（BOM 不再漏进正文）
-/// - UTF-16 LE / BE BOM（FF FE / FE FF）→ 按 UTF-16 解码（记事本「Unicode」另存即此格式）
-/// - 其它 → 严格 UTF-8；失败给可读原因
+/// 读取文本并尽量解码（M-01），**同时报出原文的排版习惯**（W1）：
+/// - UTF-8 BOM（EF BB BF）→ 去 BOM 后按 UTF-8 解码（BOM 不再漏进正文），encoding = Utf8Bom
+/// - UTF-16 LE / BE BOM（FF FE / FE FF）→ 按 UTF-16 解码，encoding = Utf16
+/// - 其它 → 严格 UTF-8，encoding = Utf8
 ///
 /// 不猜编码：GBK 一类本地代码页需第三方库才能可靠解码，宁可不支持也不乱解。
-fn read_text_file(path: &Path) -> Result<String, AppError> {
-    let bytes = fs::read(path)?;
-
+///
+/// 返回的 `TextEncoding` 只用来回答「原文是不是带 BOM / 是不是 UTF-16」——
+/// 保存时据此决定要不要补 BOM（UTF-16 不回写，属于有意归一，见 `encode_with_layout`）。
+fn decode_text_with_encoding(bytes: &[u8]) -> Result<(String, TextEncoding), AppError> {
     if let Some(rest) = bytes.strip_prefix(&[0xEFu8, 0xBB, 0xBF]) {
         return String::from_utf8(rest.to_vec())
+            .map(|text| (text, TextEncoding::Utf8Bom))
             .map_err(|_| AppError::validation(ENCODING_ERROR_MSG));
     }
     if let Some(rest) = bytes.strip_prefix(&[0xFFu8, 0xFE]) {
@@ -92,17 +94,115 @@ fn read_text_file(path: &Path) -> Result<String, AppError> {
             .chunks_exact(2)
             .map(|c| u16::from_le_bytes([c[0], c[1]]))
             .collect();
-        return String::from_utf16(&units).map_err(|_| AppError::validation(ENCODING_ERROR_MSG));
+        return String::from_utf16(&units)
+            .map(|text| (text, TextEncoding::Utf16))
+            .map_err(|_| AppError::validation(ENCODING_ERROR_MSG));
     }
     if let Some(rest) = bytes.strip_prefix(&[0xFEu8, 0xFF]) {
         let units: Vec<u16> = rest
             .chunks_exact(2)
             .map(|c| u16::from_be_bytes([c[0], c[1]]))
             .collect();
-        return String::from_utf16(&units).map_err(|_| AppError::validation(ENCODING_ERROR_MSG));
+        return String::from_utf16(&units)
+            .map(|text| (text, TextEncoding::Utf16))
+            .map_err(|_| AppError::validation(ENCODING_ERROR_MSG));
     }
 
-    String::from_utf8(bytes).map_err(|_| AppError::validation(ENCODING_ERROR_MSG))
+    String::from_utf8(bytes.to_vec())
+        .map(|text| (text, TextEncoding::Utf8))
+        .map_err(|_| AppError::validation(ENCODING_ERROR_MSG))
+}
+
+/// 某一种换行在**解码后**的文本里第一次出现的位置。
+/// 单独 LF / 单独 CR 要排除 CRLF 的另一半，否则会把 `\r\n` 重复算成两种。
+fn first_occurrence(text: &str, kind: LineEnding) -> Option<usize> {
+    let bytes = text.as_bytes();
+    match kind {
+        LineEnding::Crlf => text.find("\r\n"),
+        LineEnding::Cr => {
+            (0..bytes.len()).find(|&i| bytes[i] == b'\r' && bytes.get(i + 1) != Some(&b'\n'))
+        }
+        LineEnding::Lf => {
+            (0..bytes.len()).find(|&i| bytes[i] == b'\n' && (i == 0 || bytes[i - 1] != b'\r'))
+        }
+    }
+}
+
+/// 统计排版习惯（纯函数）。必须在解码后的文本上做：UTF-16 的换行在字节层是 `0A 00`，
+/// 按字节数会数错。
+///
+/// 主导换行 = 出现最频繁；平局取文件中**先出现**的那一种；一个换行都没有 → `Lf`。
+fn layout_of(text: &str, encoding: TextEncoding) -> DocumentLayout {
+    let crlf = text.matches("\r\n").count();
+    // 单独 LF / 单独 CR = 总数减去 CRLF 占掉的那一份
+    let lf = text.matches('\n').count() - crlf;
+    let cr = text.matches('\r').count() - crlf;
+
+    let counts = [
+        (LineEnding::Crlf, crlf),
+        (LineEnding::Lf, lf),
+        (LineEnding::Cr, cr),
+    ];
+    let mixed = counts.iter().filter(|(_, n)| *n > 0).count() >= 2;
+
+    let mut best: Option<(LineEnding, usize)> = None;
+    for (kind, n) in counts {
+        if n == 0 {
+            continue;
+        }
+        best = match best {
+            None => Some((kind, n)),
+            Some((_, best_n)) if n > best_n => Some((kind, n)),
+            Some((best_kind, best_n)) if n == best_n => {
+                // 平局：谁先出现取谁
+                match (first_occurrence(text, kind), first_occurrence(text, best_kind)) {
+                    (Some(a), Some(b)) if a < b => Some((kind, n)),
+                    _ => Some((best_kind, best_n)),
+                }
+            }
+            kept => kept,
+        };
+    }
+
+    DocumentLayout {
+        encoding,
+        ending: best.map(|(kind, _)| kind).unwrap_or(LineEnding::Lf),
+        mixed,
+    }
+}
+
+fn read_text_with_layout(path: &Path) -> Result<(String, DocumentLayout), AppError> {
+    let bytes = fs::read(path)?;
+    let (text, encoding) = decode_text_with_encoding(&bytes)?;
+    let layout = layout_of(&text, encoding);
+    Ok((text, layout))
+}
+
+/// 按排版习惯把编辑器文本编码成要落盘的字节（W1）。
+///
+/// `None` = 不携带布局的调用方（新建文档等）→ 保持历史行为：UTF-8 无 BOM、LF。
+/// 有了布局就照它来：`Utf8Bom` 补 BOM；`Crlf` / `Cr` 展开行尾；`Utf16` **不补 BOM**
+/// （写 UTF-8 —— 有意归一，不假装还给它 UTF-16）。
+fn encode_with_layout(text: &str, layout: Option<&DocumentLayout>) -> Vec<u8> {
+    let ending = layout.map(|l| l.ending).unwrap_or(LineEnding::Lf);
+    // 编辑器内部恒为 LF。这一步只防脏输入（内容里混进 \r 时避免写出 \r\r\n）。
+    let normalized = if text.contains('\r') {
+        text.replace("\r\n", "\n").replace('\r', "\n")
+    } else {
+        text.to_string()
+    };
+    let body = if ending == LineEnding::Lf {
+        normalized
+    } else {
+        normalized.replace('\n', ending.as_str())
+    };
+
+    let mut bytes = Vec::with_capacity(body.len() + 3);
+    if matches!(layout.map(|l| l.encoding), Some(TextEncoding::Utf8Bom)) {
+        bytes.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
+    }
+    bytes.extend_from_slice(body.as_bytes());
+    bytes
 }
 
 fn validate_document_extension(path: &str, allowed: &[&str], action: &str) -> Result<(), AppError> {
@@ -126,12 +226,12 @@ fn validate_document_extension(path: &str, allowed: &[&str], action: &str) -> Re
 pub async fn open_document(path: String) -> Result<DocumentOpenResult, AppError> {
     validate_document_extension(&path, &OPEN_EXTENSIONS, "打开")?;
     let path_for_io = path.clone();
-    let (content, last_modified_ms) = tauri::async_runtime::spawn_blocking(move || {
-        let content = read_text_file(Path::new(&path_for_io))?;
+    let (content, layout, last_modified_ms) = tauri::async_runtime::spawn_blocking(move || {
+        let (content, layout) = read_text_with_layout(Path::new(&path_for_io))?;
         let last_modified_ms = read_modified_time_ms(Path::new(&path_for_io))?;
         // 兜底清理：同目录下 solo 崩溃残留的 .tmp 文件（静默，不阻塞）
         cleanup_stale_tmp_files(Path::new(&path_for_io));
-        Ok::<_, AppError>((content, last_modified_ms))
+        Ok::<_, AppError>((content, layout, last_modified_ms))
     })
     .await
     .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))??;
@@ -140,6 +240,7 @@ pub async fn open_document(path: String) -> Result<DocumentOpenResult, AppError>
         path,
         content,
         last_modified_ms,
+        layout,
     })
 }
 
@@ -288,6 +389,7 @@ pub async fn save_document(
     content: String,
     expected_last_modified_ms: Option<u64>,
     force: bool,
+    layout: Option<DocumentLayout>,
 ) -> Result<DocumentSaveResult, AppError> {
     validate_document_extension(&path, &WRITE_EXTENSIONS, "保存")?;
     // 冲突检查也涉及 metadata IO，一并放进 spawn_blocking
@@ -317,7 +419,9 @@ pub async fn save_document(
             }
         }
 
-        atomic_write(path_ref, content.as_bytes())?;
+        // W1：按原文件的排版习惯落盘（BOM / 换行）。layout 缺省时保持历史行为。
+        let bytes = encode_with_layout(&content, layout.as_ref());
+        atomic_write(path_ref, &bytes)?;
         read_modified_time_ms(path_ref)
     })
     .await
@@ -1164,13 +1268,15 @@ fn unique_asset_target(assets_dir: &Path, filename: &str) -> (PathBuf, String) {
 #[cfg(test)]
 mod tests {
     use super::{
-        atomic_write, collect_markdown_files, import_document_image, list_markdown_files,
-        open_document, rename_file, rename_roots, rename_scan_dirs, resolve_image_src,
-        rewrite_wikilink_targets, save_document, scan_and_rewrite_wikilinks,
-        sync_wikilinks_on_rename, validate_document_extension, validate_image_asset_path,
-        wikilink_target_forms, ScanBudget, OPEN_EXTENSIONS, WRITE_EXTENSIONS,
+        atomic_write, collect_markdown_files, encode_with_layout, import_document_image, layout_of,
+        list_markdown_files, open_document, read_text_with_layout, rename_file, rename_roots,
+        rename_scan_dirs, resolve_image_src, rewrite_wikilink_targets, save_document,
+        scan_and_rewrite_wikilinks, sync_wikilinks_on_rename, validate_document_extension,
+        validate_image_asset_path, wikilink_target_forms, ScanBudget, OPEN_EXTENSIONS,
+        WRITE_EXTENSIONS,
     };
     use crate::error::AppError;
+    use crate::models::{DocumentLayout, LineEnding, TextEncoding};
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -1188,6 +1294,212 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("solo-document-test-{}-{}", millis, seq));
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    // ── 读入侧：解码 + 排版习惯（阶段 0 钉子 → W1 起读入即记录 layout）──────
+    // 这四条兼作 W1 的输入前提：W1 要回写 BOM / 换行，前提就是读入侧确实把原文
+    // 送进来了、且只剥了 BOM 没动换行，并如实报出它是哪一种。
+
+    #[test]
+    fn read_text_file_keeps_lf_untouched() {
+        let dir = test_dir();
+        let path = dir.join("lf.md");
+        atomic_write(&path, b"# a\n\nb\n").unwrap();
+
+        let (text, layout) = read_text_with_layout(&path).unwrap();
+        assert_eq!(text, "# a\n\nb\n");
+        assert_eq!(layout.encoding, TextEncoding::Utf8);
+        assert_eq!(layout.ending, LineEnding::Lf);
+        assert!(!layout.mixed);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    /// CRLF 必须原样出来。归一发生在 markdown-it（前端），Rust 不碰——
+    /// 这是「主导换行统计」能读到真实值的唯一前提。
+    #[test]
+    fn read_text_file_keeps_crlf_untouched() {
+        let dir = test_dir();
+        let path = dir.join("crlf.md");
+        atomic_write(&path, b"# a\r\n\r\nb\r\n").unwrap();
+
+        let (text, layout) = read_text_with_layout(&path).unwrap();
+        assert_eq!(text, "# a\r\n\r\nb\r\n");
+        assert_eq!(layout.encoding, TextEncoding::Utf8);
+        assert_eq!(layout.ending, LineEnding::Crlf);
+        assert!(!layout.mixed);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    /// UTF-8 BOM 仍从正文剥掉（BOM 不能漏进正文），但**现在被记进 layout**，
+    /// 保存时据此补回来。
+    #[test]
+    fn read_text_file_strips_utf8_bom_and_records_it() {
+        let dir = test_dir();
+        let path = dir.join("bom.md");
+        let mut bytes = vec![0xEFu8, 0xBB, 0xBF];
+        bytes.extend_from_slice(b"# a\n");
+        atomic_write(&path, &bytes).unwrap();
+
+        let (text, layout) = read_text_with_layout(&path).unwrap();
+        assert_eq!(text, "# a\n");
+        assert_eq!(layout.encoding, TextEncoding::Utf8Bom);
+        assert_eq!(layout.ending, LineEnding::Lf);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    /// UTF-16 LE（记事本「Unicode」另存）会被解码成普通字符串，layout 标 Utf16。
+    /// 保存时**不回写 UTF-16**（有意归一为 UTF-8），但至少不再假装不认识它。
+    #[test]
+    fn read_text_file_decodes_utf16le() {
+        let dir = test_dir();
+        let path = dir.join("utf16.md");
+        let mut bytes = vec![0xFFu8, 0xFE];
+        for unit in "# a\n".encode_utf16() {
+            bytes.extend_from_slice(&unit.to_le_bytes());
+        }
+        atomic_write(&path, &bytes).unwrap();
+
+        let (text, layout) = read_text_with_layout(&path).unwrap();
+        assert_eq!(text, "# a\n");
+        assert_eq!(layout.encoding, TextEncoding::Utf16);
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn layout_of_counts_dominant_ending_and_mixed() {
+        assert_eq!(
+            layout_of("a\nb\n", TextEncoding::Utf8).ending,
+            LineEnding::Lf
+        );
+        assert_eq!(
+            layout_of("a\r\nb\r\n", TextEncoding::Utf8).ending,
+            LineEnding::Crlf
+        );
+        assert_eq!(
+            layout_of("a\rb\r", TextEncoding::Utf8).ending,
+            LineEnding::Cr
+        );
+        // 无换行 → LF（默认，不因缺失而改行为）
+        assert_eq!(layout_of("abc", TextEncoding::Utf8).ending, LineEnding::Lf);
+
+        // 混合：CRLF 更多 → 主导 CRLF，mixed 真
+        let l = layout_of("a\r\nb\r\nc\n", TextEncoding::Utf8);
+        assert_eq!(l.ending, LineEnding::Crlf);
+        assert!(l.mixed);
+
+        // 平局取「文件中先出现」的那一种
+        assert_eq!(
+            layout_of("a\nb\r\n", TextEncoding::Utf8).ending,
+            LineEnding::Lf
+        );
+        assert_eq!(
+            layout_of("a\r\nb\n", TextEncoding::Utf8).ending,
+            LineEnding::Crlf
+        );
+    }
+
+    #[test]
+    fn encode_with_layout_restores_ending_and_bom() {
+        // 无布局 ⇒ 历史行为（UTF-8 无 BOM、LF）
+        assert_eq!(encode_with_layout("a\nb\n", None), b"a\nb\n".to_vec());
+
+        let crlf = DocumentLayout {
+            encoding: TextEncoding::Utf8,
+            ending: LineEnding::Crlf,
+            mixed: false,
+        };
+        assert_eq!(encode_with_layout("a\nb\n", Some(&crlf)), b"a\r\nb\r\n".to_vec());
+
+        let bom = DocumentLayout {
+            encoding: TextEncoding::Utf8Bom,
+            ending: LineEnding::Lf,
+            mixed: false,
+        };
+        assert_eq!(encode_with_layout("a\n", Some(&bom)), b"\xEF\xBB\xBFa\n".to_vec());
+
+        // UTF-16 不回写：写 UTF-8 无 BOM（有意归一）
+        let utf16 = DocumentLayout {
+            encoding: TextEncoding::Utf16,
+            ending: LineEnding::Lf,
+            mixed: false,
+        };
+        assert_eq!(encode_with_layout("a\n", Some(&utf16)), b"a\n".to_vec());
+
+        // 脏输入（内容里混进 \r）不会写出 \r\r\n
+        assert_eq!(encode_with_layout("a\r\nb", Some(&crlf)), b"a\r\nb".to_vec());
+    }
+
+    /// 端到端：CRLF 文件改一个字再存 → 盘上仍是 CRLF（W1 的靶子）。
+    #[tokio::test]
+    async fn save_document_keeps_crlf_file_crlf() {
+        let dir = test_dir();
+        let path = dir.join("crlf.md");
+        atomic_write(&path, b"# a\r\n\r\nb\r\n").unwrap();
+
+        let (_, layout) = read_text_with_layout(&path).unwrap();
+        // 编辑器产物恒为 LF
+        save_document(
+            path.to_string_lossy().to_string(),
+            "# a\n\nb 改了一个字\n".to_string(),
+            None,
+            false,
+            Some(layout),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), b"# a\r\n\r\nb \xe6\x94\xb9\xe4\xba\x86\xe4\xb8\x80\xe4\xb8\xaa\xe5\xad\x97\r\n");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    /// 端到端：带 BOM 的文件改字再存 → BOM 还在。
+    #[tokio::test]
+    async fn save_document_writes_bom_back() {
+        let dir = test_dir();
+        let path = dir.join("bom.md");
+        let mut bytes = vec![0xEFu8, 0xBB, 0xBF];
+        bytes.extend_from_slice(b"# a\n");
+        atomic_write(&path, &bytes).unwrap();
+
+        let (_, layout) = read_text_with_layout(&path).unwrap();
+        save_document(
+            path.to_string_lossy().to_string(),
+            "# a\nb\n".to_string(),
+            None,
+            false,
+            Some(layout),
+        )
+        .await
+        .unwrap();
+
+        let saved = fs::read(&path).unwrap();
+        assert_eq!(saved, b"\xEF\xBB\xBF# a\nb\n");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    /// 端到端：不带 layout（新建文档等）→ 历史行为不变，仍是 UTF-8 无 BOM、LF。
+    #[tokio::test]
+    async fn save_document_without_layout_keeps_legacy_behavior() {
+        let dir = test_dir();
+        let path = dir.join("new.md");
+        atomic_write(&path, b"").unwrap();
+
+        save_document(
+            path.to_string_lossy().to_string(),
+            "# new\n".to_string(),
+            None,
+            false,
+            None,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), b"# new\n");
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[tokio::test]
@@ -1368,6 +1680,7 @@ mod tests {
             "third".to_string(),
             Some(opened.last_modified_ms),
             false,
+            None, // 不关心排版习惯：走历史行为
         )
         .await
         .unwrap_err();
@@ -1466,6 +1779,7 @@ mod tests {
             "{\"id\":\"demo\"}".into(),
             None,
             true,
+            None,
         )
         .await
         .unwrap();
@@ -1477,6 +1791,7 @@ mod tests {
             "@echo off".into(),
             None,
             true,
+            None,
         )
         .await
         .unwrap_err();
@@ -1522,6 +1837,7 @@ mod tests {
             "forced content".into(),
             Some(opened.last_modified_ms),
             true,
+            None,
         )
         .await
         .unwrap();
@@ -1540,6 +1856,7 @@ mod tests {
             "new file".into(),
             None,
             true,
+            None,
         )
         .await
         .unwrap();

@@ -278,8 +278,8 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 13 个 composables +
 
 | 命令 | 文件 | 职责 |
 |---|---|---|
-| `open_document` | document.rs | 读文件内容 + 返回 mtime |
-| `save_document` | document.rs | **原子写** + mtime 冲突检测（见 docs/sensitive-areas.md §11.2） |
+| `open_document` | document.rs | 读文件内容 + 返回 mtime + **排版习惯** `layout`（编码族 / 主导换行 / 是否混合；编辑器内部恒为 `\n` 无 BOM，靠这条元数据在保存时还原，见 docs/PROPOSAL-file-fidelity.md §2.1） |
+| `save_document` | document.rs | **原子写** + mtime 冲突检测（见 docs/sensitive-areas.md §11.2）；按传入 `layout` 还原 BOM / 换行，缺省 = UTF-8 无 BOM + LF（新建文档走这条） |
 | `get_file_mtime` | document.rs | 读文件 mtime（互链跳转前的存在性检查） |
 | `reveal_document_in_folder` | document.rs | 在系统文件管理器中定位当前文档（存在性检查 → `opener.reveal_item_in_dir`；未保存文档由前端置灰） |
 | `list_markdown_files` | document.rs | 列当前文档**目录树**内的 .md 相对路径（互链 `[[` 补全候选；深度 `WIKILINK_SCAN_DEPTH`、上限 500 且凑满即停、浅层优先） |

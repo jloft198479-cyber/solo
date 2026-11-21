@@ -152,7 +152,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   }
 
   function applyLoadedDocument(document: DocumentOpenResult) {
-    fileStore.setFile(document.content, document.path, document.lastModifiedMs);
+    fileStore.setFile(document.content, document.path, document.lastModifiedMs, document.layout);
     // 记入「最近文件」（scroll_ratio=null 只更新 recent_files，不动阅读位置——
     // 位置由编辑器滚动防抖单独记录）。失败只留痕，不影响打开流程。
     void recordDocumentSession(document.path, null).catch((error: unknown) => {
@@ -225,7 +225,15 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     // （markSaved(result, content) / setFile）。失败/冲突取消时若基线已被
     // 污染，后续 syncEditedContent 语义比对会因「内容未变」把脏标洗白，
     // 未保存编辑静默丢失（关窗不弹确认、自动保存不再重试）。
-    const result = await saveDocument(path, content, expectedLastModifiedMs, force);
+    // 布局随文档走：打开时由 Rust 报出，保存时原样传回（BOM / 换行按原文件还原）。
+    // 新建文档 layout 为 null → 保存走历史行为（UTF-8 无 BOM、LF）。
+    const result = await saveDocument(
+      path,
+      content,
+      expectedLastModifiedMs,
+      force,
+      fileStore.currentFile.layout,
+    );
     return { result, content };
   }
 
@@ -356,8 +364,10 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
     isSaving = true;
     try {
+      // 另存为 = 同内容换路径：排版习惯（BOM / 换行）跟着文档走，不因换路径改字节风格
+      const layout = fileStore.currentFile.layout;
       const { result, content } = await persistDocument(selected, true, null);
-      fileStore.setFile(content, result.path, result.lastModifiedMs);
+      fileStore.setFile(content, result.path, result.lastModifiedMs, layout);
       clearExternalWarning();
       autoSaveFailCount = 0;
       return true;
@@ -399,13 +409,15 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       renamedPath = renameResult.path;
 
       // 2. 保存内容到新路径（force=true，因为文件刚被 rename 过来）
+      //    改名不改排版：layout 取改名前的（setFile 会重置 currentFile）
+      const layout = fileStore.currentFile.layout;
       const { result: saveResult, content: savedContent } = await persistDocument(
         renamedPath,
         true,
         null,
       );
 
-      fileStore.setFile(savedContent, saveResult.path, saveResult.lastModifiedMs);
+      fileStore.setFile(savedContent, saveResult.path, saveResult.lastModifiedMs, layout);
       autoSaveFailCount = 0;
       saveOk = true;
     } catch (error) {
@@ -522,7 +534,8 @@ export function useDocumentSession(options: DocumentSessionOptions) {
         promptExternalModified();
         return;
       }
-      fileStore.setFile(document.content, document.path, document.lastModifiedMs);
+      // 重载 = 以磁盘新状态为准，layout 必须刷新（外部工具可能把 LF 改成了 CRLF）
+      fileStore.setFile(document.content, document.path, document.lastModifiedMs, document.layout);
       clearExternalWarning();
     } catch (error) {
       console.warn('[wikilink-sync] 刷新被改写文档失败:', normalizeTauriError(error).message);

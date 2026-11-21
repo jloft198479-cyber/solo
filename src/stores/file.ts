@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import type { DocumentLayout } from '../services/tauri/document';
 
 /** 默认显示名称 / 无标题文档占位名 */
 export const DEFAULT_DISPLAY_NAME = '未命名';
@@ -8,6 +9,12 @@ export interface FileState {
   content: string;
   isDirty: boolean;
   lastModifiedTime: number | null;
+  /**
+   * 磁盘原文的排版习惯（BOM / 换行），打开时由 Rust 报出，保存时原样传回。
+   * `null` = 不认识（新建 / 另存为到新文件）→ 保存走历史行为：UTF-8 无 BOM、LF。
+   * 见 docs/PROPOSAL-file-fidelity.md §2.1。
+   */
+  layout: DocumentLayout | null;
   /** Display name shown in titlebar (editable by user) */
   displayName: string;
   /** 从 path 提取的原始文件名基础名（去扩展名）。保存后 displayName 会重置回此值。 */
@@ -42,6 +49,7 @@ function createEmptyFileState(): FileState {
     lastModifiedTime: null,
     displayName: DEFAULT_DISPLAY_NAME,
     originalBaseName: DEFAULT_DISPLAY_NAME,
+    layout: null,
   };
 }
 
@@ -82,7 +90,12 @@ export const useFileStore = defineStore('file', {
       return true;
     },
 
-    setFile(content: string, path: string | null, lastModifiedTime: number | null = null) {
+    setFile(
+      content: string,
+      path: string | null,
+      lastModifiedTime: number | null = null,
+      layout: DocumentLayout | null = null,
+    ) {
       const baseName = path
         ? (path.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
         : DEFAULT_DISPLAY_NAME;
@@ -93,6 +106,7 @@ export const useFileStore = defineStore('file', {
         lastModifiedTime,
         displayName: baseName,
         originalBaseName: baseName,
+        layout,
       };
       // 通知编辑器：磁盘内容已载入，同路径重载也要刷新 doc（否则旧 doc 的
       // 延迟序列化会把旧内容写回 store，用户一保存就覆盖掉外部修改）

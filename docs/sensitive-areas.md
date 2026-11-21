@@ -55,11 +55,14 @@ updates: [src/stores/file.ts, src-tauri/src/commands/document.rs, src-tauri/src/
 - 不要在 `syncEditedContent` 里对 `normalizedNew === normalizedBase` 分支做任何"标脏"动作，否则 Mermaid 后台事务会误标脏、拖入图片会漏标脏。
 - **动了它就会重新引入脏态闪烁。**
 
-### 11.2 保存冲突检测在 Rust 侧
+### 11.2 保存冲突检测 + 排版还原在 Rust 侧
 
-`save_document(path, content, expected_last_modified_ms, force)`：
+`save_document(path, content, expected_last_modified_ms, force, layout)`：
 - 非 force 时对比传入的 expected mtime 与磁盘当前 mtime，不符 → 返回 `AppError::Conflict`（code `document_conflict`）。
 - 前端 `useDocumentSession` 收到 conflict → 弹"强制覆盖"确认 → 递归调用（先释放 `isSaving` 锁防死锁）。
+- **`layout` = 磁盘原文的排版习惯**（编码族 / 主导换行 / 是否混合）：由 `open_document` 报出，前端存 `FileState.layout`，保存时原样传回。`None` = 新建文档或不理解布局的调用方 → 历史行为（UTF-8 无 BOM + LF）。**第三条边界**：另存为 / 改名保存**继承**当前 layout（同内容换路径，不改字节风格）；同路径重载**刷新区**（外部工具可能改了换行）。见 [PROPOSAL-file-fidelity.md](./PROPOSAL-file-fidelity.md) §2.1。
+- **UTF-16 原文不回来**：保存按 UTF-8 无 BOM 写，属**有意归一**——别顺手"补"成 UTF-8 BOM，那会让 UTF-16 文件静默换族。W3 承诺清单须写明。
+- ⚠️ **"不加编辑就不写盘"不靠这里**：那条靠 `MarkdownEditor.vue` 载入时把基线设成**序列化产物**（非磁盘原文）+ `markSynced()`。修 BOM/换行时别去动那两行，动了 W1 静默失效（PROPOSAL §1 F7）。
 - `atomic_write`：先写 `.tmp` 再 `rename`，跨平台原子覆盖（Windows 用 `MoveFileExW` + REPLACE，**不做先删后改名**以免引入竞态窗口）。
 
 ### 11.3 序列化总是规范化尾换行

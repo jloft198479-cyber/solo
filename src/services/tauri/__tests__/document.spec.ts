@@ -43,6 +43,8 @@ describe('tauri document service', () => {
       content: '# Updated',
       expectedLastModifiedMs: 99,
       force: true,
+      // 不传布局 = 新文档历史行为（UTF-8 无 BOM、LF）
+      layout: null,
     });
   });
 
@@ -56,6 +58,7 @@ describe('tauri document service', () => {
       content: '# Updated',
       expectedLastModifiedMs: undefined,
       force: false,
+      layout: null,
     });
   });
 
