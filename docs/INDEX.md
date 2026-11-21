@@ -42,6 +42,7 @@ updates: [AGENTS.md, docs/KNOWN-ISSUES.md, docs/HANDOVER.md]
 | [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md) | core  | maintainer | active | 发版流程真理源：Phase 定义/回滚/故障处理      |
 | [`HANDOVER.md`](./HANDOVER.md)               | guide | agent      | active | 接手入口：30 秒定位 + 真理源文件表 + 环境搭建 |
 | [`FEATURE-MATRIX.md`](./FEATURE-MATRIX.md)             | core  | agent      | active | 功能全表：逐项功能 × 实现锚点 × 状态 × 缺口（供 Agent 核查完善程度） |
+| [`FIDELITY-PROMISE.md`](./FIDELITY-PROMISE.md)         | core  | **user**   | active | **对用户文件的承诺**：什么情况下一个字节不变 / 编辑后哪些写法会被统一 / 明确做不到的三件事。每条挂着能跑的测试（README 各语言版链接到它） |
 | [`DOC-STANDARD.md`](./DOC-STANDARD.md)                 | core  | agent      | active | 文档规范真理源：SSOT/DRY/减文件/死链即 Bug/frontmatter 字段标准      |
 | [`LESSONS.md`](./LESSONS.md)                           | guide | agent      | active | 踩坑方法论库：从历史事故提炼的可复用思维模式（按模式聚类，索引台账） |
 | [`DOC-LIFECYCLE.md`](./DOC-LIFECYCLE.md)               | core  | agent      | active | **文档治理真理源**：四区（契约/决策/档案/阁楼）+ 三标记 + 五动作；回答「该不该传、该不该删」 |

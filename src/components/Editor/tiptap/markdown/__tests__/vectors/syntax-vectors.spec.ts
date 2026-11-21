@@ -26,15 +26,25 @@ const roundTrip = (md: string) => serializeMarkdown(parseMarkdown(schema, md));
 /** 文档里这节的边界标记。生成器只替换这两个标记之间的内容。 */
 const BEGIN = '<!-- syntax-matrix:begin -->';
 const END = '<!-- syntax-matrix:end -->';
+/** 承诺文档里「会被统一」那张表的标记（只列 expected ≠ input 的条目）。 */
+const PROMISE_BEGIN = '<!-- rewrite-list:begin -->';
+const PROMISE_END = '<!-- rewrite-list:end -->';
 // 自定位到仓库根（7 层：vectors → __tests__ → markdown → tiptap → Editor → components → src → root），
 // 不依赖 cwd，项目改名 / 换盘 / 从任意目录跑都不受影响。
 const DOC_PATH = fileURLToPath(
   new URL('../../../../../../../docs/FEATURE-MATRIX.md', import.meta.url),
 );
+const PROMISE_PATH = fileURLToPath(
+  new URL('../../../../../../../docs/FIDELITY-PROMISE.md', import.meta.url),
+);
 
-/** 表格单元格：压平换行、转义竖线；含反引号时改用双反引号包裹（Markdown 的标准写法）。 */
+/**
+ * 表格单元格：去掉段末换行（那是噪点，不是信息）、压平中间换行、转义竖线；
+ * 含反引号时改用双反引号包裹（Markdown 的标准写法）。
+ */
 function codeCell(text: string): string {
-  const flat = text.replace(/\n/g, '⏎').replace(/\|/g, '\\|');
+  const trimmed = text.replace(/\n+$/, '');
+  const flat = trimmed.replace(/\n/g, '⏎').replace(/\|/g, '\\|');
   return flat.includes('`') ? `\`\` ${flat} \`\`` : `\`${flat}\``;
 }
 
@@ -76,6 +86,59 @@ function renderSection(): string {
   return lines.join('\n');
 }
 
+/**
+ * 承诺文档里「会被统一」那张表：只列往返后文本真的会变的条目。
+ * 与 FEATURE-MATRIX 的表格同源——**不许手抄一份**，否则新加向量时它必漂。
+ */
+function renderRewriteTable(): string {
+  const rewritten = SYNTAX_VECTORS.filter((v) => v.expected !== v.input);
+  const lines = [
+    PROMISE_BEGIN,
+    '',
+    '| 你写的 | 存完变成 | 说明 |',
+    '| --- | --- | --- |',
+  ];
+  for (const v of rewritten) {
+    lines.push(
+      `| ${codeCell(v.input)} | ${codeCell(v.expected)} | ${textCell(v.note ?? '写法统一为标准形式')} |`,
+    );
+  }
+  lines.push('', PROMISE_END);
+  return lines.join('\n');
+}
+
+/** 校验（或刷新）一个生成区：文档里那段必须与渲染结果逐字相同。 */
+function checkGeneratedSection(
+  filePath: string,
+  begin: string,
+  end: string,
+  rendered: string,
+  label: string,
+): void {
+  const doc = readFileSync(filePath, 'utf8');
+  const start = doc.indexOf(begin);
+  const finish = doc.indexOf(end);
+
+  expect(start, `${label} 缺少生成区起始标记 ${begin}`).toBeGreaterThan(-1);
+  expect(finish, `${label} 缺少生成区结束标记 ${end}`).toBeGreaterThan(start);
+
+  const current = doc.slice(start, finish + end.length);
+
+  if (process.env.SOLO_DOCS_UPDATE === '1') {
+    writeFileSync(
+      filePath,
+      doc.slice(0, start) + rendered + doc.slice(finish + end.length),
+      'utf8',
+    );
+    return;
+  }
+
+  expect(
+    current,
+    `${label} 已过期（或有人手改了它）。跑 \`bun run docs:vectors\` 刷新，不要手改。`,
+  ).toBe(rendered);
+}
+
 describe('Markdown 语法支持度向量表', () => {
   describe.each(SYNTAX_VECTORS.map((v) => [`${v.group} · ${v.name}`, v] as const))(
     '%s',
@@ -91,26 +154,24 @@ describe('Markdown 语法支持度向量表', () => {
   );
 });
 
-describe('FEATURE-MATRIX 的语法表由向量生成', () => {
-  it('已提交的生成区与向量表逐字一致', () => {
-    const doc = readFileSync(DOC_PATH, 'utf8');
-    const begin = doc.indexOf(BEGIN);
-    const end = doc.indexOf(END);
+describe('生成区与向量表一致', () => {
+  it('FEATURE-MATRIX 的语法表', () => {
+    checkGeneratedSection(
+      DOC_PATH,
+      BEGIN,
+      END,
+      renderSection(),
+      'docs/FEATURE-MATRIX.md 的语法表',
+    );
+  });
 
-    expect(begin, `docs/FEATURE-MATRIX.md 缺少生成区起始标记 ${BEGIN}`).toBeGreaterThan(-1);
-    expect(end, `docs/FEATURE-MATRIX.md 缺少生成区结束标记 ${END}`).toBeGreaterThan(begin);
-
-    const rendered = renderSection();
-    const current = doc.slice(begin, end + END.length);
-
-    if (process.env.SOLO_DOCS_UPDATE === '1') {
-      writeFileSync(DOC_PATH, doc.slice(0, begin) + rendered + doc.slice(end + END.length), 'utf8');
-      return;
-    }
-
-    expect(
-      current,
-      'FEATURE-MATRIX 的语法表已过期（或有人手改了它）。跑 `bun run docs:vectors` 刷新，不要手改。',
-    ).toBe(rendered);
+  it('FIDELITY-PROMISE 的「会被统一」清单', () => {
+    checkGeneratedSection(
+      PROMISE_PATH,
+      PROMISE_BEGIN,
+      PROMISE_END,
+      renderRewriteTable(),
+      'docs/FIDELITY-PROMISE.md 的改写清单',
+    );
   });
 });

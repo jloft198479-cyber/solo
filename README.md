@@ -68,7 +68,7 @@ solo is a free, open-source Markdown editor for Windows. A "scalpel for words" �
 - **Desktop-native** — Frameless window, system menu, right-click "New .md", double-click titlebar to maximize, always-on-top. Auto-save is optional (off by default).
 - **Memory-conscious** — WebView2 MemoryUsageTargetLevel on blur, lazy editor initialization, lightweight installer (uses system WebView2).
 - **Copy as HTML** — One-click rich HTML to clipboard, theme-following, what you see is what you get.
-- **Format fidelity** — Full Markdown round-trip tests + CommonMark spec stability checks (run `bun run test` for the current count). Paste Markdown auto-converts. Ctrl+C copies clean text (the Markdown source is used only when the selection contains formulas / diagrams / wikilinks etc.); use **Copy as Markdown** (Mod+Shift+M) when you want the source.
+- **Format fidelity** — Full Markdown round-trip tests + CommonMark spec stability checks (run `bun run test` for the current count). Paste Markdown auto-converts. Ctrl+C copies clean text (the Markdown source is used only when the selection contains formulas / diagrams / wikilinks etc.); use **Copy as Markdown** (Mod+Shift+M) when you want the source. What solo does and does not change in your file is written down and tested — **[file fidelity promise](docs/FIDELITY-PROMISE.md)**.
 
 ## Tech Stack
 

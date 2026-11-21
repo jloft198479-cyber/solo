@@ -68,7 +68,7 @@ solo 是一款免费、开源的 Windows Markdown 编辑器，一把「专为文
 - **桌面原生** — 无边框窗口、系统菜单、右键新建 .md、双击标题栏最大化、置顶。自动保存可选（默认关闭）。
 - **内存克制** — 多窗口下 WebView2 MemoryUsageTargetLevel 自动降级，编辑器懒初始化，轻量安装包（基于系统 WebView2）。
 - **复制为 HTML** — 一键复制富文本 HTML 到剪贴板，完整主题跟随，所见即所得。
-- **格式保真** — 完整 Markdown round-trip 测试 + CommonMark spec 稳定性验证（测试数以 `bun run test` 为准），粘贴 Markdown 自动转换；Ctrl+C 复制出去的是干净文字（选区含公式 / 图表 / 互链等专有语法时自动给 Markdown 源码），要源码可按「复制为 Markdown」（Mod+Shift+M）。
+- **格式保真** — 完整 Markdown round-trip 测试 + CommonMark spec 稳定性验证（测试数以 `bun run test` 为准），粘贴 Markdown 自动转换；Ctrl+C 复制出去的是干净文字（选区含公式 / 图表 / 互链等专有语法时自动给 Markdown 源码），要源码可按「复制为 Markdown」（Mod+Shift+M）。**solo 对文件做了什么、不会做什么，白纸黑字写在 [保真承诺](docs/FIDELITY-PROMISE.md) 里**——每条都挂着能跑的测试。
 
 ## 技术架构
 
