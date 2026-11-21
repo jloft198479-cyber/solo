@@ -1481,10 +1481,74 @@ mod tests {
         let _ = fs::remove_dir_all(dir);
     }
 
+    /// **W1 端到端验收**：完全按前端的调用顺序与参数形状走一遍——
+    /// `open_document` → layout 序列化成 JSON（这才是 IPC 真正传的东西）→ 反序列化 →
+    /// 改一个字（编辑器产物是 LF 全文）→ `save_document` → 比对盘上字节。
+    ///
+    /// 造的是「记事本另存」的典型形态：UTF-8 BOM + CRLF 换行 + 中文。
+    #[tokio::test]
+    async fn w1_end_to_end_frontend_json_roundtrip() {
+        let dir = test_dir();
+        let path = dir.join("notepad.md");
+        let mut original = vec![0xEFu8, 0xBB, 0xBF];
+        original.extend_from_slice("# 标题\r\n\r\n正文一行\r\n".as_bytes());
+        atomic_write(&path, &original).unwrap();
+
+        // ① 打开：内容与排版习惯一起回来
+        let opened = open_document(path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        assert_eq!(opened.content, "# 标题\r\n\r\n正文一行\r\n");
+        assert_eq!(opened.layout.encoding, TextEncoding::Utf8Bom);
+        assert_eq!(opened.layout.ending, LineEnding::Crlf);
+        assert!(!opened.layout.mixed);
+
+        // ② 前端存进 FileState.layout，保存时经 IPC 传回（JSON 往返 = 真实形状）
+        let ipc = serde_json::to_string(&opened.layout).unwrap();
+        println!("[W1] IPC 传回的 layout = {}", ipc);
+        let layout: DocumentLayout = serde_json::from_str(&ipc).unwrap();
+
+        // ③ 用户改了一个字：编辑器序列化产物恒为 LF 全文
+        let edited = "# 标题\n\n正文改了一个字\n";
+
+        // ④ 保存
+        save_document(
+            path.to_string_lossy().to_string(),
+            edited.to_string(),
+            None,
+            false,
+            Some(layout),
+        )
+        .await
+        .unwrap();
+
+        // ⑤ 盘上：暗号还在、折法还是 Windows 的、只有那个词变了
+        let saved = fs::read(&path).unwrap();
+        let mut expected = vec![0xEFu8, 0xBB, 0xBF];
+        expected.extend_from_slice("# 标题\r\n\r\n正文改了一个字\r\n".as_bytes());
+        println!(
+            "[W1] 原始 {} 字节 / 保存后 {} 字节",
+            original.len(),
+            saved.len()
+        );
+        assert_eq!(saved, expected);
+        // 没有任何「裸 LF」：每个 \n 前面都必须是 \r
+        for i in 0..saved.len() {
+            if saved[i] == b'\n' {
+                assert!(
+                    i > 0 && saved[i - 1] == b'\r',
+                    "第 {} 字节是裸 LF，换行没还原",
+                    i
+                );
+            }
+        }
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
     /// 端到端：不带 layout（新建文档等）→ 历史行为不变，仍是 UTF-8 无 BOM、LF。
     #[tokio::test]
-    async fn save_document_without_layout_keeps_legacy_behavior() {
-        let dir = test_dir();
+    async fn save_document_without_layout_keeps_legacy_behavior() {        let dir = test_dir();
         let path = dir.join("new.md");
         atomic_write(&path, b"").unwrap();
 
