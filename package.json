@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:changed": "vitest --changed --run",
     "test:full": "vitest run --mode full",
+    "docs:vectors": "vitest run --mode docs-update syntax-vectors",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.{ts,vue,css}\""

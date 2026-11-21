@@ -6,6 +6,9 @@ export default defineConfig(({ mode }) => {
   // 走 config 内部赋值，而不是 shell 的 `SOLO_FIDELITY_SCAN=1 vitest run` ——
   // 后者在 Windows 的 cmd 下是无效语法（npm run 默认用 cmd，会报「不是内部或外部命令」）。
   if (mode === 'full') process.env.SOLO_FIDELITY_SCAN = '1';
+  // `bun run docs:vectors`（= `vitest run --mode docs-update …`）：只刷新 FEATURE-MATRIX
+  // 的语法表生成区。理由同上——Windows 的 cmd 不认 `ENV=1 vitest` 前缀。
+  if (mode === 'docs-update') process.env.SOLO_DOCS_UPDATE = '1';
 
   return {
     plugins: [vue()],
