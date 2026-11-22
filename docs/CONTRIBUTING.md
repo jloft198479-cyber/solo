@@ -43,7 +43,7 @@ updates: [docs/SECURITY.md, ARCHITECTURE.md, AGENTS.md]
 - **bun 下 `vue-tsc` / `vite` / `vitest run <过滤>` 可能 segfault**：
   - 类型检查兜底：`node node_modules/vue-tsc/bin/vue-tsc.js --noEmit`
   - 构建兜底：`node node_modules/vite/bin/vite.js build`
-  - **测试必须全量跑**：`bun run test`（子集过滤会 segfault，全量不会）。
+  - **测试**：小改动可跑 `bun run test:changed`（脚本封装，只跑相关测试）；**裸 `bunx vitest run <过滤>` 会 segfault，禁用**；全量 `bun run test` 不受影响。分流表见 [docs/agent-playbook.md §C](./agent-playbook.md)。
 
 ---
 

@@ -27,18 +27,18 @@ updates: [docs/PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从
 7. [Phase 5：发布正式版](#7-phase-5发布正式版)
 8. [回滚流程](#8-回滚流程)
 9. [常见故障](#9-常见故障)
-10. [Agent 执行环境踩坑速查（WorkBuddy 托管 shell / 自动发版必读）](#11-agent-执行环境踩坑速查)
-11. [附录](#10-附录)
+10. [Agent 执行环境踩坑速查（WorkBuddy 托管 shell / 自动发版必读）](#10-agent-执行环境踩坑速查workbuddy-托管-shell--自动发版必读)
+11. [附录](#11-附录)
 
 ---
 
 ## 1. 快速卡片——一站式核对表
 
-> 🔌 **⚠️ 联网前提（2026-10-13 简乐立）**：本机访问 GitHub 必须用户**手动开通 VPN/代理**。Agent 自动发版时，**动手做任何联网操作前先问用户「开了 VPN/代理没」**；没开就停手等他开，连不上时不要诊断/重试/改配置（几乎都是没开代理），直接问人。详见 **§11.10** 与 PLAYBOOK 顶部「发版前置互动」。
+> 🔌 **⚠️ 联网前提（2026-10-13 简乐立）**：本机访问 GitHub 必须用户**手动开通 VPN/代理**。Agent 自动发版时，**动手做任何联网操作前先问用户「开了 VPN/代理没」**；没开就停手等他开，连不上时不要诊断/重试/改配置（几乎都是没开代理），直接问人。详见 **§10.10** 与 PLAYBOOK 顶部「发版前置互动」。
 
 ```text
 [ ] 1. 确认所有功能开发完成、测试通过
-[ ] 2. 确认版本号四源一致并升高（package.json / Cargo.toml / tauri.conf.json / Cargo.lock）
+[ ] 2. 确认版本号已升高：手改三处（package.json / Cargo.toml / tauri.conf.json），Cargo.lock 由 cargo 构建时自动同步，校验时四源对齐（§3.3）
 [ ] 3. 确认没有 replaceAll / replaceAllAsync（TS target ES2020）
 [ ] 4. 提交版本号变更 → git push
 [ ] 5. 本地全量测试：bun run test ✅
@@ -52,7 +52,7 @@ updates: [docs/PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从
 [ ] 13. 更新项目文档（CHANGELOG.md 版本历史；**SECURITY.md 当前版本字段同步**；PROFILE.md 版本历史已于 2026-07-21 去重，统一以 CHANGELOG.md 为真理源）
 ```
 
-> ⚠️ **Agent 在 WorkBuddy 托管 shell 自动发版**：`bun` / `gh` 命令需按 **§11** 调整（GH_TOKEN 污染、bun segfault、draft 下载卡死等）。一遍成功清单见 **§11.7**。
+> ⚠️ **Agent 在 WorkBuddy 托管 shell 自动发版**：`bun` / `gh` 命令需按 **§10** 调整（GH_TOKEN 污染、bun segfault、draft 下载卡死等）。一遍成功清单见 **§10.7**。
 
 ---
 
@@ -149,6 +149,8 @@ set RUSTUP_HOME=M:\rust\.rustup
 set PATH=M:\rust\.cargo\bin;%PATH%
 bunx tauri build
 ```
+
+> MSVC 环境变量语义以 [BUILD_GUIDE.md §3](../BUILD_GUIDE.md) 为准。
 
 用完主动清理 `src-tauri\target\release`（约 1 GB）。
 
@@ -297,11 +299,11 @@ gh release view v1.x.x
 
 同时更新 `BUILD_GUIDE.md` 中的版本号示例（如果有硬编码）。
 
-### 7.5 同步 CNB 国内镜像（每次发版）
+### 7.5 同步 CNB 国内镜像（**按用户当次指示，非默认必做**——updater 端点写死 GitHub，CNB 仅手动下载渠道）
 
 CNB (cnb.cool) 只作**国内手动下载渠道**——软件 updater 端点写死 GitHub，CNB 那份**不参与自动更新**（改这条见 [KNOWN-ISSUES §二 #7](./KNOWN-ISSUES.md)）。
 
-> ⚠️ **Agent 环境坑（必读）**：CNB 写操作必须走**个人令牌**（`cnb login` 的 OAuth token 只读，写全 403）；CNB 默认分支是 **`main`**（不是 GitHub 的 `master`），`--target-commitish` 必填。完整踩坑与命令见 **§11.5**。
+> ⚠️ **Agent 环境坑（必读）**：CNB 写操作必须走**个人令牌**（`cnb login` 的 OAuth token 只读，写全 403）；CNB 默认分支是 **`main`**（不是 GitHub 的 `master`），`--target-commitish` 必填。完整踩坑与命令见 **§10.5**。
 
 ```bash
 # 1. 从 GitHub 取 3 个资产到沙盒目录（exe / .sig / latest.json）
@@ -480,19 +482,19 @@ gh api "repos/<owner>/<repo>/releases?per_page=1" --jq '.[0].tag_name'
 
 ---
 
-## 9.10 🔴 `gh release download` 对 draft release 卡死
+### 9.10 🔴 `gh release download` 对 draft release 卡死
 
-见 **§11.4**（Agent 环境必读）。一句话：draft 态下载会挂 4 分钟以上不出，先 `gh release edit v1.x.x --draft=false` 发布，再 download 核对。
+见 **§10.4**（Agent 环境必读）。一句话：draft 态下载会挂 4 分钟以上不出，先 `gh release edit v1.x.x --draft=false` 发布，再 download 核对。
 
 ---
 
-## 11. Agent 执行环境踩坑速查（WorkBuddy 托管 shell / 自动发版必读）
+## 10. Agent 执行环境踩坑速查（WorkBuddy 托管 shell / 自动发版必读）
 
 > **适用场景**：在 WorkBuddy 托管 shell（CodeBuddy / WorkBuddy 自动化会话）里跑发版流程时。
 > 真实终端 / CI 不受影响，可直接用 `bun` / `gh`。
 > 下列 7 条是 2026-08~09 两轮自动发版（v1.2.42 / v1.2.50）实测踩出、并验证可用的对策。其他 Agent 照做即可一遍成功，不必重蹈覆辙。
 
-### 11.1 🔴 `git push` / `gh` 报 invalid token（不是你凭据过期）
+### 10.1 🔴 `git push` / `gh` 报 invalid token（不是你凭据过期）
 
 **现象**：`gh` / `git push` 突然 `invalid token` / `401`，但 keyring 里的 token 明明有效。
 **根因**：会话环境被注入了**过期**的 `GH_TOKEN` / `GITHUB_TOKEN` 环境变量，credential helper 优先吃它，盖住 keyring 里的有效 token。
@@ -503,7 +505,9 @@ env -u GH_TOKEN -u GITHUB_TOKEN gh release edit v1.x.x --draft=false
 ```
 **不要**去刷新 token、不要改 remote——那是白费功夫，根因在环境变量不在凭据。
 
-### 11.2 🔴 `bun` / `bunx` 在本机会话 segfault 或卡死
+### 10.2 🔴 `bun` / `bunx` 在本机会话 segfault 或卡死
+
+> 基础现象与 node 兜底命令的真理源见 [CONTRIBUTING.md §1.1](./CONTRIBUTING.md)；本节是**托管 shell 变体**（多了沙盒 outDir 规避与 GH_TOKEN 清理）。
 
 **现象**：`bun run test` / `bunx vue-tsc` / `bun x vite build` 直接 segfault，或 `bun x vite build` 卡死不动。
 **根因**：本机 bun 在托管 shell 下不稳定（已知坑，非代码问题）。
@@ -513,18 +517,18 @@ node node_modules/vitest/vitest.mjs run
 node node_modules/vue-tsc/bin/vue-tsc.js --noEmit
 node node_modules/vite/bin/vite.js build --outDir .sandbox-build --emptyOutDir
 ```
-（vite 指定 `.sandbox-build` 输出目录，绕开 dist 的 safe-delete 守卫，见 11.3；跑完 `git clean -fd -- .sandbox-build` 清理。）
+（vite 指定 `.sandbox-build` 输出目录，绕开 dist 的 safe-delete 守卫，见 10.3；跑完 `git clean -fd -- .sandbox-build` 清理。）
 
-### 11.3 🟡 `vite build` 清 `dist/` 触发 safe-delete 批量删除守卫
+### 10.3 🟡 `vite build` 清 `dist/` 触发 safe-delete 批量删除守卫
 
 **现象**：`[vite:prepare-out-dir] [safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED]`，构建被拦。
 **根因**：vite 构建前 `emptyDir(dist/assets)`，文件数超阈值触发批量删除守卫。仅 WorkBuddy 托管 shell 有，CI / 真实终端无。
-**对策**：11.2 已用 `--outDir .sandbox-build --emptyOutDir` 规避；如必须用 dist，则：
+**对策**：10.2 已用 `--outDir .sandbox-build --emptyOutDir` 规避；如必须用 dist，则：
 ```bash
 node node_modules/vue-tsc/bin/vue-tsc.js --noEmit && node node_modules/vite/bin/vite.js build --emptyOutDir=false
 ```
 
-### 11.4 🔴 `cargo check` 必须在 **cmd/bat** 里跑 vcvars64，bash 里手工拼环境必失败（2026-10-03）
+### 10.4 🔴 `cargo check` 必须在 **cmd/bat** 里跑 vcvars64，bash 里手工拼环境必失败（2026-10-03）
 
 **现象**（按踩坑顺序）：
 1. bash 直跑 `cargo check` → `failed to find tool "cl.exe": program not found`；
@@ -552,14 +556,14 @@ cargo check --message-format=short
 
 **验证口径**：clean master 能否编译是**必查项**。工作区可能有未提交的新文件，stash 掉再跑才是「别人 clone 下来」的真实状态。2026-10-03 正是这样查出「`lib.rs` 注册了 `commands::forensic` 但该文件从未提交」的**上传红线**（详见 KNOWN-ISSUES §一 #32）。
 
-### 11.5 🔴 `gh release download` 对 **draft** release 会卡死（4min+ 不出）
+### 10.5 🔴 `gh release download` 对 **draft** release 会卡死（4min+ 不出）
 
 **现象**：release 还是 draft 时就 `gh release download`，命令挂 4 分钟以上不出结果。
 **根因**：draft 资产的 URL 是 `untagged-<hash>` 临时路径，下载器一直重试挂死。
 **对策**：**先 `gh release edit v1.x.x --draft=false` 发布，再 download**。核对 latest.json、CNB 同步都放在 undraft 之后做。
 > 注意 §9.9 的 `untagged-<hash>` URL / by-tag 404 是 draft 的**正常表现**，别误判成 tag 关联失败；但「下载卡死」是另一回事，必须 undraft 后才下。
 
-### 11.6 🔴 CNB 国内镜像：分支是 `main` + OAuth token 只读
+### 10.6 🔴 CNB 国内镜像：分支是 `main` + OAuth token 只读
 
 **现象**：`cnb` 写操作（建 release / 传附件）报 `403 Forbidden` 或 `409`。
 **根因**：① `cnb login` 的 OAuth token 只能**读**，写全 403 → 必须用**个人令牌**；② CNB 仓库默认分支是 **`main`**（GitHub 是 `master`），`--target-commitish` 填错会失败；③ 空仓库建 Release **必填** `--target-commitish`（help 标可选，实际必填）。
@@ -575,27 +579,27 @@ node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
 - 令牌权限探针：403 = 无写权限（换个人令牌）；409 = 权限正常仅 tag 重复。
 - 完整 CNB 踩坑：技能 `~/.workbuddy/skills/cnb-publish/`。
 
-### 11.7 🟡 `release-gate.ps1` 本机会话跑不了
+### 10.7 🟡 `release-gate.ps1` 本机会话跑不了
 
 **现象**：`pwsh scripts/release-gate.ps1 -Stage PreTag` 报错（harness 注入的 `$Stage` 与脚本 `param([ValidateSet]$Stage)` 冲突）。
 **根因**：自动化会话注入的环境变量与脚本 param 同名冲突。
-**对策**：退化为手写命令（即本文件各 Phase 的等价命令），用 11.1~11.4 的 node / env 前置方式逐条执行，效果等同闸门脚本。
+**对策**：退化为手写命令（即本文件各 Phase 的等价命令），用 10.1~10.4 的 node / env 前置方式逐条执行，效果等同闸门脚本。
 
-### 11.8 ✅ 一遍成功清单（Agent 自动发版最小必做）
+### 10.8 ✅ 一遍成功清单（Agent 自动发版最小必做）
 
 照此顺序，无回退：
-1. 版本号四源一致并升高（§3）+ 检查无 `replaceAll`（§2.2）
+1. 版本号三处手改升高 + Cargo.lock 自动同步，四源校验对齐（§3）+ 检查无 `replaceAll`（§2.2）
 2. `env -u GH_TOKEN -u GITHUB_TOKEN git add/commit/push`
-3. 本地三连验证（用 11.2 的 node 命令，非 bun）：`vitest run` ✅ + `vue-tsc --noEmit` ✅ + `vite build` ✅
+3. 本地三连验证（用 10.2 的 node 命令，非 bun）：`vitest run` ✅ + `vue-tsc --noEmit` ✅ + `vite build` ✅
 4. `git tag v1.x.x && env -u GH_TOKEN -u GITHUB_TOKEN git push origin v1.x.x`（tag 指向 bump commit）
 5. `gh run watch <id> --exit-status` 等 CI 双绿
-6. **先 undraft**：`gh release edit v1.x.x --draft=false`（11.4）
-7. 发布后 `gh release download`（不再卡）核资产：**核大小 + `sha256sum` 对比 release API 的 `digest`**，别看管道退出码（11.8）
-8. CNB 同步（**按用户当次指示**，非默认必做；11.5，`--target-commitish main` + 个人令牌）+ sha256 校验
+6. **先 undraft**：`gh release edit v1.x.x --draft=false`（10.4）
+7. 发布后 `gh release download`（不再卡）核资产：**核大小 + `sha256sum` 对比 release API 的 `digest`**，别看管道退出码（10.8）
+8. CNB 同步（**按用户当次指示**，非默认必做；10.5，`--target-commitish main` + 个人令牌）+ sha256 校验
 9. **SECURITY.md 当前版本字段**同步到新版本（易漏项，见 §7.4）—— 别只改三处版本号
 10. `git clean -fdx -- .sandbox-*` 清掉沙盒目录，工作树留干净
 
-### 11.9 🔴 `gh release download` 大资产经代理被静默截断（2026-09-11 实证）
+### 10.9 🔴 `gh release download` 大资产经代理被静默截断（2026-09-11 实证）
 
 **现象**：v1.2.51 核资产时，`gh release download v1.2.51 -D <dir>` 下回来的 **exe 只有 67,701 B**（真实 5,714,701 B），耗时 3 分钟；而同一批的 `latest.json`（1 KB）与 `.sig`（418 B）**哈希完全匹配** —— 小文件正常、大文件残废。**重下一次即成功**（58 秒，大小 + sha256 全对）。
 
@@ -609,7 +613,7 @@ node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
 3. 网络差时的轻量交叉校验（不必下全大文件）：`.sig` 文件内容 与 `latest.json.platforms["<target>"].signature` **逐字一致**；签名 base64 解码后内嵌 `timestamp:<unix>` 与 `file:<名字>`，时间戳换算后应**等于 `latest.json.pub_date`**。三者自洽 ⇒ 上传链路与签名配对无误。
 4. 下载落沙盒（`.sandbox-relcheck/`），验完 `git clean -fdx -- .sandbox-*`。
 
-### 11.10 🔴 连不上 GitHub 一律先问用户 VPN/代理，禁止诊断/重试（2026-10-13 简乐立）
+### 10.10 🔴 连不上 GitHub 一律先问用户 VPN/代理，禁止诊断/重试（2026-10-13 简乐立）
 
 **现象**：`git push` / `git fetch` / `gh` 任何命令报连接失败、超时、`Failed to connect to github.com:443`、`Could not resolve host` 等。
 
@@ -625,7 +629,7 @@ node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
 
 ---
 
-## 10. 附录
+## 11. 附录
 
 ### 10.1 常用命令速查
 

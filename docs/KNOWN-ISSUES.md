@@ -9,7 +9,7 @@ status: active
 
 tags: [核心文档, 待办, 已知坑]
 
-summary: 待办/已知问题真理源：§一 已修复、§二 待办
+summary: 待办/已知问题真理源：§一 已修复、§二 待办、§三 设计取舍、§四 文档坑
 
 updates: [AGENTS.md, ARCHITECTURE.md, src/, src-tauri/src, docs/RELEASE_PROCESS.md]
 ---

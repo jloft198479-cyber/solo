@@ -120,4 +120,4 @@ Select-String -Path package.json,src-tauri\Cargo.toml,src-tauri\tauri.conf.json 
 
 ---
 
-**总结：只需要跑 3 条命令，等 CI 几分钟，就完事了。**
+**总结：只需要跑 4 条命令，等 CI 几分钟，就完事了。**

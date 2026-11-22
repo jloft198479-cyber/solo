@@ -133,9 +133,9 @@ bun run test:full          # 全量 + 体检，跨平台安全（不再用 SOLO_
 
 - **不许新增无 markdown 载体的 mark** —— `markDelimiter()` 无对应 `case` 会落 `default: return ''`，**开闭都不写** ⇒ 文本在、格式静默消失、不报错（比"不支持"更糟，`underline` 即漏网案例）。`StarterKit` 默认成员必须**显式关**。**已有机器锁**：`mark-delimiter-coverage`（只证明"有分支"）+ `mark-matrix`（才证明"写出去能重开"），两个都要跑。
 - **嵌套序列化用 `state.createChild()`**，不许 `new MarkdownSerializerState()` —— 否则外层剪贴板转义标记丢失（粘出多出 `\=` `\$`）。
-- **组字态一律走 [`composition-freeze.ts`](../src/components/Editor/tiptap/composition-freeze.ts)** —— 历史上同一件事被重复造了 4 份才抽出总闸（提交 `21a028b`）。**别再造第 5 份**：新增 decoration / appendTransaction / NodeView / 浮动菜单都走它（现有 11 个模块在用，测试锁见 `composition-freeze.spec.ts`）。
+- **组字态一律走 [`composition-freeze.ts`](../src/components/Editor/tiptap/composition-freeze.ts)** —— 历史上同一件事被重复造了 4 份才抽出总闸（提交 `21a028b`）。**别再造第 5 份**：新增 decoration / appendTransaction / NodeView / 浮动菜单都走它（现有 13 个模块在用，以 grep 引用为准；测试锁见 `composition-freeze.spec.ts`）。
   ⚠️ 两个信号不是一回事，**别互相替换也别删**：`view.composing` = 浏览器 DOM 组字的权威信号；`isFrozen(view)` = 我们自己决定"这段窗口别动文档"的闸门（如代码高亮补算期间）。`markdown-input.ts` 里两套并存是**有意设计**（`pluginState.composing || isFrozen(view)`），不是重复造轮子。
-  ⚠️ **组字态冻结 ≠ IME 候选窗失锚**：后者是输入法弹窗位置飘（宿主 WebView 的锅，**2026-09-24 已终审封存、停止投入**）；前者是我们自己能治的，仍在服役。别混为一谈而误删。
+  ⚠️ **组字态冻结 ≠ IME 候选窗失锚**：后者是输入法弹窗位置飘（宿主 WebView 的锅，**2026-09-24 已终审封存、停止投入，案件 2026-10-12 出结案经验卡**）；前者是我们自己能治的，仍在服役。别混为一谈而误删。
 
 **补充软性纪律（不是禁令，但违反会返工）**
 
@@ -209,6 +209,8 @@ PY
 ⚠️ `tauri dev` 走完整构建（含 link），**必须在本机 MSVC 环境**跑（见下）；release 构建**没有**这个端口（被剪除），要自验只能用 debug 版。若 9222 被占，起第二个实例前用 `SOLO_CDP_PORT` 换端口。
 
 ### F1. 沙箱里跑 Rust 验证（cmd.exe 被拦的绕法）
+
+> env 变量的语义与静态路径说明以 [BUILD_GUIDE.md §3](../BUILD_GUIDE.md) 为准；本节独有价值是**动态探测版本号**（不钉死 MSVC/SDK 版本）+ 绕开 cmd.exe。
 
 WorkBuddy 沙箱的 Bash / PowerShell **都禁止调用 `cmd.exe`**，而文档写的 `vcvars64.bat` 路线走 cmd。已验证可行的纯 PowerShell 原生注入（DevShell 模块本机解析异常 `M:\VS\BuildToolsX`，弃用）：
 

@@ -43,15 +43,7 @@ solo = 本地优先的桌面 Markdown 编辑器（Tauri 2 + Rust 原生核心 + 
 
 **工具链版本、安装、环境变量（CARGO_HOME / RUSTUP_HOME / PATH）配置**统一见 [BUILD_GUIDE.md §1–§3](../BUILD_GUIDE.md)（唯一真理源）。本机 Rust / MSVC 不在默认 PATH，编译前必须按它加载环境。
 
-**`cargo check` 必须先把 MSVC 工具链放进环境**（PowerShell，本机唯一验证可用的精确命令；env 变量细节见 [BUILD_GUIDE.md §3](../BUILD_GUIDE.md)）：
-
-```powershell
-$env:CARGO_HOME = 'M:\rust\.cargo'
-$env:PATH = "M:\VS\BuildTools\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64;$env:PATH"
-$env:INCLUDE = "M:\VS\BuildTools\VC\Tools\MSVC\14.44.35207\include;M:\VS\BuildTools\Windows Kits\10\Include\10.0.26100.0\ucrt;M:\VS\BuildTools\Windows Kits\10\Include\10.0.26100.0\shared;M:\VS\BuildTools\Windows Kits\10\Include\10.0.26100.0\um"
-$env:LIB = "M:\VS\BuildTools\VC\Tools\MSVC\14.44.35207\lib\x64;M:\VS\BuildTools\Windows Kits\10\Lib\10.0.26100.0\ucrt\x64;M:\VS\BuildTools\Windows Kits\10\Lib\10.0.26100.0\um\x64"
-cargo check --manifest-path src-tauri/Cargo.toml
-```
+**`cargo check` 必须先把 MSVC 工具链放进环境**（PowerShell）。精确 env 命令以 [BUILD_GUIDE.md §3](../BUILD_GUIDE.md) 为准（唯一真理源；MSVC/SDK 版本号会随更新漂移，**勿在此复制粘贴具体版本路径**）。
 
 ## 常用命令（复制即用）
 
@@ -60,7 +52,7 @@ bun install                      # 装依赖
 bun run dev                      # 纯前端 dev
 bun run dev:tauri                # 全栈（含 Rust）
 bun run dev:tauri:inspect        # 全栈 + 打开 DevTools（SOLO_OPEN_DEVTOOLS=1）
-bun run test                     # Vitest 全量（当前 32 spec 文件，以实际输出为准）
+bun run test                     # Vitest 全量（spec 数以实际输出为准）
 bun run build:tauri              # 打安装包（默认交给 CI；本地仅排障且经同意时跑）
 ```
 
@@ -88,7 +80,7 @@ bun run build:tauri              # 打安装包（默认交给 CI；本地仅排
 1. **先读 [ARCHITECTURE.md](../ARCHITECTURE.md)**，它比任何对话摘要都准。
 2. **不要信任 `.trae/documents/`**；遇到「文件树/workspace watcher」等描述，那是旧架构。
 3. 找「改 X 去哪个文件」→ 直接查 [ARCHITECTURE.md](../ARCHITECTURE.md) 附录 B 或 敏感区速查表。
-4. 验证改动：**必须跑完整 `bun run test`**，不要信「我试了子集应该没问题」。
+4. 验证改动：小改动可跑 `bun run test:changed`（只跑相关测试，2026-11-18 起实测可用）；改 parser/serializer/schema、发版前**必须跑完整 `bun run test`**。仍禁 `bunx vitest run <过滤>`（segfault，见 [playbook §C](./agent-playbook.md)）。
 5. 改 parser/serializer 后，roundtrip + commonmark 测试必须通过（见上方真理源）。
 6. 遇到环境/构建问题 → [docs/debugging.md](./debugging.md)。
 

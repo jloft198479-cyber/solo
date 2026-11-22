@@ -181,6 +181,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 13 个 composables +
 │   │   │       ├── composition-freeze.ts # 组字态（IME）真相源：isFrozen / mapFrozenDecorations
 │   │   │       ├── list-demote.ts      # 列表项托孤式降级（子列表上位）
 │   │   │       ├── list-move.ts        # 列表行/子树位移（行897 + moveListItem）
+│   │   │       ├── list-shell.ts       # 列表空壳节点判定与拆解（isPureShell / dissolveShell）
 │   │   │       ├── transaction-shape.ts# 事务形态判定（整篇替换 → 跳过装饰重算）
 │   │   │       ├── zwnj.ts             # ZWNJ 常量与剥离唯一来源（见敏感区 23）
 │   │   │       ├── ime-anchor.ts       # Windows 窗口缩放后重锚编辑焦点（IME 护栏）
@@ -192,9 +193,8 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 13 个 composables +
 │   │   │       └── markdown/             # parser / serializer / plugins
 │   │   ├── Settings/             #   设置面板（13 个 .vue）
 │   │   ├── Layout/               #   CustomTitlebar / WindowResizeHandles（仅非 Windows）/ ErrorBoundary
-│   │   └── icons/                #   CloseIcon / CheckIcon
+│   │   └── icons/                #   Icon.ts（默认组件）+ svg.ts（ICONS 注册表 / iconSvg()）
 │   │
-│   ├── services/
 │   ├── services/
 │   │   ├── tauri/                #   IPC 服务层（12 个文件，数量以 `ls src/services/tauri` 为准）
 │   │   │   ├── client.ts         #     invokeCommand<T> + normalizeTauriError
@@ -218,6 +218,7 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 13 个 composables +
 │   │
 │   ├── utils/
 │   │   ├── fontStack.ts          #   buildFontStack：统一字体栈（编辑器+导出共享）
+│   │   ├── localImages.ts        #   本地图片识别（复制出站提示用）
 │   │   ├── markdown-to-html.ts   #   复制为 HTML 的**回落**管道（编辑器不在时才用；正统出口见 tiptap/clipboard-html.ts）
 │   │   └── platform.ts           #   isMac 检测
 │   │
@@ -450,16 +451,16 @@ pathFollowToken: number             // 仅 renamePath() 递增：同一文档换
 
 ### 7.2 `stores/settings.ts` —— 全局设置（长生命周期）
 
-**15 个字段**（全部 true 真理源，改任何设置前先读此 store）：
+**14 个字段**（全部 true 真理源，改任何设置前先读此 store；拼写检查 `spellCheck` 已于 2026-10-20 移除，勿再加回清单）：
 
-`activeThemeId`（默认 `scholar-light`）/ `customThemes` / `fontSize`（null=用主题默认）/ `fontFamily`（`Microsoft YaHei UI`）/ `autoSave` / `autoSaveInterval`（默认 30s，下限 5s）/ `spellCheck` / `titlebarAutoHide` / `lineHeight`（null=用主题默认）/ `customShortcuts` / `alwaysOnTop` / `imageStoragePath` / `shellIntegration` / `enableAutoUpdateCheck` / `configVersion`（固定 **12**）。
+`activeThemeId`（默认 `scholar-light`）/ `customThemes` / `fontSize`（null=用主题默认）/ `fontFamily`（`Microsoft YaHei UI`）/ `autoSave` / `autoSaveInterval`（默认 30s，下限 5s）/ `titlebarAutoHide` / `lineHeight`（null=用主题默认）/ `customShortcuts` / `alwaysOnTop` / `imageStoragePath` / `shellIntegration` / `enableAutoUpdateCheck` / `configVersion`（固定 **12**）。
 
 - **持久化**：tauri-plugin-store（经 `services/tauri/store.ts`）。焦点模式用 `focus-mode` class（`<html>` 上 toggle）。
 - **迁移**：`configVersion`（当前 **12**）。加载时若存储版本 ≠ 当前 → 规范化后回写，一次性升级。v12 迁移把 `fontSize`/`lineHeight` 从硬编码（16/1.6）改为 `null` 用主题默认。
 - **防抖写入**：设置变更后 300ms 防抖落盘；关窗链调用 `flushPendingSettings()` 强制落盘，防抖窗口内关窗不丢最后一次改动。
 - **`normalizeSettings()`**：合并默认值 + 强制 `autoSaveInterval ≥ 5s` + 刷版本号（`CURRENT`）。
 - **主题回退**：`ensureThemeId()` 在主题 id 失效时按当前外观回退到 `scholar-dark`/`default-light`。
-- **启动两阶段**（见 `App.vue` `onMounted`）：`initThemeOnly`（只读 `activeThemeId` 并 `applyCurrentTheme`，不触发 watcher，避免黑闪）→ `initFull`（读全部设置 + focusMode，版本不符则回写）。`startWatchers` 精确 watch 13 个顶层字段 + `activeThemeId` watcher（重注入 CSS）+ focusMode watcher。
+- **启动两阶段**（见 `App.vue` `onMounted`）：`initThemeOnly`（只读 `activeThemeId` 并 `applyCurrentTheme`，不触发 watcher，避免黑闪）→ `initFull`（读全部设置 + focusMode，版本不符则回写）。`startWatchers` 精确 watch 顶层设置字段（清单以 `startWatchers` 实际为准）+ `activeThemeId` watcher（重注入 CSS）+ focusMode watcher。
 
 ---
 
@@ -590,7 +591,7 @@ underline
 - `__tests__/mark-matrix.spec.ts`：**行为级 mark 矩阵**——构造 → 落盘 → 重开，比两个 PM doc 的「文本 ⊕ mark 集合」。为什么不能只靠 `mark-delimiter-coverage`：那是从源码正则抠 `case 'xxx'` 名，只证明「有分支」，证明不了「写出去能重开」。
 - `__tests__/safety-net.spec.ts`：**安全网自检 + 登记锁**——证明判据本身能抓东西（反向校准：关掉判据该转红）、并对已知缺口（CommonMark 5 条丢格式 SKIP、脚注重复标签）做双向锁。
 - `__tests__/test-utils.ts`：测试共享工具。`reopenDrift` 有**三条**判据：可见文字多重集、块结构直方图、**正向包含**（原始内容字符 ⊆ 输出，专抓「参照系两侧同丢」的隐形丢失）。
-- `__tests__/fidelity-scan.spec.ts`：**全仓保真体检引擎**（`SOLO_FIDELITY_SCAN=1` / `bun run test:full` 才跑，日常不参与）。扫 `fixtures/` 真实用户文档，三条硬断言：ZWNJ 不出站 / 二轮收敛只降不升 / 变化签名棘轮。**动 parser/serializer/schema 必须显式跑它**，命令见 playbook §C。
+- `__tests__/fidelity-scan.spec.ts`：**全仓保真体检引擎**（只在 `bun run test:full` 时跑，日常不参与；不走 env-var 直跑，Windows cmd 不认 `VAR=命令` 写法）。扫 `fixtures/` 真实用户文档，三条硬断言：ZWNJ 不出站 / 二轮收敛只降不升 / 变化签名棘轮。**动 parser/serializer/schema 必须显式跑它**，命令见 playbook §C。
 - `__tests__/serializer-perf-guard.spec.ts`：序列化**复杂度护栏**（曾有 O(n²) 事故），防止再次退化。
 - `__tests__/clipboard-serializer.spec.ts` / `__tests__/table-ops.spec.ts` / `__tests__/plugins.spec.ts`：clipboard 转义、表格操作、解析插件的定点回归。
 

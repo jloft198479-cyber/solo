@@ -73,19 +73,17 @@ updates: [TROUBLESHOOTING.md, BUILD_GUIDE.md, src-tauri/src]
 - 前端调用：经 [`src/services/tauri/`](../src/services/tauri/) 封装，或直接 `invoke('reveal_startup_open_log')`。
 
 ## 四、重置设置 / 缓存（用户侧自救）
-- 设置：`%APPDATA%\solo\settings.json`（tauri-plugin-store 持久化）。删除即恢复默认。
-- 文档缓存：`%APPDATA%\solo\documents\`（自动保存的原地文件，非临时副本）。
+- 设置：`%APPDATA%\com.solomarkdown\settings.json`（tauri-plugin-store 持久化）。删除即恢复默认。
+- 文档**没有**缓存目录——保存是原地写回原文件，不存在「自动保存副本」（见 [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) §7）。
 - Windows 文件关联注册表（出问题时清理）：
   - `HKCU\Software\Classes\.md\ShellNew`（NullFile）
   - `HKCU\Software\Classes\solo.markdown`（ProgID / DefaultIcon 须 `,0` 结尾）
   - 详见 [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) 注册表表。
 
 ## 五、Rust / 构建调试
-- `cargo check` 必须先注入 MSVC 环境（PATH/INCLUDE/LIB 指向 `M:\VS\BuildTools` + Windows SDK `10.0.26100.0`，`CARGO_HOME=M:\rust\.cargo`）。完整命令见 [`HANDOVER.md`](./HANDOVER.md) 环境段。
-- **bun 下 segfault 的兜底**（本机 bun 1.3.14 / Windows）：
-  - 类型检查：`node node_modules/vue-tsc/bin/vue-tsc.js --noEmit`
-  - 构建：`node node_modules/vite/bin/vite.js build`
-  - 测试：**只跑 `bun run test`**（完整），绝不用 `bunx vitest run <过滤>`（segfault）。
+- `cargo check` 必须先注入 MSVC 环境（`M:\VS\BuildTools` + Windows SDK，`CARGO_HOME=M:\rust\.cargo`）。精确 env 命令见 [`BUILD_GUIDE.md` §3](../BUILD_GUIDE.md)（唯一真理源）。
+- **bun 下 segfault 的兜底**（本机 bun / Windows）：完整现象与 node 兜底命令见 [`CONTRIBUTING.md` §1.1](./CONTRIBUTING.md)。
+  - 测试：小改动跑 `bun run test:changed`，改 parser/serializer/schema、发版前跑全量 `bun run test`；**绝不用 `bunx vitest run <过滤>`**（segfault，见 playbook §C）。
 
 ## 六、验证改动的标准动作
 1. 改 parser/serializer → `bun run test` 全绿（roundtrip + commonmark 必过）。

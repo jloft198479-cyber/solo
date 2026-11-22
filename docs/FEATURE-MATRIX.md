@@ -11,6 +11,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 # solo 功能全表（供 Agent 核查）
 
 > **基准**：`v1.2.54`（`package.json`）· commit `bcbfd0f` · 分支 `master` · 2026-09-14
+> ⚠️ **本表内容核对基准停在 v1.2.54**（当前版本已到 1.2.68）：期间的增改**不在本表**，以 [CHANGELOG.md](./CHANGELOG.md) 为准；全量刷新后更新本行。
 > **本文只回答一件事**：solo 有哪些功能、每项做到什么程度、去哪儿核查。
 > **与 `KNOWN-ISSUES.md` 的分工**：本文是「全量清单 + 状态」，KNOWN-ISSUES 是「问题台账」。缺口列的数字即 KNOWN-ISSUES 的条目号（`一/` 已修复供溯源，`二/` 待办，`三/` 设计取舍）。
 
