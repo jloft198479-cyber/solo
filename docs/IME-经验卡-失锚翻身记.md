@@ -4,7 +4,7 @@ type: guide
 audience: agent
 status: active
 tags: [ime, 输入法, 经验卡, 翻身, 外部解法, 方法论, 编年史]
-summary: solo 最贵的一仗怎么赢的。第一回合三版补丁全败、用户叫停；一个多月后从同栈外部项目借机制翻身。含全过程编年史（每次失败提交号/探针读数/用户原话/踩坑）、机制原理、三条可迁移打法、六条死路。09-24「永久封存」只对一条机制成立——这个错犯过两次，本卡就是补洞。
+summary: IME 失锚翻身战编年史：三败一胜全过程+三条可迁移打法+六条死路
 updates: [docs/LESSONS.md, docs/KNOWN-ISSUES.md, docs/INDEX.md, docs/archive/IME-结案经验卡-2026-10-12.md, docs/archive/IME-ANCHOR-GUARD-2026-10-09.md]
 ---
 

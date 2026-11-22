@@ -2,7 +2,7 @@
 title: zcode 修复审核（第三轮：#65–#68，13 项）
 type: review
 audience: dev
-status: active
+status: archive
 tags: [修复审核, 审计收口, 回归锁]
 summary: 通过可合并；13 项全落地、无越界、锁经反向校准承重、全量测试与保真体检全绿；C-4 有行为回退需补，R-12/B-2 措辞需修正
 updates: []

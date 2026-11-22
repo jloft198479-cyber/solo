@@ -2,7 +2,7 @@
 title: zcode 修复执行审核（第二轮）— P2-4 字号折算 / P2-5 file: 图片
 type: review
 audience: maintainer
-status: active
+status: archive
 tags: [审核, 代码评审, 修复验收, 出站样式, 图片协议, 安全]
 summary: 对第二轮 3 个提交（8ba6efa toPx 重写 / f3be78b 图片协议门禁 / 6a0d575 台账 #61-#62）做独立审核。需求符合 2/2，无越界改动，既有测试 0 行删除，新增 14 条测试与 2141→2155 精确对账，lint 0 error / 72 warning（比上轮少 1）。独立真跑 13 组协议边界 + 13 组 toPx 形态：clamp/%/vw/em 折算全部符合预期，file: 图片与链接往返稳定，javascript:/vbscript: 仍拒，C:/、//cdn、asset:、data:、相对路径、https 全部不误伤。额外做安全核查三项（CSP img-src 不含 file:、link-open 白名单无 file:、opener capability 默认 scope）全部闭合。发现 2 处可改进：min()/max() 被并入 clamp 取上界语义偏大（min(2em,3em)→48px 应为 32px）；无单位数字（`heading1Size: "1.5"`）仍产 1.5px 隐形字，与「宁可平庸不出隐形字」的宣称有缺口。均不阻塞。
 updates: [docs/KNOWN-ISSUES.md, docs/archive/REVIEW-2026-10-25-zcode修复审核.md]

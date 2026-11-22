@@ -62,10 +62,11 @@ updates: [本文事实来源 / 联动对象——改这些代码或文档必须�
 ---
 ```
 
-- `type` 取值：**core**（全项目真理源：ARCHITECTURE / BUILD_GUIDE / AGENTS / KNOWN-ISSUES / CHANGELOG / RELEASE_PROCESS / INDEX / DOC-STANDARD）· **guide**（指南 / 手册）· **principle**（原则 / 理念）· **proposal**（未执行提案）· **archive**（历史快照 / 归档）· **product**（对外产品导览）
+- `type` 取值：**core**（全项目真理源：ARCHITECTURE / BUILD_GUIDE / AGENTS / KNOWN-ISSUES / CHANGELOG / RELEASE_PROCESS / INDEX / DOC-STANDARD）· **guide**（指南 / 手册）· **principle**（原则 / 理念）· **proposal**（未执行提案）· **archive**（历史快照 / 归档）· **product**（对外产品导览）· **adr**（决策记录，`docs/adr/` 专用，只增不改）· **reference**（速查表 / 索引类，如 code-wiki/08）
 - `audience`：**user**（终端用户）· **dev**（开发者）· **agent**（AI 代理）· **maintainer**（维护者 / 发布者）
-- `status` 语义：描述**文档自身**的生命周期，**不用于标记内容里的未结项**。「里面还有待办」≠「文档还在维护」——把待办写进 `status` 会产出 `type: archive` + `status: active` 这种自相矛盾的组合。**未结项一律登记 [docs/KNOWN-ISSUES.md §二](./KNOWN-ISSUES.md)**（待办的唯一真理源）。
+- `status` 语义：描述**文档自身**的生命周期，**不用于标记内容里的未结项**。「里面还有待办」≠「文档还在维护」——把待办写进 `status` 会产出 `type: archive` + `status: active` 这种自相矛盾的组合。**未结项一律登记 [docs/KNOWN-ISSUES.md §二](./KNOWN-ISSUES.md)**（待办的唯一真理源）。取值：**active**（活跃维护）· **proposal**（提案待定）· **draft**（起草中，如活跃方案稿）· **parked**（明确搁置、保留重启条件）· **accepted**（ADR 批准产物，ADR 专用）· **archive**（已归档冻结）· **deprecated**（已废弃）。档案区文件一律 `status: archive`（2026-11-23 治理审核已全量纠正；历史遗留的 done / 已处理 等枚举外值按「归档即免责」不再回改）
 - **非法组合**：`type: archive`（历史快照）**不得**搭配 `status: active`（活跃维护）——二者语义互斥。已归档文档若仍有参考价值，用 `status: archive`，靠 INDEX 备注指明「未结项归口在哪」。
+- **与 DOC-LIFECYCLE 三标记的关系**：`doc-life` / `review-by` / `owner` 三标记**只在决策区（adr/）与档案区（archive/）强制**，契约区文档不强制（用 status + INDEX 台账代替，避免两套字段并存打架）；写了就按 DOC-LIFECYCLE §二语义填。
 - **新增文档**：必须带完整 frontmatter + 在 [docs/INDEX.md](./INDEX.md) 登记一行 + 需要时在 [AGENTS.md](../AGENTS.md) 文档地图加一行。
 - **事实变化时**：更新对应文档 `status`（如 active → archive）与 `summary`，不硬撑过期内容。
 - **INDEX 与源文档必须逐字一致**：`docs/INDEX.md` 的 type/status 列是**照抄**源文档 frontmatter，不是独立判断。改任一侧，另一侧同步（曾出现索引写 `archive`、源文件是 `proposal` 的漂移）。

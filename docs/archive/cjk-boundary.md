@@ -2,7 +2,7 @@
 title: CJK Markdown 经验沉淀
 type: guide
 audience: dev
-status: active
+status: archive
 tags: [CJK, parser, serializer, 经验]
 summary: CJK 加粗边界决策留痕（改 parser/serializer 必读，行号以函数名为锚）
 updates: [src/components/Editor/tiptap/markdown/parser.ts, src/components/Editor/tiptap/markdown/serializer.ts]

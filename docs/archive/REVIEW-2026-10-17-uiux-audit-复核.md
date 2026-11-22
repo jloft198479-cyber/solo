@@ -2,7 +2,7 @@
 title: 复核：Qoder《UI/UX 与前端规范巡检报告 2026-10-17》
 type: report
 audience: maintainer
-status: active
+status: archive
 tags: [复核, UI, UX, 审计, 行号核销]
 summary: 对 Qoder UI/UX 巡检报告（同目录 AUDIT-UIUX-2026-10-17.md）的独立复核——40+ 条断言逐条对代码取证。总评：数据可信度高（行号抽查全部精确，lint 132/96/10、any=4、对比度 4.71 等关键计数逐字命中）；发现 2 处事实性偏差（z-index 漏 201；「唯一真死变量」实为 12 个零消费变量）+ 6 处轻微口径/计数偏差。未改任何代码。
 ---

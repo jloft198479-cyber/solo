@@ -2,7 +2,7 @@
 title: UI 改造交接文档
 type: guide
 audience: agent
-status: active
+status: archive
 tags: [UI, 交接, 红线, 回滚]
 summary: UI 改造交接（活跃分支 refactor/editor-decouple）：结构红线/回滚点/盲区
 updates: [docs/sensitive-areas.md, design-samples/]

@@ -1,7 +1,7 @@
 ---
 title: 文档减负三方方案评估与最终建议
 type: proposal
-status: active
+status: archive
 date: 2026-10-12
 audience: 人
 summary: 核心问题定性 + 事实核查 + 三方方案取舍 + 分阶段执行清单
@@ -10,7 +10,7 @@ summary: 核心问题定性 + 事实核查 + 三方方案取舍 + 分阶段执�
 # 文档减负：问题定性、事实核查、方案取舍
 
 > 本文只做评估与建议，**未执行任何代码/文档改动**。
-> 评审对象：① `outputs/doc-rebalance-plan.md`（WorkBuddy 版）② `outputs/doc-rebalance-position-2026-10-12.md`（Qoder 版）③ `~/Desktop/通行做法.md`（方法论版）。
+> 评审对象：① `docs/archive/doc-rebalance-plan.md`（WorkBuddy 版）② `docs/archive/doc-rebalance-position-2026-10-12.md`（Qoder 版）③ `~/Desktop/通行做法.md`（方法论版）。
 
 ---
 

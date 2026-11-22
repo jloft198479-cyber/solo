@@ -2,7 +2,7 @@
 title: 粘贴兼容性优化 · 决策备忘
 type: guide
 audience: maintainer
-status: active
+status: archive
 tags: [粘贴, 决策, markdown]
 summary: 粘贴兼容性决策备忘（优先级排序/踩坑）
 updates: [src/components/Editor/tiptap/extensions/markdown-paste.ts, src-tauri/src/commands/clipboard.rs]

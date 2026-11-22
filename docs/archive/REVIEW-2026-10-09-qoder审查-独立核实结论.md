@@ -2,7 +2,7 @@
 title: qoder 第三方审查 · 独立核实结论（只核不修）
 type: proposal
 audience: agent
-status: active
+status: archive
 tags: [审查报告, 复查, 核实, 勘误, 落点映射]
 summary: 对《第三方全面审查·问题总账》逐条独立取证：基线/三闸门核对、P1-P3 抽样与全量复核、勘误表与正面清单抽验，并记录报告自身的 4 处计数/行号偏差；文末附决策记录
 updates: [docs/REVIEW-2026-10-09-第三方全面审查-问题总账.md]

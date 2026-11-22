@@ -2,7 +2,7 @@
 title: zcode 修复执行审核 — 2026-10-25 审计 P1/P2 修复
 type: review
 audience: maintainer
-status: active
+status: archive
 tags: [审核, 代码评审, 修复验收, 数据安全, 列表, round-trip]
 summary: 对 zcode 的 4 个修复提交（a56b58e / 346d9dc / 23ea67d / 67cf6ee，对应台账 #55–#60）做独立审核。需求符合性 6/6 全部命中，无越界改动、未修改任何既有测试、新增 36 条测试与总数增量精确吻合、lint 0 error。三项基线复跑：102 files / 2141 tests 全绿。独立真跑复核 6 组场景（表格公式/互链、中文 `$`、图链、上下标段中、列表 6 行矩阵、全选 4 组合）全部符合预期。发现 4 处需注意：① 新增「含上标段落内所有字面 `^` 被转义」的字节漂移（渲染等价、二次收敛，属保守代价）；② P1-4 的核心行为仅有静态接线锁、组件层无自动化覆盖；③ 台账 #55 写「锁 9 条」实际 10 条；④ lint warning 70→73。结论：可合并，两项真机验收待补。
 updates: [docs/KNOWN-ISSUES.md, docs/archive/REVIEW-2026-10-25-核实结论-全项目隐藏bug审计.md]

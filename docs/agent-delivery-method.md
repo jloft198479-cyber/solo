@@ -95,7 +95,7 @@ with sync_playwright() as p:
 2. **双路径都要点**：新入口（命令面板→关于直达 about）和旧入口（齿轮→默认外观）分别实测，防止「修了直达、忘了默认」。
 3. **Playwright 坑**（Python 版）：不支持 `get_by_role(name=lambda...)`，用 CSS 选择器；切 tab 用 `.click(force=True)` 避开动画稳定性检测；开关用 `[role="switch"][aria-label="..."]`。
 4. **别按 Escape 退出局部编辑态**——弹窗的全局 Escape 监听会关掉整个弹窗，后续定位全部超时；靠切 tab 触发 blur 取消编辑。
-5. 截图存 `outputs/`（已 gitignore，是工作产物目录），回复里用 `computer://` 链接给用户。
+5. 截图存 `outputs/`（按需创建；已 gitignore 的本地工作产物目录，不进仓库），回复里用 `computer://` 链接给用户。
 
 ## 六、静态验证：三层 + 基线对比
 

@@ -1,7 +1,7 @@
 ---
 title: 锁体检台账（63 份 spec · 897 用例 · 实跑 1829 条）
 type: proposal
-status: active
+status: archive
 date: 2026-10-12
 audience: 人
 summary: 每条锁回答「防什么事故 / 哪一级 / 有没有反向校准」，据此定去留

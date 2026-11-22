@@ -2,7 +2,7 @@
 title: 编辑区排版评估与优化方案
 type: guide
 audience: agent
-status: active
+status: archive
 tags: [排版, 评估, 设计留痕]
 summary: 排版微调 + 文字变浅评估（§一 为改动前快照，当前真值以 editor.css 为准）
 updates: [src/components/Editor/tiptap/editor.css]

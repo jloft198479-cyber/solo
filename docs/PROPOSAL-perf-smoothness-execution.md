@@ -4,7 +4,7 @@ type: proposal
 audience: maintainer
 status: active
 tags: [方案, 性能, 丝滑, 执行计划, 双审查合并]
-summary: 两份独立审查 + 一份交叉核实的合并执行稿（v1.1 复审修订版）——14 个任务按依赖排序，每个任务带文件锚点/行为契约/门禁/用户验收；未采纳项逐条注明原因。任何执行者照此即可开工
+summary: 性能与流畅度合并执行稿 v1.1：14 任务按依赖排序，含门禁与用户验收，照此可开工
 updates: [docs/KNOWN-ISSUES.md, docs/BENCHMARK-editing-experience.md]
 ---
 

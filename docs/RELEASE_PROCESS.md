@@ -5,7 +5,7 @@ audience: maintainer
 status: active
 tags: [核心文档, 发布, CI]
 summary: 发版流程真理源：Phase 定义/回滚/故障处理
-updates: [docs/PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从写完代码到用户下载）.md, .github/workflows/release.yml, docs/KNOWN-ISSUES.md]
+updates: [docs/RELEASE-PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从写完代码到用户下载）.md, .github/workflows/release.yml, docs/KNOWN-ISSUES.md]
 ---
 
 # solo 正式发布流程
@@ -34,7 +34,7 @@ updates: [docs/PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科普（从
 
 ## 1. 快速卡片——一站式核对表
 
-> 🔌 **⚠️ 联网前提（2026-10-13 简乐立）**：本机访问 GitHub 必须用户**手动开通 VPN/代理**。Agent 自动发版时，**动手做任何联网操作前先问用户「开了 VPN/代理没」**；没开就停手等他开，连不上时不要诊断/重试/改配置（几乎都是没开代理），直接问人。详见 **§10.10** 与 PLAYBOOK 顶部「发版前置互动」。
+> 🔌 **⚠️ 联网前提（2026-10-13 简乐立）**：本机访问 GitHub 必须用户**手动开通 VPN/代理**。Agent 自动发版时，**动手做任何联网操作前先问用户「开了 VPN/代理没」**；没开就停手等他开，连不上时不要诊断/重试/改配置（几乎都是没开代理），直接问人。详见 **§10.10** 与 RELEASE-PLAYBOOK 顶部「发版前置互动」。
 
 ```text
 [ ] 1. 确认所有功能开发完成、测试通过

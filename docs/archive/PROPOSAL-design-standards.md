@@ -2,9 +2,9 @@
 title: 设计规范化总案：问题清单与修复评估（2026-10-17）
 type: proposal
 audience: maintainer
-status: proposal
+status: archive
 tags: [设计, UI, 规范, token, 图标, z-index, 评估]
-summary: 综合 UI/UX 巡检复核链（取数一律以终核为准）的设计侧问题总清单与修复评估：A 组体感四件（真模态 / 代码块字号 / 图标统一 / 段距行高对标 Typora）+ B 组规范八条（z-index 刻度 / 按钮共享 / spacing 标度 / 死变量等）；逐条含修复难度 / 可控性 / 性能与验证方式，附建议批次与完成判据。段距/行高对标与「趁机会规范」范围已拍板（2026-10-17）；**批 1 已执行**（字号 em / 行高 1.6 / 光标 / 键盘可见性 + 9 条契约锁），余批待推进。
+summary: 设计规范化总案（A 组四件+B 组八条），批 1~5 全部收口（已结案）
 updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-uiux-终核.md, docs/KNOWN-ISSUES.md]
 ---
 

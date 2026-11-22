@@ -2,7 +2,7 @@
 title: 核实结论 — 对《全项目隐藏 bug 审计（2026-10-25）》的独立复核
 type: review
 audience: maintainer
-status: active
+status: archive
 tags: [审核, 复核, 数据安全, 表格, InputRule, round-trip]
 summary: 2026-10-25 独立复核 zcode 的 5 分区审计。三项基线全部复现（lint 0 error/70 warning、vitest --mode full 96 files/2105 tests、cargo test --lib 106 passed）。P1/P2 九条中 8 条经真跑或源码链坐实；1 条（P2-3 多窗口设置覆盖）仅源码合理未实测。发现 2 处描述偏差（P1-3 实际是抛 RangeError 而非静默消失；「段首打正常」归因错，实际只有整段即匹配内容才正常），2 处实测比原报告更严重（P2-1 中文形态整段被吞成公式；P2-5 重开后 `[` 被转义成字面、二次不可逆）。未发现误报（false positive）。结论：报告可作为修复依据。
 updates: [docs/archive/REVIEW-2026-10-25-全项目隐藏bug审计.md]

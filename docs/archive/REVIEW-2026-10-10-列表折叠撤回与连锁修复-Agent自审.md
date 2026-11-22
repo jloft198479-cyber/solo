@@ -2,7 +2,7 @@
 title: 列表折叠撤回与连锁修复 · Agent 自审（供第三方复核）
 type: review
 audience: agent, reviewer
-status: active
+status: archive
 tags: [审核, 列表折叠, heading-fold, 连锁 bug, 工作原则对照]
 summary: 2026-10-10 下午 Agent 会话的完整工作记录——7 笔提交、3 次真机回归、工作原则逐条对照、已知欠账
 updates: [docs/KNOWN-ISSUES.md, docs/LESSONS.md, src/components/Editor/tiptap/extensions/list-backspace-guard.ts, src/components/Editor/tiptap/editor.css]

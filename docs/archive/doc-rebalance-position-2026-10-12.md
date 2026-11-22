@@ -1,8 +1,8 @@
 # 文档减负：我方主张（供多 engine 横向比较，2026-10-12）
 
 > 作者：Qoder（本轮）
-> 对照对象：`outputs/doc-rebalance-plan.md`（WorkBuddy 版，**未改动**）
-> 本文是**可执行主张**，不是审核报告。取证过程见 `outputs/doc-rebalance-review-2026-10-12.md`。
+> 对照对象：`docs/archive/doc-rebalance-plan.md`（WorkBuddy 版，**未改动**）
+> 本文是**可执行主张**，不是审核报告。取证过程见 `docs/archive/doc-rebalance-review-2026-10-12.md`。
 > 本文放在 `outputs/`：该目录在 `fidelity-scan.spec.ts:102` 的 `SKIP_DIRS` 里，不参与全仓保真体检，新增文档不会动棘轮。
 
 ---

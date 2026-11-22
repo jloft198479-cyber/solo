@@ -2,7 +2,7 @@
 title: 全项目隐藏 bug 审计（5 分区并行 + 基线复跑）
 type: review
 audience: maintainer
-status: active
+status: archive
 tags: [审核, 全项目, 数据安全, 剪贴板, Rust 后端, round-trip]
 summary: 2026-10-25 对 solo 全仓做只读审计：5 个并行分区（Rust 后端 / markdown 管线 / TipTap 扩展 / 前端服务状态 / 剪贴板与安全配置），全部发现对照 KNOWN-ISSUES.md §一/§二逐条排除在案项。基线：vitest --mode full 2105 全绿、eslint 0 error。新发现 4 条 P1（表格内属性通道 `|` 裸写首存切列毁公式/互链；`[![alt](img)](url)` 外链静默消失；sub-sup InputRule 位置数学错致行中打上下标内容消失；改名只换路径触发 watch 旧基线回灌丢未序列化编辑——四条均经主会话二次源码复核）＋ 5 条 P2 ＋ 约 28 条 P3。8 条标⚠️待实测（附最小复现思路）。font.rs 路径校验缺口由两个独立分区交叉命中。未改任何被审代码。
 updates: [docs/KNOWN-ISSUES.md]

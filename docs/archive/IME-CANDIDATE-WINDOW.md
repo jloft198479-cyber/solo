@@ -2,7 +2,7 @@
 title: IME 候选窗失锚（封存档 · 主题唯一入口）
 type: proposal
 audience: agent
-status: active
+status: archive
 tags: [ime, 输入法, 候选窗, webview2, tauri, 封存, 档案]
 summary: IME 候选窗失锚的唯一入口文档（2026-09-30 由 4 份蒸馏合并）：封存结论 + 现象台账 + 已排除/死路清单 + 补丁三版全败史 + 第三方与跨 agent 建议评估 + 重启执行顺序 + 档案索引。问题本身已封存（2026-09-24），本文档作为可重启档案继续维护。
 updates: [docs/KNOWN-ISSUES.md, docs/INDEX.md, .workbuddy/memory/topics/ime-candidate-window.md, .workbuddy/memory/MEMORY.md]

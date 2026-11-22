@@ -2,7 +2,7 @@
 title: 终核：对《复核之复核》的独立验证与更正收敛（2026-10-17）
 type: report
 audience: maintainer
-status: active
+status: archive
 tags: [复核, 终核, Tailwind, CSS变量, 审计, 行号核销]
 summary: 对 Qoder《复核之复核》的独立验证：四项核心主张全部实证成立（tailwind.config.js 死配置由 v4.3.1 构建级探针实锤；死变量真数 9 复核一致；其对我方 8 条偏差的裁定 7 条准确、1 条我方需改；对我方两处方法论批评属实）。另收敛其文本 4 处不精确 + 我方复核 4 处待更正。未改任何代码。2026-10-17 拍板：本件为唯一更正源（三份原件保持冻结）；tailwind.config.js 保持现状并登记台账 #70（见 §五）。
 updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-uiux-audit-复核.md, docs/archive/REVIEW-2026-10-17-uiux-复核之复核.md]

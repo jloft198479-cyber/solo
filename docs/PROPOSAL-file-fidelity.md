@@ -4,7 +4,7 @@ type: proposal
 audience: maintainer
 status: draft
 tags: [方案, 保真, BOM, CRLF, 编码, 测试向量, FEATURE-MATRIX, 承诺清单, OpenMarkdown调研]
-summary: 整合 2026-11-22 双路调研（本方远程核查 + workbuddy 源码级 REVIEW）的可落地项。W1 修「编辑过的保存丢 BOM、归一换行」的真实缺陷；W2 用测试向量自动生成 FEATURE-MATRIX（治假锁+文档漂移）；W3 把保真承诺写成可核清单。C 档（换内核/逐字节/砍语法）明确不做。rev1（2026-11-22 评审）补编码维度、三个 layout 边界、另一条写盘路径，降级 F4 为待证，并纠正 §6-1 理由。三阶段已全部落地（2026-11-22），决策台账见 §6（区分「已定」与「已拍板」），修订留痕见 §7。
+summary: 文件保真三阶段方案（W1 BOM/CRLF 回写、W2 矩阵防漂移、W3 承诺清单），已全部落地，决策台账见 §6
 updates:
   [
     src-tauri/src/commands/document.rs,
@@ -22,7 +22,7 @@ updates:
 
 # 方案：文件字节诚实 + 测试生成文档 + 保真承诺清单
 
-> 来源：2026-11-22 对 [OpenMarkdown editor](https://github.com/OpenMarkdown-dev/OpenMarkdown-editor) 的双路调研——workbuddy 源码级对比 [outputs/REVIEW-2026-11-22-OpenMarkdown-对比调研.md](../outputs/REVIEW-2026-11-22-OpenMarkdown-对比调研.md)（下称「REVIEW」）+ 本方远程核查（含 solo 现状取证）。本文只写**可落地项**，调研结论不在此复制。
+> 来源：2026-11-22 对 [OpenMarkdown editor](https://github.com/OpenMarkdown-dev/OpenMarkdown-editor) 的双路调研——workbuddy 源码级对比 [REVIEW-2026-11-22-OpenMarkdown-对比调研.md](./archive/REVIEW-2026-11-22-OpenMarkdown-对比调研.md)（下称「REVIEW」）+ 本方远程核查（含 solo 现状取证）。本文只写**可落地项**，调研结论不在此复制。
 > 状态：**draft，待简乐拍板**（拍板项见 §6）。rev1 修订见 §7。
 
 ## 0. 一句话
@@ -148,7 +148,7 @@ updates:
 
 | 阶段 | 内容 | 性质 | 安全网 |
 |---|---|---|---|
-| 0 ✅ | **现状钉子测试**（§2.2 五个场景）——**已完成 2026-11-22**，结果见 [阶段 0 体检报告](../outputs/REVIEW-2026-11-22-阶段0-文件字节体检.md)：F4 成立、归一发生在解析、原 M-03 锁是弱锁（已补承重与反证两条）、新增 4 处钉子 | 只写测试，不改实现 | 已完成；**结论未推翻 F4，不需要先修脏态** |
+| 0 ✅ | **现状钉子测试**（§2.2 五个场景）——**已完成 2026-11-22**，结果见 [阶段 0 体检报告](./archive/REVIEW-2026-11-22-阶段0-文件字节体检.md)：F4 成立、归一发生在解析、原 M-03 锁是弱锁（已补承重与反证两条）、新增 4 处钉子 | 只写测试，不改实现 | 已完成；**结论未推翻 F4，不需要先修脏态** |
 | 1 ✅ | W1 文件字节诚实 ——**已完成 2026-11-22** | 小，Rust+前端两层 | 起步打了 `backup/2026-11-22-w1-prefile` 锚点；`cargo test --lib` 116 绿 / 前端 2204 绿 / `vue-tsc` 净 / eslint 0 error |
 | 2 ✅ | W2 向量生成文档 ——**已完成 2026-11-22** | 测试侧，不碰内核 | 拍板口径 c（各管各的）；纯加法（老测试零改动）；一致性锁 + 反向校准已验（手改文档即红）；全量 2279 绿 |
 | 3 ✅ | W3 承诺清单 ——**已完成 2026-11-22** | 文档 | 落点 `docs/FIDELITY-PROMISE.md`（README 各语言版只放一句 + 链接）；改写清单由向量生成，**不手抄**（同一把一致性锁，反向校准已验） |

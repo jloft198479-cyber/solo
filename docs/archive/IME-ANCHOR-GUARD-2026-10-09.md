@@ -2,7 +2,7 @@
 title: IME 候选窗失锚 · 重锚护栏修复档案（可追溯）
 type: guide
 audience: agent
-status: active
+status: archive
 tags: [ime, 输入法, 候选窗, 修复档案, 分支, 可回滚, webview2]
 summary: 「blur → 隔 60ms → focus」重锚护栏的修复过程档案：分支/回滚点/验收判据（v2：因问题概率性，改为被动探针对账，见 §2.0 修订申报）/阶段记录/退出条件。触发面已按真机反馈修订为「窗口移动 + 缩放」。跟随分支 fix/ime-anchor-guard，未验证前不合并 master。
 updates: [docs/IME-CANDIDATE-WINDOW.md, docs/KNOWN-ISSUES.md, src/components/Editor/tiptap/composition-freeze.ts]

@@ -2,9 +2,9 @@
 title: 方案：字体切换的作用范围界定（正文字体 vs 界面字体）
 type: proposal
 audience: maintainer
-status: active
+status: archive
 tags: [方案, 字体, 主题, UI, 已落地]
-summary: 现状是「切字体 = 整个界面跟着换」（`body` 直接用 `--font-text`）。业界共识（Obsidian / Notion / VS Code）是**正文字体与界面字体分离**。**2026-10-17 已按 A 方案落地**：界面字体固定为系统 UI 栈（`--font-ui`），不随正文字体变化。
+summary: 字体作用域三分方案（正文/界面/代码分离），2026-10-17 已按 A 方案落地（已结案）
 updates: [docs/KNOWN-ISSUES.md]
 ---
 
@@ -128,7 +128,7 @@ updates: [docs/KNOWN-ISSUES.md]
 
 **验证**：`vue-tsc --noEmit` 通过；`npx vitest run` 全绿（1862 passed / 0 failed）；`docs-lint` 通过。真机观感（切一遍字体看界面是否纹丝不动）待 debug 构建目视 / CDP 截图。
 
-> 后续（2026-10-17 晚）：复查阶段发现的 3 条存量问题（导出端 mono 硬编码 / 字体状态逻辑重复 / `SYSTEM_FONTS` 冗余）已一并清理，处置与验证读数见 [REVIEW-2026-10-17-font-scope-recheck.md](../outputs/REVIEW-2026-10-17-font-scope-recheck.md) §五。
+> 后续（2026-10-17 晚）：复查阶段发现的 3 条存量问题（导出端 mono 硬编码 / 字体状态逻辑重复 / `SYSTEM_FONTS` 冗余）已一并清理，处置与验证读数见 [REVIEW-2026-10-17-font-scope-recheck.md](./archive/REVIEW-2026-10-17-font-scope-recheck.md) §五。
 
 ## 附：回滚与安全（按 `AGENTS.md` §1.6，落地前已执行）
 
