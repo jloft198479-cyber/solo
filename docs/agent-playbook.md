@@ -114,7 +114,7 @@ bun run test:full          # 全量 + 体检，跨平台安全（不再用 SOLO_
 
 **发版前**：升版本号三处同步（[`package.json`](../package.json) / [`Cargo.toml`](../src-tauri/Cargo.toml) / [`tauri.conf.json`](../src-tauri/tauri.conf.json)）→ 查 `replaceAll` → tag 与版本号一致 → 完整流程见 [RELEASE_PROCESS.md](./RELEASE_PROCESS.md)。
 
-> ⚙️ Agent 在本机跑验证的坑（`bun` segfault、`bun run build` 清 `dist/` 被安全闸门拦）：对策见 [RELEASE_PROCESS.md §11.2 / §11.3](./RELEASE_PROCESS.md)，别自己重新发明。
+> ⚙️ Agent 在本机跑验证的坑（`bun` segfault、`bun run build` 清 `dist/` 被安全闸门拦）：对策见 [RELEASE_PROCESS.md §10.2 / §10.3](./RELEASE_PROCESS.md)，别自己重新发明。
 
 ---
 

@@ -2,7 +2,7 @@
 title: 第三方全面审查方案（宏观 → 微观，对标优秀 Markdown 软件）
 type: proposal
 audience: maintainer
-status: proposal
+status: archive
 tags: [审查方案, audit, 第三方, typora对比, 全量核查]
 summary: 给第三方审查者用的作业书：审查目标/分层口径/交底材料/差分定位/交付物与红线
 updates: [docs/INDEX.md, docs/FEATURE-MATRIX.md, docs/KNOWN-ISSUES.md, docs/archive/AUDIT-REPORT-2026-09-14.md]

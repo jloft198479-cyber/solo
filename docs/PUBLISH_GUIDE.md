@@ -4,7 +4,7 @@ type: guide
 audience: maintainer
 status: active
 tags: [发布, 小白, 实操]
-summary: 发版小白实操版（3 条命令），真理源 RELEASE_PROCESS
+summary: 发版小白实操版（4 条命令），真理源 RELEASE_PROCESS
 updates: [docs/RELEASE_PROCESS.md]
 ---
 
@@ -12,7 +12,7 @@ updates: [docs/RELEASE_PROCESS.md]
 
 > 开发改代码的事 AI 会做。你只需要在改完后，把做好的安装包发布出去。
 >
-> 本文是 [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md) 的**发版小白实操版**（核心只跑 3 条命令）；完整 Phase 定义、回滚与故障处理以 RELEASE_PROCESS 为真理源。
+> 本文是 [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md) 的**发版小白实操版**（核心只跑 4 条命令）；完整 Phase 定义、回滚与故障处理以 RELEASE_PROCESS 为真理源。
 
 ---
 

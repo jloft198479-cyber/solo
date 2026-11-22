@@ -4,7 +4,7 @@ type: proposal
 audience: maintainer
 status: draft
 tags: [方案, 保真, BOM, CRLF, 编码, 测试向量, FEATURE-MATRIX, 承诺清单, OpenMarkdown调研]
-summary: 文件保真三阶段方案（W1 BOM/CRLF 回写、W2 矩阵防漂移、W3 承诺清单），已全部落地，决策台账见 §6
+summary: 文件保真三阶段方案 W1/W2/W3，已全部落地，台账见 §6
 updates:
   [
     src-tauri/src/commands/document.rs,

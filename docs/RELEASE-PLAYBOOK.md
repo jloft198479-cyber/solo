@@ -90,7 +90,7 @@ A 文档梳理 ──▶ B 问题盘点 ──▶ C 优化提案 ──▶ D 提
 ## Phase E — 发布（机械 · 脚本化）
 
 > 机制细节见 [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md)。本阶段用 `scripts/release-gate.ps1` 跑两道闸门，消灭手滑与易忘。
-> ⚠️ 在 WorkBuddy 托管 shell 自动发版时，该脚本因环境变量注入冲突跑不了（见 RELEASE_PROCESS **§11.6**），退化为手写等价命令，按 **§11.7** 清单逐条执行即可，效果等同闸门脚本。
+> ⚠️ 在 WorkBuddy 托管 shell 自动发版时，该脚本因环境变量注入冲突跑不了（见 RELEASE_PROCESS **§10.7**），退化为手写等价命令，按 **§10.8** 清单逐条执行即可，效果等同闸门脚本。
 
 - **入口（前置互动）**：✅ 已确认用户开通 VPN/代理（见本剧本顶部「发版前置互动」）。未确认/未开通 → **停下等用户开**，不开绝不联网。
 
@@ -128,7 +128,7 @@ pwsh scripts/release-gate.ps1 -Stage PostCI
 - **入口**：E 完成（已 `published`）。
 - **动作**：
   - 已安装旧版 → 设置/通用/检查更新 → 确认弹新版 → 下载/安装/重启成功。
-  - 走 [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md) §10.4 手动回归（图片/路径/边界/升级）。
+  - 走 [`RELEASE_PROCESS.md`](./RELEASE_PROCESS.md) §11.4 手动回归（图片/路径/边界/升级）。
 - **出口关卡**：✅ 自动更新实测通过 + 回归清单全勾。
 - **收尾**：CHANGELOG 版本记录（已在 D 的 doc 提交里做）、CHANGELOG 对齐。
 

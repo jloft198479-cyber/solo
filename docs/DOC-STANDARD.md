@@ -57,7 +57,7 @@ type: core | guide | principle | proposal | archive | product
 audience: user | dev | agent | maintainer
 status: active | proposal | archive | deprecated
 tags: [主题标签，小写英文，逗号分隔]
-summary: 一句话摘要（≤40 字，说明本文是什么、给谁用）
+summary: 一句话摘要（≤40 汉字，说明本文是什么、给谁用）
 updates: [本文事实来源 / 联动对象——改这些代码或文档必须回查本文]
 ---
 ```

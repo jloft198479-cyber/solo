@@ -4,7 +4,7 @@ type: proposal
 audience: maintainer
 status: archive
 tags: [方案, 外部修改, 文件监听, 阅读位置, 极简, 已存档, 2026-10-21搁置]
-summary: 外部文件实时跟随方案（提示档/跟随档两路线），2026-10-21 决定搁置（已归档）
+summary: 外部文件实时跟随方案两路线，2026-10-21 决定搁置
 updates: []
 ---
 

@@ -52,7 +52,7 @@ updates: [docs/RELEASE-PLAYBOOK.md, docs/PUBLISH_GUIDE.md, docs/发布流程科�
 [ ] 13. 更新项目文档（CHANGELOG.md 版本历史；**SECURITY.md 当前版本字段同步**；PROFILE.md 版本历史已于 2026-07-21 去重，统一以 CHANGELOG.md 为真理源）
 ```
 
-> ⚠️ **Agent 在 WorkBuddy 托管 shell 自动发版**：`bun` / `gh` 命令需按 **§10** 调整（GH_TOKEN 污染、bun segfault、draft 下载卡死等）。一遍成功清单见 **§10.7**。
+> ⚠️ **Agent 在 WorkBuddy 托管 shell 自动发版**：`bun` / `gh` 命令需按 **§10** 调整（GH_TOKEN 污染、bun segfault、draft 下载卡死等）。一遍成功清单见 **§10.8**。
 
 ---
 
@@ -303,7 +303,7 @@ gh release view v1.x.x
 
 CNB (cnb.cool) 只作**国内手动下载渠道**——软件 updater 端点写死 GitHub，CNB 那份**不参与自动更新**（改这条见 [KNOWN-ISSUES §二 #7](./KNOWN-ISSUES.md)）。
 
-> ⚠️ **Agent 环境坑（必读）**：CNB 写操作必须走**个人令牌**（`cnb login` 的 OAuth token 只读，写全 403）；CNB 默认分支是 **`main`**（不是 GitHub 的 `master`），`--target-commitish` 必填。完整踩坑与命令见 **§10.5**。
+> ⚠️ **Agent 环境坑（必读）**：CNB 写操作必须走**个人令牌**（`cnb login` 的 OAuth token 只读，写全 403）；CNB 默认分支是 **`main`**（不是 GitHub 的 `master`），`--target-commitish` 必填。完整踩坑与命令见 **§10.6**。
 
 ```bash
 # 1. 从 GitHub 取 3 个资产到沙盒目录（exe / .sig / latest.json）
@@ -484,7 +484,7 @@ gh api "repos/<owner>/<repo>/releases?per_page=1" --jq '.[0].tag_name'
 
 ### 9.10 🔴 `gh release download` 对 draft release 卡死
 
-见 **§10.4**（Agent 环境必读）。一句话：draft 态下载会挂 4 分钟以上不出，先 `gh release edit v1.x.x --draft=false` 发布，再 download 核对。
+见 **§10.5**（Agent 环境必读）。一句话：draft 态下载会挂 4 分钟以上不出，先 `gh release edit v1.x.x --draft=false` 发布，再 download 核对。
 
 ---
 
@@ -492,7 +492,7 @@ gh api "repos/<owner>/<repo>/releases?per_page=1" --jq '.[0].tag_name'
 
 > **适用场景**：在 WorkBuddy 托管 shell（CodeBuddy / WorkBuddy 自动化会话）里跑发版流程时。
 > 真实终端 / CI 不受影响，可直接用 `bun` / `gh`。
-> 下列 7 条是 2026-08~09 两轮自动发版（v1.2.42 / v1.2.50）实测踩出、并验证可用的对策。其他 Agent 照做即可一遍成功，不必重蹈覆辙。
+> 下列 10 条是 2026-08~09 两轮自动发版（v1.2.42 / v1.2.50）实测踩出、并验证可用的对策。其他 Agent 照做即可一遍成功，不必重蹈覆辙。
 
 ### 10.1 🔴 `git push` / `gh` 报 invalid token（不是你凭据过期）
 
@@ -593,9 +593,9 @@ node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
 3. 本地三连验证（用 10.2 的 node 命令，非 bun）：`vitest run` ✅ + `vue-tsc --noEmit` ✅ + `vite build` ✅
 4. `git tag v1.x.x && env -u GH_TOKEN -u GITHUB_TOKEN git push origin v1.x.x`（tag 指向 bump commit）
 5. `gh run watch <id> --exit-status` 等 CI 双绿
-6. **先 undraft**：`gh release edit v1.x.x --draft=false`（10.4）
-7. 发布后 `gh release download`（不再卡）核资产：**核大小 + `sha256sum` 对比 release API 的 `digest`**，别看管道退出码（10.8）
-8. CNB 同步（**按用户当次指示**，非默认必做；10.5，`--target-commitish main` + 个人令牌）+ sha256 校验
+6. **先 undraft**：`gh release edit v1.x.x --draft=false`（10.5）
+7. 发布后 `gh release download`（不再卡）核资产：**核大小 + `sha256sum` 对比 release API 的 `digest`**，别看管道退出码（10.9）
+8. CNB 同步（**按用户当次指示**，非默认必做；10.6，`--target-commitish main` + 个人令牌）+ sha256 校验
 9. **SECURITY.md 当前版本字段**同步到新版本（易漏项，见 §7.4）—— 别只改三处版本号
 10. `git clean -fdx -- .sandbox-*` 清掉沙盒目录，工作树留干净
 
@@ -631,7 +631,7 @@ node "C:/Users/<user>/.workbuddy/skills/cnb-publish/scripts/upload-assets.mjs" \
 
 ## 11. 附录
 
-### 10.1 常用命令速查
+### 11.1 常用命令速查
 
 ```bash
 # 版本号同步验证
@@ -662,7 +662,7 @@ gh release download v1.x.x -p "latest.json" -O - 2>$null | ConvertFrom-Json
 rg "replaceAll|replaceAllAsync" src/
 ```
 
-### 10.2 CI 工作流文件
+### 11.2 CI 工作流文件
 
 `.github/workflows/release.yml` — 触发方式：`git push --tags "v*"`。
 
@@ -671,7 +671,7 @@ rg "replaceAll|replaceAllAsync" src/
 - 签名：`bunx tauri signer sign` + 提取 signature
 - Release 创建：`gh release create --draft`（CI 不发布，留给人工确认）
 
-### 10.3 架构决策参考
+### 11.3 架构决策参考
 
 - **updater 配置**：`tauri.conf.json` → `plugins.updater`
 - **签名密钥**：`TAURI_SIGNING_PRIVATE_KEY`（GitHub Secrets）
@@ -680,7 +680,7 @@ rg "replaceAll|replaceAllAsync" src/
 
 详见 `ARCHITECTURE.md` + `BUILD_GUIDE.md`。
 
-### 10.4 发版前手动回归清单（功能验证）
+### 11.4 发版前手动回归清单（功能验证）
 
 > 原 `RELEASE-CHECKLIST.md` 已并入此处（2026-07-21 文档规范化），避免发版清单与流程脱节。在 `bun run test && bunx vue-tsc --noEmit` 通过后，发版前逐项手动过一遍，约 5 分钟，堵住 80% 的漏网 Bug。
 

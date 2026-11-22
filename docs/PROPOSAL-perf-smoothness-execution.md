@@ -4,7 +4,7 @@ type: proposal
 audience: maintainer
 status: active
 tags: [方案, 性能, 丝滑, 执行计划, 双审查合并]
-summary: 性能与流畅度合并执行稿 v1.1：14 任务按依赖排序，含门禁与用户验收，照此可开工
+summary: 性能流畅度执行稿 v1.1：14 任务按依赖排序，含门禁验收
 updates: [docs/KNOWN-ISSUES.md, docs/BENCHMARK-editing-experience.md]
 ---
 
@@ -63,7 +63,7 @@ updates: [docs/KNOWN-ISSUES.md, docs/BENCHMARK-editing-experience.md]
 4. **不本地构建安装包**：`tauri build`/`cargo build --release` 一律交 CI。
    例外仅两处且**须先向简乐说明并获同意**：T2 的 `bun run build`（仅前端构建，看分包结果）、
    T1 的 `bun run tauri dev`（A/B 测量，不产出安装包）。
-   本机 bun 有已知坑，先读 `RELEASE_PROCESS.md §11.2/§11.3`，别自己发明绕法。
+   本机 bun 有已知坑，先读 `RELEASE_PROCESS.md §10.2/§10.3`，别自己发明绕法。
 5. **不硬编码**：新阈值/延迟一律命名常量并写理由注释；颜色/尺寸走主题 token。
 6. **不装依赖**：本方案所有任务零新增依赖。需要装 = 方案错了，停下报告。
 7. **新锁必做反向校准**：撤掉修复确认锁转红；不转红 = 假绿，按 playbook §C 三种假绿排查。

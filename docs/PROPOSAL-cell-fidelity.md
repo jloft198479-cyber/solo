@@ -4,7 +4,7 @@ type: proposal
 audience: maintainer
 status: active
 tags: [方案, 表格, 单元格, 序列化, 保真, 台账60, 台账61, 台账63, 部分落地]
-summary: 表格单元格保真缺口：#61/#60 部分落地、#63 待拍板，剩余修法与台账见 §10
+summary: 表格单元格保真缺口 #61/#60/#63：部分落地，余案见 §10
 updates:
   [
     src/components/Editor/tiptap/markdown/serializer.ts,

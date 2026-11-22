@@ -4,8 +4,8 @@ type: proposal
 audience: maintainer
 status: archive
 tags: [设计, 图标, UI, 方案, 待拍板]
-summary: 图标系统统一方案（24 画布/线宽 2/currentColor），三步全部完成（已结案）
-updates: [docs/PROPOSAL-design-standards.md, docs/INDEX.md]
+summary: 图标系统统一方案（24 画布/线宽 2），三步已全部完成
+updates: [docs/archive/PROPOSAL-design-standards.md, docs/INDEX.md]
 ---
 
 # 图标系统统一方案（2026-10-17）
@@ -122,12 +122,12 @@ updates: [docs/PROPOSAL-design-standards.md, docs/INDEX.md]
 
 ### 第 1 步 · 建库（2026-10-17 ✅ 已完成）
 
-- 新增 [`svg.ts`](../src/components/icons/svg.ts)：**28 个图标**的 path 数据，取自 `lucide-static@1.58.0` 官方 svg，未二次加工。
+- 新增 [`svg.ts`](../../src/components/icons/svg.ts)：**28 个图标**的 path 数据，取自 `lucide-static@1.58.0` 官方 svg，未二次加工。
 - 规格唯一出口 `ICON_PROPS`：24 画布 / 线宽 2 / round 端点 / currentColor / `aria-hidden`。**改规格只改这一处**，组件与 `.ts` 侧都不重复声明。
-- 新增 [`Icon.ts`](../src/components/icons/Icon.ts)：函数式组件，**不套任何包装元素**（直接渲染 `<svg>`），避免破坏使用处既有的 `svg { … }` 选择器；尺寸默认 16、可按需传。
+- 新增 [`Icon.ts`](../../src/components/icons/Icon.ts)：函数式组件，**不套任何包装元素**（直接渲染 `<svg>`），避免破坏使用处既有的 `svg { … }` 选择器；尺寸默认 16、可按需传。
 - `.ts` 侧用 `iconSvg(name, size)` 取同一份图源字符串 —— 不存在第二套定义。
 - **本步不接任何调用点，界面零变化。**
-- 契约锁 [`icon-spec.spec.ts`](../src/components/icons/__tests__/icon-spec.spec.ts) **7 条**：清单稳定 / 内容合法（无外壳·无脚本·无事件属性·无硬编码颜色）/ 只用标准 SVG 元素 / 规格常量 / `iconSvg()` 产出 / 组件裸渲染无包装 / 默认尺寸。
+- 契约锁 [`icon-spec.spec.ts`](../../src/components/icons/__tests__/icon-spec.spec.ts) **7 条**：清单稳定 / 内容合法（无外壳·无脚本·无事件属性·无硬编码颜色）/ 只用标准 SVG 元素 / 规格常量 / `iconSvg()` 产出 / 组件裸渲染无包装 / 默认尺寸。
 - 验证：全量 **1901 passed / 0 failed**（基线 1894 + 新锁 7，数目对得上）；`vue-tsc` 0；`npm run lint` 132 warnings / 0 errors（与改动前持平）。
 - 反向校准三组（**各自单独撤**）：改线宽为 1.5 → 3 条红；往图标塞 `<script>` → 3 条红；改默认尺寸 → 1 条红。还原即复绿。
 - 回滚：删掉 `svg.ts` / `Icon.ts` / `icon-spec.spec.ts` 三个文件即可（未接调用点，零影响）。
@@ -145,8 +145,8 @@ updates: [docs/PROPOSAL-design-standards.md, docs/INDEX.md]
   - 置顶按钮激活态填充：`.pin-shape` → `.titlebar-pin-icon`（整枚填充，视觉同前）；旋转原点 7.5px → 12px（画布 15 → 24）。
   - 焦点模式眼睛的瞳孔：`.eye-pupil` → `.focus-eye-icon circle`（图源里瞳孔是唯一 `<circle>`）。
 - **顺手消灭的老毛病**：状态栏「复制全文」点完变勾时，线条从 1.33px 突变到 1.80px（粗 35%）—— 现在两个状态同尺寸同线宽，永久不再发生。
-- **新增使用锁** [`icon-usage.spec.ts`](../src/components/icons/__tests__/icon-usage.spec.ts) **2 条**：① 白名单之外任何文件内联 `<svg>` 即红；② 白名单内（窗口按钮 + 第 3 步待迁移的 7 处 `.ts`）**处数只许减不许增**。这是本方案真正的防复发机制 —— 没有它，过半年又会散。
-- 契约锁 [`icon-spec.spec.ts`](../src/components/icons/__tests__/icon-spec.spec.ts) 增至 **8 条**（新增「外部 class 透传到根 `<svg>`」—— 使用处的尺寸样式全靠它）。
+- **新增使用锁** [`icon-usage.spec.ts`](../../src/components/icons/__tests__/icon-usage.spec.ts) **2 条**：① 白名单之外任何文件内联 `<svg>` 即红；② 白名单内（窗口按钮 + 第 3 步待迁移的 7 处 `.ts`）**处数只许减不许增**。这是本方案真正的防复发机制 —— 没有它，过半年又会散。
+- 契约锁 [`icon-spec.spec.ts`](../../src/components/icons/__tests__/icon-spec.spec.ts) 增至 **8 条**（新增「外部 class 透传到根 `<svg>`」—— 使用处的尺寸样式全靠它）。
 - 验证：全量 **1904 passed / 0 failed**（1901 + 新锁 3）；`vue-tsc` 0；`npm run lint` **119 warnings / 0 errors**（改动前 132，减少 13 —— 内联 svg 的多行换行警告随替换消失）。
 - 反向校准两组：白名单外塞一处 svg → 第 1 条红；标题栏加到 4 处 → 第 2 条红。还原即复绿。
 - 回滚：`git revert` 本提交即可（新图标共存，不依赖第 1 步之外的东西）。
@@ -159,8 +159,8 @@ updates: [docs/PROPOSAL-design-standards.md, docs/INDEX.md]
 - **气泡菜单 3 处**：`</>` → `code`、`H1`/`H2` → `heading1`/`heading2`，与斜杠菜单**共用同一份键**（改前 H1/H2 两处各写一遍）。按钮补 `title`，`</>` 的 `font-mono` 内联样式随之删除。
 - **气泡菜单标题按钮尺寸 32×32**：原来装 12px 文字（`padding: 4px 8px`，实际约 24px 高），换成图标后与同排 `bubble-menu-btn` / `bubble-menu-clear-btn` 拉齐，避免同排热区一大一小。
 - **本步不需要改菜单渲染结构**（原方案预判「需小改以支持结构化图标」）：图标本身就是 Vue 组件，`<Icon>` 直接放进原位置即可。
-- **新增契约锁** [`menu-icons.spec.ts`](../src/components/Editor/tiptap/extensions/__tests__/menu-icons.spec.ts) **3 条**：① 14 项的图标键都存在于图标库；② 键必须是 ASCII 标识符（挡回退成字符）；③ 气泡菜单不许再内联字符字形（`&lt;/&gt;`、`>H1<`），且必须使用 `heading1`/`heading2`。
-- **新增渲染锁** [`slash-menu-render.spec.ts`](../src/components/Editor/views/__tests__/slash-menu-render.spec.ts) **1 条**：挂载菜单后 14 个图标格必须都是 `<svg>`、且**格内没有文字** —— 数据层对了、模板仍可能退回 `{{ item.icon }}`（屏幕上会印出 `paragraph` 字样），这条挡的就是那种回退。
+- **新增契约锁** [`menu-icons.spec.ts`](../../src/components/Editor/tiptap/extensions/__tests__/menu-icons.spec.ts) **3 条**：① 14 项的图标键都存在于图标库；② 键必须是 ASCII 标识符（挡回退成字符）；③ 气泡菜单不许再内联字符字形（`&lt;/&gt;`、`>H1<`），且必须使用 `heading1`/`heading2`。
+- **新增渲染锁** [`slash-menu-render.spec.ts`](../../src/components/Editor/views/__tests__/slash-menu-render.spec.ts) **1 条**：挂载菜单后 14 个图标格必须都是 `<svg>`、且**格内没有文字** —— 数据层对了、模板仍可能退回 `{{ item.icon }}`（屏幕上会印出 `paragraph` 字样），这条挡的就是那种回退。
 - 验证：全量 **1908 passed / 0 failed**（1904 + 新锁 4）；`vue-tsc` 0；构建通过。
 - 反向校准**四组，各自单独撤**：① 某项改回 `'¶'` → 锁 1、2 红；② 往 `.ts` 塞一处内联 svg → 使用锁 1 红；③ 气泡菜单改回文字 `H1` → 锁 3 红；④ SlashMenu 模板退回插值 → 渲染锁红。还原即复绿（已 `diff` 核对字节一致）。
 - 回滚：`git revert` 本提交；锚点 `backup/20261017-1130-pre-batch3-step3`。

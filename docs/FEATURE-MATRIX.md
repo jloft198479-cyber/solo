@@ -261,7 +261,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 手动检查更新 | ✅ | AboutSettingsPanel「检查更新」 | 成功只提示「去软件里更新」，**不对外发链接**（协作纪律） |
 | 更新代理检测 | ✅ | `updater.rs` `detect_github_proxy` | 环境变量/注册表/端口探测 |
 | CNB 国内镜像自动更新 | ⛔ | CNB 仅作手动下载镜像 | **待用户拍板 A/B**（§二 #7）：启用需改写 `latest.json` 的 `url` + 实测多端点 fallback |
-| 三平台 CI 发版 | ✅ | [`.github/workflows/release.yml`](../.github/workflows/release.yml) | 流程真理源 `docs/RELEASE_PROCESS.md`（Agent 侧见 §11） |
+| 三平台 CI 发版 | ✅ | [`.github/workflows/release.yml`](../.github/workflows/release.yml) | 流程真理源 `docs/RELEASE_PROCESS.md`（Agent 侧见 §10） |
 
 > **核查要点**：更新检查失败必须静默降级，不许弹错误框骚扰用户。
 
@@ -288,7 +288,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | CommonMark 全量收敛 | ⚠️ | [`commonmark.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/commonmark.spec.ts) + [`commonmark-skips.ts`](../src/components/Editor/tiptap/markdown/__tests__/commonmark-skips.ts) | **只验收敛，不是保真防线**（收敛 ≠ 不丢）；2026-10-10 清掉 22 条陈旧 SKIP（跳过表不会自己收缩） |
 | 行为级 mark 矩阵 | ✅ | [`mark-matrix.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/mark-matrix.spec.ts) | 构造 → 落盘 → 重开，比「文本 ⊕ mark 集合」；`mark-delimiter-coverage` 只证明「有分支」，这条才证明「写出去能重开」 |
 | 安全网自检 + 登记锁 | ✅ | [`safety-net.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/safety-net.spec.ts) | 证明判据本身能抓东西（反向校准）；对已知缺口（CommonMark 5 条 / 脚注重复标签）双向锁，**修好即转红** |
-| 全仓体检（ZWNJ + 二轮收敛 + 变化签名棘轮） | ✅ | [`fidelity-scan.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/fidelity-scan.spec.ts) | `SOLO_FIDELITY_SCAN=1` 手动跑；棘轮逐份锁「丢了哪类元素」，基线只降不升 |
+| 全仓体检（ZWNJ + 二轮收敛 + 变化签名棘轮） | ✅ | [`fidelity-scan.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/fidelity-scan.spec.ts) | `bun run test:full` 才跑（命令见 playbook §C）；棘轮逐份锁「丢了哪类元素」，基线只降不升 |
 | schema 正向契约锁 | ✅ | [`schema-contract.spec.ts`](../src/components/Editor/tiptap/__tests__/schema-contract.spec.ts) | 防「约束被一致地改错」；差异集变化即红。`compat-schema.ts` 已删（死代码） |
 | NodeView 清理回归锁 | ✅ | [`nodeview-destroy.spec.ts`](../src/components/Editor/tiptap/extensions/__tests__/nodeview-destroy.spec.ts) | 配套敏感区 §11.7 的 `AbortController` 套路 |
 | 剪贴板序列化回归锁 | ✅ | [`clipboard-serializer.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/clipboard-serializer.spec.ts) | 含「开口 slice 剥层」7 条 |

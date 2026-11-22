@@ -10,7 +10,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 # 设计规范化总案：问题清单与修复评估（2026-10-17）
 
-> **来源**：[`AUDIT-UIUX-2026-10-17.md`](./archive/AUDIT-UIUX-2026-10-17.md)（已冻结）＋ [`REVIEW-2026-10-17-uiux-终核.md`](./archive/REVIEW-2026-10-17-uiux-终核.md)（唯一更正源）＋ 本文件撰写时的现场补证（设置弹窗全文 / 13px 全落点 / 死变量契约链 / presets 分布）。
+> **来源**：[`AUDIT-UIUX-2026-10-17.md`](AUDIT-UIUX-2026-10-17.md)（已冻结）＋ [`REVIEW-2026-10-17-uiux-终核.md`](REVIEW-2026-10-17-uiux-终核.md)（唯一更正源）＋ 本文件撰写时的现场补证（设置弹窗全文 / 13px 全落点 / 死变量契约链 / presets 分布）。
 > **口径**：凡与审计原文数字不一致处一律以终核为准；本文行号均为 2026-10-17 现场核对值。
 > **性质**：只评估，未改任何代码。每条给「难度 / 可控性 / 性能 / 验证方式」；执行按批次拍板（§三）。
 
@@ -55,8 +55,8 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 **现状（均实测）**：
 
-1. 层级被压：遮罩 `z-50`（[`SettingsModal.vue`](../src/components/Settings/SettingsModal.vue):89）低于标题栏 `z-index: 200`（[`CustomTitlebar.vue`](../src/components/Layout/CustomTitlebar.vue):176），标题栏常态恒亮（`titlebarAutoHide` 默认 false、元素无 `v-if`）⇒ 遮罩顶部漏出 48px、标题栏按钮在"模态"里照样可点。
-2. Esc 失效：`@keydown` 挂在遮罩上（`:90-92`，处理函数 `:76-80`），但组件内**没有任何 `focus()` 调用** ⇒ 键盘事件到不了遮罩；全局 Esc 链（[`useAppDomEvents.ts`](../src/composables/useAppDomEvents.ts):75-92）只管全屏预览 / 图片查看 / 焦点模式，不含关闭设置。
+1. 层级被压：遮罩 `z-50`（[`SettingsModal.vue`](../../src/components/Settings/SettingsModal.vue):89）低于标题栏 `z-index: 200`（[`CustomTitlebar.vue`](../../src/components/Layout/CustomTitlebar.vue):176），标题栏常态恒亮（`titlebarAutoHide` 默认 false、元素无 `v-if`）⇒ 遮罩顶部漏出 48px、标题栏按钮在"模态"里照样可点。
+2. Esc 失效：`@keydown` 挂在遮罩上（`:90-92`，处理函数 `:76-80`），但组件内**没有任何 `focus()` 调用** ⇒ 键盘事件到不了遮罩；全局 Esc 链（[`useAppDomEvents.ts`](../../src/composables/useAppDomEvents.ts):75-92）只管全屏预览 / 图片查看 / 焦点模式，不含关闭设置。
 3. 无 dialog 语义、无焦点陷阱：全仓 `role="dialog"` / `aria-modal` 命中 0；Tab 能从弹窗一路走回编辑器和标题栏。
 
 **改什么**：① 弹窗层提到标题栏之上（与 B2 联动，顺手落一版最小 z 刻度）② Esc 改挂不依赖焦点的监听（document 级或打开时 focus 弹窗）③ 补 `role="dialog"` / `aria-modal` / aria-label ④ Tab 焦点陷阱循环 ⑤（加分）打开时记住触发元素、关闭归还焦点。
@@ -70,7 +70,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 ### A2 · 代码块字号焊死 13px（✅ 已落地 2026-10-17 · 批 1）
 
-**现状**：[`editor.css`](../src/components/Editor/tiptap/editor.css) 共 9 处 `13px`——**内容类 5 处应跟随字号**：`pre`（`:749`）、math 占位+编辑框（`:1026`/`:1046`）、mermaid 占位+编辑框（`:1162`/`:1182`）；**界面类 4 处不动**（slash 菜单 `:1531`/`:1543`/`:1559`、wikilink 菜单 `:1566`——浮动菜单 UI，固定字号合理）。
+**现状**：[`editor.css`](../../src/components/Editor/tiptap/editor.css) 共 9 处 `13px`——**内容类 5 处应跟随字号**：`pre`（`:749`）、math 占位+编辑框（`:1026`/`:1046`）、mermaid 占位+编辑框（`:1162`/`:1182`）；**界面类 4 处不动**（slash 菜单 `:1531`/`:1543`/`:1559`、wikilink 菜单 `:1566`——浮动菜单 UI，固定字号合理）。
 
 **改什么**：5 处 `13px → 0.8125em`（16px 下等价；字号调到 20px 时跟随）。表格单元格 padding（`6px 12px`，`:828`）**不改**——padding 固定是正常设计，表格正文字号本就跟随。
 
@@ -83,14 +83,14 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 ### A3 · 图标 5 套来源 → 统一出口（✅ 已落地 2026-10-17 · 批 3 三步全交付）
 
-**现状**：5 套并存（组件库 2 个 [`icons/`](../src/components/icons/)｜内联 SVG 32 处 17 文件：`.vue` 25 处 13 文件 + `.ts` innerHTML 7 处 4 文件｜字符图标约 22 个｜符号 1｜Tailwind 尺寸类 1）。重复绘制：对勾 4 份、关闭 X / 复制 / 放大镜各 3-5 份；同一 BubbleMenu 内笔画不齐（link/bulletList 16/16 sw1.5 vs 清除格式 24/24 sw2）；`☐ ⊞ ◈` 在中文 Windows 有豆腐块风险。`package.json` 无任何图标库。
+**现状**：5 套并存（组件库 2 个 [`icons/`](../../src/components/icons/)｜内联 SVG 32 处 17 文件：`.vue` 25 处 13 文件 + `.ts` innerHTML 7 处 4 文件｜字符图标约 22 个｜符号 1｜Tailwind 尺寸类 1）。重复绘制：对勾 4 份、关闭 X / 复制 / 放大镜各 3-5 份；同一 BubbleMenu 内笔画不齐（link/bulletList 16/16 sw1.5 vs 清除格式 24/24 sw2）；`☐ ⊞ ◈` 在中文 Windows 有豆腐块风险。`package.json` 无任何图标库。
 
-**改什么**：自建 [`src/components/icons/`](../src/components/icons/) 组件（约 12 个，24×24 / sw 1.5 统一规格；**自建 ≠ 手绘——从 Lucide / Feather（MIT）提取 path 进自建组件，零依赖、全掌控**）→ 分三步替换：① `.vue` 25 处 ② `.ts` innerHTML 7 处 ③ 字符图标（slash 菜单 14 个需小改菜单渲染以支持结构化图标）。**实测订正（2026-10-17 第 3 步）：③ 不需要改渲染结构** —— 图标就是 Vue 组件，`{{ item.icon }}` 换成 `<Icon :name="item.icon" />` 一行即可；真正的改动是**把 `icon: string` 收紧成 `IconName`**。
+**改什么**：自建 [`src/components/icons/`](../../src/components/icons/) 组件（约 12 个，24×24 / sw 1.5 统一规格；**自建 ≠ 手绘——从 Lucide / Feather（MIT）提取 path 进自建组件，零依赖、全掌控**）→ 分三步替换：① `.vue` 25 处 ② `.ts` innerHTML 7 处 ③ 字符图标（slash 菜单 14 个需小改菜单渲染以支持结构化图标）。**实测订正（2026-10-17 第 3 步）：③ 不需要改渲染结构** —— 图标就是 Vue 组件，`{{ item.icon }}` 换成 `<Icon :name="item.icon" />` 一行即可；真正的改动是**把 `icon: string` 收紧成 `IconName`**。
 
 **评估**：
 
 - 难度 **中**（拆步后低）：组件 12 个各自很小；替换点多但单点简单；slash 一步要动菜单渲染结构。
-- 可控性 **中-高**：主体是等价替换、逐步可查。**两个风险点**：① `.ts` 内嵌图标属编辑器 NodeView 内部 DOM，其中 mermaid / math 块在剪贴板出站路径上 ⇒ 改完必跑 [`externalize-html.spec.ts`](../src/components/Editor/tiptap/__tests__/externalize-html.spec.ts) 与剪贴板相关锁；② slash 字符替换需支持结构化图标（可放最后独立小批）。
+- 可控性 **中-高**：主体是等价替换、逐步可查。**两个风险点**：① `.ts` 内嵌图标属编辑器 NodeView 内部 DOM，其中 mermaid / math 块在剪贴板出站路径上 ⇒ 改完必跑 [`externalize-html.spec.ts`](../../src/components/Editor/tiptap/__tests__/externalize-html.spec.ts) 与剪贴板相关锁；② slash 字符替换需支持结构化图标（可放最后独立小批）。
 - 性能 **无新增负担**：自建组件零依赖，体积与内联持平。**红线：不引图标库**（会 +依赖 +bundle）。
 - 验证：全量测试 + 出站锁 + 目视截屏对比（笔画粗细一致、无豆腐块）。
 
@@ -107,7 +107,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 **数据源**：Typora 官方帮助《Line Spacing》（"the GitHub theme uses 1.6"；默认段落 margin 1rem）＋ 官方主题仓库 `typora-default-themes` 的 `github.css`（body line-height 1.6；历史版 p margin 0.8em）。
 
-**改动点（1 处值 + 2 处注释同步）**：[`editor.css`](../src/components/Editor/tiptap/editor.css) `--mk-line-height: 1.7 → 1.6`；标题注释里引用的"正文行高 1.7em"同步；[`AppearanceSettingsPanel.vue`](../src/components/Settings/AppearanceSettingsPanel.vue):25 的过时注释（"CSS default (1.9)"）顺带校正——属 B1 漂移一员。
+**改动点（1 处值 + 2 处注释同步）**：[`editor.css`](../../src/components/Editor/tiptap/editor.css) `--mk-line-height: 1.7 → 1.6`；标题注释里引用的"正文行高 1.7em"同步；[`AppearanceSettingsPanel.vue`](../../src/components/Settings/AppearanceSettingsPanel.vue):25 的过时注释（"CSS default (1.9)"）顺带校正——属 B1 漂移一员。
 
 **评估**：难度 **极低**（1 行 CSS + 注释）；可控性 **高**（单变量、全编辑器统一、可单点回滚）；性能 **无**。
 
@@ -115,7 +115,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 ### B1 · 排版 token 通道 + 文档漂移（✅ B1a 已落地；B1b 判定=保留为预留通道并显式标注）
 
-**现状**：ThemeTypography 26 字段与 [`manager.ts`](../src/themes/manager.ts) 的映射通道（`TYPOGRAPHY_VAR_MAP`，`:175` 起）都已建好，但 [`presets/`](../src/themes/presets/) 8 套的 typography 声明为 **0**（换主题只换色）；[`types.ts`](../src/themes/types.ts) 的 JSDoc 默认值与 editor.css 实测**漂移 ≥15 处**（如 lineHeight 写 1.9 实 1.7）。
+**现状**：ThemeTypography 26 字段与 [`manager.ts`](../../src/themes/manager.ts) 的映射通道（`TYPOGRAPHY_VAR_MAP`，`:175` 起）都已建好，但 [`presets/`](../../src/themes/presets/) 8 套的 typography 声明为 **0**（换主题只换色）；[`types.ts`](../../src/themes/types.ts) 的 JSDoc 默认值与 editor.css 实测**漂移 ≥15 处**（如 lineHeight 写 1.9 实 1.7）。
 
 **改什么**：B1a 修文档——JSDoc 与实测对齐（纯文档）；B1b 通道决策——**保留为"预留通道"并显式标注**（推荐，零风险）；给预设填 typography / 拆通道均无必要。
 
@@ -136,7 +136,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 ### B3 · 幽灵按钮 3 份 / 文字按钮 ≥8 遍
 
-**现状**：32×32 幽灵图标按钮三份（[`popover-shared.css`](../src/components/popover-shared.css):9 / [`StatusbarQuickActions.vue`](../src/components/StatusbarQuickActions.vue):151 / [`App.vue`](../src/App.vue):631，差别只剩透明度）；小号文字按钮 ≥8 处各写。
+**现状**：32×32 幽灵图标按钮三份（[`popover-shared.css`](../../src/components/popover-shared.css):9 / [`StatusbarQuickActions.vue`](../../src/components/StatusbarQuickActions.vue):151 / [`App.vue`](../../src/App.vue):631，差别只剩透明度）；小号文字按钮 ≥8 处各写。
 
 **改什么**：抽共享（CSS 类收敛或 1 个小组件），替换约 11 处。
 
@@ -144,7 +144,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 ### B4 · 三个按钮光标不是手型（+全面排查；✅ 已落地 2026-10-17 · 全局兜底）
 
-**现状**：settings-close-btn / footer-reset / footer-done 无 `cursor: pointer`（[`SettingsModal.vue`](../src/components/Settings/SettingsModal.vue):232-300）；根因：Tailwind v4 preflight 已不再给 button 加 pointer。
+**现状**：settings-close-btn / footer-reset / footer-done 无 `cursor: pointer`（[`SettingsModal.vue`](../../src/components/Settings/SettingsModal.vue):232-300）；根因：Tailwind v4 preflight 已不再给 button 加 pointer。
 
 **改什么**：补 cursor（3 处）+ 全仓排查同类漏网。
 
@@ -152,7 +152,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 ### B5 · 浮层按钮键盘不可见 + 热区偏小（✅ 已落地 2026-10-17 · 批 1）
 
-**现状**：代码块复制 / 块删除 / 块缩放按钮 `opacity: 0` 仅 hover 显形、无 `:focus-visible` ⇒ 键盘 Tab 过去看不见；热区 24×20 低于 24 舒适线（[`editor.css`](../src/components/Editor/tiptap/editor.css):709/1094/1125 区段）。
+**现状**：代码块复制 / 块删除 / 块缩放按钮 `opacity: 0` 仅 hover 显形、无 `:focus-visible` ⇒ 键盘 Tab 过去看不见；热区 24×20 低于 24 舒适线（[`editor.css`](../../src/components/Editor/tiptap/editor.css):709/1094/1125 区段）。
 
 **改什么**：补 `:focus-visible` + 热区升到 24/28（editor.css 三处 + ThemeCard 一处）。
 
@@ -178,7 +178,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 **现状（现场核对）**：
 
-- `--radius-xl`：**三无**——不在 ThemeColors 接口、不在契约表、不在任何 preset、全仓零消费（[`main.css`](../src/assets/styles/main.css):131 一行）。真垃圾。
+- `--radius-xl`：**三无**——不在 ThemeColors 接口、不在契约表、不在任何 preset、全仓零消费（[`main.css`](../../src/assets/styles/main.css):131 一行）。真垃圾。
 - 其余 8 个：接口 + 契约表 + CSS 声明齐全（浅 9 + 深 8 = 17 处声明）；其中 **5 个（codeBorder / tagBg / tagColor / shadowLg / shadowXl）在 8 套预设里都配了值**（40 个配色值是真实配置劳动）；另 3 个（successBg / infoBg / btnGhostBg）由 base 兜底。全部零消费，但**不是垃圾，是"预留面板"**——tag 标签、success/info 状态、大阴影都有明确未来场景。
 
 **改什么（两选项）**：
@@ -226,26 +226,26 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 ### 批 1（2026-10-17 ✅ 已执行）
 
-- **A2**：[`editor.css`](../src/components/Editor/tiptap/editor.css) `pre` / math 占位+编辑框 / mermaid 占位+编辑框共 **5 处** `13px → 0.8125em`（16px 字号下等价 13px，字号放大时跟随）。slash / wikilink 菜单 4 处界面字号按方案**不动**。
-- **A4**：`--mk-line-height: 1.7 → 1.6`（对齐 Typora 默认 GitHub 主题）；标题注释同步；[`AppearanceSettingsPanel.vue`](../src/components/Settings/AppearanceSettingsPanel.vue) 行高兜底 `1.9 → 1.6`（原注释/兜底与 CSS 真值本就漂移，设置页显示现与编辑器一致）。
-- **B4**：[`main.css`](../src/assets/styles/main.css) 全局兜底 `button:not(:disabled) { cursor: pointer }`（Tailwind v4 preflight 不再给 button 手型光标；一处修、全仓生效）。
-- **B5**：[`editor.css`](../src/components/Editor/tiptap/editor.css) 代码块复制 / 块删除 / 块缩放三按钮 + [`ThemeCard.vue`](../src/components/Settings/ThemeCard.vue) 删除按钮补 `:focus-visible { opacity: 1 }`（键盘 Tab 可见）；热区 `24×20 → 24×24`。
-- **契约锁**：新增 [`design-contracts.spec.ts`](../src/__tests__/design-contracts.spec.ts) **9 条**（字号 em 机制 3 + 行高双源一致 1 + 全局光标 1 + 焦点显形 4）。
+- **A2**：[`editor.css`](../../src/components/Editor/tiptap/editor.css) `pre` / math 占位+编辑框 / mermaid 占位+编辑框共 **5 处** `13px → 0.8125em`（16px 字号下等价 13px，字号放大时跟随）。slash / wikilink 菜单 4 处界面字号按方案**不动**。
+- **A4**：`--mk-line-height: 1.7 → 1.6`（对齐 Typora 默认 GitHub 主题）；标题注释同步；[`AppearanceSettingsPanel.vue`](../../src/components/Settings/AppearanceSettingsPanel.vue) 行高兜底 `1.9 → 1.6`（原注释/兜底与 CSS 真值本就漂移，设置页显示现与编辑器一致）。
+- **B4**：[`main.css`](../../src/assets/styles/main.css) 全局兜底 `button:not(:disabled) { cursor: pointer }`（Tailwind v4 preflight 不再给 button 手型光标；一处修、全仓生效）。
+- **B5**：[`editor.css`](../../src/components/Editor/tiptap/editor.css) 代码块复制 / 块删除 / 块缩放三按钮 + [`ThemeCard.vue`](../../src/components/Settings/ThemeCard.vue) 删除按钮补 `:focus-visible { opacity: 1 }`（键盘 Tab 可见）；热区 `24×20 → 24×24`。
+- **契约锁**：新增 [`design-contracts.spec.ts`](../../src/__tests__/design-contracts.spec.ts) **9 条**（字号 em 机制 3 + 行高双源一致 1 + 全局光标 1 + 焦点显形 4）。
 - **验证**：全量 `vitest` **1885 passed / 0 failed**（基线 1876 + 新锁 9，数目对得上）；`vue-tsc --noEmit` 0；**反向校准**：撤掉四组修复（pre 回 px / 行高兜底回 1.9 / 删全局 cursor / 删焦点规则）⇒ 对应 **4 条锁转红**，还原即复绿。
 - **回滚**：`git tag backup/20261017-0926-pre-design-batch1`（或 revert 批 1 提交）。
 - **待真机目视**（机器验不了的）：行距观感（对齐 Typora）、正文字号调 20px 时代码块跟随、Tab 到浮层按钮可见、设置弹窗按钮手型。
 
 ### 批 2（2026-10-17 ✅ 已执行）
 
-- **A1 ①层叠**：[`main.css`](../src/assets/styles/main.css) 新增 `--z-modal: 500`；[`SettingsModal.vue`](../src/components/Settings/SettingsModal.vue) 遮罩去掉 Tailwind `z-50`，改 `.settings-modal-overlay { z-index: var(--z-modal) }` ⇒ 遮罩盖住 48px 标题栏，标题栏按钮在模态里不再可点。
+- **A1 ①层叠**：[`main.css`](../../src/assets/styles/main.css) 新增 `--z-modal: 500`；[`SettingsModal.vue`](../../src/components/Settings/SettingsModal.vue) 遮罩去掉 Tailwind `z-50`，改 `.settings-modal-overlay { z-index: var(--z-modal) }` ⇒ 遮罩盖住 48px 标题栏，标题栏按钮在模态里不再可点。
 - **A1 ②Esc**：由「遮罩 `@keydown`」改为 **document 捕获阶段**监听（原实现从未 `focus()` 过任何元素，键盘事件到不了遮罩 —— Esc 是死的）。拦截后 `stopPropagation()`：模态优先，不会顺手退掉焦点模式（全局链在 window 冒泡）。
 - **A1 ③语义**：`role="dialog"` + `aria-modal="true"` + `aria-labelledby="settings-modal-title"`（`<h2>` 补 id）。
 - **A1 ④焦点陷阱**：Tab / Shift+Tab 在对话框内循环；列表排除 `display:none`（主题导入的 file input）与 `tabindex="-1"`。
 - **A1 ⑤焦点归还**：打开时记住 `document.activeElement`，关闭后归还（齿轮 / 菜单 / 快捷键多入口通用）。
-- **顺带修（A1 前置缺陷）**：[`App.vue`](../src/App.vue) 原 `<KeepAlive><SettingsModal v-if="…" /></KeepAlive>` 外层 `v-if` 让组件每次开关都重新创建 ⇒ `Teleport` 里的 `<Transition>` 进出场永远播不出来。改为常驻挂载（显隐由组件内部 `v-if` 驱动），移除已失去缓存对象的 `KeepAlive`。
-- **B2 最小刻度**：[`main.css`](../src/assets/styles/main.css) 写入完整语义分层表（内容 1 / 微凸 10 / 常规浮层 100 / 标题栏 200 / 编辑区浮层 300 / 模态 500 / 命令面板 600 / 全屏遮罩 1000 / 全屏 2000 / 调试 10000），本批实装 `--z-titlebar` + `--z-modal` 两档并各自有消费点；其余档位批 4 逐处归位，**不预埋零消费变量**。**注（批 4）**：`--z-titlebar` 已更名为 `--z-chrome`（状态栏与焦点模式下的标题栏同属窗口 chrome，原名覆盖不住），值仍为 200。
+- **顺带修（A1 前置缺陷）**：[`App.vue`](../../src/App.vue) 原 `<KeepAlive><SettingsModal v-if="…" /></KeepAlive>` 外层 `v-if` 让组件每次开关都重新创建 ⇒ `Teleport` 里的 `<Transition>` 进出场永远播不出来。改为常驻挂载（显隐由组件内部 `v-if` 驱动），移除已失去缓存对象的 `KeepAlive`。
+- **B2 最小刻度**：[`main.css`](../../src/assets/styles/main.css) 写入完整语义分层表（内容 1 / 微凸 10 / 常规浮层 100 / 标题栏 200 / 编辑区浮层 300 / 模态 500 / 命令面板 600 / 全屏遮罩 1000 / 全屏 2000 / 调试 10000），本批实装 `--z-titlebar` + `--z-modal` 两档并各自有消费点；其余档位批 4 逐处归位，**不预埋零消费变量**。**注（批 4）**：`--z-titlebar` 已更名为 `--z-chrome`（状态栏与焦点模式下的标题栏同属窗口 chrome，原名覆盖不住），值仍为 200。
 - **键盘边界（避免新机制误伤）**：① 快捷键录制中（`data-shortcut-capture`）不接管 —— 那里 Esc = 取消录制 ② 焦点已在更上层浮层（如设置打开时唤起命令面板）时让位，不把焦点抢回弹窗。
-- **契约锁**：新增 [`settings-modal.spec.ts`](../src/components/Settings/__tests__/settings-modal.spec.ts) **9 条**（静态 3：层级 token 关系 / dialog 语义 / Esc 不再挂遮罩；行为 6：焦点进弹窗 / Esc 关闭 / 上层浮层让位 / 录制中不关 / Tab 双向循环 / 焦点归还）。
+- **契约锁**：新增 [`settings-modal.spec.ts`](../../src/components/Settings/__tests__/settings-modal.spec.ts) **9 条**（静态 3：层级 token 关系 / dialog 语义 / Esc 不再挂遮罩；行为 6：焦点进弹窗 / Esc 关闭 / 上层浮层让位 / 录制中不关 / Tab 双向循环 / 焦点归还）。
 - **验证**：全量 `vitest` **1894 passed / 0 failed**（基线 1885 + 新锁 9，数目对得上）；`vue-tsc --noEmit` 0；`npm run lint` 132 warnings / 0 errors（与改动前持平，未新增）。
 - **反向校准（两轮）**：① 一次撤四处（z 值 / document 监听 / 打开聚焦 / 关闭归还）⇒ 4 条锁转红 ② 再**单独**撤 Tab 陷阱、单独撤焦点归还 ⇒ 各自精确转红（第一轮里这两条是假绿，故补做单项校准）。
 - **回滚**：`git tag backup/20261017-0939-pre-design-batch2`（或 revert 批 2 提交）。
@@ -262,7 +262,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 #### B2 · z-index 全面归位（✅ 已完成）
 
-- **13 档语义 token 写进 [`main.css`](../src/assets/styles/main.css)**：内容 1 / 微凸 10 / 常规浮层 100 / 窗口 chrome 200 / chrome 热区 210 / 编辑区浮层 300 / 轻提示 350 / 右键菜单 400 / 模态 500 / 命令面板 600 / 全屏灯箱 2000 / 窗口边缘 9999 / 未保存提示 10000。每一档只对应一种含义，表里写明消费场景。
+- **13 档语义 token 写进 [`main.css`](../../src/assets/styles/main.css)**：内容 1 / 微凸 10 / 常规浮层 100 / 窗口 chrome 200 / chrome 热区 210 / 编辑区浮层 300 / 轻提示 350 / 右键菜单 400 / 模态 500 / 命令面板 600 / 全屏灯箱 2000 / 窗口边缘 9999 / 未保存提示 10000。每一档只对应一种含义，表里写明消费场景。
 - **18 处声明全部改 `var()`**，字面量清零（含 1 处 Tailwind `z-[2000]` → `z-[var(--z-lightbox)]`）。
 - **三处实质纠偏**（其余为等价替换）：① `.mk-slash-menu` 1000 → 编辑区浮层 300（原来竟高于模态，设置弹窗开着时斜杠菜单会浮在上面）；② `.mk-mermaid-lightbox` 9999 → 全屏灯箱 2000（与窗口拖拽把手撞值）；③ 焦点模式引导提示 400 → 轻提示 350（与右键菜单撞值）。
 - **一处改名**：`--z-titlebar` → `--z-chrome`（状态栏同属窗口 chrome）。
@@ -273,7 +273,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 #### B7 · 间距标度（✅ 已完成）
 
-- **[`main.css`](../src/assets/styles/main.css) 新增 8 档 `--space-*`**：2 / 4 / 6 / 8 / 12 / 16 / 24 / 32。刻度**按实际用值取**（6px 在仓里用了 11 次），不照搬 4/8/12 教科书刻度 —— 那套覆盖不了 6px，定了也没人用。
+- **[`main.css`](../../src/assets/styles/main.css) 新增 8 档 `--space-*`**：2 / 4 / 6 / 8 / 12 / 16 / 24 / 32。刻度**按实际用值取**（6px 在仓里用了 11 次），不照搬 4/8/12 教科书刻度 —— 那套覆盖不了 6px，定了也没人用。
 - **全仓 118 处单值间距改 `var(--space-*)`**（23 个文件），值逐一等价，零视觉变化；多值简写里只要有一个值在刻度外就整体保留字面量（如 `padding: 4px 10px`），避免为迁就刻度改数值。
 - 锁 `design-contracts.spec.ts` 新增 2 条：① 刻度齐全且等于 2/4/6/8/12/16/24/32；② 刻度内的单值间距不许写字面量（扫前剥注释）。
 - 反向校准：`--space-sm` 改 7px → 锁 1 红；往 `.search-panel` 塞 `gap: 6px` → 锁 2 红。还原后一致。
@@ -281,12 +281,12 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 #### B3 · 幽灵图标按钮三合一（✅ 已完成）
 
 - 改前三份同规格基座：`popover-shared.css .icon-btn`、`StatusbarQuickActions .quick-action-btn`、`App .statusbar-settings-btn`（都是 28×28 / opacity 0.6，差别只在悬停细节）。
-- 现统一为 [`main.css`](../src/assets/styles/main.css) 的 **`.ghost-icon-btn`**（基座 + `:hover` + `:active`），四个消费点（主题浮层 / 字体浮层 / 复制全文 / 设置齿轮）只挂类名；状态色（已复制 / 失败）仍留在组件自己的修饰类里。
+- 现统一为 [`main.css`](../../src/assets/styles/main.css) 的 **`.ghost-icon-btn`**（基座 + `:hover` + `:active`），四个消费点（主题浮层 / 字体浮层 / 复制全文 / 设置齿轮）只挂类名；状态色（已复制 / 失败）仍留在组件自己的修饰类里。
 - 删掉三处重复声明共 **56 行**，净减 24 行。**未做**：小号文字按钮（≥8 处）的合并 —— 它们尺寸/语义各异（确定 / 取消 / 重置 / 保存），强行合一反而要加一堆修饰类，收益低于复杂度，记录为「不做」。
 
 #### B6 · 圆角刻度 + 遮罩归一（✅ 已完成）
 
-- **6 档 `--radius-*` 写进 [`main.css`](../src/assets/styles/main.css)**：xs 2（焦点环 / 进度条 / 搜索高亮）/ sm 3 / md 4 / lg 8 / xl 10 / pill 999（**`xl` 批 5 已删，现存 5 档**）。刻度按实际用值取 —— 4px 用了 13 次、3px 7 次、2px 7 次、999px 14 次；5 / 6 / 1px 三个散值归入最近档（差 ≤2px，肉眼不可分；1px 在 2px 高的进度条上本就是全圆，归 pill）。
+- **6 档 `--radius-*` 写进 [`main.css`](../../src/assets/styles/main.css)**：xs 2（焦点环 / 进度条 / 搜索高亮）/ sm 3 / md 4 / lg 8 / xl 10 / pill 999（**`xl` 批 5 已删，现存 5 档**）。刻度按实际用值取 —— 4px 用了 13 次、3px 7 次、2px 7 次、999px 14 次；5 / 6 / 1px 三个散值归入最近档（差 ≤2px，肉眼不可分；1px 在 2px 高的进度条上本就是全圆，归 pill）。
 - **全仓 47 处圆角改 `var()`**（13 个文件）。两处值有微调：状态栏保存按钮 6 → 8（与该排四个图标按钮拉齐）、斜杠菜单图标格 6 → 8（32px 格子 25% 圆角，与图标按钮同族）。
 - **修两处错误 fallback**：`var(--radius-md, 6px)` / `var(--radius-sm, 4px)` —— md 实际 4px、sm 实际 3px，fallback 从未生效，只误导读者。已删。
 - **遮罩：三处模态归一，两处灯箱保留差异（有依据，不是遗漏）**：
@@ -299,7 +299,7 @@ updates: [docs/archive/AUDIT-UIUX-2026-10-17.md, docs/archive/REVIEW-2026-10-17-
 
 #### B1 · 排版注释对齐 + 通道定性（✅ B1a / B1b 均完成）
 
-- **漂移 15 处全部对齐**：[`themes/types.ts`](../src/themes/types.ts) 的 26 个字段 JSDoc 改成「留空取 `--mk-xxx`（当前 X）」，值从 editor.css 实测抄：lineHeight 1.9 → 1.6、h1 字号 1.875 → 1.6em、h1 margin 1.4em → 1.25em、h1 字间距 0.04 → -0.02em…
+- **漂移 15 处全部对齐**：[`themes/types.ts`](../../src/themes/types.ts) 的 26 个字段 JSDoc 改成「留空取 `--mk-xxx`（当前 X）」，值从 editor.css 实测抄：lineHeight 1.9 → 1.6、h1 字号 1.875 → 1.6em、h1 margin 1.4em → 1.25em、h1 字间距 0.04 → -0.02em…
 - **B1b 定性**：接口顶部显式标注「预留通道 —— 8 套预设一个都没声明，声明即生效，不声明退回 CSS」。后来的人不会再误以为「换主题会换排版」。
 - **锁**：解析 26 条注释里的「当前 X」，逐条与 editor.css 的定义（或 fallback）比对；条数写死 26，注释被删光不会空转成绿。
 - 反向校准：把 1.6 改回 1.9 → 红；还原即绿。
