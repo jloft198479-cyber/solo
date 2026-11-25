@@ -24,6 +24,7 @@ import {
 } from './plugins';
 // 块级公式的「独占整行」守卫（对齐业界标准，修台账 §二 #50 / #51）
 import { installBlockMathGuard } from './plugins/math';
+import { installFootnoteDefinitionPreserver } from './plugins/footnote';
 import type { Preprocessor, TokenInterceptor } from './plugins';
 import { extractDimsFromAlt, unescapeImageAlt } from '../extensions/image';
 // ZWNJ 常量唯一来源（解析期插入 / 各读出点剥离，见 ../zwnj 与敏感区 #23）
@@ -136,6 +137,7 @@ function createMarkdownIt(): MarkdownIt {
   installBlockMathGuard(md);
 
   md.use(markdownItFootnote);
+  installFootnoteDefinitionPreserver(md);
 
   // 自定义 inline ruler：识别 <span class="mk-dim">…</span> → dim_open/dim_close token。
   // html:false 下 markdown-it 的 html_inline rule 被禁用（整段标签被当纯 text），

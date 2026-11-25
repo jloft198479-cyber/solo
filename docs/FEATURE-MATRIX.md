@@ -287,7 +287,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | fuzz 种子化 + 结构块生成 | ✅ | [`fuzz.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/fuzz.spec.ts) | `FUZZ_SEED` 可覆盖，失败报文带种子可原样重放；**词表本身就是判据**（含 `\|` / 链接 / 图片 / `$数学$` / 脚注 / CJK 标点 / `_` / mark 套 mark）——词表缺的形态 fuzz 永远撞不到 |
 | CommonMark 全量收敛 | ⚠️ | [`commonmark.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/commonmark.spec.ts) + [`commonmark-skips.ts`](../src/components/Editor/tiptap/markdown/__tests__/commonmark-skips.ts) | **只验收敛，不是保真防线**（收敛 ≠ 不丢）；2026-10-10 清掉 22 条陈旧 SKIP（跳过表不会自己收缩） |
 | 行为级 mark 矩阵 | ✅ | [`mark-matrix.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/mark-matrix.spec.ts) | 构造 → 落盘 → 重开，比「文本 ⊕ mark 集合」；`mark-delimiter-coverage` 只证明「有分支」，这条才证明「写出去能重开」 |
-| 安全网自检 + 登记锁 | ✅ | [`safety-net.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/safety-net.spec.ts) | 证明判据本身能抓东西（反向校准）；对已知缺口（CommonMark 5 条 / 脚注重复标签）双向锁，**修好即转红** |
+| 安全网自检 + 登记锁 | ✅ | [`safety-net.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/safety-net.spec.ts) | 证明判据本身能抓东西（反向校准）；CommonMark 5 条已知缺口保持双向锁、**修好即转红**；脚注重复标签已翻转为正向保真锁（正文、多段、交错顺序、二次收敛） |
 | 全仓体检（ZWNJ + 二轮收敛 + 变化签名棘轮） | ✅ | [`fidelity-scan.spec.ts`](../src/components/Editor/tiptap/markdown/__tests__/fidelity-scan.spec.ts) | `bun run test:full` 才跑（命令见 playbook §C）；棘轮逐份锁「丢了哪类元素」，基线只降不升 |
 | schema 正向契约锁 | ✅ | [`schema-contract.spec.ts`](../src/components/Editor/tiptap/__tests__/schema-contract.spec.ts) | 防「约束被一致地改错」；差异集变化即红。`compat-schema.ts` 已删（死代码） |
 | NodeView 清理回归锁 | ✅ | [`nodeview-destroy.spec.ts`](../src/components/Editor/tiptap/extensions/__tests__/nodeview-destroy.spec.ts) | 配套敏感区 §11.7 的 `AbortController` 套路 |

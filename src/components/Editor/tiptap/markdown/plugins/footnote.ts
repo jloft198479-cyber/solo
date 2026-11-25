@@ -1,10 +1,86 @@
+import type MarkdownIt from 'markdown-it';
 import type Token from 'markdown-it/lib/token.mjs';
+import type StateCore from 'markdown-it/lib/rules_core/state_core.mjs';
 import type { Schema } from '@tiptap/pm/model';
 import type { MarkdownParseState, TokenHandler } from '../parser';
 import type { NodeSerializer } from '../serializer';
 import type { MarkdownSerializerState } from '../serializer';
 import type { MarkdownSyntaxPlugin } from './index';
 import { stripZwnj } from '../../zwnj';
+
+export function installFootnoteDefinitionPreserver(md: MarkdownIt): void {
+  const ruler = md.core.ruler as unknown as {
+    __find__: (name: string) => number;
+    __rules__: Array<{ fn: (state: StateCore) => void }>;
+    at: (name: string, fn: (state: StateCore) => void) => void;
+  };
+  const index = ruler.__find__('footnote_tail');
+  const original = ruler.__rules__[index].fn;
+
+  ruler.at('footnote_tail', (state) => {
+    const definitions = new Map<string, Token[][]>();
+    let current: Token[] | undefined;
+    let currentLabel = '';
+
+    for (const token of state.tokens) {
+      if (token.type === 'footnote_reference_open') {
+        current = [];
+        currentLabel = token.meta.label as string;
+      } else if (token.type === 'footnote_reference_close') {
+        const groups = definitions.get(currentLabel) ?? [];
+        groups.push(current ?? []);
+        definitions.set(currentLabel, groups);
+        current = undefined;
+      } else if (current) {
+        current.push(token);
+      }
+    }
+
+    original(state);
+
+    const duplicates = new Set(
+      [...definitions].filter(([, groups]) => groups.length > 1).map(([label]) => label),
+    );
+    if (duplicates.size === 0) return;
+
+    const tokens: Token[] = [];
+    for (let i = 0; i < state.tokens.length; i++) {
+      const token = state.tokens[i];
+      const label = token.meta?.label as string | undefined;
+      if (token.type !== 'footnote_open' || !label || !duplicates.has(label)) {
+        tokens.push(token);
+        continue;
+      }
+
+      const closeIndex = state.tokens.findIndex(
+        (candidate, candidateIndex) => candidateIndex > i && candidate.type === 'footnote_close',
+      );
+      const closeToken = state.tokens[closeIndex];
+      const anchors = state.tokens
+        .slice(i + 1, closeIndex)
+        .filter((candidate) => candidate.type === 'footnote_anchor');
+      const groups = definitions.get(label)!;
+
+      for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
+        if (groupIndex === 0) {
+          tokens.push(token);
+        } else {
+          const open = new state.Token('footnote_open', '', 1);
+          open.meta = { ...token.meta };
+          tokens.push(open);
+        }
+        tokens.push(...groups[groupIndex]);
+        if (groupIndex === groups.length - 1) {
+          tokens.push(...anchors, closeToken);
+        } else {
+          tokens.push(new state.Token('footnote_close', '', -1));
+        }
+      }
+      i = closeIndex;
+    }
+    state.tokens = tokens;
+  });
+}
 
 export function footnoteTokenHandlers(schema: Schema): Record<string, TokenHandler> {
   const handlers: Record<string, TokenHandler> = {};

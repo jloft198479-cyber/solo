@@ -57,25 +57,30 @@ describe('安全网自检 · G1 正向包含检查', () => {
   });
 });
 
-/**
- * 登记锁 · 脚注重复标签（2026-10-10 批次 4 · G5 撞出）
- *
- * 现象（P1 静默丢内容）：**同一个脚注标签出现多个定义时，较早那个定义的正文被整段丢弃**。
- *   输入 `文字[^1]\n\n[^1]: 甲定义\n\n[^1]: 乙定义\n`
- *   输出 `文字[^1]\n\n[^1]: 乙定义\n`   ← 「甲定义」连同它的段落一起消失，不报错
- * 正常情形（不同标签、同标签多次引用）不受影响 —— 见第 2 条。
- *
- * 双向锁：谁修好（两个定义都保住）就转红 → 请删掉本 describe 并同步台账。
- */
-describe('登记锁 · 脚注重复标签丢正文（待修）', () => {
-  const DUP = '文字[^1]\n\n[^1]: 甲定义\n\n[^1]: 乙定义\n';
+describe('脚注重复标签定义保真', () => {
+  it('同名定义的两份正文都保留，保存重开不变', () => {
+    const src = '文字[^1]\n\n[^1]: 甲定义\n\n[^1]: 乙定义\n';
+    const out = roundTrip(src);
+    expect(out).toBe(src);
+    expect(roundTrip(out)).toBe(out);
+  });
 
-  it('重复标签时较早定义仍被丢弃（修好后本用例转红）', () => {
-    const out = roundTrip(DUP);
-    expect(
-      out,
-      '脚注重复标签的丢失似乎已修好 —— 请删除本登记并同步 docs/KNOWN-ISSUES.md',
-    ).not.toContain('甲定义');
+  it('同名定义各自含多段时，段落归属与顺序都不丢', () => {
+    const src =
+      '文字[^1]\n\n[^1]: 甲首段\n\n    甲续段\n\n[^1]: 乙首段\n\n    乙续段\n';
+    const out = roundTrip(src);
+    expect(out).toBe(src);
+    expect(roundTrip(out)).toBe(out);
+  });
+
+  it('不同标签交错定义时，所有正文保留且重复定义保持同标签顺序', () => {
+    const src =
+      '文字[^1] 和[^2]\n\n[^1]: 甲定义\n\n[^2]: 乙定义\n\n[^1]: 丙定义\n';
+    const out = roundTrip(src);
+    expect(out).toBe(
+      '文字[^1] 和[^2]\n\n[^1]: 甲定义\n\n[^1]: 丙定义\n\n[^2]: 乙定义\n',
+    );
+    expect(roundTrip(out)).toBe(out);
   });
 
   it('不同标签 / 同标签多次引用不得受影响', () => {
