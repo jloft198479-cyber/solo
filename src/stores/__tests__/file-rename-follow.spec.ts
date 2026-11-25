@@ -40,6 +40,38 @@ describe('renamePath：路径跟随语义（P1-4）', () => {
     expect(store.pathFollowToken).toBeGreaterThan(0);
   });
 
+  it('保存落地只更新路径基线：保留编辑内容与脏态，不触发整篇重载', () => {
+    const store = useFileStore();
+    store.setFile('v1', '/old/original.md', 1000, {
+      encoding: 'utf8',
+      ending: 'lf',
+      mixed: false,
+    });
+    store.syncEditedContent('v1＋保存期间输入');
+    const reloadBefore = store.reloadToken;
+    const followBefore = store.pathFollowToken;
+
+    store.adoptSavedPath('/old/copy.md', 2000, {
+      encoding: 'utf8Bom',
+      ending: 'crlf',
+      mixed: false,
+    });
+
+    expect(store.currentFile.path).toBe('/old/copy.md');
+    expect(store.currentFile.content).toBe('v1＋保存期间输入');
+    expect(store.currentFile.isDirty).toBe(true);
+    expect(store.currentFile.lastModifiedTime).toBe(2000);
+    expect(store.currentFile.layout).toEqual({
+      encoding: 'utf8Bom',
+      ending: 'crlf',
+      mixed: false,
+    });
+    expect(store.currentFile.displayName).toBe('copy');
+    expect(store.currentFile.originalBaseName).toBe('copy');
+    expect(store.reloadToken).toBe(reloadBefore);
+    expect(store.pathFollowToken).toBe(followBefore + 1);
+  });
+
   it('setFile 载入不递增 pathFollowToken（两信号互斥，防误判跟随）', () => {
     const store = useFileStore();
     store.setFile('内容\n', '/x/a.md', 1);

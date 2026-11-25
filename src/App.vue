@@ -197,6 +197,7 @@ const windowSession = useAppWindowSession({
   windowTitle,
   shellIntegration: () => settingsStore.settings.shellIntegration,
   stopAutoSave: documentSession.stopAutoSave,
+  resumeAutoSave: documentSession.resumeAutoSave,
   flushSettings: () => settingsStore.flushPendingSettings(),
   // 关窗前把 800ms 防抖窗口内的最后滚动位置强制落盘
   flushReadingPosition: () => editorRef.value?.flushReadingPosition?.(),

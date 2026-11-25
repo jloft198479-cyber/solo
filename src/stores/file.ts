@@ -132,6 +132,17 @@ export const useFileStore = defineStore('file', {
       this.pathFollowToken += 1;
     },
 
+    // 保存落地只换路径/基线，不能触发 setFile 的整篇回灌。
+    adoptSavedPath(
+      newPath: string,
+      lastModifiedTime: number | null,
+      layout: DocumentLayout | null,
+    ) {
+      this.renamePath(newPath);
+      this.currentFile.lastModifiedTime = lastModifiedTime;
+      this.currentFile.layout = layout;
+    },
+
     /**
      * 仅把磁盘时间基线对齐到新路径（跨窗口改名跟随用）。
      * 不碰 content / isDirty / displayName：改名只换了路径，内存里的编辑必须原样留着。

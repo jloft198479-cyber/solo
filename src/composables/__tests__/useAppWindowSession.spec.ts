@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ref } from 'vue';
 import { useAppWindowSession } from '../useAppWindowSession';
@@ -12,6 +13,9 @@ const mocks = vi.hoisted(() => ({
   openDocument: vi.fn(),
   subscribeDragDrop: vi.fn(),
   listenWindowCloseRequested: vi.fn(),
+  destroyCurrentWindow: vi.fn(),
+  reportWindowClose: vi.fn(),
+  saveWindowState: vi.fn(),
 }));
 
 vi.mock('../../services/tauri/events', () => ({
@@ -25,16 +29,16 @@ vi.mock('../../services/tauri/window', () => ({
   registerShellNew: mocks.registerShellNew,
   // 这些函数在本组合式函数里都按「返回 Promise」使用（如 `.catch(...)`），
   // 桩必须也是 Promise，否则会抛 `undefined.catch`。
-  destroyCurrentWindow: vi.fn().mockResolvedValue(undefined),
+  destroyCurrentWindow: mocks.destroyCurrentWindow,
   isCurrentWindowFullscreen: vi.fn().mockResolvedValue(false),
   setCurrentWindowFullscreen: vi.fn().mockResolvedValue(undefined),
   setCurrentWindowTitle: vi.fn().mockResolvedValue(undefined),
   requestAppQuit: vi.fn().mockResolvedValue(undefined),
-  reportWindowClose: vi.fn().mockResolvedValue(undefined),
+  reportWindowClose: mocks.reportWindowClose,
 }));
 
 vi.mock('@tauri-apps/plugin-window-state', () => ({
-  saveWindowState: vi.fn(),
+  saveWindowState: mocks.saveWindowState,
   StateFlags: { SIZE: 1, POSITION: 2, MAXIMIZED: 4 },
 }));
 
@@ -56,25 +60,35 @@ vi.mock('vue', async () => {
   };
 });
 
+let capturedCloseHandler: (() => Promise<void>) | null = null;
+
 describe('useAppWindowSession 启动文件投递', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    capturedCloseHandler = null;
     mocks.startupReady.mockReset().mockResolvedValue(null);
     mocks.newEditorWindow.mockReset().mockResolvedValue('editor-1');
     mocks.registerShellNew.mockReset().mockResolvedValue(undefined);
     mocks.openDocument.mockReset().mockResolvedValue(undefined);
     mocks.message.mockReset();
     mocks.subscribeDragDrop.mockReset().mockResolvedValue(() => {});
-    mocks.listenWindowCloseRequested.mockReset().mockResolvedValue(() => {});
+    mocks.listenWindowCloseRequested.mockReset().mockImplementation((handler) => {
+      capturedCloseHandler = handler;
+      return Promise.resolve(() => {});
+    });
+    mocks.destroyCurrentWindow.mockReset().mockResolvedValue(undefined);
+    mocks.reportWindowClose.mockReset().mockResolvedValue(undefined);
+    mocks.saveWindowState.mockReset().mockResolvedValue(undefined);
   });
 
-  function makeSession() {
+  function makeSession(overrides: Partial<Parameters<typeof useAppWindowSession>[0]> = {}) {
     return useAppWindowSession({
       openDocument: mocks.openDocument,
       saveDocument: vi.fn().mockResolvedValue(true),
       isDirty: () => false,
       windowTitle: ref('solo'),
       shellIntegration: () => false,
+      ...overrides,
     });
   }
 
@@ -128,5 +142,147 @@ describe('useAppWindowSession 启动文件投递', () => {
 
     expect(mocks.openDocument).not.toHaveBeenCalled();
     expect(mocks.newEditorWindow).not.toHaveBeenCalled();
+  });
+
+  it('关窗选择取消后恢复自动保存，窗口继续存活（F-03）', async () => {
+    const stopAutoSave = vi.fn();
+    const resumeAutoSave = vi.fn();
+    const session = makeSession({
+      isDirty: () => true,
+      stopAutoSave,
+      resumeAutoSave,
+    });
+    await session.setup();
+
+    const closing = capturedCloseHandler!();
+    await vi.waitFor(() => expect(document.querySelector('.unsaved-overlay')).not.toBeNull());
+    (document.querySelector('[data-action="cancel"]') as HTMLElement).click();
+    await closing;
+
+    expect(stopAutoSave).toHaveBeenCalledTimes(1);
+    expect(resumeAutoSave).toHaveBeenCalledTimes(1);
+    expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
+    expect(mocks.reportWindowClose).toHaveBeenCalledWith('abort');
+  });
+
+  it('关窗保存期间又有新编辑时不销毁窗口，并恢复自动保存（F-04）', async () => {
+    const stopAutoSave = vi.fn();
+    const resumeAutoSave = vi.fn();
+    const session = makeSession({
+      isDirty: vi.fn().mockReturnValueOnce(true).mockReturnValue(true),
+      saveDocument: vi.fn().mockResolvedValue(true),
+      stopAutoSave,
+      resumeAutoSave,
+    });
+    await session.setup();
+
+    const closing = capturedCloseHandler!();
+    await vi.waitFor(() => expect(document.querySelector('.unsaved-overlay')).not.toBeNull());
+    (document.querySelector('[data-action="save"]') as HTMLElement).click();
+    await closing;
+
+    expect(stopAutoSave).toHaveBeenCalledTimes(1);
+    expect(resumeAutoSave).toHaveBeenCalledTimes(1);
+    expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
+    expect(mocks.saveWindowState).toHaveBeenCalledTimes(1);
+    expect(mocks.reportWindowClose).toHaveBeenCalledWith('abort');
+    expect(mocks.message).toHaveBeenCalledWith(
+      expect.stringContaining('新的编辑'),
+      expect.anything(),
+    );
+  });
+
+  it('窗口状态保存期间又有新编辑时不销毁窗口（F-04）', async () => {
+    let resolveWindowState!: () => void;
+    mocks.saveWindowState.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveWindowState = resolve;
+      }),
+    );
+    let dirty = false;
+    const resumeAutoSave = vi.fn();
+    const session = makeSession({ isDirty: () => dirty, resumeAutoSave });
+    await session.setup();
+
+    const closing = capturedCloseHandler!();
+    await vi.waitFor(() => expect(mocks.saveWindowState).toHaveBeenCalledTimes(1));
+    dirty = true;
+    resolveWindowState();
+    await closing;
+
+    expect(resumeAutoSave).toHaveBeenCalledTimes(1);
+    expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
+    expect(mocks.reportWindowClose).toHaveBeenCalledWith('abort');
+    expect(mocks.message).toHaveBeenCalledWith(
+      expect.stringContaining('新的编辑'),
+      expect.anything(),
+    );
+  });
+
+  it('关窗保存失败后恢复自动保存，窗口继续存活（F-03）', async () => {
+    const stopAutoSave = vi.fn();
+    const resumeAutoSave = vi.fn();
+    const session = makeSession({
+      isDirty: () => true,
+      saveDocument: vi.fn().mockResolvedValue(false),
+      stopAutoSave,
+      resumeAutoSave,
+    });
+    await session.setup();
+
+    const closing = capturedCloseHandler!();
+    await vi.waitFor(() => expect(document.querySelector('.unsaved-overlay')).not.toBeNull());
+    (document.querySelector('[data-action="save"]') as HTMLElement).click();
+    await closing;
+
+    expect(stopAutoSave).toHaveBeenCalledTimes(1);
+    expect(resumeAutoSave).toHaveBeenCalledTimes(1);
+    expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
+    expect(mocks.reportWindowClose).toHaveBeenCalledWith('abort');
+  });
+
+  it('关闭链抛异常时恢复自动保存并复位看门狗', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const resumeAutoSave = vi.fn();
+    const session = makeSession({
+      isDirty: () => true,
+      saveDocument: vi.fn().mockRejectedValue(new Error('save crashed')),
+      resumeAutoSave,
+    });
+    await session.setup();
+
+    const closing = capturedCloseHandler!();
+    await vi.waitFor(() => expect(document.querySelector('.unsaved-overlay')).not.toBeNull());
+    (document.querySelector('[data-action="save"]') as HTMLElement).click();
+    await closing;
+
+    expect(resumeAutoSave).toHaveBeenCalledTimes(1);
+    expect(mocks.destroyCurrentWindow).not.toHaveBeenCalled();
+    expect(mocks.reportWindowClose).toHaveBeenCalledWith('abort');
+  });
+
+  it('主动放弃未保存修改后仍能正常关闭', async () => {
+    const session = makeSession({ isDirty: () => true });
+    await session.setup();
+
+    const closing = capturedCloseHandler!();
+    await vi.waitFor(() => expect(document.querySelector('.unsaved-overlay')).not.toBeNull());
+    (document.querySelector('[data-action="discard"]') as HTMLElement).click();
+    await closing;
+
+    expect(mocks.destroyCurrentWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it('正常关闭不恢复自动保存，避免窗口销毁后再次写盘', async () => {
+    const stopAutoSave = vi.fn();
+    const resumeAutoSave = vi.fn();
+    const session = makeSession({ stopAutoSave, resumeAutoSave });
+    await session.setup();
+
+    await capturedCloseHandler!();
+
+    expect(stopAutoSave).toHaveBeenCalledTimes(1);
+    expect(resumeAutoSave).not.toHaveBeenCalled();
+    expect(mocks.destroyCurrentWindow).toHaveBeenCalledTimes(1);
   });
 });

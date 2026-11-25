@@ -35,6 +35,8 @@ interface AppWindowSessionOptions {
   shellIntegration: () => boolean;
   /** 关闭前停掉自动保存，避免 isSaving 锁阻塞 */
   stopAutoSave?: () => void;
+  /** 关闭链中止、窗口继续存活时恢复自动保存 */
+  resumeAutoSave?: () => void;
   /** 关闭前强制落盘防抖窗口内的设置改动，避免丢最后一次配置修改 */
   flushSettings?: () => Promise<void> | void;
   /** 关闭前强制落盘防抖窗口内的阅读位置，避免丢最后 800ms 内的滚动位置 */
@@ -181,6 +183,7 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
       // 链路中途抛异常（大文档序列化炸、destroy 失败等）若不 abort 复位，窗口就**再也
       // 关不掉**，只能杀进程。统一兜底：abort + 留在原窗口，让用户能重走一遍确认。
       console.error('[close] 关闭链异常，复位逃生舱看门狗:', error);
+      options.resumeAutoSave?.();
       void abortCloseHandshake();
       return false;
     }
@@ -203,18 +206,23 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
       // 阅读位置落盘失败不阻断关闭流程
     }
 
+    let discarded = false;
     if (options.isDirty()) {
       const result = await confirmUnsavedChanges();
       if (result === 'cancel') {
+        options.resumeAutoSave?.();
         void abortCloseHandshake();
         return false;
       }
       if (result === 'save') {
         const saved = await options.saveDocument();
         if (!saved) {
+          options.resumeAutoSave?.();
           void abortCloseHandshake();
           return false;
         }
+      } else if (result === 'discard') {
+        discarded = true;
       }
     }
 
@@ -223,6 +231,12 @@ export function useAppWindowSession(options: AppWindowSessionOptions) {
       await saveWindowState(StateFlags.SIZE | StateFlags.POSITION | StateFlags.MAXIMIZED);
     } catch {
       // 窗口状态保存失败不影响关闭流程
+    }
+    if (!discarded && options.isDirty()) {
+      options.resumeAutoSave?.();
+      void abortCloseHandshake();
+      await message('关闭准备期间又有新的编辑，已保留窗口；请稍后再关闭。', { title: '尚未关闭' });
+      return false;
     }
     // destroy 失败交给 handleCloseRequest 的 catch：abort 复位看门狗 + 返回 false。
     // 若保持 acked 状态，CloseGuard 会永久停在 Waiting，逃生舱失效、后续关闭全被吞。

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_DISPLAY_NAME } from '../../stores/file';
+import type {
+  DocumentLayout,
+  DocumentOpenResult,
+  DocumentSaveResult,
+} from '../../services/tauri/document';
 import {
   documentTier,
   setDocumentTier,
@@ -19,30 +24,61 @@ const getFileMtimeMock = vi.fn();
 const emitFileRenamedMock = vi.fn();
 const listenFileRenamedMock = vi.fn();
 
+interface MockFileState {
+  path: string | null;
+  content: string;
+  isDirty: boolean;
+  lastModifiedTime: number | null;
+  displayName: string;
+  originalBaseName: string;
+  layout?: DocumentLayout | null;
+}
+
 const fileStoreState = {
   currentFile: {
-    path: null as string | null,
+    path: null,
     content: '',
     isDirty: false,
-    lastModifiedTime: null as number | null,
-    displayName: DEFAULT_DISPLAY_NAME as string,
+    lastModifiedTime: null,
+    displayName: DEFAULT_DISPLAY_NAME,
     /** 从 path 提取的原始文件名基础名（去扩展名），用于判定“标题是否被改过” */
-    originalBaseName: DEFAULT_DISPLAY_NAME as string,
-  },
+    originalBaseName: DEFAULT_DISPLAY_NAME,
+    layout: null,
+  } as MockFileState,
   setLoading: vi.fn(),
-  setFile: vi.fn((content: string, path: string | null, lastModifiedTime: number | null) => {
-    const originalBaseName = path
-      ? (path.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
-      : DEFAULT_DISPLAY_NAME;
-    fileStoreState.currentFile = {
-      path,
-      content,
-      isDirty: false,
-      lastModifiedTime,
-      displayName: originalBaseName,
-      originalBaseName,
-    };
-  }),
+  setFile: vi.fn(
+    (
+      content: string,
+      path: string | null,
+      lastModifiedTime: number | null,
+      layout: DocumentLayout | null = null,
+    ) => {
+      const originalBaseName = path
+        ? (path.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
+        : DEFAULT_DISPLAY_NAME;
+      fileStoreState.currentFile = {
+        path,
+        content,
+        isDirty: false,
+        lastModifiedTime,
+        displayName: originalBaseName,
+        originalBaseName,
+        layout,
+      };
+    },
+  ),
+  adoptSavedPath: vi.fn(
+    (path: string, lastModifiedTime: number | null, layout: DocumentLayout | null) => {
+      const baseName = path
+        ? (path.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
+        : DEFAULT_DISPLAY_NAME;
+      fileStoreState.currentFile.path = path;
+      fileStoreState.currentFile.displayName = baseName;
+      fileStoreState.currentFile.originalBaseName = baseName;
+      fileStoreState.currentFile.lastModifiedTime = lastModifiedTime;
+      fileStoreState.currentFile.layout = layout;
+    },
+  ),
   markSaved: vi.fn((lastModifiedTime: number | null, content?: string) => {
     if (content !== undefined) {
       fileStoreState.currentFile.content = content;
@@ -154,9 +190,11 @@ describe('useDocumentSession', () => {
       lastModifiedTime: null,
       displayName: DEFAULT_DISPLAY_NAME,
       originalBaseName: DEFAULT_DISPLAY_NAME,
+      layout: null,
     };
     fileStoreState.setLoading.mockReset();
     fileStoreState.setFile.mockClear();
+    fileStoreState.adoptSavedPath.mockClear();
     fileStoreState.markSaved.mockClear();
     fileStoreState.renamePath.mockClear();
     fileStoreState.setDisplayName.mockClear();
@@ -188,6 +226,121 @@ describe('useDocumentSession', () => {
       ending: 'crlf',
       mixed: false,
     });
+  });
+
+  it('打开等待期间当前文档变脏时，不用加载结果覆盖新输入（F-01）', async () => {
+    fileStoreState.currentFile = {
+      path: '/tmp/a.md',
+      content: 'A',
+      isDirty: false,
+      lastModifiedTime: 1000,
+      displayName: 'a',
+      originalBaseName: 'a',
+    };
+    let resolveOpen!: (value: DocumentOpenResult) => void;
+    openDocumentMock.mockReturnValueOnce(
+      new Promise<DocumentOpenResult>((resolve) => {
+        resolveOpen = resolve;
+      }),
+    );
+    let editorText = 'A';
+    withFaithfulSyncEditedContent();
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => editorText,
+      isSyncedWithStore: () => false,
+    });
+
+    const opening = session.openDocumentWithPrompt('/tmp/b.md');
+    await vi.waitFor(() => expect(openDocumentMock).toHaveBeenCalledWith('/tmp/b.md'));
+    editorText = 'A＋等待期间输入';
+    fileStoreState.syncEditedContent(editorText);
+    resolveOpen({
+      path: '/tmp/b.md',
+      content: 'B',
+      lastModifiedMs: 2000,
+      layout: { encoding: 'utf8', ending: 'lf', mixed: false },
+    });
+
+    await expect(opening).resolves.toBe(false);
+    expect(fileStoreState.setFile).not.toHaveBeenCalled();
+    expect(fileStoreState.currentFile.path).toBe('/tmp/a.md');
+    expect(fileStoreState.currentFile.content).toBe(editorText);
+    expect(fileStoreState.currentFile.isDirty).toBe(true);
+  });
+
+  it('已有未保存修改但选择放弃后，仍能正常打开另一篇（F-01）', async () => {
+    fileStoreState.currentFile = {
+      path: '/tmp/a.md',
+      content: 'A 的未保存修改',
+      isDirty: true,
+      lastModifiedTime: 1000,
+      displayName: 'a',
+      originalBaseName: 'a',
+    };
+    confirmMock.mockResolvedValueOnce(true);
+    openDocumentMock.mockResolvedValueOnce({
+      path: '/tmp/b.md',
+      content: 'B',
+      lastModifiedMs: 2000,
+      layout: { encoding: 'utf8', ending: 'lf', mixed: false },
+    });
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => 'A 的未保存修改',
+      isSyncedWithStore: () => true,
+    });
+
+    await expect(session.openDocumentWithPrompt('/tmp/b.md')).resolves.toBe(true);
+    expect(fileStoreState.currentFile.path).toBe('/tmp/b.md');
+    expect(fileStoreState.currentFile.content).toBe('B');
+    expect(fileStoreState.currentFile.isDirty).toBe(false);
+  });
+
+  it('打开等待期间编辑并已保存时，也不用加载结果覆盖当前文档（F-01）', async () => {
+    fileStoreState.currentFile = {
+      path: '/tmp/a.md',
+      content: 'A',
+      isDirty: false,
+      lastModifiedTime: 1000,
+      displayName: 'a',
+      originalBaseName: 'a',
+    };
+    let resolveOpen!: (value: DocumentOpenResult) => void;
+    openDocumentMock.mockReturnValueOnce(
+      new Promise<DocumentOpenResult>((resolve) => {
+        resolveOpen = resolve;
+      }),
+    );
+    let editorText = 'A';
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => editorText,
+      isSyncedWithStore: () => true,
+    });
+
+    const opening = session.openDocumentWithPrompt('/tmp/b.md');
+    await vi.waitFor(() => expect(openDocumentMock).toHaveBeenCalledWith('/tmp/b.md'));
+    editorText = 'A 的新编辑';
+    fileStoreState.currentFile.content = editorText;
+    fileStoreState.currentFile.isDirty = false;
+    resolveOpen({
+      path: '/tmp/b.md',
+      content: 'B',
+      lastModifiedMs: 2000,
+      layout: { encoding: 'utf8', ending: 'lf', mixed: false },
+    });
+
+    await expect(opening).resolves.toBe(false);
+    expect(fileStoreState.setFile).not.toHaveBeenCalled();
+    expect(fileStoreState.currentFile.path).toBe('/tmp/a.md');
+    expect(fileStoreState.currentFile.content).toBe(editorText);
   });
 
   it('未修改时不写盘：Ctrl+S 不再把 CRLF 文件静默改成 LF（M-03 回归锁）', async () => {
@@ -440,8 +593,22 @@ describe('useDocumentSession', () => {
     });
 
     await expect(session.saveCurrentDocument()).resolves.toBe(true);
-    expect(saveDocumentMock).toHaveBeenNthCalledWith(1, '/tmp/demo.md', 'draft', 1000, false, undefined);
-    expect(saveDocumentMock).toHaveBeenNthCalledWith(2, '/tmp/demo.md', 'draft', 1000, true, undefined);
+    expect(saveDocumentMock).toHaveBeenNthCalledWith(
+      1,
+      '/tmp/demo.md',
+      'draft',
+      1000,
+      false,
+      undefined,
+    );
+    expect(saveDocumentMock).toHaveBeenNthCalledWith(
+      2,
+      '/tmp/demo.md',
+      'draft',
+      1000,
+      true,
+      undefined,
+    );
     expect(fileStoreState.markSaved).toHaveBeenCalledWith(1500, 'draft');
     // 普通「外部修改」冲突：正文取 Rust 消息，按钮仍是「强制覆盖」
     expect(confirmMock).toHaveBeenCalledWith(
@@ -535,7 +702,13 @@ describe('useDocumentSession', () => {
     await expect(session.saveCurrentDocument()).resolves.toBe(true);
     // 第 5 参 = 当前文档的 layout。本文件的 currentFile 字面量都不带 layout 字段
     // ⇒ 实参是 undefined（真实链路里是 DocumentLayout 或 null）。
-    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/demo.md', '编辑器新内容', 1000, false, undefined);
+    expect(saveDocumentMock).toHaveBeenCalledWith(
+      '/tmp/demo.md',
+      '编辑器新内容',
+      1000,
+      false,
+      undefined,
+    );
     expect(fileStoreState.currentFile.content).toBe('编辑器新内容');
     expect(fileStoreState.currentFile.isDirty).toBe(false);
   });
@@ -562,9 +735,97 @@ describe('useDocumentSession', () => {
 
     await expect(session.saveCurrentDocument()).resolves.toBe(true);
     expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/demo.md', 'draft', null, true, undefined);
-    expect(fileStoreState.setFile).toHaveBeenCalledWith('draft', '/tmp/demo.md', 2000, undefined);
-    // setFile 已经将 isDirty 置为 false，无需再调 markSaved
-    expect(fileStoreState.markSaved).not.toHaveBeenCalled();
+    expect(fileStoreState.setFile).not.toHaveBeenCalled();
+    expect(fileStoreState.currentFile.path).toBe('/tmp/demo.md');
+    expect(fileStoreState.currentFile.content).toBe('draft');
+    expect(fileStoreState.currentFile.isDirty).toBe(false);
+    expect(fileStoreState.currentFile.lastModifiedTime).toBe(2000);
+  });
+
+  it('另存为保存期间的新编辑保留在新路径上，不被旧快照回灌（F-02）', async () => {
+    const layout: DocumentLayout = { encoding: 'utf8Bom', ending: 'crlf', mixed: false };
+    fileStoreState.currentFile = {
+      path: '/tmp/original.md',
+      content: 'v1',
+      isDirty: true,
+      lastModifiedTime: 1000,
+      displayName: 'original',
+      originalBaseName: 'original',
+      layout,
+    };
+    let editorText = 'v1';
+    let resolveSave!: (value: DocumentSaveResult) => void;
+    saveMock.mockResolvedValue('/tmp/copy.md');
+    saveDocumentMock.mockReturnValueOnce(
+      new Promise<DocumentSaveResult>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    withFaithfulSyncEditedContent();
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => editorText,
+      isSyncedWithStore: () => false,
+    });
+
+    const saving = session.saveCurrentDocumentAs();
+    await vi.waitFor(() => expect(saveDocumentMock).toHaveBeenCalled());
+    editorText = 'v1＋另存期间输入';
+    fileStoreState.syncEditedContent(editorText);
+    resolveSave({ path: '/tmp/copy.md', lastModifiedMs: 2000 });
+
+    await expect(saving).resolves.toBe(true);
+    expect(fileStoreState.setFile).not.toHaveBeenCalled();
+    expect(fileStoreState.currentFile.path).toBe('/tmp/copy.md');
+    expect(fileStoreState.currentFile.content).toBe(editorText);
+    expect(fileStoreState.currentFile.isDirty).toBe(true);
+    expect(fileStoreState.currentFile.lastModifiedTime).toBe(2000);
+    expect(fileStoreState.currentFile.layout).toEqual(layout);
+  });
+
+  it('改名保存期间的新编辑保留在新路径上，不被旧快照回灌（F-02）', async () => {
+    const layout: DocumentLayout = { encoding: 'utf8', ending: 'lf', mixed: false };
+    fileStoreState.currentFile = {
+      path: '/tmp/original.md',
+      content: 'v1',
+      isDirty: true,
+      lastModifiedTime: 1000,
+      displayName: '新标题',
+      originalBaseName: 'original',
+      layout,
+    };
+    let editorText = 'v1';
+    let resolveSave!: (value: DocumentSaveResult) => void;
+    renameFileMock.mockResolvedValue({ path: '/tmp/新标题.md' });
+    saveDocumentMock.mockReturnValueOnce(
+      new Promise<DocumentSaveResult>((resolve) => {
+        resolveSave = resolve;
+      }),
+    );
+    withFaithfulSyncEditedContent();
+
+    const { useDocumentSession } = await import('../useDocumentSession');
+    const session = useDocumentSession({
+      resetViewMode: vi.fn(),
+      getContent: () => editorText,
+      isSyncedWithStore: () => false,
+    });
+
+    const saving = session.saveCurrentDocument();
+    await vi.waitFor(() => expect(saveDocumentMock).toHaveBeenCalled());
+    editorText = 'v1＋改名期间输入';
+    fileStoreState.syncEditedContent(editorText);
+    resolveSave({ path: '/tmp/新标题.md', lastModifiedMs: 2000 });
+
+    await expect(saving).resolves.toBe(true);
+    expect(fileStoreState.setFile).not.toHaveBeenCalled();
+    expect(fileStoreState.currentFile.path).toBe('/tmp/新标题.md');
+    expect(fileStoreState.currentFile.content).toBe(editorText);
+    expect(fileStoreState.currentFile.isDirty).toBe(true);
+    expect(fileStoreState.currentFile.lastModifiedTime).toBe(2000);
+    expect(fileStoreState.currentFile.layout).toEqual(layout);
   });
 
   it('pre-fills save dialog with displayName + .md when path is empty', async () => {
@@ -743,9 +1004,7 @@ describe('useDocumentSession', () => {
     expect(openDocumentMock).not.toHaveBeenCalled();
     expect(saveDocumentMock).not.toHaveBeenCalled();
     // 基线对齐到新路径的 mtime，避免下次聚焦误报「外部修改」
-    await vi.waitFor(() =>
-      expect(fileStoreState.syncLastModifiedTime).toHaveBeenCalledWith(2000),
-    );
+    await vi.waitFor(() => expect(fileStoreState.syncLastModifiedTime).toHaveBeenCalledWith(2000));
   });
 
   it('改名跟随只认旧路径：与本文档无关就完全不动', async () => {
@@ -787,7 +1046,13 @@ describe('useDocumentSession', () => {
 
     await session.saveCurrentDocument();
     expect(saveMock).not.toHaveBeenCalled();
-    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/original.md', 'draft', 1000, false, undefined);
+    expect(saveDocumentMock).toHaveBeenCalledWith(
+      '/tmp/original.md',
+      'draft',
+      1000,
+      false,
+      undefined,
+    );
   });
 
   it('recovers to the renamed path when persisting content fails after rename', async () => {
@@ -824,7 +1089,14 @@ describe('useDocumentSession', () => {
     const retry = await session.saveCurrentDocument();
     expect(retry).toBe(true);
     expect(renameFileMock).toHaveBeenCalledTimes(1);
-    expect(saveDocumentMock).toHaveBeenNthCalledWith(2, '/tmp/新标题.md', 'draft', 1000, false, undefined);
+    expect(saveDocumentMock).toHaveBeenNthCalledWith(
+      2,
+      '/tmp/新标题.md',
+      'draft',
+      1000,
+      false,
+      undefined,
+    );
   });
 
   it('passes displayName to renameFile for save-after-rename flow', async () => {
@@ -853,7 +1125,13 @@ describe('useDocumentSession', () => {
     await session.saveCurrentDocument();
     // rename 路径：displayName 直接传给 renameFile，不弹保存对话框
     expect(renameFileMock).toHaveBeenCalledWith('/tmp/original.md', 'a/b:c*d?e');
-    expect(saveDocumentMock).toHaveBeenCalledWith('/tmp/a_b_c_d_e.md', 'draft', null, true, undefined);
+    expect(saveDocumentMock).toHaveBeenCalledWith(
+      '/tmp/a_b_c_d_e.md',
+      'draft',
+      null,
+      true,
+      undefined,
+    );
     expect(saveMock).not.toHaveBeenCalled();
   });
 });
@@ -941,6 +1219,11 @@ describe('useDocumentSession 大文档档位闸门（阈值分层 + 自动降级
   beforeEach(() => {
     confirmMock.mockReset();
     openDocumentMock.mockReset();
+    saveDocumentMock.mockReset();
+    listenFileRenamedMock.mockImplementation((handler: FileRenamedHandler) => {
+      capturedFileRenamedHandler = handler;
+      return Promise.resolve(() => {});
+    });
     fileStoreState.setFile.mockClear();
     setDocumentTier('normal');
   });
@@ -971,6 +1254,99 @@ describe('useDocumentSession 大文档档位闸门（阈值分层 + 自动降级
     await expect(loadWith(md)).resolves.toBe(true);
     expect(confirmMock).not.toHaveBeenCalled();
     expect(documentTier.value).toBe('normal');
+  });
+
+  it('停止后可恢复自动保存调度（F-03）', async () => {
+    vi.useFakeTimers();
+    let stopAutoSave: (() => void) | undefined;
+    try {
+      settingsStoreState.settings.autoSave = true;
+      settingsStoreState.settings.autoSaveInterval = 5;
+      fileStoreState.currentFile = {
+        path: '/tmp/autosave.md',
+        content: 'baseline',
+        isDirty: true,
+        lastModifiedTime: 1000,
+        displayName: 'autosave',
+        originalBaseName: 'autosave',
+      };
+      saveDocumentMock.mockResolvedValue({ path: '/tmp/autosave.md', lastModifiedMs: 2000 });
+
+      const { useDocumentSession } = await import('../useDocumentSession');
+      const session = useDocumentSession({
+        resetViewMode: vi.fn(),
+        getContent: () => 'edited',
+        isSyncedWithStore: () => true,
+      });
+      stopAutoSave = session.stopAutoSave;
+
+      session.stopAutoSave();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(saveDocumentMock).not.toHaveBeenCalled();
+
+      session.resumeAutoSave();
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(saveDocumentMock).toHaveBeenCalledWith(
+        '/tmp/autosave.md',
+        'edited',
+        1000,
+        false,
+        undefined,
+      );
+    } finally {
+      stopAutoSave?.();
+      settingsStoreState.settings.autoSave = false;
+      vi.useRealTimers();
+    }
+  });
+
+  it('保存进行中停止再恢复，不留下两条自动保存调度（F-03）', async () => {
+    vi.useFakeTimers();
+    let stopAutoSave: (() => void) | undefined;
+    let resolveSave!: (value: DocumentSaveResult) => void;
+    const pendingSave = new Promise<DocumentSaveResult>((resolve) => {
+      resolveSave = resolve;
+    });
+    try {
+      settingsStoreState.settings.autoSave = true;
+      settingsStoreState.settings.autoSaveInterval = 5;
+      fileStoreState.currentFile = {
+        path: '/tmp/autosave.md',
+        content: 'baseline',
+        isDirty: true,
+        lastModifiedTime: 1000,
+        displayName: 'autosave',
+        originalBaseName: 'autosave',
+      };
+      fileStoreState.syncEditedContent.mockImplementation(() => false);
+      saveDocumentMock
+        .mockReturnValueOnce(pendingSave)
+        .mockResolvedValue({ path: '/tmp/autosave.md', lastModifiedMs: 2000 });
+
+      const { useDocumentSession } = await import('../useDocumentSession');
+      const session = useDocumentSession({
+        resetViewMode: vi.fn(),
+        getContent: () => 'edited',
+        isSyncedWithStore: () => true,
+      });
+      stopAutoSave = session.stopAutoSave;
+
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(saveDocumentMock).toHaveBeenCalledTimes(1);
+      session.stopAutoSave();
+      session.resumeAutoSave();
+      resolveSave({ path: '/tmp/autosave.md', lastModifiedMs: 2000 });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(vi.getTimerCount(), '恢复后只能有一条自动保存调度和一条状态展示计时器').toBe(2);
+      fileStoreState.currentFile.isDirty = true;
+      await vi.advanceTimersByTimeAsync(5000);
+
+      expect(saveDocumentMock).toHaveBeenCalledTimes(2);
+    } finally {
+      stopAutoSave?.();
+      settingsStoreState.settings.autoSave = false;
+      vi.useRealTimers();
+    }
   });
 
   it('保存失败的错误弹窗自身 reject 也不得卡死保存链（isSaving 必须复位，审计 D-1）', async () => {

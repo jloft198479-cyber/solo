@@ -5,7 +5,9 @@ import {
   renameFile,
   syncWikilinksOnRename,
   getFileMtime,
+  type DocumentLayout,
   type DocumentOpenResult,
+  type DocumentSaveResult,
 } from '../services/tauri/document';
 import { normalizeTauriError, withErrorHint } from '../services/tauri/client';
 import { recordDocumentSession } from '../services/tauri/session';
@@ -63,6 +65,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   let isOpeningFile = false;
   /** 自动保存是否应继续运行（用户关闭/禁用时停止递归） */
   let autoSaveActive = false;
+  let autoSaveGeneration = 0;
 
   /** 自动保存状态消息展示时长（毫秒），超时后自动清除 */
   const AUTOSAVE_STATUS_DISPLAY_MS = 2000;
@@ -103,6 +106,8 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   async function loadDocumentFromPath(path: string, silent = false): Promise<boolean> {
     if (isOpeningFile) return false;
     isOpeningFile = true;
+    const sourcePath = fileStore.currentFile.path;
+    const sourceContent = options.getContent?.() ?? fileStore.currentFile.content;
     try {
       fileStore.setLoading(true);
       const document = await openDocument(path);
@@ -125,6 +130,12 @@ export function useDocumentSession(options: DocumentSessionOptions) {
         if (!proceed) {
           return false;
         }
+      }
+
+      const liveContent = options.getContent?.();
+      const contentChanged = (liveContent ?? fileStore.currentFile.content) !== sourceContent;
+      if (fileStore.currentFile.path !== sourcePath || contentChanged) {
+        return false;
       }
 
       fileStore.setLoading(true);
@@ -235,6 +246,20 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       fileStore.currentFile.layout,
     );
     return { result, content };
+  }
+
+  function applyPathSaveResult(
+    result: DocumentSaveResult,
+    content: string,
+    layout: DocumentLayout | null,
+  ) {
+    const storeMovedDuringSave = fileStore.currentFile.content !== content;
+    fileStore.adoptSavedPath(result.path, result.lastModifiedMs, layout);
+    fileStore.markSaved(result.lastModifiedMs, content);
+    if (storeMovedDuringSave || !options.isSyncedWithStore?.()) {
+      const liveAfterSave = options.getContent?.();
+      if (liveAfterSave != null) fileStore.syncEditedContent(liveAfterSave);
+    }
   }
 
   /** 自动保存连续失败计数：首次弹 modal，后续降级为状态栏非阻塞提示。
@@ -367,7 +392,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       // 另存为 = 同内容换路径：排版习惯（BOM / 换行）跟着文档走，不因换路径改字节风格
       const layout = fileStore.currentFile.layout;
       const { result, content } = await persistDocument(selected, true, null);
-      fileStore.setFile(content, result.path, result.lastModifiedMs, layout);
+      applyPathSaveResult(result, content, layout);
       clearExternalWarning();
       autoSaveFailCount = 0;
       return true;
@@ -417,7 +442,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
         null,
       );
 
-      fileStore.setFile(savedContent, saveResult.path, saveResult.lastModifiedMs, layout);
+      applyPathSaveResult(saveResult, savedContent, layout);
       autoSaveFailCount = 0;
       saveOk = true;
     } catch (error) {
@@ -635,43 +660,49 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
   function stopAutoSave() {
     autoSaveActive = false;
+    autoSaveGeneration += 1;
     if (autoSaveIntervalId) {
       clearTimeout(autoSaveIntervalId);
       autoSaveIntervalId = null;
     }
   }
 
+  function startAutoSave() {
+    stopAutoSave();
+    const enabled = settingsStore.settings.autoSave;
+    const intervalSeconds = settingsStore.settings.autoSaveInterval;
+    if (!enabled) {
+      return;
+    }
+
+    // 下限保护：即使配置异常也不会导致过于频繁的保存
+    const safeIntervalSeconds = Math.max(intervalSeconds, MIN_AUTOSAVE_INTERVAL_SECONDS);
+    autoSaveActive = true;
+
+    // 递归 setTimeout：保存完成后才设下一个 tick，避免并发和跳过
+    const generation = autoSaveGeneration;
+    const scheduleNext = () => {
+      if (!autoSaveActive || generation !== autoSaveGeneration) return;
+      autoSaveIntervalId = setTimeout(async () => {
+        if (!autoSaveActive || generation !== autoSaveGeneration) return;
+
+        if (fileStore.currentFile.isDirty && fileStore.currentFile.path) {
+          const saved = await saveCurrentDocument(false);
+          if (saved) {
+            updateAutoSaveStatus('已自动保存');
+          }
+        }
+        // 无论是否实际保存，继续调度下一次
+        scheduleNext();
+      }, safeIntervalSeconds * 1000);
+    };
+
+    scheduleNext();
+  }
+
   watch(
     () => [settingsStore.settings.autoSave, settingsStore.settings.autoSaveInterval] as const,
-    ([enabled, intervalSeconds]) => {
-      stopAutoSave();
-      if (!enabled) {
-        return;
-      }
-
-      // 下限保护：即使配置异常也不会导致过于频繁的保存
-      const safeIntervalSeconds = Math.max(intervalSeconds, MIN_AUTOSAVE_INTERVAL_SECONDS);
-      autoSaveActive = true;
-
-      // 递归 setTimeout：保存完成后才设下一个 tick，避免并发和跳过
-      const scheduleNext = () => {
-        if (!autoSaveActive) return;
-        autoSaveIntervalId = setTimeout(async () => {
-          if (!autoSaveActive) return;
-
-          if (fileStore.currentFile.isDirty && fileStore.currentFile.path) {
-            const saved = await saveCurrentDocument(false);
-            if (saved) {
-              updateAutoSaveStatus('已自动保存');
-            }
-          }
-          // 无论是否实际保存，继续调度下一次
-          scheduleNext();
-        }, safeIntervalSeconds * 1000);
-      };
-
-      scheduleNext();
-    },
+    startAutoSave,
     { immediate: true },
   );
 
@@ -720,6 +751,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     saveCurrentDocument,
     saveCurrentDocumentAs,
     stopAutoSave,
+    resumeAutoSave: startAutoSave,
     evaluateDirtyFromEditor,
     checkExternalModification,
     clearExternalWarning,
