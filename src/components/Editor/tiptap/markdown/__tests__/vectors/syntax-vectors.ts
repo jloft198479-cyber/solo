@@ -133,6 +133,20 @@ export const SYNTAX_VECTORS: readonly SyntaxVector[] = [
     note: '非标准 Markdown，别家编辑器会当文字显示',
   },
   {
+    group: '行内',
+    name: '图片仅宽度（solo 私有语法）',
+    input: '![图|320x](a.png)\n',
+    expected: '![图|320x](a.png)\n',
+    note: '非标准 Markdown，别家编辑器会当文字显示',
+  },
+  {
+    group: '行内',
+    name: '图片仅高度（solo 私有语法）',
+    input: '![图|x180](a.png)\n',
+    expected: '![图|x180](a.png)\n',
+    note: '非标准 Markdown，别家编辑器会当文字显示',
+  },
+  {
     group: '扩展',
     name: 'WikiLink',
     input: '[[笔记]]\n',

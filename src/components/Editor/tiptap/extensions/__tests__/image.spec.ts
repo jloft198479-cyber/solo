@@ -1,14 +1,20 @@
 // @vitest-environment happy-dom
+import type { Node as PMNode } from '@tiptap/pm/model';
+import { EditorState, type Transaction } from '@tiptap/pm/state';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  CustomImage,
   __resetRemoteImageCacheForTests,
   __setRemoteImageFetcherForTests,
+  extractDimsFromAlt,
   formatImageMarkdown,
   getRemoteImageDisplaySrc,
   parseImageMarkdown,
   REMOTE_IMAGE_PLACEHOLDER,
 } from '../image';
 import { createTestSchema } from '../../markdown/__tests__/test-utils';
+import { parseMarkdown } from '../../markdown/parser';
+import { serializeMarkdown } from '../../markdown/serializer';
 import { parseHtmlSlice } from '../markdown-paste';
 
 beforeEach(() => {
@@ -113,6 +119,16 @@ describe('formatImageMarkdown', () => {
       .toBe('![demo|640x480](/demo.png)');
   });
 
+  it('formats image markdown with width only', () => {
+    expect(formatImageMarkdown({ src: '/demo.png', alt: 'demo', title: null, width: 320, height: null }))
+      .toBe('![demo|320x](/demo.png)');
+  });
+
+  it('formats image markdown with height only', () => {
+    expect(formatImageMarkdown({ src: '/demo.png', alt: 'demo', title: null, width: null, height: 180 }))
+      .toBe('![demo|x180](/demo.png)');
+  });
+
   it('formats image markdown with dimensions and title', () => {
     expect(formatImageMarkdown({ src: '/demo.png', alt: 'demo', title: 'cover', width: 800, height: 600 }))
       .toBe('![demo|800x600](/demo.png "cover")');
@@ -160,6 +176,30 @@ describe('parseImageMarkdown', () => {
     });
   });
 
+  it('parses image markdown with width only', () => {
+    expect(parseImageMarkdown('![demo|320x](/demo.png)')).toEqual({
+      src: '/demo.png',
+      alt: 'demo',
+      title: null,
+      width: 320,
+      height: null,
+    });
+  });
+
+  it('parses image markdown with height only', () => {
+    expect(parseImageMarkdown('![demo|x180](/demo.png)')).toEqual({
+      src: '/demo.png',
+      alt: 'demo',
+      title: null,
+      width: null,
+      height: 180,
+    });
+  });
+
+  it('does not treat an empty dimension side as metadata', () => {
+    expect(extractDimsFromAlt('demo|x')).toEqual({ alt: 'demo|x', width: null, height: null });
+  });
+
   it('ignores invalid dimension suffix', () => {
     expect(parseImageMarkdown('![demo|0x0](/demo.png)')).toEqual({
       src: '/demo.png',
@@ -173,6 +213,84 @@ describe('parseImageMarkdown', () => {
   it('returns null for invalid markdown', () => {
     expect(parseImageMarkdown('not image markdown')).toBe(null);
     expect(parseImageMarkdown('![]()')).toBe(null);
+  });
+});
+
+describe('图片单边尺寸', () => {
+  const schema = createTestSchema();
+
+  interface NodeViewLike {
+    dom: HTMLElement;
+    destroy?: () => void;
+  }
+
+  type NodeViewFactory = (props: {
+    node: PMNode;
+    getPos: () => number;
+    editor: unknown;
+  }) => NodeViewLike;
+
+  function createNodeView(node: PMNode) {
+    let state = EditorState.create({
+      schema,
+      doc: schema.nodes.doc.create(null, [schema.nodes.paragraph.create(null, [node])]),
+    });
+    const dispatch = vi.fn((transaction: Transaction) => {
+      state = state.apply(transaction);
+    });
+    const editor = {
+      commands: { focus: vi.fn() },
+      get state() {
+        return state;
+      },
+      view: { dispatch },
+    };
+    const renderer = (CustomImage.config as { addNodeView?: () => unknown }).addNodeView?.();
+    if (typeof renderer !== 'function') throw new Error('图片扩展未提供 NodeView 工厂');
+    const view = (renderer as NodeViewFactory)({ node, getPos: () => 1, editor });
+    return {
+      view,
+      dispatch,
+      imageAttrs: () => state.doc.firstChild?.firstChild?.attrs,
+    };
+  }
+
+  it.each([
+    { html: '<img src="a.png" alt="图" width="320">', markdown: '![图|320x](a.png)\n' },
+    { html: '<img src="b.png" alt="图" height="180">', markdown: '![图|x180](b.png)\n' },
+  ])('HTML 粘贴的单边尺寸保存重开仍在：$html', ({ html, markdown }) => {
+    const slice = parseHtmlSlice(schema, `<p>${html}</p>`);
+    expect(slice).not.toBeNull();
+    const doc = schema.nodes.doc.create(null, slice!.content);
+    const serialized = serializeMarkdown(doc);
+    expect(serialized).toBe(markdown);
+    expect(serializeMarkdown(parseMarkdown(schema, serialized))).toBe(markdown);
+  });
+
+  it.each([
+    { width: 320, height: null, expectedWidth: '320', expectedHeight: null },
+    { width: null, height: 180, expectedWidth: null, expectedHeight: '180' },
+  ])('NodeView 独立显示宽高：$width x $height', ({ width, height, expectedWidth, expectedHeight }) => {
+    const node = schema.nodes.image.create({ src: 'a.png', alt: '图', width, height });
+    const { view } = createNodeView(node);
+    const image = view.dom.querySelector('img.mk-image') as HTMLImageElement;
+    expect(image.getAttribute('width')).toBe(expectedWidth);
+    expect(image.getAttribute('height')).toBe(expectedHeight);
+    view.destroy?.();
+  });
+
+  it.each([
+    { source: '![图|320x](a.png)', width: 320, height: null },
+    { source: '![图|x180](a.png)', width: null, height: 180 },
+  ])('编辑图片源码后单边尺寸写回文档：$source', ({ source, width, height }) => {
+    const node = schema.nodes.image.create({ src: 'a.png', alt: '图', width: null, height: null });
+    const { view, dispatch, imageAttrs } = createNodeView(node);
+    const sourceText = view.dom.querySelector('.mk-image-source-text') as HTMLElement;
+    sourceText.textContent = source;
+    sourceText.dispatchEvent(new Event('blur'));
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(imageAttrs()).toMatchObject({ width, height });
+    view.destroy?.();
   });
 });
 

@@ -11,30 +11,35 @@ export interface ImageMarkdownAttrs {
   src: string;
   alt: string;
   title: string | null;
-  /** 图片宽度（px），来自 `![alt|WxH](src)` 语法的可选尺寸标注 */
+  /** 图片宽度（px），来自 `![alt|WxH](src)` / `![alt|Wx](src)` 的可选尺寸标注 */
   width: number | null;
-  /** 图片高度（px），来自 `![alt|WxH](src)` 语法的可选尺寸标注 */
+  /** 图片高度（px），来自 `![alt|WxH](src)` / `![alt|xH](src)` 的可选尺寸标注 */
   height: number | null;
 }
 
 /**
- * 从 alt 文本中提取 `|WxH` 尺寸后缀。
- * 支持 `![alt|640x480](src)` 语法——alt 后跟 `|WxH` 表示宽高（px）。
+ * 从 alt 文本中提取 `|WxH`、`|Wx` 或 `|xH` 尺寸后缀。
  * 返回 { alt, width, height }；无尺寸后缀时 width/height 为 null。
- * 这是 solo 的扩展语法，不依赖 markdown-it 解析层改动——markdown-it 会把
- * `![alt|WxH](src)` 的 alt 解析为 `alt|WxH`（`|` 非特殊字符），在此提取。
+ * 这是 solo 的扩展语法，markdown-it 会把后缀留在 alt 原文里。
  */
 export function extractDimsFromAlt(alt: string): {
   alt: string;
   width: number | null;
   height: number | null;
 } {
-  const match = alt.match(/^(.*?)\|(\d+)x(\d+)$/);
-  if (!match) return { alt, width: null, height: null };
-  const width = parseInt(match[2], 10);
-  const height = parseInt(match[3], 10);
-  if (!width || !height) return { alt, width: null, height: null };
+  const match = alt.match(/^(.*?)\|(\d*)x(\d*)$/);
+  if (!match || (!match[2] && !match[3])) return { alt, width: null, height: null };
+  const width = match[2] ? parseInt(match[2], 10) : null;
+  const height = match[3] ? parseInt(match[3], 10) : null;
+  if (width === 0 || height === 0) return { alt, width: null, height: null };
   return { alt: match[1], width, height };
+}
+
+export function formatImageDims(width: number | null, height: number | null): string | null {
+  if (width != null && height != null) return `${width}x${height}`;
+  if (width != null) return `${width}x`;
+  if (height != null) return `x${height}`;
+  return null;
 }
 
 /**
@@ -69,8 +74,8 @@ export function formatImageMarkdown(attrs: ImageMarkdownAttrs): string {
   const src = attrs.src || '';
   const title = attrs.title?.replace(/"/g, '\\"') ?? '';
   // 有尺寸时输出 `![alt|WxH](src)`，无尺寸时输出 `![alt](src)`
-  const altWithDims =
-    attrs.width != null && attrs.height != null ? `${alt}|${attrs.width}x${attrs.height}` : alt;
+  const dims = formatImageDims(attrs.width, attrs.height);
+  const altWithDims = dims ? `${alt}|${dims}` : alt;
 
   if (title) {
     return `![${altWithDims}](${src} "${title}")`;
@@ -453,13 +458,15 @@ export const CustomImage = Image.extend({
         image.alt = attrs.alt;
         image.title = attrs.title ?? '';
 
-        // 有尺寸标注时设置 width/height 属性，浏览器预留空间避免 layout shift
-        if (attrs.width != null && attrs.height != null) {
+        // 有尺寸标注时独立设置 width/height 属性，浏览器预留空间避免 layout shift
+        if (attrs.width != null) {
           image.width = attrs.width;
+        } else {
+          image.removeAttribute('width');
+        }
+        if (attrs.height != null) {
           image.height = attrs.height;
         } else {
-          // 无尺寸标注时移除属性，让图片按自然尺寸渲染
-          image.removeAttribute('width');
           image.removeAttribute('height');
         }
 
@@ -548,7 +555,9 @@ export const CustomImage = Image.extend({
         if (
           parsed.src === current.src &&
           parsed.alt === current.alt &&
-          parsed.title === current.title
+          parsed.title === current.title &&
+          parsed.width === current.width &&
+          parsed.height === current.height
         ) {
           syncView();
           return;

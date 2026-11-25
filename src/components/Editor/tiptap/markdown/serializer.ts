@@ -11,7 +11,7 @@ import { computeFence } from './plugins/fence';
 // ZWNJ 剥离是**跨模块契约**（解析期插入 / 各读出点剥离），实现与常量统一在 ../zwnj
 import { stripZwnj } from '../zwnj';
 // alt 的最小转义与「插入图片」路径共用同一份规则（真理源一处，避免两套写法漂移）
-import { escapeImageAlt } from '../extensions/image';
+import { escapeImageAlt, formatImageDims } from '../extensions/image';
 
 // ── 序列化状态 ──────────────────────────────────────────────────
 
@@ -883,13 +883,9 @@ const nodeSerializers: Record<string, NodeSerializer> = {
     // escapeCellPipe：单元格内 src / title / alt 的 `|` 都会切列（P1-1，
     // alt 含 `|WxH` 尺寸后缀，原先只有 alt 一条通道转义）
     const src = state.escapeCellPipe(escapeLinkDestination(stripZwnj(node.attrs.src || '')));
-    const width = node.attrs.width;
-    const height = node.attrs.height;
+    const dims = formatImageDims(node.attrs.width, node.attrs.height);
     // 有尺寸时输出 `![alt|WxH](src)`，无尺寸时输出 `![alt](src)`
-    let altWithDims =
-      width != null && height != null
-        ? `${alt}|${width}x${height}`
-        : alt;
+    let altWithDims = dims ? `${alt}|${dims}` : alt;
     // 表格单元格内：`|`（含 `|WxH` 的分隔符本身）会切列，必须转义 —— 重开时
     // markdown-it 的表格规则把 `\|` 还原成 `|`，alt 与尺寸后缀都能正确读回
     altWithDims = state.escapeCellPipe(altWithDims);

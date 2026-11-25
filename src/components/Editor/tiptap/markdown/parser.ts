@@ -84,27 +84,19 @@ const dummyKatexEngine = {
  * 还原成原始形式，否则：① 磁盘文档里的中文路径每次保存被静默改写成编码；
  * ② 含空格路径解析不出来，图片显示断链；③ 零编辑文档因 src 变化被误标脏。
  *
- * 解码规则（区分「markdown-it 编的」与「用户原文就有的」）：
- * - 含 %XX（XX 为非 ASCII 字节，即 ≥0x80）→ 整体 decodeURIComponent：
- *   这只能是编码产物（用户原文的非 ASCII 会以 UTF-8 字面形式出现，不会被编码）
- * - 含 %20 → 解码为空格：裸形式的空格无法通过解析存活，磁盘上的 %20
- *   绝大多数来自尖括号形式落盘或外部编辑器。已接受的小概率取舍：
- *   文件名字面含 "%20" 时会被解成空格（显示断链）；远程 URL 的 %20
- *   解成空格后语义不变（浏览器请求时会重新编码）
- * - 含 %5C（大小写不敏感）→ 解码还原 `\`（B8）：markdown-it 会把
- *   destination 里的字面反斜杠（Windows 路径 `C:\notes\a.md`）编码成 %5C，
- *   不还原则 href 损坏且落盘被改写成编码形式
- * - 其余纯 ASCII 编码（如 %25）保持原样，避免误解远程 URL 里合法的百分号编码
- * - 解码失败（非法序列）回退原值
+ * 只还原 markdown-it 为本地路径生成的 UTF-8 字节、空格与反斜杠；其余
+ * 百分号编码原样保留，避免把 URL 的保留字符（如 %23、%26、%2F、%3D、%25）
+ * 重新解释成实际地址。非法 UTF-8 序列整体回退原值。
  */
+const NON_ASCII_PERCENT_RUN = /(?:%[89a-fA-F][0-9a-fA-F])+/g;
+
 export function decodeLinkDestination(value: string): string {
   if (!value.includes('%')) return value;
-  const hasEncodedNonAscii = /%[89a-fA-F][0-9a-fA-F]/.test(value);
-  const hasEncodedSpace = value.includes('%20');
-  const hasEncodedBackslash = /%5c/i.test(value);
-  if (!hasEncodedNonAscii && !hasEncodedSpace && !hasEncodedBackslash) return value;
   try {
-    return decodeURIComponent(value);
+    return value
+      .replace(NON_ASCII_PERCENT_RUN, (encoded) => decodeURIComponent(encoded))
+      .replace(/%20/gi, ' ')
+      .replace(/%5c/gi, '\\');
   } catch {
     return value;
   }

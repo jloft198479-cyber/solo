@@ -397,6 +397,16 @@ describe('Round-trip: parse → serialize', () => {
       expect(roundTrip(md)).toBe(normalize(md));
     });
 
+    it('inline image with width-only size survives reopen', () => {
+      const md = '![封面|320x](assets/a.png)\n';
+      expect(roundTrip(md)).toBe(normalize(md));
+    });
+
+    it('inline image with height-only size survives reopen', () => {
+      const md = '![封面|x180](assets/a.png)\n';
+      expect(roundTrip(md)).toBe(normalize(md));
+    });
+
     it('bold in blockquote', () => {
       expect(roundTrip('> **bold quote**\n')).toBe(normalize('> **bold quote**\n'));
     });
@@ -944,6 +954,20 @@ describe('Round-trip: parse → serialize', () => {
       return src;
     }
 
+    function parseFirstLinkHref(md: string): string | null {
+      const schema = createTestSchema();
+      const doc = parseMarkdown(schema, md);
+      let href: string | null = null;
+      doc.descendants((node) => {
+        if (node.type.name === 'text') {
+          const link = node.marks.find((mark) => mark.type.name === 'link');
+          if (link) href = link.attrs.href as string;
+        }
+        return href === null;
+      });
+      return href;
+    }
+
     it('含空格文件名：序列化用尖括号，重开解析回原始 src（丢图回归锁）', () => {
       const schema = createTestSchema();
       const doc = parseMarkdown(
@@ -995,7 +1019,41 @@ describe('Round-trip: parse → serialize', () => {
       );
     });
 
-    it('远程 URL 的合法百分号编码不被解码', () => {
+    it('空格与非 ASCII 编码仍解码，保留字符编码不被连带解开', () => {
+      const md =
+        '![a](<https://cdn.example.com/img%20b/%E5%9B%BE%23c%26d%2Fe%3Df%25g.png>)\n';
+      expect(parseFirstImageSrc(md)).toBe(
+        'https://cdn.example.com/img b/图%23c%26d%2Fe%3Df%25g.png',
+      );
+      const serialized = roundTrip(md);
+      expect(serialized).toBe(
+        normalize('![a](<https://cdn.example.com/img b/图%23c%26d%2Fe%3Df%25g.png>)\n'),
+      );
+      expect(roundTrip(serialized)).toBe(normalize(serialized));
+    });
+
+    it('链接地址只解码空格与非 ASCII，不把保留字符变成实际地址', () => {
+      const md =
+        '[目标](<https://example.com/a%20b/%E5%9B%BE%23c%26d%2Fe%3Df%25g>)\n';
+      expect(parseFirstLinkHref(md)).toBe(
+        'https://example.com/a b/图%23c%26d%2Fe%3Df%25g',
+      );
+      const serialized = roundTrip(md);
+      expect(serialized).toBe(
+        normalize('[目标](<https://example.com/a b/图%23c%26d%2Fe%3Df%25g>)\n'),
+      );
+      expect(roundTrip(serialized)).toBe(normalize(serialized));
+    });
+
+    it('Windows 路径的 %5C 仍还原为反斜杠', () => {
+      const md = '[目标](<C:%5Cnotes%5Ca.md>)\n';
+      expect(parseFirstLinkHref(md)).toBe('C:\\notes\\a.md');
+      const serialized = roundTrip(md);
+      expect(parseFirstLinkHref(serialized)).toBe('C:\\notes\\a.md');
+      expect(roundTrip(serialized)).toBe(normalize(serialized));
+    });
+
+    it('远程 URL 的空格与非 ASCII 编码仍解码', () => {
       const md = '![a](https://cdn.example.com/img%20b/%E5%9B%BE.png)\n';
       // 含非 ASCII 解码产物 → 采用解码值；再次序列化时因含空格转尖括号，重解析仍保真
       const src = parseFirstImageSrc(md);

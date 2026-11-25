@@ -120,7 +120,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | Mermaid 图表 | ⚠️ | [`mermaid-block.ts`](../src/components/Editor/tiptap/extensions/mermaid-block.ts) | 中文/特殊字符标签需用户自加引号 `A["文本"]`（**§二 #2**） |
 | WikiLink `[[ ]]`（补全/跳转/不存在则创建/拖入成链） | ✅ | [`wikilink.ts`](../src/components/Editor/tiptap/extensions/wikilink.ts) + [`wikilink-drop.ts`](../src/components/Editor/tiptap/extensions/wikilink-drop.ts) | `#` 之后按标题锚点剥离（`[[B#小节]]` → `B.md`，不做锚点跳转）；拖入限「当前目录树 + 深度内」，超范围回落「打开」；**真机 OS 拖拽手感未人工确认**（§二 #9 待发布） |
 | 任务列表（含嵌套） | ✅ | `TaskList` / `TaskItem.configure({ nested: true })` | 嵌套 `- 父\n  - [ ] 子` 曾整层误判（一/10 同批修） |
-| 图片节点（含尺寸私有语法） | ✅ | [`image.ts`](../src/components/Editor/tiptap/extensions/image.ts) + `serializer.ts` `![alt\|WxH](src)` | ⚠️ `\|WxH` 是 **solo 私有扩展**，非标准 Markdown，粘到别家编辑器会暴露（属设计选择，未见台账） |
+| 图片节点（含尺寸私有语法） | ✅ | [`image.ts`](../src/components/Editor/tiptap/extensions/image.ts) + `serializer.ts` `![alt\|WxH](src)` / `![alt\|Wx](src)` / `![alt\|xH](src)` | ⚠️ 尺寸写法是 **solo 私有扩展**，非标准 Markdown，粘到别家编辑器会暴露（属设计选择，未见台账） |
 | 表格节点（自定义 4 件套） | ✅ | `CustomTable` / `Row` / `Header` / `Cell` | 与 `table.ts` 配套 |
 | 语义标题 | ✅ | `semantic-heading.ts` | — |
 | 占位符（空文档提示） | ✅ | `Placeholder.configure` | 文案含三个入口（`/` 命令 · 查找 · 命令面板），键位经 `registry.shortcutHint()` 动态取（Mac 显 ⌘、跟随自定义键）；锁 `empty-doc-hint.spec.ts` |
@@ -157,6 +157,8 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 行内 | 硬换行（行尾两空格） | `第一行  ⏎第二行` | 不变 | — |
 | 行内 | 图片 | `![图](a.png)` | 不变 | — |
 | 行内 | 图片尺寸（solo 私有语法） | `![图\|300x200](a.png)` | 不变 | 非标准 Markdown，别家编辑器会当文字显示 |
+| 行内 | 图片仅宽度（solo 私有语法） | `![图\|320x](a.png)` | 不变 | 非标准 Markdown，别家编辑器会当文字显示 |
+| 行内 | 图片仅高度（solo 私有语法） | `![图\|x180](a.png)` | 不变 | 非标准 Markdown，别家编辑器会当文字显示 |
 | 扩展 | WikiLink | `[[笔记]]` | 不变 | — |
 | 扩展 | WikiLink 带别名 | `[[笔记\|别名]]` | 不变 | — |
 | 扩展 | 脚注 | `正文[^1]⏎⏎[^1]: 脚注内容` | 不变 | — |
@@ -179,7 +181,7 @@ updates: [ARCHITECTURE.md, docs/KNOWN-ISSUES.md, src/commands/registry.ts, src/c
 | 扩展 | Mermaid 图表 | `` ```mermaid⏎graph TD⏎A-->B⏎``` `` | 不变 | — |
 | 扩展 | Frontmatter | `---⏎title: x⏎---⏎正文` | **已改写** | 结束符后补一个空行 |
 
-合计 **37** 条：原样往返 30 条，已知改写 7 条。
+合计 **39** 条：原样往返 32 条，已知改写 7 条。
 
 <!-- syntax-matrix:end -->
 
