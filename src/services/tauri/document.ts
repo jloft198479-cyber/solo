@@ -26,12 +26,16 @@ export interface DocumentOpenResult {
   path: string;
   content: string;
   lastModifiedMs: number;
+  /** 磁盘原始字节的 SHA-256，用作普通保存的比较基线。 */
+  contentHash: string;
   layout: DocumentLayout;
 }
 
 export interface DocumentSaveResult {
   path: string;
   lastModifiedMs: number;
+  /** 本次实际写入磁盘的字节 SHA-256。 */
+  contentHash: string;
 }
 
 export interface DocumentRenameResult {
@@ -81,14 +85,14 @@ export async function listMarkdownFiles(path: string) {
 export async function saveDocument(
   path: string,
   content: string,
-  expectedLastModifiedMs?: number | null,
+  expectedContentHash?: string | null,
   force = false,
   layout?: DocumentLayout | null,
 ) {
   return invokeCommand<DocumentSaveResult>(TAURI_COMMANDS.saveDocument, {
     path,
     content,
-    expectedLastModifiedMs,
+    expectedContentHash,
     force,
     layout: layout ?? null,
   });

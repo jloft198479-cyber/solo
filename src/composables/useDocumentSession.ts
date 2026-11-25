@@ -163,7 +163,13 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   }
 
   function applyLoadedDocument(document: DocumentOpenResult) {
-    fileStore.setFile(document.content, document.path, document.lastModifiedMs, document.layout);
+    fileStore.setFile(
+      document.content,
+      document.path,
+      document.lastModifiedMs,
+      document.layout,
+      document.contentHash,
+    );
     // 记入「最近文件」（scroll_ratio=null 只更新 recent_files，不动阅读位置——
     // 位置由编辑器滚动防抖单独记录）。失败只留痕，不影响打开流程。
     void recordDocumentSession(document.path, null).catch((error: unknown) => {
@@ -228,7 +234,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
   async function persistDocument(
     path: string,
     force: boolean,
-    expectedLastModifiedMs?: number | null,
+    expectedContentHash?: string | null,
   ) {
     // 优先从编辑器实时取内容，避免防抖延迟导致保存旧内容
     const content = options.getContent?.() ?? fileStore.currentFile.content;
@@ -241,7 +247,7 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     const result = await saveDocument(
       path,
       content,
-      expectedLastModifiedMs,
+      expectedContentHash,
       force,
       fileStore.currentFile.layout,
     );
@@ -254,8 +260,13 @@ export function useDocumentSession(options: DocumentSessionOptions) {
     layout: DocumentLayout | null,
   ) {
     const storeMovedDuringSave = fileStore.currentFile.content !== content;
-    fileStore.adoptSavedPath(result.path, result.lastModifiedMs, layout);
-    fileStore.markSaved(result.lastModifiedMs, content);
+    fileStore.adoptSavedPath(
+      result.path,
+      result.lastModifiedMs,
+      layout,
+      result.contentHash,
+    );
+    fileStore.markSaved(result.lastModifiedMs, content, result.contentHash);
     if (storeMovedDuringSave || !options.isSyncedWithStore?.()) {
       const liveAfterSave = options.getContent?.();
       if (liveAfterSave != null) fileStore.syncEditedContent(liveAfterSave);
@@ -298,17 +309,17 @@ export function useDocumentSession(options: DocumentSessionOptions) {
 
     isSaving = true;
     const savePath = currentFile.path;
-    const saveLastModified = currentFile.lastModifiedTime;
+    const saveContentHash = currentFile.contentHash;
     _savePromise = (async () => {
       try {
-        const { result, content } = await persistDocument(savePath, force, saveLastModified);
+        const { result, content } = await persistDocument(savePath, force, saveContentHash);
         // P1-② 的判据必须在 markSaved **之前**取：markSaved 一执行，store 内容就被
         // 覆盖成快照，之后再比永远相等（写错这一步 = 修复静默失效）。
         // 「store 内容已不等于刚写盘的快照」只可能由 IPC 往返期间落地的空闲序列化造成，
         // 故常规保存（含每一次自动保存）零额外开销：一次字符串比对，不碰序列化。
         const storeMovedDuringSave = fileStore.currentFile.content !== content;
         // 保存成功才同步基线：写入磁盘的内容成为新的语义比对基准
-        fileStore.markSaved(result.lastModifiedMs, content);
+        fileStore.markSaved(result.lastModifiedMs, content, result.contentHash);
         // 竞态发生过：空闲序列化先把新内容写进 store，紧接着被 markSaved 的旧快照覆盖
         // 并清脏，同时那个回调还把代际追平 ⇒ `isSyncedWithStore()` 谎报已同步 ⇒ 关窗不弹
         // 确认、自动保存不再保存 ⇒ 那笔编辑静默丢失。重算一次把基线与脏态拉回事实——
@@ -323,23 +334,22 @@ export function useDocumentSession(options: DocumentSessionOptions) {
       } catch (error) {
         const appError = normalizeTauriError(error);
         if (appError.code === 'document_conflict' && !force) {
-          // 文案由 Rust 按真实病因给（外部修改 / 文件被移动或删除），这里只负责渲染：
-          // 曾经写死「文件已被外部修改」，文件被删时用户看到的是错误场景。
-          // 按钮标签按「文件已不在」切换；正则只负责选词，判定仍以 Rust 给的错误为准，
-          // 匹配不上就走「强制覆盖」默认文案（不会把普通冲突说成重建）。
           const reason = appError.message || '文件已被外部修改，是否强制覆盖？';
           const fileGone = /移动或删除/.test(reason);
-          const confirmed = await confirm(reason, {
-            title: '检测到冲突',
-            kind: 'warning',
-            okLabel: fileGone ? '重新创建' : '强制覆盖',
-            cancelLabel: '取消',
-          });
-          if (!confirmed) {
-            return false;
+          if (!fileGone) {
+            const confirmed = await confirm(reason, {
+              title: '检测到冲突',
+              kind: 'warning',
+              okLabel: '强制覆盖',
+              cancelLabel: '取消',
+            });
+            if (!confirmed) {
+              return false;
+            }
+            _savePromise = null;
+            return saveCurrentDocument(true);
           }
-          _savePromise = null;
-          return saveCurrentDocument(true);
+          // 文件已不在旧路径：不提供重建，直接走下方错误提示。
         }
 
         console.error('Failed to save document:', appError.message);
@@ -560,7 +570,13 @@ export function useDocumentSession(options: DocumentSessionOptions) {
         return;
       }
       // 重载 = 以磁盘新状态为准，layout 必须刷新（外部工具可能把 LF 改成了 CRLF）
-      fileStore.setFile(document.content, document.path, document.lastModifiedMs, document.layout);
+      fileStore.setFile(
+        document.content,
+        document.path,
+        document.lastModifiedMs,
+        document.layout,
+        document.contentHash,
+      );
       clearExternalWarning();
     } catch (error) {
       console.warn('[wikilink-sync] 刷新被改写文档失败:', normalizeTauriError(error).message);

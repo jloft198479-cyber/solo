@@ -4,6 +4,8 @@ pub struct DocumentOpenResult {
     pub path: String,
     pub content: String,
     pub last_modified_ms: u64,
+    /// 磁盘原始字节的 SHA-256；普通保存据此判断文件是否已被外部改写。
+    pub content_hash: String,
     /// 磁盘原文的「排版习惯」。编辑器内部恒为 `\n` 无 BOM，这些信息只能靠这份元数据
     /// 在保存时还原（见 docs/PROPOSAL-file-fidelity.md §1 F1/F7）。
     pub layout: DocumentLayout,
@@ -55,6 +57,8 @@ pub struct DocumentLayout {
 pub struct DocumentSaveResult {
     pub path: String,
     pub last_modified_ms: u64,
+    /// 本次实际写入磁盘的字节 SHA-256，保存成功后成为新的比较基线。
+    pub content_hash: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
@@ -115,6 +119,7 @@ mod tests {
             path: "a.md".into(),
             content: "# hi".into(),
             last_modified_ms: 1000,
+            content_hash: "hash-open".into(),
             layout: DocumentLayout {
                 encoding: TextEncoding::Utf8Bom,
                 ending: LineEnding::Crlf,
@@ -125,6 +130,7 @@ mod tests {
         assert_eq!(v["path"], "a.md");
         assert_eq!(v["content"], "# hi");
         assert_eq!(v["lastModifiedMs"], 1000);
+        assert_eq!(v["contentHash"], "hash-open");
         // 前端拿到的字面量：encoding / ending / mixed
         assert_eq!(v["layout"]["encoding"], "utf8Bom");
         assert_eq!(v["layout"]["ending"], "crlf");
@@ -148,13 +154,16 @@ mod tests {
     }
 
     #[test]
-    fn document_save_result_is_camel_cased() {        let v = serde_json::to_value(DocumentSaveResult {
+    fn document_save_result_is_camel_cased() {
+        let v = serde_json::to_value(DocumentSaveResult {
             path: "a.md".into(),
             last_modified_ms: 2000,
+            content_hash: "hash-save".into(),
         })
         .unwrap();
         assert_eq!(v["path"], "a.md");
         assert_eq!(v["lastModifiedMs"], 2000);
+        assert_eq!(v["contentHash"], "hash-save");
     }
 
     #[test]

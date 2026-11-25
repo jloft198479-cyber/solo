@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TAURI_COMMANDS } from '../command-names';
 
@@ -17,6 +19,8 @@ describe('tauri document service', () => {
       path: '/tmp/demo.md',
       content: '# Demo',
       lastModifiedMs: 42,
+      contentHash: 'open-hash',
+      layout: { encoding: 'utf8', ending: 'lf', mixed: false },
     };
     invokeCommandMock.mockResolvedValueOnce(result);
 
@@ -32,16 +36,19 @@ describe('tauri document service', () => {
     const result = {
       path: '/tmp/demo.md',
       lastModifiedMs: 100,
+      contentHash: 'saved-hash',
     };
     invokeCommandMock.mockResolvedValueOnce(result);
 
     const { saveDocument } = await import('../document');
 
-    await expect(saveDocument('/tmp/demo.md', '# Updated', 99, true)).resolves.toBe(result);
+    await expect(saveDocument('/tmp/demo.md', '# Updated', 'a'.repeat(64), true)).resolves.toBe(
+      result,
+    );
     expect(invokeCommandMock).toHaveBeenCalledWith(TAURI_COMMANDS.saveDocument, {
       path: '/tmp/demo.md',
       content: '# Updated',
-      expectedLastModifiedMs: 99,
+      expectedContentHash: 'a'.repeat(64),
       force: true,
       // 不传布局 = 新文档历史行为（UTF-8 无 BOM、LF）
       layout: null,
@@ -56,10 +63,20 @@ describe('tauri document service', () => {
     expect(invokeCommandMock).toHaveBeenCalledWith(TAURI_COMMANDS.saveDocument, {
       path: '/tmp/demo.md',
       content: '# Updated',
-      expectedLastModifiedMs: undefined,
+      expectedContentHash: undefined,
       force: false,
       layout: null,
     });
+  });
+
+  it('互链创建文档始终使用只创建语义，竞态下也不强覆盖', () => {
+    const editor = readFileSync(
+      resolve(__dirname, '../../../components/Editor/MarkdownEditor.vue'),
+      'utf8',
+    );
+
+    expect(editor).not.toContain('saveDocument(resolved, initialContent, 0, false)');
+    expect(editor.match(/saveDocument\(resolved, initialContent, null, false\)/g)).toHaveLength(2);
   });
 
   it('routes document image operations through their native commands', async () => {

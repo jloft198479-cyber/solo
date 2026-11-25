@@ -29,6 +29,7 @@ interface MockFileState {
   content: string;
   isDirty: boolean;
   lastModifiedTime: number | null;
+  contentHash?: string | null;
   displayName: string;
   originalBaseName: string;
   layout?: DocumentLayout | null;
@@ -40,6 +41,7 @@ const fileStoreState = {
     content: '',
     isDirty: false,
     lastModifiedTime: null,
+    contentHash: null,
     displayName: DEFAULT_DISPLAY_NAME,
     /** 从 path 提取的原始文件名基础名（去扩展名），用于判定“标题是否被改过” */
     originalBaseName: DEFAULT_DISPLAY_NAME,
@@ -52,6 +54,7 @@ const fileStoreState = {
       path: string | null,
       lastModifiedTime: number | null,
       layout: DocumentLayout | null = null,
+      contentHash: string | null = null,
     ) => {
       const originalBaseName = path
         ? (path.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
@@ -61,6 +64,7 @@ const fileStoreState = {
         content,
         isDirty: false,
         lastModifiedTime,
+        contentHash,
         displayName: originalBaseName,
         originalBaseName,
         layout,
@@ -68,7 +72,7 @@ const fileStoreState = {
     },
   ),
   adoptSavedPath: vi.fn(
-    (path: string, lastModifiedTime: number | null, layout: DocumentLayout | null) => {
+    (path: string, lastModifiedTime: number | null, layout: DocumentLayout | null, contentHash: string | null = null) => {
       const baseName = path
         ? (path.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
         : DEFAULT_DISPLAY_NAME;
@@ -76,15 +80,17 @@ const fileStoreState = {
       fileStoreState.currentFile.displayName = baseName;
       fileStoreState.currentFile.originalBaseName = baseName;
       fileStoreState.currentFile.lastModifiedTime = lastModifiedTime;
+      fileStoreState.currentFile.contentHash = contentHash;
       fileStoreState.currentFile.layout = layout;
     },
   ),
-  markSaved: vi.fn((lastModifiedTime: number | null, content?: string) => {
+  markSaved: vi.fn((lastModifiedTime: number | null, content?: string, contentHash?: string | null) => {
     if (content !== undefined) {
       fileStoreState.currentFile.content = content;
     }
     fileStoreState.currentFile.isDirty = false;
     fileStoreState.currentFile.lastModifiedTime = lastModifiedTime;
+    if (contentHash !== undefined) fileStoreState.currentFile.contentHash = contentHash;
   }),
   /**
    * 默认桩「永远不相等且不动脏态」，仅供不关心脏态的用例通过。
@@ -188,6 +194,7 @@ describe('useDocumentSession', () => {
       content: '',
       isDirty: false,
       lastModifiedTime: null,
+      contentHash: null,
       displayName: DEFAULT_DISPLAY_NAME,
       originalBaseName: DEFAULT_DISPLAY_NAME,
       layout: null,
@@ -209,6 +216,7 @@ describe('useDocumentSession', () => {
       path: '/tmp/demo.md',
       content: '# title',
       lastModifiedMs: 123,
+      contentHash: 'open-hash',
       // W1：打开即带回排版习惯，随 setFile 落到 store，保存时原样传回
       layout: { encoding: 'utf8', ending: 'crlf', mixed: false },
     });
@@ -225,7 +233,7 @@ describe('useDocumentSession', () => {
       encoding: 'utf8',
       ending: 'crlf',
       mixed: false,
-    });
+    }, 'open-hash');
   });
 
   it('打开等待期间当前文档变脏时，不用加载结果覆盖新输入（F-01）', async () => {
@@ -261,6 +269,7 @@ describe('useDocumentSession', () => {
       path: '/tmp/b.md',
       content: 'B',
       lastModifiedMs: 2000,
+      contentHash: 'open-hash',
       layout: { encoding: 'utf8', ending: 'lf', mixed: false },
     });
 
@@ -285,6 +294,7 @@ describe('useDocumentSession', () => {
       path: '/tmp/b.md',
       content: 'B',
       lastModifiedMs: 2000,
+      contentHash: 'open-hash',
       layout: { encoding: 'utf8', ending: 'lf', mixed: false },
     });
 
@@ -334,6 +344,7 @@ describe('useDocumentSession', () => {
       path: '/tmp/b.md',
       content: 'B',
       lastModifiedMs: 2000,
+      contentHash: 'open-hash',
       layout: { encoding: 'utf8', ending: 'lf', mixed: false },
     });
 
@@ -407,7 +418,7 @@ describe('useDocumentSession', () => {
       originalBaseName: 'demo',
     };
     withFaithfulSyncEditedContent();
-    saveDocumentMock.mockResolvedValueOnce({ path: '/tmp/demo.md', lastModifiedMs: 2000 });
+    saveDocumentMock.mockResolvedValueOnce({ path: '/tmp/demo.md', lastModifiedMs: 2000, contentHash: 'saved-hash' });
 
     const { useDocumentSession } = await import('../useDocumentSession');
     const session = useDocumentSession({
@@ -431,7 +442,7 @@ describe('useDocumentSession', () => {
       displayName: 'demo',
       originalBaseName: 'demo',
     };
-    saveDocumentMock.mockResolvedValueOnce({ path: '/tmp/demo.md', lastModifiedMs: 1500 });
+    saveDocumentMock.mockResolvedValueOnce({ path: '/tmp/demo.md', lastModifiedMs: 1500, contentHash: 'saved-hash' });
 
     const { useDocumentSession } = await import('../useDocumentSession');
     const session = useDocumentSession({ resetViewMode: vi.fn() });
@@ -467,7 +478,7 @@ describe('useDocumentSession', () => {
       originalBaseName: 'demo',
     };
     withFaithfulSyncEditedContent();
-    saveDocumentMock.mockResolvedValue({ path: '/tmp/demo.md', lastModifiedMs: 2000 });
+    saveDocumentMock.mockResolvedValue({ path: '/tmp/demo.md', lastModifiedMs: 2000, contentHash: 'saved-hash' });
 
     const { useDocumentSession } = await import('../useDocumentSession');
     const session = useDocumentSession({
@@ -522,7 +533,7 @@ describe('useDocumentSession', () => {
       // IPC 往返期间空闲序列化落地：store 基线被推进到写盘快照之外的新内容
       editorText = `${content}＋往返期间又敲的字`;
       fileStoreState.syncEditedContent(editorText);
-      return { path: '/tmp/demo.md', lastModifiedMs: 2000 };
+      return { path: '/tmp/demo.md', lastModifiedMs: 2000, contentHash: 'saved-hash' };
     });
     const getContentMock = vi.fn(() => editorText);
 
@@ -554,7 +565,7 @@ describe('useDocumentSession', () => {
       displayName: 'demo',
       originalBaseName: 'demo',
     };
-    saveDocumentMock.mockResolvedValue({ path: '/tmp/demo.md', lastModifiedMs: 1500 });
+    saveDocumentMock.mockResolvedValue({ path: '/tmp/demo.md', lastModifiedMs: 1500, contentHash: 'saved-hash' });
     const getContentMock = vi.fn(() => 'draft');
 
     const { useDocumentSession } = await import('../useDocumentSession');
@@ -576,6 +587,7 @@ describe('useDocumentSession', () => {
       content: 'draft',
       isDirty: true,
       lastModifiedTime: 1000,
+      contentHash: 'baseline-hash',
       displayName: 'demo',
       originalBaseName: 'demo',
     };
@@ -584,6 +596,7 @@ describe('useDocumentSession', () => {
       .mockResolvedValueOnce({
         path: '/tmp/demo.md',
         lastModifiedMs: 1500,
+        contentHash: 'saved-hash',
       });
     confirmMock.mockResolvedValueOnce(true);
 
@@ -597,7 +610,7 @@ describe('useDocumentSession', () => {
       1,
       '/tmp/demo.md',
       'draft',
-      1000,
+      'baseline-hash',
       false,
       undefined,
     );
@@ -605,11 +618,11 @@ describe('useDocumentSession', () => {
       2,
       '/tmp/demo.md',
       'draft',
-      1000,
+      'baseline-hash',
       true,
       undefined,
     );
-    expect(fileStoreState.markSaved).toHaveBeenCalledWith(1500, 'draft');
+    expect(fileStoreState.markSaved).toHaveBeenCalledWith(1500, 'draft', 'saved-hash');
     // 普通「外部修改」冲突：正文取 Rust 消息，按钮仍是「强制覆盖」
     expect(confirmMock).toHaveBeenCalledWith(
       'conflict',
@@ -617,23 +630,21 @@ describe('useDocumentSession', () => {
     );
   });
 
-  it('文件被移动或删除：弹窗按「重建」措辞，不再误报「已被外部修改」', async () => {
-    // 回归：旧实现对 document_conflict 写死「文件已被外部修改，是否强制覆盖？」，
-    // 而文件被删/挪走时 Rust 给的是「是否在此位置重新创建？」—— 用户看到错误场景。
+  it('文件被移动或删除：提示重新加载或另存为，不提供重建、不二次写盘', async () => {
     fileStoreState.currentFile = {
       path: '/tmp/demo.md',
       content: 'draft',
       isDirty: true,
       lastModifiedTime: 1000,
+      contentHash: 'baseline-hash',
       displayName: 'demo',
       originalBaseName: 'demo',
     };
-    const goneMessage = '文件已被移动或删除，是否在此位置重新创建？';
+    const goneMessage = '文件已被移动或删除，不会在旧路径重新创建；请重新加载或另存为';
     saveDocumentMock.mockRejectedValueOnce({
       code: 'document_conflict',
       message: goneMessage,
     });
-    confirmMock.mockResolvedValueOnce(false); // 用户取消，仅断言弹窗内容
 
     const { useDocumentSession } = await import('../useDocumentSession');
     const session = useDocumentSession({
@@ -642,10 +653,13 @@ describe('useDocumentSession', () => {
     });
 
     await expect(session.saveCurrentDocument()).resolves.toBe(false);
-    expect(confirmMock).toHaveBeenCalledWith(
-      goneMessage,
-      expect.objectContaining({ okLabel: '重新创建' }),
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(saveDocumentMock).toHaveBeenCalledTimes(1);
+    expect(messageMock).toHaveBeenCalledWith(
+      expect.stringContaining(goneMessage),
+      expect.objectContaining({ title: '错误' }),
     );
+    expect(fileStoreState.currentFile.contentHash).toBe('baseline-hash');
   });
 
   it('冲突取消后基线不被污染、脏标不被洗白（保存失败静默丢编辑回归锁）', async () => {
@@ -685,12 +699,14 @@ describe('useDocumentSession', () => {
       content: '旧基线',
       isDirty: true,
       lastModifiedTime: 1000,
+      contentHash: 'baseline-hash',
       displayName: 'demo',
       originalBaseName: 'demo',
     };
     saveDocumentMock.mockResolvedValueOnce({
       path: '/tmp/demo.md',
       lastModifiedMs: 1500,
+      contentHash: 'saved-hash',
     });
 
     const { useDocumentSession } = await import('../useDocumentSession');
@@ -705,11 +721,12 @@ describe('useDocumentSession', () => {
     expect(saveDocumentMock).toHaveBeenCalledWith(
       '/tmp/demo.md',
       '编辑器新内容',
-      1000,
+      'baseline-hash',
       false,
       undefined,
     );
     expect(fileStoreState.currentFile.content).toBe('编辑器新内容');
+    expect(fileStoreState.currentFile.contentHash).toBe('saved-hash');
     expect(fileStoreState.currentFile.isDirty).toBe(false);
   });
 
@@ -719,6 +736,7 @@ describe('useDocumentSession', () => {
       content: 'draft',
       isDirty: true,
       lastModifiedTime: null,
+      contentHash: null,
       displayName: DEFAULT_DISPLAY_NAME,
       originalBaseName: DEFAULT_DISPLAY_NAME,
     };
@@ -726,6 +744,7 @@ describe('useDocumentSession', () => {
     saveDocumentMock.mockResolvedValue({
       path: '/tmp/demo.md',
       lastModifiedMs: 2000,
+      contentHash: 'saved-hash',
     });
 
     const { useDocumentSession } = await import('../useDocumentSession');
@@ -740,6 +759,7 @@ describe('useDocumentSession', () => {
     expect(fileStoreState.currentFile.content).toBe('draft');
     expect(fileStoreState.currentFile.isDirty).toBe(false);
     expect(fileStoreState.currentFile.lastModifiedTime).toBe(2000);
+    expect(fileStoreState.currentFile.contentHash).toBe('saved-hash');
   });
 
   it('另存为保存期间的新编辑保留在新路径上，不被旧快照回灌（F-02）', async () => {
@@ -774,7 +794,7 @@ describe('useDocumentSession', () => {
     await vi.waitFor(() => expect(saveDocumentMock).toHaveBeenCalled());
     editorText = 'v1＋另存期间输入';
     fileStoreState.syncEditedContent(editorText);
-    resolveSave({ path: '/tmp/copy.md', lastModifiedMs: 2000 });
+    resolveSave({ path: '/tmp/copy.md', lastModifiedMs: 2000, contentHash: 'saved-hash' });
 
     await expect(saving).resolves.toBe(true);
     expect(fileStoreState.setFile).not.toHaveBeenCalled();
@@ -782,6 +802,7 @@ describe('useDocumentSession', () => {
     expect(fileStoreState.currentFile.content).toBe(editorText);
     expect(fileStoreState.currentFile.isDirty).toBe(true);
     expect(fileStoreState.currentFile.lastModifiedTime).toBe(2000);
+    expect(fileStoreState.currentFile.contentHash).toBe('saved-hash');
     expect(fileStoreState.currentFile.layout).toEqual(layout);
   });
 
@@ -817,7 +838,7 @@ describe('useDocumentSession', () => {
     await vi.waitFor(() => expect(saveDocumentMock).toHaveBeenCalled());
     editorText = 'v1＋改名期间输入';
     fileStoreState.syncEditedContent(editorText);
-    resolveSave({ path: '/tmp/新标题.md', lastModifiedMs: 2000 });
+    resolveSave({ path: '/tmp/新标题.md', lastModifiedMs: 2000, contentHash: 'saved-hash' });
 
     await expect(saving).resolves.toBe(true);
     expect(fileStoreState.setFile).not.toHaveBeenCalled();
@@ -825,6 +846,7 @@ describe('useDocumentSession', () => {
     expect(fileStoreState.currentFile.content).toBe(editorText);
     expect(fileStoreState.currentFile.isDirty).toBe(true);
     expect(fileStoreState.currentFile.lastModifiedTime).toBe(2000);
+    expect(fileStoreState.currentFile.contentHash).toBe('saved-hash');
     expect(fileStoreState.currentFile.layout).toEqual(layout);
   });
 
@@ -841,6 +863,7 @@ describe('useDocumentSession', () => {
     saveDocumentMock.mockResolvedValue({
       path: '/tmp/学习笔记.md',
       lastModifiedMs: 2000,
+      contentHash: 'saved-hash',
     });
 
     const { useDocumentSession } = await import('../useDocumentSession');
@@ -871,6 +894,7 @@ describe('useDocumentSession', () => {
     saveDocumentMock.mockResolvedValue({
       path: '/tmp/untitled-1234.md',
       lastModifiedMs: 2000,
+      contentHash: 'saved-hash',
     });
 
     const { useDocumentSession } = await import('../useDocumentSession');
@@ -896,6 +920,7 @@ describe('useDocumentSession', () => {
     saveDocumentMock.mockResolvedValue({
       path: '/tmp/改名后的笔记.md',
       lastModifiedMs: 2000,
+      contentHash: 'saved-hash',
     });
 
     const { useDocumentSession } = await import('../useDocumentSession');
@@ -925,6 +950,7 @@ describe('useDocumentSession', () => {
     saveDocumentMock.mockResolvedValue({
       path: '/tmp/新标题.md',
       lastModifiedMs: 2000,
+      contentHash: 'saved-hash',
     });
 
     const { useDocumentSession } = await import('../useDocumentSession');
@@ -956,7 +982,7 @@ describe('useDocumentSession', () => {
       originalBaseName: 'original',
     };
     renameFileMock.mockResolvedValue({ path: '/tmp/新标题.md' });
-    saveDocumentMock.mockResolvedValue({ path: '/tmp/新标题.md', lastModifiedMs: 2000 });
+    saveDocumentMock.mockResolvedValue({ path: '/tmp/新标题.md', lastModifiedMs: 2000, contentHash: 'saved-hash' });
     syncWikilinksMock.mockResolvedValueOnce(['a.md', 'b.md']);
 
     const { useDocumentSession } = await import('../useDocumentSession');
@@ -986,6 +1012,7 @@ describe('useDocumentSession', () => {
       content: 'draft',
       isDirty: true,
       lastModifiedTime: 1000,
+      contentHash: 'disk-hash',
       displayName: '草稿标题',
       originalBaseName: 'original',
     };
@@ -996,6 +1023,7 @@ describe('useDocumentSession', () => {
 
     expect(fileStoreState.renamePath).toHaveBeenCalledWith('/tmp/新标题.md');
     expect(fileStoreState.currentFile.path).toBe('/tmp/新标题.md');
+    expect(fileStoreState.currentFile.contentHash).toBe('disk-hash');
     // 内容与脏态不动：改名不是内容变更，重载会抹掉用户没保存的字
     expect(fileStoreState.currentFile.content).toBe('draft');
     expect(fileStoreState.currentFile.isDirty).toBe(true);
@@ -1031,12 +1059,14 @@ describe('useDocumentSession', () => {
       content: 'draft',
       isDirty: true,
       lastModifiedTime: 1000,
+      contentHash: 'baseline-hash',
       displayName: 'original',
       originalBaseName: 'original',
     };
     saveDocumentMock.mockResolvedValue({
       path: '/tmp/original.md',
       lastModifiedMs: 2000,
+      contentHash: 'saved-hash',
     });
 
     const { useDocumentSession } = await import('../useDocumentSession');
@@ -1049,7 +1079,7 @@ describe('useDocumentSession', () => {
     expect(saveDocumentMock).toHaveBeenCalledWith(
       '/tmp/original.md',
       'draft',
-      1000,
+      'baseline-hash',
       false,
       undefined,
     );
@@ -1063,13 +1093,14 @@ describe('useDocumentSession', () => {
       content: 'draft',
       isDirty: true,
       lastModifiedTime: 1000,
+      contentHash: 'baseline-hash',
       displayName: '新标题',
       originalBaseName: 'original',
     };
     renameFileMock.mockResolvedValue({ path: '/tmp/新标题.md' });
     saveDocumentMock
       .mockRejectedValueOnce({ code: 'io_error', message: 'disk full' })
-      .mockResolvedValueOnce({ path: '/tmp/新标题.md', lastModifiedMs: 2000 });
+      .mockResolvedValueOnce({ path: '/tmp/新标题.md', lastModifiedMs: 2000, contentHash: 'saved-hash' });
 
     const { useDocumentSession } = await import('../useDocumentSession');
     const session = useDocumentSession({
@@ -1093,7 +1124,7 @@ describe('useDocumentSession', () => {
       2,
       '/tmp/新标题.md',
       'draft',
-      1000,
+      'baseline-hash',
       false,
       undefined,
     );
@@ -1115,6 +1146,7 @@ describe('useDocumentSession', () => {
     saveDocumentMock.mockResolvedValue({
       path: '/tmp/a_b_c_d_e.md',
       lastModifiedMs: 2000,
+      contentHash: 'saved-hash',
     });
 
     const { useDocumentSession } = await import('../useDocumentSession');
@@ -1267,10 +1299,11 @@ describe('useDocumentSession 大文档档位闸门（阈值分层 + 自动降级
         content: 'baseline',
         isDirty: true,
         lastModifiedTime: 1000,
+        contentHash: 'baseline-hash',
         displayName: 'autosave',
         originalBaseName: 'autosave',
       };
-      saveDocumentMock.mockResolvedValue({ path: '/tmp/autosave.md', lastModifiedMs: 2000 });
+      saveDocumentMock.mockResolvedValue({ path: '/tmp/autosave.md', lastModifiedMs: 2000, contentHash: 'saved-hash' });
 
       const { useDocumentSession } = await import('../useDocumentSession');
       const session = useDocumentSession({
@@ -1289,7 +1322,7 @@ describe('useDocumentSession 大文档档位闸门（阈值分层 + 自动降级
       expect(saveDocumentMock).toHaveBeenCalledWith(
         '/tmp/autosave.md',
         'edited',
-        1000,
+        'baseline-hash',
         false,
         undefined,
       );
@@ -1315,13 +1348,14 @@ describe('useDocumentSession 大文档档位闸门（阈值分层 + 自动降级
         content: 'baseline',
         isDirty: true,
         lastModifiedTime: 1000,
+        contentHash: 'baseline-hash',
         displayName: 'autosave',
         originalBaseName: 'autosave',
       };
       fileStoreState.syncEditedContent.mockImplementation(() => false);
       saveDocumentMock
         .mockReturnValueOnce(pendingSave)
-        .mockResolvedValue({ path: '/tmp/autosave.md', lastModifiedMs: 2000 });
+        .mockResolvedValue({ path: '/tmp/autosave.md', lastModifiedMs: 2000, contentHash: 'saved-hash' });
 
       const { useDocumentSession } = await import('../useDocumentSession');
       const session = useDocumentSession({
@@ -1335,7 +1369,7 @@ describe('useDocumentSession 大文档档位闸门（阈值分层 + 自动降级
       expect(saveDocumentMock).toHaveBeenCalledTimes(1);
       session.stopAutoSave();
       session.resumeAutoSave();
-      resolveSave({ path: '/tmp/autosave.md', lastModifiedMs: 2000 });
+      resolveSave({ path: '/tmp/autosave.md', lastModifiedMs: 2000, contentHash: 'saved-hash' });
       await vi.advanceTimersByTimeAsync(0);
       expect(vi.getTimerCount(), '恢复后只能有一条自动保存调度和一条状态展示计时器').toBe(2);
       fileStoreState.currentFile.isDirty = true;

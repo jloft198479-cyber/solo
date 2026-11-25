@@ -4,9 +4,11 @@ use crate::models::{
     DocumentSaveResult, ImageAssetAuthorizationResult, LineEnding, MarkdownFileList, TextEncoding,
 };
 use base64::{engine::general_purpose, Engine as _};
+use fs2::FileExt;
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
@@ -25,6 +27,8 @@ const OPEN_EXTENSIONS: [&str; 3] = ["md", "markdown", "txt"];
 // 写入白名单比读取多一个 json：「导出主题模板」复用 save_document 写 .json
 // （见 ThemeSelector.vue 的 downloadTemplate），只按 OPEN 白名单卡会让导出功能报无效参数。
 const WRITE_EXTENSIONS: [&str; 4] = ["md", "markdown", "txt", "json"];
+const DOCUMENT_LOCK_DIR: &str = "document-locks";
+const CONTENT_HASH_HEX_LEN: usize = 64;
 
 // 互链作用域的目录层数：当前文档所在目录算第 0 层，向下最多这么多层。
 // 2 层覆盖「一个文件夹一个项目」的常见结构（根索引页 → 项目子目录 → 年份子目录）；
@@ -171,11 +175,21 @@ fn layout_of(text: &str, encoding: TextEncoding) -> DocumentLayout {
     }
 }
 
-fn read_text_with_layout(path: &Path) -> Result<(String, DocumentLayout), AppError> {
+fn content_hash(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .fold(String::with_capacity(64), |mut hash, byte| {
+            hash.push_str(&format!("{byte:02x}"));
+            hash
+        })
+}
+
+fn read_document_with_hash(path: &Path) -> Result<(String, DocumentLayout, String), AppError> {
     let bytes = fs::read(path)?;
     let (text, encoding) = decode_text_with_encoding(&bytes)?;
     let layout = layout_of(&text, encoding);
-    Ok((text, layout))
+    let hash = content_hash(&bytes);
+    Ok((text, layout, hash))
 }
 
 /// 按排版习惯把编辑器文本编码成要落盘的字节（W1）。
@@ -226,13 +240,15 @@ fn validate_document_extension(path: &str, allowed: &[&str], action: &str) -> Re
 pub async fn open_document(path: String) -> Result<DocumentOpenResult, AppError> {
     validate_document_extension(&path, &OPEN_EXTENSIONS, "打开")?;
     let path_for_io = path.clone();
-    let (content, layout, last_modified_ms) = tauri::async_runtime::spawn_blocking(move || {
-        let (content, layout) = read_text_with_layout(Path::new(&path_for_io))?;
-        let last_modified_ms = read_modified_time_ms(Path::new(&path_for_io))?;
-        // 兜底清理：同目录下 solo 崩溃残留的 .tmp 文件（静默，不阻塞）
-        cleanup_stale_tmp_files(Path::new(&path_for_io));
-        Ok::<_, AppError>((content, layout, last_modified_ms))
-    })
+    let (content, layout, content_hash, last_modified_ms) =
+        tauri::async_runtime::spawn_blocking(move || {
+            let (content, layout, content_hash) =
+                read_document_with_hash(Path::new(&path_for_io))?;
+            let last_modified_ms = read_modified_time_ms(Path::new(&path_for_io))?;
+            // 兜底清理：同目录下 solo 崩溃残留的 .tmp 文件（静默，不阻塞）
+            cleanup_stale_tmp_files(Path::new(&path_for_io));
+            Ok::<_, AppError>((content, layout, content_hash, last_modified_ms))
+        })
     .await
     .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))??;
 
@@ -240,6 +256,7 @@ pub async fn open_document(path: String) -> Result<DocumentOpenResult, AppError>
         path,
         content,
         last_modified_ms,
+        content_hash,
         layout,
     })
 }
@@ -383,54 +400,144 @@ fn collect_markdown_into(
     }
 }
 
+fn normalized_absolute_path(path: &Path) -> Result<PathBuf, AppError> {
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(path)
+    };
+    let mut normalized = PathBuf::new();
+    for component in absolute.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            _ => normalized.push(component.as_os_str()),
+        }
+    }
+    Ok(normalized)
+}
+
+fn document_lock_path(lock_root: &Path, path: &Path) -> Result<PathBuf, AppError> {
+    let identity = match path.canonicalize() {
+        Ok(path) => path,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            normalized_absolute_path(path)?
+        }
+        Err(error) => return Err(error.into()),
+    };
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    let identity = identity.to_string_lossy().to_lowercase();
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    let identity = identity.to_string_lossy().into_owned();
+
+    Ok(lock_root.join(format!("{}.lock", content_hash(identity.as_bytes()))))
+}
+
+fn acquire_document_lock(lock_root: &Path, path: &Path) -> Result<fs::File, AppError> {
+    fs::create_dir_all(lock_root)?;
+    let lock_path = document_lock_path(lock_root, path)?;
+    let lock = fs::OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(lock_path)?;
+    lock.lock_exclusive()?;
+    Ok(lock)
+}
+
+fn validate_content_hash(hash: &str) -> Result<(), AppError> {
+    if hash.len() == CONTENT_HASH_HEX_LEN
+        && hash
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        Ok(())
+    } else {
+        Err(AppError::validation("内容哈希格式无效"))
+    }
+}
+
+fn save_document_locked(
+    path: &Path,
+    content: &str,
+    expected_content_hash: Option<&str>,
+    force: bool,
+    layout: Option<&DocumentLayout>,
+    lock_root: &Path,
+) -> Result<DocumentSaveResult, AppError> {
+    if let Some(expected) = expected_content_hash {
+        validate_content_hash(expected)?;
+    }
+
+    let _lock = acquire_document_lock(lock_root, path)?;
+
+    match (expected_content_hash, force) {
+        (Some(expected), _) => {
+            let current = match fs::read(path) {
+                Ok(bytes) => bytes,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    return Err(AppError::conflict(
+                        "文件已被移动或删除，不会在旧路径重新创建；请重新加载或另存为",
+                    ));
+                }
+                Err(error) => return Err(error.into()),
+            };
+            if !force && content_hash(&current) != expected {
+                return Err(AppError::conflict(
+                    "文件已被外部修改，请重新加载或选择强制覆盖",
+                ));
+            }
+        }
+        (None, false) => match fs::symlink_metadata(path) {
+            Ok(_) => {
+                return Err(AppError::conflict("目标文件已存在，未覆盖现有内容"));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        },
+        (None, true) => {}
+    }
+
+    let bytes = encode_with_layout(content, layout);
+    atomic_write(path, &bytes)?;
+    Ok(DocumentSaveResult {
+        path: path.to_string_lossy().into_owned(),
+        last_modified_ms: read_modified_time_ms(path)?,
+        content_hash: content_hash(&bytes),
+    })
+}
+
 #[tauri::command]
 pub async fn save_document(
+    app: AppHandle,
     path: String,
     content: String,
-    expected_last_modified_ms: Option<u64>,
+    expected_content_hash: Option<String>,
     force: bool,
     layout: Option<DocumentLayout>,
 ) -> Result<DocumentSaveResult, AppError> {
     validate_document_extension(&path, &WRITE_EXTENSIONS, "保存")?;
-    // 冲突检查也涉及 metadata IO，一并放进 spawn_blocking
+    let lock_root = app
+        .path()
+        .app_local_data_dir()?
+        .join(DOCUMENT_LOCK_DIR);
     let path_for_io = path.clone();
-    let last_modified_ms = tauri::async_runtime::spawn_blocking(move || {
-        let path_ref = Path::new(&path_for_io);
-        if !force {
-            if let Some(expected) = expected_last_modified_ms {
-                match read_modified_time_ms(path_ref) {
-                    Ok(current) if current != expected => {
-                        return Err(AppError::conflict(
-                            "文件已被外部修改，请重新加载或选择强制覆盖",
-                        ));
-                    }
-                    Ok(_) => {}
-                    Err(e) => {
-                        // 文件不存在 → 返回 conflict 让前端给"强制覆盖"入口（force 时 atomic_write 重建文件）
-                        // 其他 IO 错误（权限等）→ 原样返回
-                        if !path_ref.exists() {
-                            return Err(AppError::conflict(
-                                "文件已被移动或删除，是否在此位置重新创建？",
-                            ));
-                        }
-                        return Err(e);
-                    }
-                }
-            }
-        }
-
-        // W1：按原文件的排版习惯落盘（BOM / 换行）。layout 缺省时保持历史行为。
-        let bytes = encode_with_layout(&content, layout.as_ref());
-        atomic_write(path_ref, &bytes)?;
-        read_modified_time_ms(path_ref)
+    let mut result = tauri::async_runtime::spawn_blocking(move || {
+        save_document_locked(
+            Path::new(&path_for_io),
+            &content,
+            expected_content_hash.as_deref(),
+            force,
+            layout.as_ref(),
+            &lock_root,
+        )
     })
     .await
-    .map_err(|e| AppError::Native(format!("任务调度失败: {}", e)))??;
-
-    Ok(DocumentSaveResult {
-        path,
-        last_modified_ms,
-    })
+    .map_err(|error| AppError::Native(format!("任务调度失败: {error}")))??;
+    result.path = path;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -1268,20 +1375,25 @@ fn unique_asset_target(assets_dir: &Path, filename: &str) -> (PathBuf, String) {
 #[cfg(test)]
 mod tests {
     use super::{
-        atomic_write, collect_markdown_files, encode_with_layout, import_document_image, layout_of,
-        list_markdown_files, open_document, read_text_with_layout, rename_file, rename_roots,
-        rename_scan_dirs, resolve_image_src, rewrite_wikilink_targets, save_document,
+        acquire_document_lock, atomic_write, collect_markdown_files, content_hash,
+        document_lock_path, encode_with_layout, import_document_image, layout_of,
+        list_markdown_files, open_document, read_document_with_hash, rename_file, rename_roots,
+        rename_scan_dirs, resolve_image_src, rewrite_wikilink_targets, save_document_locked,
         scan_and_rewrite_wikilinks, sync_wikilinks_on_rename, validate_document_extension,
         validate_image_asset_path, wikilink_target_forms, ScanBudget, OPEN_EXTENSIONS,
         WRITE_EXTENSIONS,
     };
     use crate::error::AppError;
-    use crate::models::{DocumentLayout, LineEnding, TextEncoding};
+    use crate::models::{DocumentLayout, DocumentSaveResult, LineEnding, TextEncoding};
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::thread;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    fn read_text_with_layout(path: &Path) -> Result<(String, DocumentLayout), AppError> {
+        read_document_with_hash(path).map(|(text, layout, _)| (text, layout))
+    }
 
     static TEST_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -1294,6 +1406,27 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("solo-document-test-{}-{}", millis, seq));
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    async fn save_document_for_test(
+        path: String,
+        content: String,
+        expected_content_hash: Option<String>,
+        force: bool,
+        layout: Option<DocumentLayout>,
+    ) -> Result<DocumentSaveResult, AppError> {
+        validate_document_extension(&path, &WRITE_EXTENSIONS, "保存")?;
+        let lock_dir = test_dir();
+        let result = save_document_locked(
+            Path::new(&path),
+            &content,
+            expected_content_hash.as_deref(),
+            force,
+            layout.as_ref(),
+            &lock_dir,
+        );
+        let _ = fs::remove_dir_all(lock_dir);
+        result
     }
 
     // ── 读入侧：解码 + 排版习惯（阶段 0 钉子 → W1 起读入即记录 layout）──────
@@ -1441,11 +1574,12 @@ mod tests {
         atomic_write(&path, b"# a\r\n\r\nb\r\n").unwrap();
 
         let (_, layout) = read_text_with_layout(&path).unwrap();
+        let expected_hash = content_hash(&fs::read(&path).unwrap());
         // 编辑器产物恒为 LF
-        save_document(
+        save_document_for_test(
             path.to_string_lossy().to_string(),
             "# a\n\nb 改了一个字\n".to_string(),
-            None,
+            Some(expected_hash),
             false,
             Some(layout),
         )
@@ -1466,10 +1600,11 @@ mod tests {
         atomic_write(&path, &bytes).unwrap();
 
         let (_, layout) = read_text_with_layout(&path).unwrap();
-        save_document(
+        let expected_hash = content_hash(&fs::read(&path).unwrap());
+        save_document_for_test(
             path.to_string_lossy().to_string(),
             "# a\nb\n".to_string(),
-            None,
+            Some(expected_hash),
             false,
             Some(layout),
         )
@@ -1512,10 +1647,10 @@ mod tests {
         let edited = "# 标题\n\n正文改了一个字\n";
 
         // ④ 保存
-        save_document(
+        save_document_for_test(
             path.to_string_lossy().to_string(),
             edited.to_string(),
-            None,
+            Some(opened.content_hash.clone()),
             false,
             Some(layout),
         )
@@ -1548,14 +1683,15 @@ mod tests {
 
     /// 端到端：不带 layout（新建文档等）→ 历史行为不变，仍是 UTF-8 无 BOM、LF。
     #[tokio::test]
-    async fn save_document_without_layout_keeps_legacy_behavior() {        let dir = test_dir();
+    async fn save_document_without_layout_keeps_legacy_behavior() {
+        let dir = test_dir();
         let path = dir.join("new.md");
         atomic_write(&path, b"").unwrap();
 
-        save_document(
+        save_document_for_test(
             path.to_string_lossy().to_string(),
             "# new\n".to_string(),
-            None,
+            Some(content_hash(b"")),
             false,
             None,
         )
@@ -1564,6 +1700,373 @@ mod tests {
 
         assert_eq!(fs::read(&path).unwrap(), b"# new\n");
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn open_document_reports_sha256_of_original_bytes() {
+        let fixtures: &[(&[u8], &str)] = &[
+            (b"# demo", "1a8a2cb5db6432f94ba888a7e2d2c2c025073fedcd24813d5f68cff83ae0c326"),
+            (
+                b"\xEF\xBB\xBF# demo\r\n",
+                "bc9d1ed8b31646130a6345ce60f4a7d05a4098d79865183d2b55711b78f25b88",
+            ),
+            (
+                b"\xFF\xFE#\x00 \x00d\x00e\x00m\x00o\x00\r\x00\n\x00",
+                "5bb1a48cd47539302515f9219d87162893d779c952906abf485e5101018d2331",
+            ),
+        ];
+
+        for (bytes, expected_hash) in fixtures {
+            let dir = test_dir();
+            let path = dir.join("demo.md");
+            atomic_write(&path, bytes).unwrap();
+
+            let opened = open_document(path.to_string_lossy().to_string())
+                .await
+                .unwrap();
+
+            assert_eq!(opened.content_hash, *expected_hash);
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[tokio::test]
+    async fn ordinary_save_compares_raw_bytes_even_when_mtime_is_unchanged() {
+        let fixtures: &[(&[u8], &[u8])] = &[
+            (b"first", b"other"),
+            (b"\xEF\xBB\xBFsame", b"same"),
+            (b"same\r\n", b"same\n"),
+            (
+                b"\xFF\xFEs\x00a\x00m\x00e\x00",
+                b"same",
+            ),
+        ];
+
+        for (baseline, external) in fixtures {
+            let dir = test_dir();
+            let path = dir.join("demo.md");
+            let lock_root = dir.join("locks");
+            atomic_write(&path, baseline).unwrap();
+            let opened = open_document(path.to_string_lossy().to_string())
+                .await
+                .unwrap();
+            let modified = fs::metadata(&path).unwrap().modified().unwrap();
+
+            atomic_write(&path, external).unwrap();
+            fs::File::options()
+                .write(true)
+                .open(&path)
+                .unwrap()
+                .set_times(fs::FileTimes::new().set_modified(modified))
+                .unwrap();
+            assert_eq!(
+                crate::document::read_modified_time_ms(&path).unwrap(),
+                opened.last_modified_ms,
+            );
+
+            let error = save_document_locked(
+                &path,
+                "edited",
+                Some(&opened.content_hash),
+                false,
+                None,
+                &lock_root,
+            )
+            .unwrap_err();
+
+            assert!(matches!(error, AppError::Conflict(_)), "{error:?}");
+            assert_eq!(fs::read(&path).unwrap(), *external);
+            let _ = fs::remove_dir_all(dir);
+        }
+    }
+
+    #[test]
+    fn concurrent_ordinary_saves_with_different_outputs_allow_exactly_one() {
+        let dir = test_dir();
+        let path = dir.join("race.md");
+        let lock_root = dir.join("locks");
+        let baseline = b"baseline";
+        let expected_hash = content_hash(baseline);
+
+        for _ in 0..12 {
+            atomic_write(&path, baseline).unwrap();
+            let barrier = std::sync::Barrier::new(8);
+            let successes = std::thread::scope(|scope| {
+                let handles: Vec<_> = (0..8)
+                    .map(|index| {
+                        let path = path.clone();
+                        let lock_root = lock_root.clone();
+                        let expected_hash = expected_hash.clone();
+                        let barrier = &barrier;
+                        scope.spawn(move || {
+                            barrier.wait();
+                            save_document_locked(
+                                &path,
+                                &format!("writer-{index}"),
+                                Some(&expected_hash),
+                                false,
+                                None,
+                                &lock_root,
+                            )
+                        })
+                    })
+                    .collect();
+                handles
+                    .into_iter()
+                    .filter_map(|handle| handle.join().unwrap().ok())
+                    .count()
+            });
+
+            assert_eq!(successes, 1, "同一磁盘基线只能被一个并发保存覆盖");
+            let written = fs::read_to_string(&path).unwrap();
+            assert!(written.starts_with("writer-"));
+            assert_ne!(written, "baseline");
+        }
+
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn concurrent_identical_saves_are_idempotent() {
+        let dir = test_dir();
+        let path = dir.join("same.md");
+        let lock_root = dir.join("locks");
+        atomic_write(&path, b"same").unwrap();
+        let expected_hash = content_hash(b"same");
+        let barrier = std::sync::Barrier::new(2);
+
+        let results = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..2)
+                .map(|_| {
+                    let path = path.clone();
+                    let lock_root = lock_root.clone();
+                    let expected_hash = expected_hash.clone();
+                    let barrier = &barrier;
+                    scope.spawn(move || {
+                        barrier.wait();
+                        save_document_locked(
+                            &path,
+                            "same",
+                            Some(&expected_hash),
+                            false,
+                            None,
+                            &lock_root,
+                        )
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .map(|handle| handle.join().unwrap())
+                .collect::<Vec<_>>()
+        });
+
+        assert!(results.iter().all(Result::is_ok), "{results:?}");
+        assert_eq!(fs::read(&path).unwrap(), b"same");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn force_overwrites_existing_target_but_never_recreates_missing_target() {
+        let dir = test_dir();
+        let path = dir.join("force.md");
+        let lock_root = dir.join("locks");
+        atomic_write(&path, b"external").unwrap();
+        let expected_hash = content_hash(b"baseline");
+
+        let saved = save_document_locked(
+            &path,
+            "forced",
+            Some(&expected_hash),
+            true,
+            None,
+            &lock_root,
+        )
+        .unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"forced");
+        assert_eq!(saved.content_hash, content_hash(b"forced"));
+
+        fs::remove_file(&path).unwrap();
+        let error = save_document_locked(
+            &path,
+            "forced-again",
+            Some(&expected_hash),
+            true,
+            None,
+            &lock_root,
+        )
+        .unwrap_err();
+        assert!(matches!(error, AppError::Conflict(_)), "{error:?}");
+        assert!(!path.exists());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn ordinary_save_without_expected_hash_fails_closed() {
+        let dir = test_dir();
+        let path = dir.join("demo.md");
+        let lock_root = dir.join("locks");
+        atomic_write(&path, b"baseline").unwrap();
+
+        let error = save_document_locked(
+            &path,
+            "overwrite",
+            None,
+            false,
+            None,
+            &lock_root,
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, AppError::Conflict(_)), "{error:?}");
+        assert_eq!(fs::read(&path).unwrap(), b"baseline");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn create_only_save_never_overwrites_a_racing_creator() {
+        let dir = test_dir();
+        let path = dir.join("new.md");
+        let lock_root = dir.join("locks");
+        let barrier = std::sync::Barrier::new(2);
+
+        let successes = std::thread::scope(|scope| {
+            let handles: Vec<_> = (0..2)
+                .map(|index| {
+                    let path = path.clone();
+                    let lock_root = lock_root.clone();
+                    let barrier = &barrier;
+                    scope.spawn(move || {
+                        barrier.wait();
+                        save_document_locked(
+                            &path,
+                            &format!("creator-{index}"),
+                            None,
+                            false,
+                            None,
+                            &lock_root,
+                        )
+                    })
+                })
+                .collect();
+            handles
+                .into_iter()
+                .filter_map(|handle| handle.join().unwrap().ok())
+                .count()
+        });
+
+        assert_eq!(successes, 1);
+        let written = fs::read_to_string(&path).unwrap();
+        assert!(written.starts_with("creator-"));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn legacy_force_save_can_still_create_and_overwrite() {
+        let dir = test_dir();
+        let path = dir.join("legacy.md");
+        let lock_root = dir.join("locks");
+
+        save_document_locked(&path, "first", None, true, None, &lock_root).unwrap();
+        save_document_locked(&path, "second", None, true, None, &lock_root).unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), b"second");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn document_lock_contends_across_processes_with_different_temp_dirs() {
+        use std::io::BufRead;
+
+        let dir = test_dir();
+        let path = dir.join("locked.md");
+        let lock_root = dir.join("locks");
+        atomic_write(&path, b"baseline").unwrap();
+        let expected_hash = content_hash(b"baseline");
+        let lock = acquire_document_lock(&lock_root, &path).unwrap();
+
+        let child_temp = dir.join("child-temp");
+        fs::create_dir_all(&child_temp).unwrap();
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .arg("--exact")
+            .arg("commands::document::tests::cross_process_lock_child")
+            .arg("--ignored")
+            .arg("--nocapture")
+            .env("SOLO_TEST_LOCK_ROOT", &lock_root)
+            .env("SOLO_TEST_TARGET", &path)
+            .env("SOLO_TEST_EXPECTED_HASH", &expected_hash)
+            .env("TMP", &child_temp)
+            .env("TEMP", &child_temp)
+            .env("TMPDIR", &child_temp)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let mut ready = String::new();
+        loop {
+            ready.clear();
+            let read = std::io::BufReader::new(child.stdout.as_mut().unwrap())
+                .read_line(&mut ready)
+                .unwrap();
+            if read == 0 || ready.trim() == "BLOCKED" {
+                break;
+            }
+        }
+        atomic_write(&path, b"external").unwrap();
+        drop(lock);
+
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success() && ready.trim() == "BLOCKED",
+            "cross-process lock child failed:\nready: {ready:?}\n{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        assert_eq!(fs::read(&path).unwrap(), b"external");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    #[ignore = "由 document_lock_contends_across_processes_with_different_temp_dirs 启动"]
+    fn cross_process_lock_child() {
+        use fs2::FileExt;
+        use std::io::Write;
+
+        let (Some(lock_root), Some(target), Ok(expected_hash)) = (
+            std::env::var_os("SOLO_TEST_LOCK_ROOT"),
+            std::env::var_os("SOLO_TEST_TARGET"),
+            std::env::var("SOLO_TEST_EXPECTED_HASH"),
+        ) else {
+            return;
+        };
+
+        std::io::stdout().flush().unwrap();
+        println!("READY");
+        std::io::stdout().flush().unwrap();
+
+        let target = PathBuf::from(target);
+        let lock_root = PathBuf::from(lock_root);
+        let lock_path = document_lock_path(&lock_root, &target).unwrap();
+        let contender = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(lock_path)
+            .unwrap();
+        assert!(contender.try_lock_exclusive().is_err());
+        println!("BLOCKED");
+        std::io::stdout().flush().unwrap();
+        drop(contender);
+
+        let result = save_document_locked(
+            &target,
+            "child",
+            Some(&expected_hash),
+            false,
+            None,
+            &lock_root,
+        );
+        assert!(matches!(result, Err(AppError::Conflict(_))), "{result:?}");
     }
 
     #[tokio::test]
@@ -1739,10 +2242,10 @@ mod tests {
         thread::sleep(Duration::from_millis(5));
         atomic_write(&path, b"second").unwrap();
 
-        let error = save_document(
+        let error = save_document_for_test(
             opened.path.clone(),
             "third".to_string(),
-            Some(opened.last_modified_ms),
+            Some(opened.content_hash.clone()),
             false,
             None, // 不关心排版习惯：走历史行为
         )
@@ -1838,7 +2341,7 @@ mod tests {
 
         // 写入白名单刻意包含 json：「导出主题模板」复用 save_document（ThemeSelector.vue）
         let json_path = dir.join("theme-template.json");
-        save_document(
+        save_document_for_test(
             json_path.to_string_lossy().to_string(),
             "{\"id\":\"demo\"}".into(),
             None,
@@ -1850,7 +2353,7 @@ mod tests {
         assert!(json_path.exists());
 
         let script_path = dir.join("startup.bat");
-        let error = save_document(
+        let error = save_document_for_test(
             script_path.to_string_lossy().to_string(),
             "@echo off".into(),
             None,
@@ -1895,11 +2398,11 @@ mod tests {
         thread::sleep(Duration::from_millis(5));
         atomic_write(&path, b"external").unwrap();
 
-        // force=true should succeed despite mtime mismatch
-        let result = save_document(
+        // force=true should succeed despite a content-hash mismatch
+        let result = save_document_for_test(
             opened.path.clone(),
             "forced content".into(),
-            Some(opened.last_modified_ms),
+            Some(opened.content_hash.clone()),
             true,
             None,
         )
@@ -1915,7 +2418,7 @@ mod tests {
     async fn save_document_creates_parent_directory() {
         let dir = test_dir();
         let nested = dir.join("sub").join("new.md");
-        let result = save_document(
+        let result = save_document_for_test(
             nested.to_string_lossy().to_string(),
             "new file".into(),
             None,

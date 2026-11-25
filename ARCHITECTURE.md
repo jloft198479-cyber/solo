@@ -279,8 +279,8 @@ Vue 前端 (src/)   App.vue 协调层 ──委托──▶ 13 个 composables +
 
 | 命令 | 文件 | 职责 |
 |---|---|---|
-| `open_document` | document.rs | 读文件内容 + 返回 mtime + **排版习惯** `layout`（编码族 / 主导换行 / 是否混合；编辑器内部恒为 `\n` 无 BOM，靠这条元数据在保存时还原，见 docs/PROPOSAL-file-fidelity.md §2.1） |
-| `save_document` | document.rs | **原子写** + mtime 冲突检测（见 docs/sensitive-areas.md §11.2）；按传入 `layout` 还原 BOM / 换行，缺省 = UTF-8 无 BOM + LF（新建文档走这条） |
+| `open_document` | document.rs | 读文件内容 + 返回 mtime + **原始字节 SHA-256** `contentHash` + **排版习惯** `layout`（编码族 / 主导换行 / 是否混合；编辑器内部恒为 `\n` 无 BOM，靠这条元数据在保存时还原，见 docs/PROPOSAL-file-fidelity.md §2.1） |
+| `save_document` | document.rs | **跨进程独占锁内比较 `expectedContentHash` 后原子写**（见 docs/sensitive-areas.md §11.2）；返回实际写入字节的 `contentHash`，按传入 `layout` 还原 BOM / 换行，缺省 = UTF-8 无 BOM + LF（新建文档走这条） |
 | `get_file_mtime` | document.rs | 读文件 mtime（互链跳转前的存在性检查） |
 | `reveal_document_in_folder` | document.rs | 在系统文件管理器中定位当前文档（存在性检查 → `opener.reveal_item_in_dir`；未保存文档由前端置灰） |
 | `list_markdown_files` | document.rs | 列当前文档**目录树**内的 .md 相对路径（互链 `[[` 补全候选；深度 `WIKILINK_SCAN_DEPTH`、上限 500 且凑满即停、浅层优先） |
@@ -429,7 +429,7 @@ app.mount('#app');
 ### 7.1 `stores/file.ts` —— 文档状态（短生命周期）
 
 ```
-currentFile: { path, content, isDirty, lastModifiedTime, displayName, originalBaseName }
+currentFile: { path, content, isDirty, lastModifiedTime, contentHash, layout, displayName, originalBaseName }
 isLoading: boolean                  // 读盘/解析期间的状态栏加载条
 reloadToken: number                 // 仅 setFile() 递增，编辑器据此换文档（见下）
 pathFollowToken: number             // 仅 renamePath() 递增：同一文档换路径，只更新派生物，不回灌内容
@@ -441,7 +441,7 @@ pathFollowToken: number             // 仅 renamePath() 递增：同一文档换
   - 由此同时根治**漏标脏**（拖入图片等非键盘交互，过去 `markUserEdit` 收不到）与**误标脏**（Mermaid 等后台事务触发序列化但内容未变）。
   - 不再区分"程序性写回 vs 用户编辑"——通过语义比对判定，消除 `hasUserEdit` 标志的歧义。
 - `setDisplayName(name)` —— 置脏（标题被改）。
-- `markSaved(lastModifiedTime = null, content?)` —— 清脏，`displayName` 重置回 `originalBaseName`；传 `content` 时**基线同步为实际落盘内容**（基线的唯一安全更新时机：只在保存成功后，否则失败/冲突取消会把未保存编辑洗白）。
+- `markSaved(lastModifiedTime = null, content?, contentHash?)` —— 清脏，`displayName` 重置回 `originalBaseName`；传 `content` 时**基线同步为实际落盘内容**，传 `contentHash` 时同步为本次写入字节的 SHA-256（二者唯一安全更新时机：只在保存成功后，否则失败/冲突取消会把未保存编辑洗白）。
 - `renamePath(newPath)` —— 只换路径、保留内存编辑，递增 `pathFollowToken`；`displayName` 与 `originalBaseName` 重置（实际文件重命名在保存时经 save-as 流程完成，见 `useDocumentSession.handleRename`）。
 - `reset()` —— 回到空文件状态。
 
@@ -489,7 +489,7 @@ pathFollowToken: number             // 仅 renamePath() 递增：同一文档换
         500ms 防抖：serializeMarkdown() → fileStore.syncEditedContent()（语义比对置脏，见 §7.1）
     → emitImmediateStats 手动补发（切换文件等场景）
 
-保存: fileStore.markSaved(result.lastModifiedMs)
+保存: fileStore.markSaved(result.lastModifiedMs, content, result.contentHash)
     → 自动保存：递归 setTimeout（保存完才排下一次，避免并发/跳过），immediate:true，下限 ≥5s
     → 关窗前 useDocumentSession.evaluateDirtyFromEditor() 强制用编辑器实时内容评估脏态（绕开 500ms 序列化防抖，避免编辑后 <500ms 关窗误判已保存）
 ```

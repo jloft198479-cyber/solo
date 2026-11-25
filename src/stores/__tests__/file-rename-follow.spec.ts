@@ -27,13 +27,14 @@ describe('renamePath：路径跟随语义（P1-4）', () => {
 
   it('只换路径：内容与脏态原样保留，不动 reloadToken，递增 pathFollowToken', () => {
     const store = useFileStore();
-    store.setFile('旧基线\n', '/old/a.md', 111);
+    store.setFile('旧基线\n', '/old/a.md', 111, null, 'disk-hash');
     store.syncEditedContent('编辑中的内容\n');
     const reloadBefore = store.reloadToken;
 
     store.renamePath('/old/b.md');
 
     expect(store.currentFile.path).toBe('/old/b.md');
+    expect(store.currentFile.contentHash, '改名不改变磁盘内容哈希').toBe('disk-hash');
     expect(store.currentFile.content, '未落盘的编辑必须原样保留').toBe('编辑中的内容\n');
     expect(store.currentFile.isDirty).toBe(true);
     expect(store.reloadToken, '不触发「磁盘载入」型重载').toBe(reloadBefore);
@@ -46,7 +47,7 @@ describe('renamePath：路径跟随语义（P1-4）', () => {
       encoding: 'utf8',
       ending: 'lf',
       mixed: false,
-    });
+    }, 'old-hash');
     store.syncEditedContent('v1＋保存期间输入');
     const reloadBefore = store.reloadToken;
     const followBefore = store.pathFollowToken;
@@ -55,12 +56,13 @@ describe('renamePath：路径跟随语义（P1-4）', () => {
       encoding: 'utf8Bom',
       ending: 'crlf',
       mixed: false,
-    });
+    }, 'saved-hash');
 
     expect(store.currentFile.path).toBe('/old/copy.md');
     expect(store.currentFile.content).toBe('v1＋保存期间输入');
     expect(store.currentFile.isDirty).toBe(true);
     expect(store.currentFile.lastModifiedTime).toBe(2000);
+    expect(store.currentFile.contentHash).toBe('saved-hash');
     expect(store.currentFile.layout).toEqual({
       encoding: 'utf8Bom',
       ending: 'crlf',

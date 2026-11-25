@@ -9,6 +9,8 @@ export interface FileState {
   content: string;
   isDirty: boolean;
   lastModifiedTime: number | null;
+  /** 当前磁盘版本的原始字节 SHA-256；普通保存据此拒绝覆盖外部修改。 */
+  contentHash: string | null;
   /**
    * 磁盘原文的排版习惯（BOM / 换行），打开时由 Rust 报出，保存时原样传回。
    * `null` = 不认识（新建 / 另存为到新文件）→ 保存走历史行为：UTF-8 无 BOM、LF。
@@ -47,6 +49,7 @@ function createEmptyFileState(): FileState {
     content: '',
     isDirty: false,
     lastModifiedTime: null,
+    contentHash: null,
     displayName: DEFAULT_DISPLAY_NAME,
     originalBaseName: DEFAULT_DISPLAY_NAME,
     layout: null,
@@ -95,6 +98,7 @@ export const useFileStore = defineStore('file', {
       path: string | null,
       lastModifiedTime: number | null = null,
       layout: DocumentLayout | null = null,
+      contentHash: string | null = null,
     ) {
       const baseName = path
         ? (path.split(/[/\\]/).pop() || DEFAULT_DISPLAY_NAME).replace(/\.(md|markdown|txt)$/i, '')
@@ -104,6 +108,7 @@ export const useFileStore = defineStore('file', {
         content,
         isDirty: false,
         lastModifiedTime,
+        contentHash,
         displayName: baseName,
         originalBaseName: baseName,
         layout,
@@ -137,10 +142,12 @@ export const useFileStore = defineStore('file', {
       newPath: string,
       lastModifiedTime: number | null,
       layout: DocumentLayout | null,
+      contentHash: string | null = null,
     ) {
       this.renamePath(newPath);
       this.currentFile.lastModifiedTime = lastModifiedTime;
       this.currentFile.layout = layout;
+      this.currentFile.contentHash = contentHash;
     },
 
     /**
@@ -158,7 +165,11 @@ export const useFileStore = defineStore('file', {
      * 成功后更新（失败/冲突取消时若提前更新，后续 syncEditedContent 语义
      * 比对会因「内容未变」把脏标洗白，未保存编辑静默丢失）。
      */
-    markSaved(lastModifiedTime: number | null = null, content?: string) {
+    markSaved(
+      lastModifiedTime: number | null = null,
+      content?: string,
+      contentHash?: string | null,
+    ) {
       if (content !== undefined) {
         this.currentFile.content = content;
       }
@@ -166,6 +177,9 @@ export const useFileStore = defineStore('file', {
       this.currentFile.displayName = this.currentFile.originalBaseName;
       if (lastModifiedTime !== null) {
         this.currentFile.lastModifiedTime = lastModifiedTime;
+      }
+      if (contentHash !== undefined) {
+        this.currentFile.contentHash = contentHash;
       }
     },
   },

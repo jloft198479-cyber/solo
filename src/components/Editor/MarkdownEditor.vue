@@ -247,9 +247,8 @@ async function handleWikilinkNavigate(target: string) {
     const initialContent = `---\ntitle: "${title.replace(/"/g, '\\"')}"\n---\n`;
 
     try {
-      // 先以 expected=0 非强制写入：文件若在检查与写入之间被创建，Rust 侧 mtime
-      // 对不上会拒写（conflict）——保证任何竞态下都不覆盖既有文件。
-      await saveDocument(resolved, initialContent, 0, false);
+      // 只创建：目标若在检查与写入之间出现，Rust 会在锁内拒绝覆盖。
+      await saveDocument(resolved, initialContent, null, false);
     } catch (err) {
       const appError = normalizeTauriError(err);
       if (appError.code !== 'document_conflict') {
@@ -265,7 +264,7 @@ async function handleWikilinkNavigate(target: string) {
         .catch(() => false));
       if (stillMissing) {
         try {
-          await saveDocument(resolved, initialContent, null, true);
+          await saveDocument(resolved, initialContent, null, false);
         } catch (err2) {
           const e2 = normalizeTauriError(err2);
           await message(`创建文档失败：${withErrorHint(e2.message)}`, {

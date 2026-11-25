@@ -57,9 +57,10 @@ updates: [src/stores/file.ts, src-tauri/src/commands/document.rs, src-tauri/src/
 
 ### 11.2 保存冲突检测 + 排版还原在 Rust 侧
 
-`save_document(path, content, expected_last_modified_ms, force, layout)`：
-- 非 force 时对比传入的 expected mtime 与磁盘当前 mtime，不符 → 返回 `AppError::Conflict`（code `document_conflict`）。
-- 前端 `useDocumentSession` 收到 conflict → 弹"强制覆盖"确认 → 递归调用（先释放 `isSaving` 锁防死锁）。
+`save_document(path, content, expected_content_hash, force, layout)`：
+- 所有写盘先在 `app_local_data_dir()/document-locks` 取得按目标路径派生的跨进程独占锁，再读当前原始字节、比较 SHA-256、原子写；`force` 只跳过哈希相等比较，不豁免完整期望哈希，也不允许在已删除的旧路径重建。
+- 普通保存必须传完整 `expected_content_hash`；`None + force=false` 是只创建语义（目标已存在即冲突），`None + force=true` 保留给另存为、改名保存和主题导出。
+- 前端 `useDocumentSession` 收到外部修改冲突 → 弹“强制覆盖”确认 → 用原哈希重试；目标已移动/删除时只报错，不提供“重新创建”。
 - **`layout` = 磁盘原文的排版习惯**（编码族 / 主导换行 / 是否混合）：由 `open_document` 报出，前端存 `FileState.layout`，保存时原样传回。`None` = 新建文档或不理解布局的调用方 → 历史行为（UTF-8 无 BOM + LF）。**第三条边界**：另存为 / 改名保存**继承**当前 layout（同内容换路径，不改字节风格）；同路径重载**刷新区**（外部工具可能改了换行）。见 [PROPOSAL-file-fidelity.md](./PROPOSAL-file-fidelity.md) §2.1。
 - **UTF-16 原文不回来**：保存按 UTF-8 无 BOM 写，属**有意归一**——别顺手"补"成 UTF-8 BOM，那会让 UTF-16 文件静默换族。W3 承诺清单须写明。
 - ⚠️ **"不加编辑就不写盘"不靠这里**：那条靠 `MarkdownEditor.vue` 载入时把基线设成**序列化产物**（非磁盘原文）+ `markSynced()`。修 BOM/换行时别去动那两行，动了 W1 静默失效（PROPOSAL §1 F7）。

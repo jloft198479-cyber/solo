@@ -15,6 +15,7 @@ describe('useFileStore', () => {
       expect(store.currentFile.content).toBe('');
       expect(store.currentFile.isDirty).toBe(false);
       expect(store.currentFile.lastModifiedTime).toBeNull();
+      expect(store.currentFile.contentHash).toBeNull();
       expect(store.currentFile.displayName).toBe('未命名');
       expect(store.isLoading).toBe(false);
     });
@@ -79,6 +80,14 @@ describe('useFileStore', () => {
   });
 
   describe('setFile', () => {
+    it('setFile 同时记录磁盘原始字节哈希', () => {
+      const store = useFileStore();
+
+      store.setFile('正文', '/path/file.md', 1000, null, 'open-hash');
+
+      expect(store.currentFile.contentHash).toBe('open-hash');
+    });
+
     it('从路径派生 displayName（去除 .md 后缀）', () => {
       const store = useFileStore();
 
@@ -227,6 +236,16 @@ describe('useFileStore', () => {
 
       expect(store.currentFile.lastModifiedTime).toBe(2000);
       expect(store.currentFile.isDirty).toBe(false);
+    });
+
+    it('markSaved 同步实际写入字节的哈希', () => {
+      const store = useFileStore();
+      store.setFile('旧内容', '/path/file.md', 1000, null, 'old-hash');
+
+      store.markSaved(2000, '新内容', 'new-hash');
+
+      expect(store.currentFile.contentHash).toBe('new-hash');
+      expect(store.currentFile.content).toBe('新内容');
     });
 
     it('不传 lastModifiedTime 时保留原值', () => {
